@@ -14,7 +14,7 @@ import (
 
 type Service struct {
 	client  *etcd.Client
-	proxy   *vulcan.ReverseProxy
+	proxy   *vulcan.Proxy
 	options Options
 }
 
@@ -40,22 +40,18 @@ func (s *Service) Start() error {
 	return s.startProxy()
 }
 
-func (s *Service) newProxy() (*vulcan.ReverseProxy, error) {
+func (s *Service) newProxy() (*vulcan.Proxy, error) {
 	rr, err := roundrobin.NewRoundRobin()
 	if err != nil {
 		return nil, err
 	}
-	location, err := location.NewHttpLocation(
-		location.HttpLocationSettings{LoadBalancer: rr})
+	location, err := httploc.NewLocation(rr)
 	if err != nil {
 		return nil, err
 	}
-	proxySettings := vulcan.ProxySettings{
-		Router: &route.MatchAll{
-			Location: location,
-		},
-	}
-	return vulcan.NewReverseProxy(proxySettings)
+	return vulcan.NewProxy(&route.ConstRouter{
+		Location: location,
+	})
 }
 
 func (s *Service) startProxy() error {
