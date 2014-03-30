@@ -19,4 +19,4 @@ sloccount:
 
 run: clean
 	go install github.com/mailgun/vulcand
-	vulcand -etcd localhost
+	vulcand -etcd=http://127.0.0.1:4001 -etcdKey=/vulcan

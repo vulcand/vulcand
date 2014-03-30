@@ -3,15 +3,17 @@ package service
 import (
 	"flag"
 	"fmt"
+	"github.com/coreos/go-etcd/etcd"
 )
 
 type Options struct {
-	PidPath   string
-	Port      int
-	Interface string
-	CertPath  string
-	EtcdNodes listOptions
-	EtcdPath  string
+	PidPath         string
+	Port            int
+	Interface       string
+	CertPath        string
+	EtcdNodes       listOptions
+	EtcdKey         string
+	EtcdConsistency string
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -28,7 +30,8 @@ func (o *listOptions) Set(value string) error {
 
 func ParseCommandLine() (options Options, err error) {
 	flag.Var(&options.EtcdNodes, "etcd", "Etcd discovery service API endpoints")
-	flag.StringVar(&options.EtcdPath, "etcdPath", "vulcand", "Etcd path for storing configuration")
+	flag.StringVar(&options.EtcdKey, "etcdKey", "vulcand", "Etcd key for storing configuration")
+	flag.StringVar(&options.EtcdConsistency, "etcdConsistency", etcd.STRONG_CONSISTENCY, "Etcd consistency")
 	flag.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
 	flag.IntVar(&options.Port, "port", 8181, "Port to listen on")
 	flag.StringVar(&options.Interface, "interface", "", "Interface to bind to")
