@@ -7,6 +7,8 @@ import (
 )
 
 type Options struct {
+	ApiPort         int
+	ApiInterface    string
 	PidPath         string
 	Port            int
 	Interface       string
@@ -34,7 +36,9 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.EtcdConsistency, "etcdConsistency", etcd.STRONG_CONSISTENCY, "Etcd consistency")
 	flag.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
 	flag.IntVar(&options.Port, "port", 8181, "Port to listen on")
+	flag.IntVar(&options.ApiPort, "apiPort", 8182, "Port to provide api on")
 	flag.StringVar(&options.Interface, "interface", "", "Interface to bind to")
+	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
 	flag.StringVar(&options.CertPath, "certPath", "", "Certificate to use (enables TLS)")
 	flag.Parse()
 	return options, nil
