@@ -20,7 +20,7 @@ func NewClient(addr string) *Client {
 	return &Client{Addr: addr}
 }
 
-func (c *Client) GetHosts() ([]Host, error) {
+func (c *Client) GetHosts() ([]*Host, error) {
 	hosts := HostsResponse{}
 	err := c.Get(c.endpoint("hosts"), &hosts)
 	return hosts.Hosts, err
@@ -62,7 +62,7 @@ func (c *Client) DeleteUpstream(id string) error {
 	return c.Delete(c.endpoint("upstream", id), &response)
 }
 
-func (c *Client) GetUpstreams() ([]Upstream, error) {
+func (c *Client) GetUpstreams() ([]*Upstream, error) {
 	upstreams := UpstreamsResponse{}
 	err := c.Get(c.endpoint("upstreams"), &upstreams)
 	return upstreams.Upstreams, err
@@ -115,7 +115,6 @@ func (c *Client) RoundTripJson(fn RoundTripFn, in interface{}) error {
 	if response.StatusCode != 200 {
 		return fmt.Errorf("Error: %s", responseBody)
 	}
-	fmt.Printf("Response: %s\n", responseBody)
 	if json.Unmarshal(responseBody, in); err != nil {
 		return fmt.Errorf("Failed to decode response '%s', error: %", responseBody, err)
 	}
@@ -127,11 +126,11 @@ func (c *Client) endpoint(params ...string) string {
 }
 
 type HostsResponse struct {
-	Hosts []Host
+	Hosts []*Host
 }
 
 type UpstreamsResponse struct {
-	Upstreams []Upstream
+	Upstreams []*Upstream
 }
 
 type StatusResponse struct {
