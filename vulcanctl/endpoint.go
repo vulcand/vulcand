@@ -27,7 +27,7 @@ func NewEndpointCommand() cli.Command {
 }
 
 func addEndpointAction(c *cli.Context) {
-	err := client(c).AddEndpoint(c.Args().Get(0), c.Args().Get(1))
+	err := client(c).AddEndpoint(c.Args().Get(0), c.Args().Get(1), c.Args().Get(2))
 	if err != nil {
 		printError(err)
 	} else {

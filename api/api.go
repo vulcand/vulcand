@@ -121,24 +121,26 @@ func (c *ProxyController) AddEndpoint(w http.ResponseWriter, r *http.Request, pa
 	if err != nil {
 		return nil, err
 	}
+	id, err := api.GetStringField(r, "id")
+	if err != nil {
+		return nil, err
+	}
+
 	upstreamId := params["upstream"]
 	log.Infof("Add Endpoint %s to %s", url, upstreamId)
 
-	if err := c.backend.AddEndpoint(upstreamId, url); err != nil {
+	if err := c.backend.AddEndpoint(upstreamId, id, url); err != nil {
 		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
 	}
 	return api.Response{"message": "Endpoint added"}, nil
 }
 
 func (c *ProxyController) DeleteEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	url, err := api.GetStringField(r, "url")
-	if err != nil {
-		return nil, err
-	}
 	upstreamId := params["upstream"]
+	id := params["endpoint"]
 
-	log.Infof("Delete Endpoint(url=%s) from Upstream(id=%s)", url, upstreamId)
-	if err := c.backend.DeleteEndpoint(params["upstream"], url); err != nil {
+	log.Infof("Delete Endpoint(url=%s) from Upstream(id=%s)", id, upstreamId)
+	if err := c.backend.DeleteEndpoint(upstreamId, id); err != nil {
 		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
 	}
 	return api.Response{"message": "Endpoint deleted"}, nil

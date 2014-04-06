@@ -13,8 +13,8 @@ type Backend interface {
 	AddUpstream(id string) error
 	DeleteUpstream(id string) error
 
-	AddEndpoint(upstreamId string, url string) error
-	DeleteEndpoint(upstreamId string, url string) error
+	AddEndpoint(upstreamId, id, url string) error
+	DeleteEndpoint(upstreamId, id string) error
 }
 
 type Host struct {

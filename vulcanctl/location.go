@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/codegangsta/cli"
 )
 
@@ -28,7 +27,6 @@ func NewLocationCommand() cli.Command {
 }
 
 func addLocationAction(c *cli.Context) {
-	fmt.Println("ADD LOCATION")
 	if err := client(c).AddLocation(c.Args().Get(0), c.Args().Get(1), c.Args().Get(2), c.Args().Get(3)); err != nil {
 		printError(err)
 	} else {

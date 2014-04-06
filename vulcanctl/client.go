@@ -59,7 +59,7 @@ func (c *Client) AddUpstream(id string) error {
 
 func (c *Client) DeleteUpstream(id string) error {
 	response := StatusResponse{}
-	return c.Delete(c.endpoint("upstream", id), &response)
+	return c.Delete(c.endpoint("upstreams", id), &response)
 }
 
 func (c *Client) GetUpstreams() ([]*Upstream, error) {
@@ -68,14 +68,14 @@ func (c *Client) GetUpstreams() ([]*Upstream, error) {
 	return upstreams.Upstreams, err
 }
 
-func (c *Client) AddEndpoint(upstreamId, u string) error {
+func (c *Client) AddEndpoint(upstreamId, id, u string) error {
 	response := StatusResponse{}
-	return c.PostForm(c.endpoint("upstreams", upstreamId, "endpoints"), url.Values{"url": {u}}, &response)
+	return c.PostForm(c.endpoint("upstreams", upstreamId, "endpoints"), url.Values{"url": {u}, "id": {id}}, &response)
 }
 
-func (c *Client) DeleteEndpoint(upstreamId, u string) error {
+func (c *Client) DeleteEndpoint(upstreamId, id string) error {
 	response := StatusResponse{}
-	return c.Delete(c.endpoint("upstream", upstreamId, "endpoints", url.QueryEscape(u)), &response)
+	return c.Delete(c.endpoint("upstreams", upstreamId, "endpoints", id), &response)
 }
 
 func (c *Client) PostForm(endpoint string, values url.Values, in interface{}) error {
@@ -85,6 +85,7 @@ func (c *Client) PostForm(endpoint string, values url.Values, in interface{}) er
 }
 
 func (c *Client) Delete(endpoint string, in interface{}) error {
+	fmt.Println(endpoint)
 	return c.RoundTripJson(func() (*http.Response, error) {
 		req, err := http.NewRequest("DELETE", endpoint, nil)
 		if err != nil {

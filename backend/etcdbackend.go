@@ -22,12 +22,28 @@ func NewEtcdBackend(nodes []string, etcdKey, consistency string) (*EtcdBackend, 
 	if err := client.SetConsistency(consistency); err != nil {
 		return nil, err
 	}
-	return &EtcdBackend{
+	b := &EtcdBackend{
 		nodes:       nodes,
 		etcdKey:     etcdKey,
 		consistency: consistency,
 		client:      client,
-	}, nil
+	}
+	go b.watchChanges()
+	return b, nil
+}
+
+func (s *EtcdBackend) watchChanges() {
+	waitIndex := uint64(0)
+	for {
+		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, nil)
+		log.Infof("Got response: %s %s %d %s",
+			response.Action, response.Node.Key, response.EtcdIndex, err)
+		waitIndex = response.Node.ModifiedIndex + 1
+		if err != nil {
+			log.Errorf("Etcd returned error, watch quits: %s", err)
+			return
+		}
+	}
 }
 
 func (s *EtcdBackend) GetHosts() ([]*Host, error) {
@@ -59,13 +75,20 @@ func (s *EtcdBackend) AddLocation(id, hostname, path, upstreamId string) error {
 	if err != nil {
 		return err
 	}
-
 	// Create the location
-	response, err := s.client.CreateDir(join(s.etcdKey, "hosts", hostname, "locations", id), 0)
-	if err != nil {
-		return formatErr(err)
+	if id == "" {
+		response, err := s.client.AddChildDir(join(s.etcdKey, "hosts", hostname, "locations"), 0)
+		if err != nil {
+			return formatErr(err)
+		}
+		id = suffix(response.Node.Key)
+	} else {
+		_, err := s.client.CreateDir(join(s.etcdKey, "hosts", hostname, "locations", id), 0)
+		if err != nil {
+			return formatErr(err)
+		}
 	}
-	locationKey := response.Node.Key
+	locationKey := join(s.etcdKey, "hosts", hostname, "locations", id)
 	if _, err := s.client.Create(join(locationKey, "path"), path, 0); err != nil {
 		return formatErr(err)
 	}
@@ -88,11 +111,19 @@ func (s *EtcdBackend) GetUpstreams() ([]*Upstream, error) {
 }
 
 func (s *EtcdBackend) AddUpstream(upstreamId string) error {
-	_, err := s.client.CreateDir(join(s.etcdKey, "upstreams", upstreamId), 0)
-	if isDupe(err) {
-		return fmt.Errorf("Upstream '%s' already exists", upstreamId)
+	if upstreamId == "" {
+		if _, err := s.client.AddChildDir(join(s.etcdKey, "upstreams"), 0); err != nil {
+			return formatErr(err)
+		}
+	} else {
+		if _, err := s.client.CreateDir(join(s.etcdKey, "upstreams", upstreamId), 0); err != nil {
+			if isDupe(err) {
+				return fmt.Errorf("Upstream '%s' already exists", upstreamId)
+			}
+			return formatErr(err)
+		}
 	}
-	return err
+	return nil
 }
 
 func (s *EtcdBackend) DeleteUpstream(upstreamId string) error {
@@ -107,31 +138,35 @@ func (s *EtcdBackend) DeleteUpstream(upstreamId string) error {
 	return err
 }
 
-func (s *EtcdBackend) AddEndpoint(upstreamId string, url string) error {
+func (s *EtcdBackend) AddEndpoint(upstreamId, id, url string) error {
 	if _, err := endpoint.ParseUrl(url); err != nil {
 		return fmt.Errorf("Endpoint url '%s' is not valid")
 	}
 	if _, err := s.readUpstream(upstreamId); err != nil {
 		return formatErr(err)
 	}
-	if _, err := s.client.AddChild(join(s.etcdKey, "upstreams", upstreamId, "endpoints"), url, 0); err != nil {
-		return formatErr(err)
+	if id == "" {
+		if _, err := s.client.AddChild(join(s.etcdKey, "upstreams", upstreamId, "endpoints"), url, 0); err != nil {
+			return formatErr(err)
+		}
+	} else {
+		if _, err := s.client.Create(join(s.etcdKey, "upstreams", upstreamId, "endpoints", id), url, 0); err != nil {
+			return formatErr(err)
+		}
 	}
 	return nil
 }
 
-func (s *EtcdBackend) DeleteEndpoint(upstreamId, url string) error {
-	upstream, err := s.readUpstream(upstreamId)
-	if err != nil {
+func (s *EtcdBackend) DeleteEndpoint(upstreamId, id string) error {
+	if _, err := s.readUpstream(upstreamId); err != nil {
 		if notFound(err) {
 			return fmt.Errorf("Upstream '%s' not found", upstreamId)
 		}
 		return err
 	}
-	for _, e := range upstream.Endpoints {
-		if e.Url == url {
-			_, err = s.client.Delete(join(s.etcdKey, "upstreams", upstreamId, "endpoints", e.Name), true)
-			return err
+	if _, err := s.client.Delete(join(s.etcdKey, "upstreams", upstreamId, "endpoints", id), true); err != nil {
+		if notFound(err) {
+			return fmt.Errorf("Endpoint '%s' not found", id)
 		}
 	}
 	return nil
@@ -204,7 +239,8 @@ func (s *EtcdBackend) readLocation(hostname, locationId string) (*Location, erro
 		return nil, fmt.Errorf("Missing location upstream: %s", locationKey)
 	}
 	location := &Location{
-		EtcdKey: suffix(locationKey),
+		Name:    suffix(locationKey),
+		EtcdKey: locationKey,
 		Path:    path,
 	}
 	upstream, err := s.readUpstream(upstreamKey)

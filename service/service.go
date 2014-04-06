@@ -143,7 +143,8 @@ func (s *Service) configureEndpoints(rr *roundrobin.RoundRobin, upstream *Upstre
 			continue
 		}
 		if err := rr.AddEndpoint(endpoint); err != nil {
-			return err
+			log.Errorf("Ignoring endpoint: %s", err)
+			continue
 		}
 		log.Infof("Added Endpoint(%s)", e.Url)
 	}
