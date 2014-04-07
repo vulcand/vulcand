@@ -39,6 +39,6 @@ func deleteLocationAction(c *cli.Context) {
 	if err != nil {
 		printError(err)
 	} else {
-		printOk("Host deleted")
+		printOk("Location deleted")
 	}
 }

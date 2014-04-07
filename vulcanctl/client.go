@@ -36,7 +36,7 @@ func (c *Client) DeleteHost(name string) error {
 	return c.Delete(c.endpoint("hosts", name), &response)
 }
 
-func (c *Client) AddLocation(id, hostname, path, upstream string) error {
+func (c *Client) AddLocation(hostname, id, path, upstream string) error {
 	response := StatusResponse{}
 	return c.PostForm(
 		c.endpoint("hosts", hostname, "locations"),
@@ -47,9 +47,9 @@ func (c *Client) AddLocation(id, hostname, path, upstream string) error {
 		}, &response)
 }
 
-func (c *Client) DeleteLocation(hostname, path string) error {
+func (c *Client) DeleteLocation(hostname, id string) error {
 	response := StatusResponse{}
-	return c.Delete(c.endpoint("hosts", hostname, "locations", url.QueryEscape(path)), &response)
+	return c.Delete(c.endpoint("hosts", hostname, "locations", url.QueryEscape(id)), &response)
 }
 
 func (c *Client) AddUpstream(id string) error {

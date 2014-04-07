@@ -15,9 +15,10 @@ type EtcdBackend struct {
 	etcdKey     string
 	consistency string
 	client      *etcd.Client
+	changes     chan *Change
 }
 
-func NewEtcdBackend(nodes []string, etcdKey, consistency string) (*EtcdBackend, error) {
+func NewEtcdBackend(nodes []string, etcdKey, consistency string, changes chan *Change) (*EtcdBackend, error) {
 	client := etcd.NewClient(nodes)
 	if err := client.SetConsistency(consistency); err != nil {
 		return nil, err
@@ -27,8 +28,11 @@ func NewEtcdBackend(nodes []string, etcdKey, consistency string) (*EtcdBackend, 
 		etcdKey:     etcdKey,
 		consistency: consistency,
 		client:      client,
+		changes:     changes,
 	}
-	go b.watchChanges()
+	if changes != nil {
+		go b.watchChanges()
+	}
 	return b, nil
 }
 
@@ -38,12 +42,105 @@ func (s *EtcdBackend) watchChanges() {
 		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, nil)
 		log.Infof("Got response: %s %s %d %s",
 			response.Action, response.Node.Key, response.EtcdIndex, err)
+		change, err := s.parseChange(response)
+		if err != nil {
+			log.Errorf("Failed to process change: %s", err)
+		}
+		if change != nil {
+			s.changes <- change
+		}
 		waitIndex = response.Node.ModifiedIndex + 1
 		if err != nil {
 			log.Errorf("Etcd returned error, watch quits: %s", err)
 			return
 		}
 	}
+}
+
+type MatcherFn func(*etcd.Response) (*Change, error)
+
+func (s *EtcdBackend) parseChange(response *etcd.Response) (*Change, error) {
+	matchers := []MatcherFn{
+		s.parseHostChange,
+		s.parseLocationChange,
+		s.parseUpstreamChange,
+	}
+	for _, matcher := range matchers {
+		a, err := matcher(response)
+		if a != nil || err != nil {
+			return a, err
+		}
+	}
+	return nil, nil
+}
+
+func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (*Change, error) {
+	out := regexp.MustCompile("/upstreams/([^/]+)/endpoints/([^/]+)").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	upstreamId, endpointId := out[1], out[2]
+	upstream, err := s.readUpstream(upstreamId)
+	if err != nil {
+		return nil, err
+	}
+	change := &Change{
+		Action: response.Action,
+		Parent: upstream,
+	}
+	if response.Action == "create" {
+		for _, e := range upstream.Endpoints {
+			if e.Name == endpointId {
+				change.Child = e
+				return change, nil
+			}
+		}
+		return nil, fmt.Errorf("Endpoint %s not found", endpointId)
+	} else if response.Action == "delete" {
+		change.Child = &Endpoint{Name: endpointId}
+		return change, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the endpoint: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseHostChange(response *etcd.Response) (*Change, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations$").FindStringSubmatch(response.Node.Key)
+	if len(out) != 2 {
+		return nil, nil
+	}
+	return &Change{
+		Action: response.Action,
+		Parent: nil,
+		Child:  &Host{Name: out[1]},
+	}, nil
+}
+
+func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (*Change, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/upstream").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	hostname, locationId := out[1], out[2]
+	host, err := s.readHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	change := &Change{
+		Action: response.Action,
+		Parent: host,
+	}
+	if response.Action == "create" {
+		location, err := s.readLocation(hostname, locationId)
+		if err != nil {
+			return nil, err
+		}
+		change.Child = location
+		return change, nil
+	} else if response.Action == "delete" {
+		change.Child = &Location{Name: locationId}
+		return change, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
 }
 
 func (s *EtcdBackend) GetHosts() ([]*Host, error) {
@@ -258,7 +355,6 @@ func (s *EtcdBackend) readUpstream(upstreamId string) (*Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Ley: %s", upstreamKey)
 	upstream := &Upstream{
 		Name:      suffix(upstreamKey),
 		EtcdKey:   upstreamKey,
@@ -266,8 +362,6 @@ func (s *EtcdBackend) readUpstream(upstreamId string) (*Upstream, error) {
 	}
 
 	endpointPairs := s.getVals(join(upstream.EtcdKey, "endpoints"))
-
-	log.Infof("Upstream(%s) endpoints(%s)", upstream, endpointPairs)
 	for _, e := range endpointPairs {
 		_, err := endpoint.ParseUrl(e.Val)
 		if err != nil {

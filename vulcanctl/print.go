@@ -79,13 +79,13 @@ func (vt *VulcanTree) Self() string {
 	case []*Upstream:
 		return "[upstreams]"
 	case *Host:
-		return fmt.Sprintf("host(name=%s)", r.Name)
+		return r.String()
 	case *Location:
-		return fmt.Sprintf("location(id=%s, path=%s)", r.Name, r.Path)
+		return r.String()
 	case *Upstream:
-		return fmt.Sprintf("upstream(id=%s)", r.Name)
+		return r.String()
 	case *Endpoint:
-		return fmt.Sprintf("endpoint(id=%s, url=%s)", r.Name, r.Url)
+		return r.String()
 	}
 	return "unknown"
 }
