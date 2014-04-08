@@ -3,9 +3,8 @@ test: clean
 
 deps:
 	go get -v -u github.com/mailgun/vulcan
-	go get -v -u github.com/coreos/go-etcd
+	go get -v -u github.com/coreos/go-etcd/etcd
 	go get -v -u launchpad.net/gocheck
-
 
 clean:
 	find . -name flymake_* -delete
@@ -20,7 +19,7 @@ cover-package: clean
 sloccount:
 	 find . -name "*.go" -print0 | xargs -0 wc -l
 
-install: clean
+install: clean deps
 	go install github.com/mailgun/vulcand
 	cd vulcanctl && $(MAKE) install && cd ..
 

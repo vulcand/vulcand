@@ -13,7 +13,8 @@ Status
 Deps
 ----
 
-* Etcd, go1.2
+* Etcd
+* go>=1.2
 
 Features
 --------
@@ -28,7 +29,6 @@ Installation & Run
 * Etc
 
 ```bash
-make deps
 make install
 make run
 ```
