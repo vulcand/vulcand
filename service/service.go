@@ -57,11 +57,9 @@ func (s *Service) Start() error {
 	if err := s.createProxy(); err != nil {
 		return err
 	}
-
 	if err := s.configureProxy(); err != nil {
 		return err
 	}
-
 	if err := s.configureApi(); err != nil {
 		return err
 	}
@@ -125,10 +123,10 @@ func (s *Service) configureHost(host *Host) error {
 	return nil
 }
 
-func (s *Service) configureLocation(loc *Location) error {
+func (s *Service) configureLocation(host *Host, loc *Location) error {
 	// Add all endpoints from the upstream to the router
 	for _, e := range loc.Upstream.Endpoints {
-		if err := s.addEndpoint(loc.Upstream, e); err != nil {
+		if err := s.addEndpointToLocation(host, loc, e); err != nil {
 			log.Errorf("Failed to add %s to %s, err: %s", e, loc, err)
 		} else {
 			log.Infof("Added %s to %s", e, loc)
@@ -178,13 +176,29 @@ func (s *Service) processChange(change *Change) {
 func (s *Service) getPathRouter(hostname string) (*pathroute.PathRouter, error) {
 	r := s.router.GetRouter(hostname)
 	if r == nil {
-		return nil, fmt.Errorf("Location with hostname %s not found, err: %s", hostname)
+		return nil, fmt.Errorf("Location with host %s not found.", hostname)
 	}
 	router, ok := r.(*pathroute.PathRouter)
 	if !ok {
 		return nil, fmt.Errorf("Unknown router type: %T", r)
 	}
 	return router, nil
+}
+
+func (s *Service) getHttpLocation(hostname string, path string) (*httploc.HttpLocation, error) {
+	router, err := s.getPathRouter(hostname)
+	if err != nil {
+		return nil, err
+	}
+	ilo := router.GetLocationByPattern(path)
+	if ilo == nil {
+		return nil, fmt.Errorf("Failed to get location by path: %s", path)
+	}
+	loc, ok := ilo.(*httploc.HttpLocation)
+	if !ok {
+		return nil, fmt.Errorf("Unsupported location type: %T", ilo)
+	}
+	return loc, nil
 }
 
 // Returns active locations using given upstream
@@ -196,21 +210,13 @@ func (s *Service) getLocations(upstreamId string) ([]*httploc.HttpLocation, erro
 		return nil, fmt.Errorf("Failed to get hosts: %s", hosts)
 	}
 	for _, h := range hosts {
-		router, err := s.getPathRouter(h.Name)
-		if err != nil {
-			return nil, err
-		}
 		for _, l := range h.Locations {
 			if l.Upstream.Name != upstreamId {
 				continue
 			}
-			ilo := router.GetLocationByPattern(l.Path)
-			if ilo == nil {
-				return nil, fmt.Errorf("Failed to get location by path: %s", l.Path)
-			}
-			loc, ok := ilo.(*httploc.HttpLocation)
-			if !ok {
-				return nil, fmt.Errorf("Unsupported location type: %T", ilo)
+			loc, err := s.getHttpLocation(h.Name, l.Path)
+			if err != nil {
+				return nil, err
 			}
 			out = append(out, loc)
 		}
@@ -237,6 +243,25 @@ func (s *Service) addEndpoint(upstream *Upstream, e *Endpoint) error {
 		} else {
 			log.Infof("Added %s", e)
 		}
+	}
+	return nil
+}
+
+func (s *Service) addEndpointToLocation(host *Host, location *Location, e *Endpoint) error {
+	endpoint, err := EndpointFromUrl(e.Name, e.Url)
+	if err != nil {
+		return fmt.Errorf("Failed to parse endpoint url: %s", endpoint)
+	}
+	loc, err := s.getHttpLocation(host.Name, location.Path)
+	if err != nil {
+		return err
+	}
+	rr, ok := loc.GetLoadBalancer().(*roundrobin.RoundRobin)
+	if !ok {
+		return fmt.Errorf("Unexpected load balancer type: %T", loc.GetLoadBalancer())
+	}
+	if err := rr.AddEndpoint(endpoint); err != nil {
+		log.Errorf("Failed to add %s, err: %s", e, err)
 	}
 	return nil
 }
@@ -284,7 +309,7 @@ func (s *Service) addLocation(host *Host, loc *Location) error {
 		return err
 	}
 	// Once the location added, configure all endpoints
-	return s.configureLocation(loc)
+	return s.configureLocation(host, loc)
 }
 
 func (s *Service) deleteLocation(host *Host, loc *Location) error {

@@ -19,7 +19,7 @@ cover-package: clean
 sloccount:
 	 find . -name "*.go" -print0 | xargs -0 wc -l
 
-install: clean deps
+install: clean
 	go install github.com/mailgun/vulcand
 	cd vulcanctl && $(MAKE) install && cd ..
 

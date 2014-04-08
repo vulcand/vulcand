@@ -23,6 +23,7 @@ System deps:
 * Linux, Etcd, go1.2
 
 ```bash
+make deps
 make install
 make run
 ```

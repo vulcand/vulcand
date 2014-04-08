@@ -104,7 +104,7 @@ func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (*Change, err
 }
 
 func (s *EtcdBackend) parseHostChange(response *etcd.Response) (*Change, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations$").FindStringSubmatch(response.Node.Key)
+	out := regexp.MustCompile("/hosts/([^/]+)$").FindStringSubmatch(response.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
@@ -148,7 +148,7 @@ func (s *EtcdBackend) GetHosts() ([]*Host, error) {
 }
 
 func (s *EtcdBackend) AddHost(name string) error {
-	_, err := s.client.CreateDir(join(s.etcdKey, "hosts", name, "locations"), 0)
+	_, err := s.client.CreateDir(join(s.etcdKey, "hosts", name), 0)
 	if isDupe(err) {
 		return fmt.Errorf("Host '%s' already exists", name)
 	}
