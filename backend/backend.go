@@ -10,8 +10,9 @@ type Backend interface {
 	AddHost(name string) error
 	DeleteHost(name string) error
 
-	AddLocation(id, hostname, path, upstream string) error
+	AddLocation(hostname, id, path, upstream string) error
 	DeleteLocation(hostname, id string) error
+	UpdateLocationUpstream(hostname, id string, upstream string) error
 
 	GetUpstreams() ([]*Upstream, error)
 	AddUpstream(id string) error
@@ -67,4 +68,5 @@ type Change struct {
 	Action string
 	Parent interface{}
 	Child  interface{}
+	Keys   map[string]string
 }

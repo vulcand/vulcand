@@ -21,6 +21,7 @@ func InitProxyController(backend backend.Backend, router *mux.Router) {
 	router.HandleFunc("/v1/hosts/{hostname}", api.MakeHandler(controller.DeleteHost)).Methods("DELETE")
 	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeHandler(controller.AddLocation)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.DeleteLocation)).Methods("DELETE")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.UpdateLocation)).Methods("PUT")
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.AddUpstream)).Methods("POST")
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.GetUpstreams)).Methods("GET")
 	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.DeleteUpstream)).Methods("DELETE")
@@ -73,12 +74,29 @@ func (c *ProxyController) AddLocation(w http.ResponseWriter, r *http.Request, pa
 		return nil, err
 	}
 
-	log.Infof("Add Location: %s/%s", hostname, path)
+	log.Infof("Add Location: %s %s", hostname, path)
 	if err := c.backend.AddLocation(id, hostname, path, upstream); err != nil {
 		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
 	}
 
 	return api.Response{"message": "Location added"}, nil
+}
+
+func (c *ProxyController) UpdateLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	hostname := params["hostname"]
+	locationId := params["id"]
+
+	upstream, err := api.GetStringField(r, "upstream")
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("Update Location: %s %s set upstream", hostname, locationId, upstream)
+	if err := c.backend.UpdateLocationUpstream(hostname, locationId, upstream); err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	return api.Response{"message": "Location upstream updated"}, nil
 }
 
 func (c *ProxyController) DeleteLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {

@@ -52,6 +52,11 @@ func (c *Client) DeleteLocation(hostname, id string) error {
 	return c.Delete(c.endpoint("hosts", hostname, "locations", url.QueryEscape(id)), &response)
 }
 
+func (c *Client) UpdateLocationUpstream(hostname, location, upstream string) error {
+	response := StatusResponse{}
+	return c.PutForm(c.endpoint("hosts", hostname, "locations", location), url.Values{"upstream": {upstream}}, &response)
+}
+
 func (c *Client) AddUpstream(id string) error {
 	response := StatusResponse{}
 	return c.PostForm(c.endpoint("upstreams"), url.Values{"id": {id}}, &response)
@@ -76,6 +81,17 @@ func (c *Client) AddEndpoint(upstreamId, id, u string) error {
 func (c *Client) DeleteEndpoint(upstreamId, id string) error {
 	response := StatusResponse{}
 	return c.Delete(c.endpoint("upstreams", upstreamId, "endpoints", id), &response)
+}
+
+func (c *Client) PutForm(endpoint string, values url.Values, in interface{}) error {
+	return c.RoundTripJson(func() (*http.Response, error) {
+		req, err := http.NewRequest("PUT", endpoint, strings.NewReader(values.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return http.DefaultClient.Do(req)
+	}, in)
 }
 
 func (c *Client) PostForm(endpoint string, values url.Values, in interface{}) error {

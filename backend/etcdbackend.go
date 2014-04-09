@@ -44,16 +44,13 @@ func (s *EtcdBackend) watchChanges() {
 			response.Action, response.Node.Key, response.EtcdIndex, err)
 		change, err := s.parseChange(response)
 		if err != nil {
-			log.Errorf("Failed to process change: %s", err)
+			log.Errorf("Failed to process change: %s, ignoring", err)
+			continue
 		}
 		if change != nil {
 			s.changes <- change
 		}
 		waitIndex = response.Node.ModifiedIndex + 1
-		if err != nil {
-			log.Errorf("Etcd returned error, watch quits: %s", err)
-			return
-		}
 	}
 }
 
@@ -139,6 +136,14 @@ func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (*Change, err
 	} else if response.Action == "delete" {
 		change.Child = &Location{Name: locationId}
 		return change, nil
+	} else if response.Action == "set" {
+		location, err := s.readLocation(hostname, locationId)
+		if err != nil {
+			return nil, err
+		}
+		change.Child = location
+		change.Keys = map[string]string{"upstream": response.Node.Value}
+		return change, nil
 	}
 	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
 }
@@ -192,6 +197,29 @@ func (s *EtcdBackend) AddLocation(id, hostname, path, upstreamId string) error {
 	if _, err := s.client.Create(join(locationKey, "upstream"), upstreamId, 0); err != nil {
 		return formatErr(err)
 	}
+	return nil
+}
+
+func (s *EtcdBackend) UpdateLocationUpstream(hostname, id, upstreamId string) error {
+	log.Infof("Update Location(id=%s, hosntame=%s) set upstream %s", id, hostname, upstreamId)
+
+	// Make sure upstream actually exists
+	_, err := s.readUpstream(upstreamId)
+	if err != nil {
+		return err
+	}
+
+	// Make sure location actually exists
+	location, err := s.readLocation(hostname, id)
+	if err != nil {
+		return err
+	}
+
+	// Update upstream
+	if _, err := s.client.Set(join(location.EtcdKey, "upstream"), upstreamId, 0); err != nil {
+		return formatErr(err)
+	}
+
 	return nil
 }
 

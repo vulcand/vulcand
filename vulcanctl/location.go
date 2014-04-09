@@ -22,6 +22,12 @@ func NewLocationCommand() cli.Command {
 				Usage:  "Remove a location from vulcan",
 				Action: deleteLocationAction,
 			},
+			{
+				Name:   "set_upstream",
+				Flags:  flags(),
+				Usage:  "Update upstream",
+				Action: locationUpdateUpstreamAction,
+			},
 		},
 	})
 }
@@ -31,6 +37,14 @@ func addLocationAction(c *cli.Context) {
 		printError(err)
 	} else {
 		printOk("Location added")
+	}
+}
+
+func locationUpdateUpstreamAction(c *cli.Context) {
+	if err := client(c).UpdateLocationUpstream(c.Args().Get(0), c.Args().Get(1), c.Args().Get(2)); err != nil {
+		printError(err)
+	} else {
+		printOk("Location upstream updated")
 	}
 }
 

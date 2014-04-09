@@ -7,6 +7,7 @@ import (
 	log "github.com/mailgun/gotools-log"
 	runtime "github.com/mailgun/gotools-runtime"
 	"github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcan/location/httploc"
 	"github.com/mailgun/vulcan/netutils"
@@ -123,13 +124,51 @@ func (s *Service) configureHost(host *Host) error {
 	return nil
 }
 
-func (s *Service) configureLocation(host *Host, loc *Location) error {
-	// Add all endpoints from the upstream to the router
-	for _, e := range loc.Upstream.Endpoints {
-		if err := s.addEndpointToLocation(host, loc, e); err != nil {
-			log.Errorf("Failed to add %s to %s, err: %s", e, loc, err)
-		} else {
-			log.Infof("Added %s to %s", e, loc)
+func (s *Service) configureLocation(host *Host, location *Location) error {
+	loc, err := s.getHttpLocation(host.Name, location.Path)
+	if err != nil {
+		return err
+	}
+	rr, ok := loc.GetLoadBalancer().(*roundrobin.RoundRobin)
+	if !ok {
+		return fmt.Errorf("Unexpected load balancer type: %T", loc.GetLoadBalancer())
+	}
+
+	// First, collect and parse endpoints to add
+	endpointsToAdd := map[string]endpoint.Endpoint{}
+	for _, e := range location.Upstream.Endpoints {
+		ep, err := EndpointFromUrl(e.Name, e.Url)
+		if err != nil {
+			return fmt.Errorf("Failed to parse endpoint url: %s", e)
+		}
+		endpointsToAdd[ep.GetId()] = ep
+	}
+
+	// Memorize what endpoints exist in load balancer at the moment
+	existing := map[string]endpoint.Endpoint{}
+	for _, e := range rr.GetEndpoints() {
+		existing[e.GetId()] = e
+	}
+
+	// First, add endpoints, that should be added and are not in lb
+	for eid, e := range endpointsToAdd {
+		if _, exists := existing[eid]; !exists {
+			if err := rr.AddEndpoint(e); err != nil {
+				log.Errorf("Failed to add %s, err: %s", e, err)
+			} else {
+				log.Infof("Added %s", e)
+			}
+		}
+	}
+
+	// Second, remove endpoints that should not be there any more
+	for eid, e := range existing {
+		if _, exists := endpointsToAdd[eid]; !exists {
+			if err := rr.RemoveEndpoint(e); err != nil {
+				log.Errorf("Failed to remove %s, err: %s", e, err)
+			} else {
+				log.Infof("Removed %s", e)
+			}
 		}
 	}
 	return nil
@@ -159,6 +198,12 @@ func (s *Service) processChange(change *Change) {
 			err = s.addLocation((change.Parent).(*Host), child)
 		case "delete":
 			err = s.deleteLocation((change.Parent).(*Host), child)
+		case "set":
+			if len(change.Keys["upstream"]) != 0 {
+				err = s.updateLocationUpstream((change.Parent).(*Host), child, change.Keys["upstream"])
+			} else {
+				err = fmt.Errorf("Unknown property update: %s", change)
+			}
 		}
 	case *Host:
 		switch change.Action {
@@ -247,25 +292,6 @@ func (s *Service) addEndpoint(upstream *Upstream, e *Endpoint) error {
 	return nil
 }
 
-func (s *Service) addEndpointToLocation(host *Host, location *Location, e *Endpoint) error {
-	endpoint, err := EndpointFromUrl(e.Name, e.Url)
-	if err != nil {
-		return fmt.Errorf("Failed to parse endpoint url: %s", endpoint)
-	}
-	loc, err := s.getHttpLocation(host.Name, location.Path)
-	if err != nil {
-		return err
-	}
-	rr, ok := loc.GetLoadBalancer().(*roundrobin.RoundRobin)
-	if !ok {
-		return fmt.Errorf("Unexpected load balancer type: %T", loc.GetLoadBalancer())
-	}
-	if err := rr.AddEndpoint(endpoint); err != nil {
-		log.Errorf("Failed to add %s, err: %s", e, err)
-	}
-	return nil
-}
-
 func (s *Service) deleteEndpoint(upstream *Upstream, e *Endpoint) error {
 	endpoint, err := EndpointFromUrl(e.Name, "http://delete.me:4000")
 	if err != nil {
@@ -309,6 +335,10 @@ func (s *Service) addLocation(host *Host, loc *Location) error {
 		return err
 	}
 	// Once the location added, configure all endpoints
+	return s.configureLocation(host, loc)
+}
+
+func (s *Service) updateLocationUpstream(host *Host, loc *Location, upstreamId string) error {
 	return s.configureLocation(host, loc)
 }
 
