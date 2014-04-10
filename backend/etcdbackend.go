@@ -16,9 +16,10 @@ type EtcdBackend struct {
 	consistency string
 	client      *etcd.Client
 	changes     chan *Change
+	statsGetter StatsGetter
 }
 
-func NewEtcdBackend(nodes []string, etcdKey, consistency string, changes chan *Change) (*EtcdBackend, error) {
+func NewEtcdBackend(nodes []string, etcdKey, consistency string, changes chan *Change, statsGetter StatsGetter) (*EtcdBackend, error) {
 	client := etcd.NewClient(nodes)
 	if err := client.SetConsistency(consistency); err != nil {
 		return nil, err
@@ -29,6 +30,7 @@ func NewEtcdBackend(nodes []string, etcdKey, consistency string, changes chan *C
 		consistency: consistency,
 		client:      client,
 		changes:     changes,
+		statsGetter: statsGetter,
 	}
 	if changes != nil {
 		go b.watchChanges()
@@ -40,6 +42,10 @@ func (s *EtcdBackend) watchChanges() {
 	waitIndex := uint64(0)
 	for {
 		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, nil)
+		if err != nil {
+			log.Errorf("Failed to get response from etcd: %s, quitting watch goroutine", err)
+			return
+		}
 		log.Infof("Got response: %s %s %d %s",
 			response.Action, response.Node.Key, response.EtcdIndex, err)
 		change, err := s.parseChange(response)
@@ -201,7 +207,7 @@ func (s *EtcdBackend) AddLocation(id, hostname, path, upstreamId string) error {
 }
 
 func (s *EtcdBackend) UpdateLocationUpstream(hostname, id, upstreamId string) error {
-	log.Infof("Update Location(id=%s, hosntame=%s) set upstream %s", id, hostname, upstreamId)
+	log.Infof("Update Location(id=%s, hostname=%s) set upstream %s", id, hostname, upstreamId)
 
 	// Make sure upstream actually exists
 	_, err := s.readUpstream(upstreamId)
@@ -372,6 +378,14 @@ func (s *EtcdBackend) readLocation(hostname, locationId string) (*Location, erro
 	if err != nil {
 		return nil, err
 	}
+	for _, e := range upstream.Endpoints {
+		stats, err := s.statsGetter.GetStats(hostname, locationId, e.Name)
+		if err == nil {
+			e.Stats = stats
+		} else {
+			log.Errorf("Failed to get stats about endpoint: %s, err: %s", e, err)
+		}
+	}
 	location.Upstream = upstream
 	return location, nil
 }
@@ -396,7 +410,11 @@ func (s *EtcdBackend) readUpstream(upstreamId string) (*Upstream, error) {
 			fmt.Printf("Ignoring endpoint: failed to parse url: %s", e.Val)
 			continue
 		}
-		e := &Endpoint{Url: e.Val, EtcdKey: e.Key, Name: suffix(e.Key)}
+		e := &Endpoint{
+			Url:     e.Val,
+			EtcdKey: e.Key,
+			Name:    suffix(e.Key),
+		}
 		upstream.Endpoints = append(upstream.Endpoints, e)
 	}
 	return upstream, nil

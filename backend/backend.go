@@ -58,10 +58,15 @@ type Endpoint struct {
 	Name    string
 	Path    string
 	Url     string
+	Stats   *EndpointStats
 }
 
 func (e *Endpoint) String() string {
-	return fmt.Sprintf("endpoint(id=%s, url=%s)", e.Name, e.Url)
+	if e.Stats == nil {
+		return fmt.Sprintf("endpoint(id=%s, url=%s)", e.Name, e.Url)
+	} else {
+		return fmt.Sprintf("endpoint(id=%s, url=%s, stats=%s)", e.Name, e.Url, e.Stats)
+	}
 }
 
 type Change struct {
@@ -69,4 +74,20 @@ type Change struct {
 	Parent interface{}
 	Child  interface{}
 	Keys   map[string]string
+}
+
+type EndpointStats struct {
+	Successes     int64
+	Failures      int64
+	FailRate      float64
+	PeriodSeconds int
+}
+
+func (e *EndpointStats) String() string {
+	reqsSec := (e.Failures + e.Successes) / int64(e.PeriodSeconds)
+	return fmt.Sprintf("(window=%dsec, failRate=%.2f, failures=%d, successes=%d, freq=%d reqs/sec)", e.PeriodSeconds, e.FailRate, e.Failures, e.Successes, reqsSec)
+}
+
+type StatsGetter interface {
+	GetStats(hostname string, locationId string, endpointId string) (*EndpointStats, error)
 }

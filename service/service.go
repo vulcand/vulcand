@@ -43,7 +43,7 @@ func (s *Service) Start() error {
 	// Init logging
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
 
-	backend, err := NewEtcdBackend(s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency, s.changes)
+	backend, err := NewEtcdBackend(s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency, s.changes, s)
 	if err != nil {
 		return err
 	}
@@ -75,6 +75,35 @@ func (s *Service) Start() error {
 	// Block until a signal is received.
 	log.Infof("Got signal %s, exiting now", <-c)
 	return nil
+}
+
+func (s *Service) GetStats(hostname, locationId, endpointId string) (*EndpointStats, error) {
+	rr, err := s.getHttpLocationLb(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := rr.FindEndpointById(endpointId)
+	if endpoint == nil {
+		return nil, fmt.Errorf("Endpoint: %s not found", endpointId)
+	}
+	weightedEndpoint, ok := endpoint.(*roundrobin.WeightedEndpoint)
+	if !ok {
+		return nil, fmt.Errorf("Unuspported endpoint type: %T", endpoint)
+	}
+	if weightedEndpoint == nil {
+		return nil, fmt.Errorf("Weighted Endpoint: %s not found", endpointId)
+	}
+	metrics := weightedEndpoint.GetMetrics()
+	if metrics == nil {
+		return nil, fmt.Errorf("Metrics not found for endpoint %s", endpoint)
+	}
+
+	return &EndpointStats{
+		Successes:     metrics.SuccessCount(),
+		Failures:      metrics.FailureCount(),
+		PeriodSeconds: int(metrics.Resolution() / time.Second),
+		FailRate:      metrics.GetRate(),
+	}, nil
 }
 
 func (s *Service) createProxy() error {
@@ -125,13 +154,9 @@ func (s *Service) configureHost(host *Host) error {
 }
 
 func (s *Service) configureLocation(host *Host, location *Location) error {
-	loc, err := s.getHttpLocation(host.Name, location.Path)
+	rr, err := s.getHttpLocationLb(host.Name, location.Name)
 	if err != nil {
 		return err
-	}
-	rr, ok := loc.GetLoadBalancer().(*roundrobin.RoundRobin)
-	if !ok {
-		return fmt.Errorf("Unexpected load balancer type: %T", loc.GetLoadBalancer())
 	}
 
 	// First, collect and parse endpoints to add
@@ -230,20 +255,32 @@ func (s *Service) getPathRouter(hostname string) (*pathroute.PathRouter, error) 
 	return router, nil
 }
 
-func (s *Service) getHttpLocation(hostname string, path string) (*httploc.HttpLocation, error) {
+func (s *Service) getHttpLocation(hostname string, locationId string) (*httploc.HttpLocation, error) {
 	router, err := s.getPathRouter(hostname)
 	if err != nil {
 		return nil, err
 	}
-	ilo := router.GetLocationByPattern(path)
+	ilo := router.GetLocationById(locationId)
 	if ilo == nil {
-		return nil, fmt.Errorf("Failed to get location by path: %s", path)
+		return nil, fmt.Errorf("Failed to get location by id: %s", locationId)
 	}
 	loc, ok := ilo.(*httploc.HttpLocation)
 	if !ok {
 		return nil, fmt.Errorf("Unsupported location type: %T", ilo)
 	}
 	return loc, nil
+}
+
+func (s *Service) getHttpLocationLb(hostname string, locationId string) (*roundrobin.RoundRobin, error) {
+	loc, err := s.getHttpLocation(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+	rr, ok := loc.GetLoadBalancer().(*roundrobin.RoundRobin)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected load balancer type: %T", loc.GetLoadBalancer())
+	}
+	return rr, nil
 }
 
 // Returns active locations using given upstream
@@ -259,7 +296,7 @@ func (s *Service) getLocations(upstreamId string) ([]*httploc.HttpLocation, erro
 			if l.Upstream.Name != upstreamId {
 				continue
 			}
-			loc, err := s.getHttpLocation(h.Name, l.Path)
+			loc, err := s.getHttpLocation(h.Name, l.Name)
 			if err != nil {
 				return nil, err
 			}
