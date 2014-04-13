@@ -127,3 +127,31 @@ Location adds or removes location to the host
 $ vulcanctl location add localhost loc1 /hello u1 # add location with id 'id1' to host 'localhost', use path '/hello' and upstream 'u1'
 $ vulcanctl location rm localhost loc1 # remove location with id 'loc1' from host 'localhost'
 ```
+
+Docker
+======
+
+Here's how you build vulcan in Docker:
+
+```bash
+docker build -t mailgun/vulcan .
+```
+
+Starting the daemon:
+
+```bash
+docker run -p 8182:8182 -p 8181:8181 mailgun/vulcan /opt/vulcan/vulcand -apiInterface="0.0.0.0" -interface="0.0.0.0" --etcd=http://10.0.3.1:7002
+```
+
+Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.
+
+Using the vulcanctl from container:
+
+```bash
+docker run mailgun/vulcan /opt/vulcan/vulcanctl status  --vulcan 'http://10.0.3.1:8182'
+```
+
+Make sure you've specified `--vulcan` flag to tell vulcanctl where the running vulcand is. I've used lxc bridge interface in the example above.
+
+*Note* The dockerfile build in the example above is not reproducible (yet), and the vulcand API is a subject to change.
+
