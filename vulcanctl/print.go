@@ -18,7 +18,6 @@ type Tree interface {
 }
 
 func printTree(root Tree, depth int, last bool, offset string) {
-
 	// Print self
 	tprint(fmt.Sprintf("%s%s%s", offset, getConnector(depth, last), root.Self()))
 
@@ -136,6 +135,14 @@ func endpointsToTrees(in []*Endpoint) []Tree {
 		out[i] = &VulcanTree{root: in[i]}
 	}
 	return out
+}
+
+func printStatus(response *StatusResponse, err error) {
+	if err != nil {
+		printError(err)
+	} else {
+		printOk(response.Message)
+	}
 }
 
 func printError(err error) {

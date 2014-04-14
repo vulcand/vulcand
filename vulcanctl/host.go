@@ -14,14 +14,18 @@ func NewHostCommand() cli.Command {
 func NewHostSubcommands() []cli.Command {
 	return []cli.Command{
 		{
-			Name:   "add",
-			Flags:  flags(),
+			Name: "add",
+			Flags: []cli.Flag{
+				cli.StringFlag{"name", "", "hostname"},
+			},
 			Usage:  "Add a new host to vulcan proxy",
 			Action: addHostAction,
 		},
 		{
-			Name:   "rm",
-			Flags:  flags(),
+			Name: "rm",
+			Flags: []cli.Flag{
+				cli.StringFlag{"name", "", "hostname"},
+			},
 			Usage:  "Remove a host from vulcan",
 			Action: deleteHostAction,
 		},
@@ -29,19 +33,9 @@ func NewHostSubcommands() []cli.Command {
 }
 
 func addHostAction(c *cli.Context) {
-	err := client(c).AddHost(c.Args().First())
-	if err != nil {
-		printError(err)
-	} else {
-		printOk("Host added")
-	}
+	printStatus(client(c).AddHost(c.String("name")))
 }
 
 func deleteHostAction(c *cli.Context) {
-	err := client(c).DeleteHost(c.Args().First())
-	if err != nil {
-		printError(err)
-	} else {
-		printOk("Host deleted")
-	}
+	printStatus(client(c).DeleteHost(c.String("name")))
 }

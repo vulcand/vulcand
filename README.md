@@ -94,8 +94,8 @@ Host
 Host command supports adding or removing host
 
 ```bash
-$ vulcanctl host add localhost2
-$ vulcanctl host rm localhost2
+$ vulcanctl host add --name localhost2
+$ vulcanctl host rm --name localhost2
 ```
 
 Upstream
@@ -104,8 +104,9 @@ Upstream
 Upstream command adds or removes upstreams
 
 ```bash
-$ vulcanctl upstream add u1
-$ vulcanctl upstream rm u1
+$ vulcanctl upstream add --id u1
+$ vulcanctl upstream add # auto generates upstream id and adds it
+$ vulcanctl upstream rm --id u1
 ```
 
 Endpoint
@@ -114,8 +115,9 @@ Endpoint
 Endpoint command adds or removed endpoints to the upstream.
 
 ```bash
-$ vulcanctl endpoint add u1 e2 http://localhost:5002 # adds endpoint with id 'e2' and url 'http://localhost:5002' to upstream with id 'u1'
-$ vulcanctl endpoint rm u1 e1 # removed endpoint with id 'e1' from upstream 'u1'
+$ vulcanctl endpoint add --id e1 --up u1 --url http://localhost:5000 # adds endpoint with id 'e2' and url 'http://localhost:5002' to upstream with id 'u1'
+$ vulcanctl endpoint add --up u1 --url http://localhost:5001 # in case if id is omitted, etcd will auto generate it
+$ vulcanctl endpoint rm --up u1 --id e1 # removed endpoint with id 'e1' from upstream 'u1'
 ```
 
 Location
@@ -124,8 +126,19 @@ Location
 Location adds or removes location to the host
 
 ```bash
-$ vulcanctl location add localhost loc1 /hello u1 # add location with id 'id1' to host 'localhost', use path '/hello' and upstream 'u1'
-$ vulcanctl location rm localhost loc1 # remove location with id 'loc1' from host 'localhost'
+$ vulcanctl location add --host localhost --id loc1 --path /hello --up u1 # add location with id 'id1' to host 'localhost', use path '/hello' and upstream 'u1'
+$ vulcanctl location rm --host localhost --id loc1 # remove location with id 'loc1' from host 'localhost'
+```
+
+Rate limit
+----------
+
+Rate add or removes rate limit restrictions on the location
+
+```bash
+$ vulcanctl ratelimit add --variable client.ip --host localhost --loc loc1 --reqs 10 # limit access per client ip to 10 requests per second in location 'loc1' in host 'localhost'
+$ vulcanctl ratelimit add --variable request.header.X-Account-Id --host localhost --loc loc1 --reqs 10 # limit access per custom http header value 'X-Account-Id' to 100 requests per second to location 'loc1' in host 'localhost'
+$ vulcanctl ratelimit rm --id r1 # remove rate limit restriction with id 'r1'
 ```
 
 Docker

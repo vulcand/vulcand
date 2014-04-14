@@ -18,37 +18,32 @@ func NewUpstreamSubcommands() []cli.Command {
 			Name:   "add",
 			Usage:  "Add a new upstream to vulcan",
 			Action: addUpstreamAction,
+			Flags: []cli.Flag{
+				cli.StringFlag{"id", "", "upstream id"},
+			},
 		},
 		{
 			Name:   "rm",
 			Usage:  "Remove upstream from vulcan",
 			Action: deleteUpstreamAction,
+			Flags: []cli.Flag{
+				cli.StringFlag{"id", "", "upstream id"},
+			},
 		},
 		{
-			Name:   "list",
+			Name:   "ls",
 			Usage:  "List upstreams",
-			Flags:  flags(),
 			Action: listUpstreamsAction,
 		},
 	}
 }
 
 func addUpstreamAction(c *cli.Context) {
-	err := client(c).AddUpstream(c.Args().First())
-	if err != nil {
-		printError(err)
-	} else {
-		printOk("Upstream added")
-	}
+	printStatus(client(c).AddUpstream(c.String("id")))
 }
 
 func deleteUpstreamAction(c *cli.Context) {
-	err := client(c).DeleteUpstream(c.Args().First())
-	if err != nil {
-		printError(err)
-	} else {
-		printOk("Upstream deleted")
-	}
+	printStatus(client(c).DeleteUpstream(c.String("id")))
 }
 
 func listUpstreamsAction(c *cli.Context) {

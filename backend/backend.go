@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"time"
 )
 
 type Backend interface {
@@ -48,7 +49,7 @@ type Location struct {
 }
 
 func (l *Location) String() string {
-	return fmt.Sprintf("location(id=%s, path=%s, ratelimits=s, connlimits=%s)", l.Name, l.Path, l.RateLimits, l.ConnLimits)
+	return fmt.Sprintf("location(id=%s, path=%s, ratelimits=%s, connlimits=%s)", l.Name, l.Path, l.RateLimits, l.ConnLimits)
 }
 
 type ConnLimit struct {
@@ -87,7 +88,7 @@ func NewRateLimit(requests int, variable string, burst int, periodSeconds int) (
 }
 
 func (rl *RateLimit) String() string {
-	return fmt.Sprintf("ratelimit(reqs/%ss=%d, burst=%d, var=%s)", rl.PeriodSeconds, rl.Requests, rl.Burst, rl.Variable)
+	return fmt.Sprintf("ratelimit(var=%s, reqs/%s=%d, burst=%d)", rl.Variable, time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst)
 }
 
 func NewConnLimit(connections int, variable string) (*ConnLimit, error) {
@@ -149,7 +150,7 @@ type EndpointStats struct {
 
 func (e *EndpointStats) String() string {
 	reqsSec := (e.Failures + e.Successes) / int64(e.PeriodSeconds)
-	return fmt.Sprintf("(window=%dsec, failRate=%.2f, failures=%d, successes=%d, freq=%d reqs/sec)", e.PeriodSeconds, e.FailRate, e.Failures, e.Successes, reqsSec)
+	return fmt.Sprintf("(failRate=%.2f/%s, fail/success=%d/%d, freq=%d reqs/sec)", e.FailRate, time.Duration(e.PeriodSeconds)*time.Second, e.Failures, e.Successes, reqsSec)
 }
 
 type StatsGetter interface {

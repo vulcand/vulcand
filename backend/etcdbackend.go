@@ -7,6 +7,8 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	log "github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcan/endpoint"
+	"net/url"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -187,7 +189,7 @@ func (s *EtcdBackend) AddLocation(id, hostname, path, upstreamId string) error {
 	}
 	// Create the location
 	if id == "" {
-		response, err := s.client.AddChildDir(join(s.etcdKey, "hosts", hostname, "locations"), 0)
+		response, err := s.addChildDir(join(s.etcdKey, "hosts", hostname, "locations"), 0)
 		if err != nil {
 			return formatErr(err)
 		}
@@ -245,7 +247,7 @@ func (s *EtcdBackend) GetUpstreams() ([]*Upstream, error) {
 
 func (s *EtcdBackend) AddUpstream(upstreamId string) error {
 	if upstreamId == "" {
-		if _, err := s.client.AddChildDir(join(s.etcdKey, "upstreams"), 0); err != nil {
+		if _, err := s.addChildDir(join(s.etcdKey, "upstreams"), 0); err != nil {
 			return formatErr(err)
 		}
 	} else {
@@ -605,6 +607,18 @@ func (s *EtcdBackend) getVals(keys ...string) []Pair {
 		}
 	}
 	return out
+}
+
+func (s *EtcdBackend) addChildDir(key string, ttl uint) (*etcd.Response, error) {
+	p := path.Join("keys", key)
+	vals := url.Values{}
+	vals.Set("dir", "true")
+	req := etcd.NewRawRequest("POST", p, vals, nil)
+	raw, err := s.client.SendRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	return raw.Unmarshal()
 }
 
 type Pair struct {

@@ -26,19 +26,19 @@ func (c *Client) GetHosts() ([]*Host, error) {
 	return hosts.Hosts, err
 }
 
-func (c *Client) AddHost(name string) error {
+func (c *Client) AddHost(name string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.PostForm(c.endpoint("hosts"), url.Values{"name": {name}}, &response)
+	return &response, c.PostForm(c.endpoint("hosts"), url.Values{"name": {name}}, &response)
 }
 
-func (c *Client) DeleteHost(name string) error {
+func (c *Client) DeleteHost(name string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.Delete(c.endpoint("hosts", name), &response)
+	return &response, c.Delete(c.endpoint("hosts", name), &response)
 }
 
-func (c *Client) AddLocation(hostname, id, path, upstream string) error {
+func (c *Client) AddLocation(hostname, id, path, upstream string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.PostForm(
+	return &response, c.PostForm(
 		c.endpoint("hosts", hostname, "locations"),
 		url.Values{
 			"id":       {id},
@@ -47,24 +47,24 @@ func (c *Client) AddLocation(hostname, id, path, upstream string) error {
 		}, &response)
 }
 
-func (c *Client) DeleteLocation(hostname, id string) error {
+func (c *Client) DeleteLocation(hostname, id string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.Delete(c.endpoint("hosts", hostname, "locations", url.QueryEscape(id)), &response)
+	return &response, c.Delete(c.endpoint("hosts", hostname, "locations", url.QueryEscape(id)), &response)
 }
 
-func (c *Client) UpdateLocationUpstream(hostname, location, upstream string) error {
+func (c *Client) UpdateLocationUpstream(hostname, location, upstream string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.PutForm(c.endpoint("hosts", hostname, "locations", location), url.Values{"upstream": {upstream}}, &response)
+	return &response, c.PutForm(c.endpoint("hosts", hostname, "locations", location), url.Values{"upstream": {upstream}}, &response)
 }
 
-func (c *Client) AddUpstream(id string) error {
+func (c *Client) AddUpstream(id string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.PostForm(c.endpoint("upstreams"), url.Values{"id": {id}}, &response)
+	return &response, c.PostForm(c.endpoint("upstreams"), url.Values{"id": {id}}, &response)
 }
 
-func (c *Client) DeleteUpstream(id string) error {
+func (c *Client) DeleteUpstream(id string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.Delete(c.endpoint("upstreams", id), &response)
+	return &response, c.Delete(c.endpoint("upstreams", id), &response)
 }
 
 func (c *Client) GetUpstreams() ([]*Upstream, error) {
@@ -73,14 +73,32 @@ func (c *Client) GetUpstreams() ([]*Upstream, error) {
 	return upstreams.Upstreams, err
 }
 
-func (c *Client) AddEndpoint(upstreamId, id, u string) error {
+func (c *Client) AddEndpoint(upstreamId, id, u string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.PostForm(c.endpoint("upstreams", upstreamId, "endpoints"), url.Values{"url": {u}, "id": {id}}, &response)
+	return &response, c.PostForm(c.endpoint("upstreams", upstreamId, "endpoints"), url.Values{"url": {u}, "id": {id}}, &response)
 }
 
-func (c *Client) DeleteEndpoint(upstreamId, id string) error {
+func (c *Client) DeleteEndpoint(upstreamId, id string) (*StatusResponse, error) {
 	response := StatusResponse{}
-	return c.Delete(c.endpoint("upstreams", upstreamId, "endpoints", id), &response)
+	return &response, c.Delete(c.endpoint("upstreams", upstreamId, "endpoints", id), &response)
+}
+
+func (c *Client) AddRateLimit(hostname, location, id, variable, requests, seconds, burst string) (*StatusResponse, error) {
+	response := StatusResponse{}
+	return &response, c.PostForm(
+		c.endpoint("hosts", hostname, "locations", location, "limits", "rates"),
+		url.Values{
+			"id":       {id},
+			"variable": {variable},
+			"requests": {requests},
+			"seconds":  {seconds},
+			"burst":    {burst},
+		}, &response)
+}
+
+func (c *Client) DeleteRateLimit(hostname, location, id string) (*StatusResponse, error) {
+	response := StatusResponse{}
+	return &response, c.Delete(c.endpoint("hosts", hostname, "locations", location, "limits", "rates", id), &response)
 }
 
 func (c *Client) PutForm(endpoint string, values url.Values, in interface{}) error {
@@ -151,5 +169,5 @@ type UpstreamsResponse struct {
 }
 
 type StatusResponse struct {
-	Status string
+	Message string
 }

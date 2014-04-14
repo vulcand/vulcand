@@ -27,6 +27,9 @@ func main() {
 	upstream := app.AddSubcommand(NewUpstreamCommand())
 	upstream.Commands = NewUpstreamSubcommands()
 
+	ratelimit := app.AddSubcommand(NewRateLimitCommand())
+	ratelimit.Commands = NewRateLimitSubcommands()
+
 	app.Run(os.Args)
 }
 
@@ -37,5 +40,9 @@ func flags() []cli.Flag {
 }
 
 func client(c *cli.Context) *Client {
-	return NewClient(c.String("vulcan"))
+	vulcanUrl := c.String("vulcan")
+	if len(vulcanUrl) == 0 {
+		vulcanUrl = "http://localhost:8182"
+	}
+	return NewClient(vulcanUrl)
 }
