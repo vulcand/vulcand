@@ -3,7 +3,7 @@ test: clean
 
 deps:
 	go get -v -u launchpad.net/gocheck
-	go get -v -u github.com/codegangsta/cli
+	go get -v -u github.com/mailgun/cli
 
 clean:
 	find . -name flymake_* -delete

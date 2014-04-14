@@ -7,7 +7,10 @@ import (
 	log "github.com/mailgun/gotools-log"
 	runtime "github.com/mailgun/gotools-runtime"
 	"github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcan/callback"
 	"github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcan/limit/connlimit"
+	"github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcan/location/httploc"
 	"github.com/mailgun/vulcan/netutils"
@@ -362,8 +365,37 @@ func (s *Service) addLocation(host *Host, loc *Location) error {
 	if err != nil {
 		return err
 	}
+
+	before := callback.NewBeforeChain()
+	after := callback.NewAfterChain()
+	options := httploc.Options{
+		Before: before,
+		After:  after,
+	}
+	// Add rate limits
+	for _, rl := range loc.RateLimits {
+		limiter, err := s.newRateLimiter(rl)
+		if err == nil {
+			before.Add(rl.EtcdKey, limiter)
+			after.Add(rl.EtcdKey, limiter)
+		} else {
+			log.Errorf("Failed to create limiter: %s", before)
+		}
+	}
+
+	// Add connection limits
+	for _, cl := range loc.ConnLimits {
+		limiter, err := s.newConnLimiter(cl)
+		if err == nil {
+			before.Add(cl.EtcdKey, limiter)
+			after.Add(cl.EtcdKey, limiter)
+		} else {
+			log.Errorf("Failed to create limiter: %s", before)
+		}
+	}
+
 	// Create a location itself
-	location, err := httploc.NewLocation(loc.Name, rr)
+	location, err := httploc.NewLocationWithOptions(loc.Name, rr, options)
 	if err != nil {
 		return err
 	}
@@ -373,6 +405,23 @@ func (s *Service) addLocation(host *Host, loc *Location) error {
 	}
 	// Once the location added, configure all endpoints
 	return s.configureLocation(host, loc)
+}
+
+func (s *Service) newRateLimiter(rl *RateLimit) (*tokenbucket.TokenLimiter, error) {
+	mapper, err := VariableToMapper(rl.Variable)
+	if err != nil {
+		return nil, err
+	}
+	rate := tokenbucket.Rate{Units: int64(rl.Requests), Period: time.Second * time.Duration(rl.PeriodSeconds)}
+	return tokenbucket.NewTokenLimiterWithOptions(mapper, rate, tokenbucket.Options{Burst: rl.Burst})
+}
+
+func (s *Service) newConnLimiter(cl *ConnLimit) (*connlimit.ConnectionLimiter, error) {
+	mapper, err := VariableToMapper(cl.Variable)
+	if err != nil {
+		return nil, err
+	}
+	return connlimit.NewConnectionLimiter(mapper, cl.Connections)
 }
 
 func (s *Service) updateLocationUpstream(host *Host, loc *Location, upstreamId string) error {

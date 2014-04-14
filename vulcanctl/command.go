@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/codegangsta/cli"
+	"github.com/mailgun/cli"
 )
 
 type GroupCommand struct {

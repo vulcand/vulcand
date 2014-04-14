@@ -1,38 +1,36 @@
 package main
 
 import (
-	"github.com/codegangsta/cli"
+	"github.com/mailgun/cli"
 )
 
-func NewListUpstreamsCommand() cli.Command {
+func NewUpstreamCommand() cli.Command {
 	return cli.Command{
-		Name:   "upstreams",
-		Usage:  "List upstreams",
-		Flags:  flags(),
-		Action: listUpstreamsAction,
+		Name:  "upstream",
+		Flags: flags(),
+		Usage: "Operations with vulcan upstreams",
 	}
 }
 
-func NewUpstreamCommand() cli.Command {
-	return NewGroupCommand(GroupCommand{
-		Name:  "upstream",
-		Usage: "Operations with vulcan upstreams",
-		Flags: flags(),
-		Subcommands: []cli.Command{
-			{
-				Name:   "add",
-				Flags:  flags(),
-				Usage:  "Add a new upstream to vulcan",
-				Action: addUpstreamAction,
-			},
-			{
-				Name:   "rm",
-				Flags:  flags(),
-				Usage:  "Remove upstream from vulcan",
-				Action: deleteUpstreamAction,
-			},
+func NewUpstreamSubcommands() []cli.Command {
+	return []cli.Command{
+		{
+			Name:   "add",
+			Usage:  "Add a new upstream to vulcan",
+			Action: addUpstreamAction,
 		},
-	})
+		{
+			Name:   "rm",
+			Usage:  "Remove upstream from vulcan",
+			Action: deleteUpstreamAction,
+		},
+		{
+			Name:   "list",
+			Usage:  "List upstreams",
+			Flags:  flags(),
+			Action: listUpstreamsAction,
+		},
+	}
 }
 
 func addUpstreamAction(c *cli.Context) {

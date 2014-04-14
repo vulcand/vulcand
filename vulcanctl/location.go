@@ -1,35 +1,34 @@
 package main
 
 import (
-	"github.com/codegangsta/cli"
+	"github.com/mailgun/cli"
 )
 
 func NewLocationCommand() cli.Command {
-	return NewGroupCommand(GroupCommand{
+	return cli.Command{
 		Name:  "location",
 		Usage: "Operations with vulcan locations",
-		Flags: flags(),
-		Subcommands: []cli.Command{
-			{
-				Name:   "add",
-				Flags:  flags(),
-				Usage:  "Add a new location to vulcan proxy",
-				Action: addLocationAction,
-			},
-			{
-				Name:   "rm",
-				Flags:  flags(),
-				Usage:  "Remove a location from vulcan",
-				Action: deleteLocationAction,
-			},
-			{
-				Name:   "set_upstream",
-				Flags:  flags(),
-				Usage:  "Update upstream",
-				Action: locationUpdateUpstreamAction,
-			},
+	}
+}
+
+func NewLocationSubcommands() []cli.Command {
+	return []cli.Command{
+		{
+			Name:   "add",
+			Usage:  "Add a new location to vulcan proxy",
+			Action: addLocationAction,
 		},
-	})
+		{
+			Name:   "rm",
+			Usage:  "Remove a location from vulcan",
+			Action: deleteLocationAction,
+		},
+		{
+			Name:   "set_upstream",
+			Usage:  "Update upstream",
+			Action: locationUpdateUpstreamAction,
+		},
+	}
 }
 
 func addLocationAction(c *cli.Context) {

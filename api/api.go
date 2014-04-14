@@ -19,12 +19,21 @@ func InitProxyController(backend backend.Backend, router *mux.Router) {
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.GetHosts)).Methods("GET")
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.AddHost)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}", api.MakeHandler(controller.DeleteHost)).Methods("DELETE")
+
 	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeHandler(controller.AddLocation)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.DeleteLocation)).Methods("DELETE")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.UpdateLocation)).Methods("PUT")
+
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/rates", api.MakeHandler(controller.AddLocationRateLimit)).Methods("POST")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/rates/{id}", api.MakeHandler(controller.DeleteLocationRateLimit)).Methods("DELETE")
+
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/connections", api.MakeHandler(controller.AddLocationConnLimit)).Methods("POST")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/connections/{id}", api.MakeHandler(controller.DeleteLocationConnLimit)).Methods("DELETE")
+
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.AddUpstream)).Methods("POST")
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.GetUpstreams)).Methods("GET")
 	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.DeleteUpstream)).Methods("DELETE")
+
 	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeHandler(controller.AddEndpoint)).Methods("POST")
 	router.HandleFunc("/v1/upstreams/{upstream}/endpoints/{endpoint}", api.MakeHandler(controller.DeleteEndpoint)).Methods("DELETE")
 }
@@ -80,6 +89,92 @@ func (c *ProxyController) AddLocation(w http.ResponseWriter, r *http.Request, pa
 	}
 
 	return api.Response{"message": "Location added"}, nil
+}
+
+func (c *ProxyController) AddLocationRateLimit(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	hostname := params["hostname"]
+	locationId := params["location"]
+
+	id, err := api.GetStringField(r, "id")
+	if err != nil {
+		return nil, err
+	}
+
+	requests, err := api.GetIntField(r, "requests")
+	if err != nil {
+		return nil, err
+	}
+
+	seconds, err := api.GetIntField(r, "seconds")
+	if err != nil {
+		return nil, err
+	}
+
+	burst, err := api.GetIntField(r, "burst")
+	if err != nil {
+		return nil, err
+	}
+
+	variable, err := api.GetStringField(r, "variable")
+	if err != nil {
+		return nil, err
+	}
+
+	rateLimit, err := backend.NewRateLimit(requests, variable, burst, seconds)
+	if err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	if err := c.backend.AddLocationRateLimit(hostname, locationId, id, rateLimit); err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	return api.Response{"message": "Rate added"}, nil
+}
+
+func (c *ProxyController) DeleteLocationRateLimit(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	if err := c.backend.DeleteLocationRateLimit(params["hostname"], params["location"], params["id"]); err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+	return api.Response{"message": "Location rate limit deleted"}, nil
+}
+
+func (c *ProxyController) AddLocationConnLimit(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	hostname := params["hostname"]
+	locationId := params["location"]
+
+	id, err := api.GetStringField(r, "id")
+	if err != nil {
+		return nil, err
+	}
+
+	connections, err := api.GetIntField(r, "connections")
+	if err != nil {
+		return nil, err
+	}
+
+	variable, err := api.GetStringField(r, "variable")
+	if err != nil {
+		return nil, err
+	}
+
+	connLimit, err := backend.NewConnLimit(connections, variable)
+	if err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	if err := c.backend.AddLocationConnLimit(hostname, locationId, id, connLimit); err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	return api.Response{"message": "Rate added"}, nil
+}
+
+func (c *ProxyController) DeleteLocationConnLimit(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	if err := c.backend.DeleteLocationConnLimit(params["hostname"], params["location"], params["id"]); err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+	return api.Response{"message": "Location connection limit deleted"}, nil
 }
 
 func (c *ProxyController) UpdateLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/codegangsta/cli"
+	"github.com/mailgun/cli"
 	"os"
 )
 
@@ -10,14 +10,23 @@ func main() {
 	app.Name = "vulcanctl"
 	app.Usage = "Command line interface to a running vulcan instance"
 	app.Flags = flags()
+
 	app.Commands = []cli.Command{
 		NewStatusCommand(),
-		NewHostCommand(),
-		NewLocationCommand(),
-		NewUpstreamCommand(),
-		NewListUpstreamsCommand(),
-		NewEndpointCommand(),
 	}
+
+	location := app.AddSubcommand(NewLocationCommand())
+	location.Commands = NewLocationSubcommands()
+
+	host := app.AddSubcommand(NewHostCommand())
+	host.Commands = NewHostSubcommands()
+
+	endpoint := app.AddSubcommand(NewEndpointCommand())
+	endpoint.Commands = NewEndpointSubcommands()
+
+	upstream := app.AddSubcommand(NewUpstreamCommand())
+	upstream.Commands = NewUpstreamSubcommands()
+
 	app.Run(os.Args)
 }
 

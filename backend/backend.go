@@ -14,6 +14,12 @@ type Backend interface {
 	DeleteLocation(hostname, id string) error
 	UpdateLocationUpstream(hostname, id string, upstream string) error
 
+	AddLocationRateLimit(hostname, locationId string, id string, rateLimit *RateLimit) error
+	DeleteLocationRateLimit(hostname, locationId, id string) error
+
+	AddLocationConnLimit(hostname, locationId, id string, connLimit *ConnLimit) error
+	DeleteLocationConnLimit(hostname, locationId, id string) error
+
 	GetUpstreams() ([]*Upstream, error)
 	AddUpstream(id string) error
 	DeleteUpstream(id string) error
@@ -33,14 +39,72 @@ func (l *Host) String() string {
 }
 
 type Location struct {
-	EtcdKey  string
-	Path     string
-	Name     string
-	Upstream *Upstream
+	EtcdKey    string
+	Path       string
+	Name       string
+	Upstream   *Upstream
+	ConnLimits []*ConnLimit
+	RateLimits []*RateLimit
 }
 
 func (l *Location) String() string {
-	return fmt.Sprintf("location(id=%s, path=%s)", l.Name, l.Path)
+	return fmt.Sprintf("location(id=%s, path=%s, ratelimits=s, connlimits=%s)", l.Name, l.Path, l.RateLimits, l.ConnLimits)
+}
+
+type ConnLimit struct {
+	EtcdKey     string
+	Connections int
+	Variable    string
+}
+
+type RateLimit struct {
+	EtcdKey       string
+	PeriodSeconds int
+	Burst         int
+	Variable      string
+	Requests      int
+}
+
+func NewRateLimit(requests int, variable string, burst int, periodSeconds int) (*RateLimit, error) {
+	if _, err := VariableToMapper(variable); err != nil {
+		return nil, err
+	}
+	if requests <= 0 {
+		return nil, fmt.Errorf("Requests should be > 0, got %d", requests)
+	}
+	if burst < 0 {
+		return nil, fmt.Errorf("Burst should be >= 0, got %d", burst)
+	}
+	if periodSeconds <= 0 {
+		return nil, fmt.Errorf("Period seconds should be > 0, got %d", periodSeconds)
+	}
+	return &RateLimit{
+		Requests:      requests,
+		Variable:      variable,
+		Burst:         burst,
+		PeriodSeconds: periodSeconds,
+	}, nil
+}
+
+func (rl *RateLimit) String() string {
+	return fmt.Sprintf("ratelimit(reqs/%ss=%d, burst=%d, var=%s)", rl.PeriodSeconds, rl.Requests, rl.Burst, rl.Variable)
+}
+
+func NewConnLimit(connections int, variable string) (*ConnLimit, error) {
+	if _, err := VariableToMapper(variable); err != nil {
+		return nil, err
+	}
+	if connections < 0 {
+		return nil, fmt.Errorf("Connections should be > 0, got %d", connections)
+	}
+	return &ConnLimit{
+		Connections: connections,
+		Variable:    variable,
+	}, nil
+}
+
+func (cl *ConnLimit) String() string {
+	return fmt.Sprintf("connlimit(conn=%d, var=%s)", cl.Connections, cl.Variable)
 }
 
 type Upstream struct {

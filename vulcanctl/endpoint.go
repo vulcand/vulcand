@@ -1,29 +1,29 @@
 package main
 
 import (
-	"github.com/codegangsta/cli"
+	"github.com/mailgun/cli"
 )
 
 func NewEndpointCommand() cli.Command {
-	return NewGroupCommand(GroupCommand{
+	return cli.Command{
 		Name:  "endpoint",
 		Usage: "Operations with vulcan endpoint",
-		Flags: flags(),
-		Subcommands: []cli.Command{
-			{
-				Name:   "add",
-				Flags:  flags(),
-				Usage:  "Add a new endpoint to vulcan",
-				Action: addEndpointAction,
-			},
-			{
-				Name:   "rm",
-				Flags:  flags(),
-				Usage:  "Remove endpoint from vulcan",
-				Action: deleteEndpointAction,
-			},
+	}
+}
+
+func NewEndpointSubcommands() []cli.Command {
+	return []cli.Command{
+		{
+			Name:   "add",
+			Usage:  "Add a new endpoint to vulcan",
+			Action: addEndpointAction,
 		},
-	})
+		{
+			Name:   "rm",
+			Usage:  "Remove endpoint from vulcan",
+			Action: deleteEndpointAction,
+		},
+	}
 }
 
 func addEndpointAction(c *cli.Context) {

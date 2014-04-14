@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/coreos/go-etcd/etcd"
 	log "github.com/mailgun/gotools-log"
@@ -46,6 +47,7 @@ func (s *EtcdBackend) watchChanges() {
 			log.Errorf("Failed to get response from etcd: %s, quitting watch goroutine", err)
 			return
 		}
+		waitIndex = response.Node.ModifiedIndex + 1
 		log.Infof("Got response: %s %s %d %s",
 			response.Action, response.Node.Key, response.EtcdIndex, err)
 		change, err := s.parseChange(response)
@@ -56,7 +58,7 @@ func (s *EtcdBackend) watchChanges() {
 		if change != nil {
 			s.changes <- change
 		}
-		waitIndex = response.Node.ModifiedIndex + 1
+
 	}
 }
 
@@ -303,6 +305,66 @@ func (s *EtcdBackend) DeleteEndpoint(upstreamId, id string) error {
 	return nil
 }
 
+func (s *EtcdBackend) AddLocationRateLimit(hostname, locationId string, id string, rateLimit *RateLimit) error {
+	// Make sure location actually exists
+	if _, err := s.readLocation(hostname, locationId); err != nil {
+		return err
+	}
+	bytes, err := json.Marshal(rateLimit)
+	if err != nil {
+		return err
+	}
+	if id == "" {
+		if _, err := s.client.AddChild(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "rates"), string(bytes), 0); err != nil {
+			return formatErr(err)
+		}
+	} else {
+		if _, err := s.client.Create(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "rates", id), string(bytes), 0); err != nil {
+			return formatErr(err)
+		}
+	}
+	return nil
+}
+
+func (s *EtcdBackend) DeleteLocationRateLimit(hostname, locationId, id string) error {
+	if _, err := s.client.Delete(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "rates", id), true); err != nil {
+		if notFound(err) {
+			return fmt.Errorf("Rate limit '%s' not found", id)
+		}
+	}
+	return nil
+}
+
+func (s *EtcdBackend) AddLocationConnLimit(hostname, locationId, id string, connLimit *ConnLimit) error {
+	// Make sure location actually exists
+	if _, err := s.readLocation(hostname, locationId); err != nil {
+		return err
+	}
+	bytes, err := json.Marshal(connLimit)
+	if err != nil {
+		return err
+	}
+	if id == "" {
+		if _, err := s.client.AddChild(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "connections"), string(bytes), 0); err != nil {
+			return formatErr(err)
+		}
+	} else {
+		if _, err := s.client.Create(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "connections", id), string(bytes), 0); err != nil {
+			return formatErr(err)
+		}
+	}
+	return nil
+}
+
+func (s *EtcdBackend) DeleteLocationConnLimit(hostname, locationId, id string) error {
+	if _, err := s.client.Delete(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "connections", id), true); err != nil {
+		if notFound(err) {
+			return fmt.Errorf("Connection limit '%s' not found", id)
+		}
+	}
+	return nil
+}
+
 func (s *EtcdBackend) readHosts() ([]*Host, error) {
 	hosts := []*Host{}
 	for _, hostKey := range s.getDirs(s.etcdKey, "hosts") {
@@ -370,9 +432,11 @@ func (s *EtcdBackend) readLocation(hostname, locationId string) (*Location, erro
 		return nil, fmt.Errorf("Missing location upstream: %s", locationKey)
 	}
 	location := &Location{
-		Name:    suffix(locationKey),
-		EtcdKey: locationKey,
-		Path:    path,
+		Name:       suffix(locationKey),
+		EtcdKey:    locationKey,
+		Path:       path,
+		ConnLimits: []*ConnLimit{},
+		RateLimits: []*RateLimit{},
 	}
 	upstream, err := s.readUpstream(upstreamKey)
 	if err != nil {
@@ -386,8 +450,49 @@ func (s *EtcdBackend) readLocation(hostname, locationId string) (*Location, erro
 			log.Errorf("Failed to get stats about endpoint: %s, err: %s", e, err)
 		}
 	}
+
+	for _, cl := range s.getVals(locationKey, "limits", "connections") {
+		connLimit, err := s.readLocationConnLimit(cl.Key)
+		if err == nil {
+			location.ConnLimits = append(location.ConnLimits, connLimit)
+		}
+	}
+
+	for _, cl := range s.getVals(locationKey, "limits", "rates") {
+		rateLimit, err := s.readLocationRateLimit(cl.Key)
+		if err == nil {
+			location.RateLimits = append(location.RateLimits, rateLimit)
+		}
+	}
+
 	location.Upstream = upstream
 	return location, nil
+}
+
+func (s *EtcdBackend) readLocationRateLimit(rateKey string) (*RateLimit, error) {
+	rate, ok := s.getVal(rateKey)
+	if !ok {
+		return nil, fmt.Errorf("Missing rate limit key: %s", rateKey)
+	}
+	rl, err := ParseRateLimit(rate)
+	if err != nil {
+		return nil, err
+	}
+	rl.EtcdKey = rateKey
+	return rl, nil
+}
+
+func (s *EtcdBackend) readLocationConnLimit(connKey string) (*ConnLimit, error) {
+	conn, ok := s.getVal(connKey)
+	if !ok {
+		return nil, fmt.Errorf("Missing connection limit key: %s", connKey)
+	}
+	cl, err := ParseConnLimit(conn)
+	if err != nil {
+		return nil, err
+	}
+	cl.EtcdKey = connKey
+	return cl, nil
 }
 
 func (s *EtcdBackend) readUpstream(upstreamId string) (*Upstream, error) {
