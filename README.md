@@ -94,8 +94,11 @@ Host
 Host command supports adding or removing host
 
 ```bash
-$ vulcanctl host add --name localhost2
-$ vulcanctl host rm --name localhost2
+# Add host with name 'example.com'
+$ vulcanctl host add --name example.com
+
+# Remove host with name 'example.com'
+$ vulcanctl host rm --name example.com
 ```
 
 Upstream
@@ -104,8 +107,13 @@ Upstream
 Upstream command adds or removes upstreams
 
 ```bash
+# Add upstream  with id 'u1'
 $ vulcanctl upstream add --id u1
-$ vulcanctl upstream add # auto generates upstream id and adds it
+
+# Adds upstream with auto generated id
+$ vulcanctl upstream add 
+
+# Remove upstream with id 'u1'
 $ vulcanctl upstream rm --id u1
 ```
 
@@ -126,8 +134,14 @@ Location
 Location adds or removes location to the host
 
 ```bash
-$ vulcanctl location add --host localhost --id loc1 --path /hello --up u1 # add location with id 'id1' to host 'localhost', use path '/hello' and upstream 'u1'
-$ vulcanctl location rm --host localhost --id loc1 # remove location with id 'loc1' from host 'localhost'
+# add location with id 'id1' to host 'example.com', use path '/hello' and upstream 'u1'
+$ vulcanctl location add --host example.com --id loc1 --path /hello --up u1 
+
+# add location with auto generated id to host 'example.com', use path '/hello2' and upstream 'u1'
+$ vulcanctl location add --host example.com --path /hello2 --up u1 
+
+# remove location with id 'loc1' from host 'example.com'
+$ vulcanctl location rm --host example.com --id loc1 
 ```
 
 Rate limit
@@ -136,13 +150,20 @@ Rate limit
 Rate add or removes rate limit restrictions on the location
 
 ```bash
-$ vulcanctl ratelimit add --variable client.ip --host localhost --loc loc1 --reqs 10 # limit access per client ip to 10 requests per second in location 'loc1' in host 'localhost'
-$ vulcanctl ratelimit add --variable request.header.X-Account-Id --host localhost --loc loc1 --reqs 10 # limit access per custom http header value 'X-Account-Id' to 100 requests per second to location 'loc1' in host 'localhost'
-$ vulcanctl ratelimit rm --id r1 # remove rate limit restriction with id 'r1'
+# limit access per client ip to 10 requests per second in location 'loc1' in host 'example.com'
+$ vulcanctl ratelimit add --variable client.ip --host example.com --loc loc1 --reqs 10 
+
+# limit access per custom http header value 'X-Account-Id' to 100 requests per second to location 'loc1' in host 'example.com'
+$ vulcanctl ratelimit add --variable request.header.X-Account-Id --host example.com --loc loc1 --reqs 10 
+
+# remove rate limit restriction with id 'r1' from host 'example.com' location 'loc1'
+$ vulcanctl ratelimit rm --id r1  --host example.com --loc 'loc1'
 ```
 
 Docker
 ======
+
+Warning: Docker (and vulcan builds are not reproducible yet!)
 
 Here's how you build vulcan in Docker:
 
