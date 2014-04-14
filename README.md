@@ -6,17 +6,12 @@ Vulcand
 
 Status: Moving fast, breaking things. Will be usable soon, though.
 
-Installation & Run
-------------------
+Installation
+------------
 
-Deps:
+Deps: go>=1.2, Etcd, go1.2
 
-* Etcd
-* go>=1.2
-
-System deps:
-
-* Linux, Etcd, go1.2
+Install: 
 
 ```bash
 make deps
