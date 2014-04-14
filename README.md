@@ -9,7 +9,7 @@ Status: Moving fast, breaking things. Will be usable soon, though.
 Installation
 ------------
 
-Deps: go>=1.2, Etcd, go1.2
+Deps: go>=1.2, Etcd
 
 Install: 
 
