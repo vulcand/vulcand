@@ -4,19 +4,15 @@ Vulcand
 * HTTP proxy that uses Etcd as a configuration backend.
 * Changes to configuration take effect immediately without restarting the service.
 
-Status
-------
-
-* Moving fast, breaking things.
-
-Deps
-----
-
-* Etcd
-* go>=1.2
+Status: Moving fast, breaking things. Will be usable soon, though.
 
 Installation & Run
 ------------------
+
+Deps:
+
+* Etcd
+* go>=1.2
 
 System deps:
 
