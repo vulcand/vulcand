@@ -123,9 +123,14 @@ Endpoint
 Endpoint command adds or removed endpoints to the upstream.
 
 ```bash
-$ vulcanctl endpoint add --id e1 --up u1 --url http://localhost:5000 # adds endpoint with id 'e2' and url 'http://localhost:5002' to upstream with id 'u1'
-$ vulcanctl endpoint add --up u1 --url http://localhost:5001 # in case if id is omitted, etcd will auto generate it
-$ vulcanctl endpoint rm --up u1 --id e1 # removed endpoint with id 'e1' from upstream 'u1'
+# add endpoint with id 'e2' and url 'http://localhost:5002' to upstream with id 'u1'
+$ vulcanctl endpoint add --id e1 --up u1 --url http://localhost:5000 
+
+# in case if id is omitted, etcd will auto generate it
+$ vulcanctl endpoint add --up u1 --url http://localhost:5001 
+
+# removed endpoint with id 'e1' from upstream 'u1'
+$ vulcanctl endpoint rm --up u1 --id e1 
 ```
 
 Location
@@ -150,10 +155,12 @@ Rate limit
 Rate add or removes rate limit restrictions on the location
 
 ```bash
-# limit access per client ip to 10 requests per second in location 'loc1' in host 'example.com'
+# limit access per client ip to 10 requests per second in 
+# location 'loc1' in host 'example.com'
 $ vulcanctl ratelimit add --variable client.ip --host example.com --loc loc1 --reqs 10 
 
-# limit access per custom http header value 'X-Account-Id' to 100 requests per second to location 'loc1' in host 'example.com'
+# limit access per custom http header value 'X-Account-Id' to 100 requests per second 
+# to location 'loc1' in host 'example.com'
 $ vulcanctl ratelimit add --variable request.header.X-Account-Id --host example.com --loc loc1 --reqs 10 
 
 # remove rate limit restriction with id 'r1' from host 'example.com' location 'loc1'
