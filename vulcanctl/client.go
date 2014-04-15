@@ -96,6 +96,19 @@ func (c *Client) AddRateLimit(hostname, location, id, variable, requests, second
 		}, &response)
 }
 
+func (c *Client) UpdateRateLimit(hostname, location, id, variable, requests, seconds, burst string) (*StatusResponse, error) {
+	response := StatusResponse{}
+	return &response, c.PutForm(
+		c.endpoint("hosts", hostname, "locations", location, "limits", "rates", id),
+		url.Values{
+			"id":       {id},
+			"variable": {variable},
+			"requests": {requests},
+			"seconds":  {seconds},
+			"burst":    {burst},
+		}, &response)
+}
+
 func (c *Client) DeleteRateLimit(hostname, location, id string) (*StatusResponse, error) {
 	response := StatusResponse{}
 	return &response, c.Delete(c.endpoint("hosts", hostname, "locations", location, "limits", "rates", id), &response)

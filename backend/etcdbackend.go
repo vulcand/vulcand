@@ -71,6 +71,7 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (*Change, error) {
 		s.parseHostChange,
 		s.parseLocationChange,
 		s.parseUpstreamChange,
+		s.parseRateLimitChange,
 	}
 	for _, matcher := range matchers {
 		a, err := matcher(response)
@@ -158,11 +159,43 @@ func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (*Change, err
 	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
 }
 
+func (s *EtcdBackend) parseRateLimitChange(response *etcd.Response) (*Change, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/limits/rates/([^/]+)").FindStringSubmatch(response.Node.Key)
+	if len(out) != 4 {
+		return nil, nil
+	}
+	hostname, locationId := out[1], out[2]
+	location, err := s.readLocation(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+	change := &Change{
+		Action: response.Action,
+		Parent: location,
+		Params: map[string]interface{}{"host": &Host{Name: hostname}},
+	}
+	if response.Action == "create" || response.Action == "set" {
+		rate, err := s.readLocationRateLimit(response.Node.Key)
+		if err != nil {
+			return nil, err
+		}
+		change.Child = rate
+		return change, nil
+	} else if response.Action == "delete" {
+		change.Child = &RateLimit{EtcdKey: response.Node.Key}
+		return change, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the rate: %s", response.Action)
+}
+
 func (s *EtcdBackend) GetHosts() ([]*Host, error) {
 	return s.readHosts()
 }
 
 func (s *EtcdBackend) AddHost(name string) error {
+	if len(name) == 0 {
+		return fmt.Errorf("Host name can not be empty")
+	}
 	_, err := s.client.CreateDir(join(s.etcdKey, "hosts", name), 0)
 	if isDupe(err) {
 		return fmt.Errorf("Host '%s' already exists", name)
@@ -176,6 +209,10 @@ func (s *EtcdBackend) DeleteHost(name string) error {
 }
 
 func (s *EtcdBackend) AddLocation(id, hostname, path, upstreamId string) error {
+	if len(path) == 0 || len(hostname) == 0 || len(upstreamId) == 0 {
+		return fmt.Errorf("Supply valid hostname, path and upstream id")
+	}
+
 	log.Infof("Add Location(id=%s, hosntame=%s, path=%s, upstream=%s)", id, hostname, path, upstreamId)
 	// Make sure location path is a valid regular expression
 	if _, err := regexp.Compile(path); err != nil {
@@ -324,6 +361,24 @@ func (s *EtcdBackend) AddLocationRateLimit(hostname, locationId string, id strin
 		if _, err := s.client.Create(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "rates", id), string(bytes), 0); err != nil {
 			return formatErr(err)
 		}
+	}
+	return nil
+}
+
+func (s *EtcdBackend) UpdateLocationRateLimit(hostname, locationId string, id string, rateLimit *RateLimit) error {
+	if len(id) == 0 || len(hostname) == 0 || len(locationId) == 0 {
+		return fmt.Errorf("Provide hostname, location and rate id to update")
+	}
+	// Make sure location actually exists
+	if _, err := s.readLocation(hostname, locationId); err != nil {
+		return err
+	}
+	bytes, err := json.Marshal(rateLimit)
+	if err != nil {
+		return err
+	}
+	if _, err := s.client.Set(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "rates", id), string(bytes), 0); err != nil {
+		return formatErr(err)
 	}
 	return nil
 }

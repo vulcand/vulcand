@@ -156,7 +156,7 @@ func (s *Service) configureHost(host *Host) error {
 	return nil
 }
 
-func (s *Service) configureLocation(host *Host, location *Location) error {
+func (s *Service) configureLocationEndpoints(host *Host, location *Location) error {
 	rr, err := s.getHttpLocationLb(host.Name, location.Name)
 	if err != nil {
 		return err
@@ -239,6 +239,15 @@ func (s *Service) processChange(change *Change) {
 			err = s.addHost(child)
 		case "delete":
 			err = s.deleteHost(child)
+		}
+	case *RateLimit:
+		switch change.Action {
+		case "create":
+			err = s.upsertLocationRateLimit(change.Params["host"].(*Host), (change.Parent).(*Location), child)
+		case "set":
+			err = s.upsertLocationRateLimit(change.Params["host"].(*Host), (change.Parent).(*Location), child)
+		case "delete":
+			err = s.deleteLocationRateLimit(change.Params["host"].(*Host), (change.Parent).(*Location), child)
 		}
 	}
 	if err != nil {
@@ -355,6 +364,55 @@ func (s *Service) deleteEndpoint(upstream *Upstream, e *Endpoint) error {
 	return nil
 }
 
+func (s *Service) upsertLocationRateLimit(host *Host, loc *Location, rl *RateLimit) error {
+	location, err := s.getHttpLocation(host.Name, loc.Name)
+	if err != nil {
+		return err
+	}
+	limiter, err := s.newRateLimiter(rl)
+	if err != nil {
+		return err
+	}
+	before := location.GetBefore().(*callback.BeforeChain)
+	after := location.GetAfter().(*callback.AfterChain)
+
+	before.Upsert(rl.EtcdKey, limiter)
+	after.Update(rl.EtcdKey, limiter)
+	return nil
+}
+
+func (s *Service) deleteLocationRateLimit(host *Host, loc *Location, rl *RateLimit) error {
+	location, err := s.getHttpLocation(host.Name, loc.Name)
+	if err != nil {
+		return err
+	}
+	before := location.GetBefore().(*callback.BeforeChain)
+	after := location.GetAfter().(*callback.AfterChain)
+
+	if err := before.Remove(rl.EtcdKey); err != nil {
+		log.Errorf("Failed to remove rate limiter: %s")
+	}
+	return after.Remove(rl.EtcdKey)
+}
+
+func (s *Service) addLocationConnLimit(host *Host, loc *Location, cl *ConnLimit) error {
+	location, err := s.getHttpLocation(host.Name, loc.Name)
+	if err != nil {
+		return err
+	}
+	limiter, err := s.newConnLimiter(cl)
+	if err != nil {
+		return err
+	}
+	before := location.GetBefore().(*callback.BeforeChain)
+	after := location.GetAfter().(*callback.AfterChain)
+
+	if err := before.Add(cl.EtcdKey, limiter); err != nil {
+		return err
+	}
+	return after.Add(cl.EtcdKey, limiter)
+}
+
 func (s *Service) addLocation(host *Host, loc *Location) error {
 	router, err := s.getPathRouter(host.Name)
 	if err != nil {
@@ -372,27 +430,6 @@ func (s *Service) addLocation(host *Host, loc *Location) error {
 		Before: before,
 		After:  after,
 	}
-	// Add rate limits
-	for _, rl := range loc.RateLimits {
-		limiter, err := s.newRateLimiter(rl)
-		if err == nil {
-			before.Add(rl.EtcdKey, limiter)
-			after.Add(rl.EtcdKey, limiter)
-		} else {
-			log.Errorf("Failed to create limiter: %s", before)
-		}
-	}
-
-	// Add connection limits
-	for _, cl := range loc.ConnLimits {
-		limiter, err := s.newConnLimiter(cl)
-		if err == nil {
-			before.Add(cl.EtcdKey, limiter)
-			after.Add(cl.EtcdKey, limiter)
-		} else {
-			log.Errorf("Failed to create limiter: %s", before)
-		}
-	}
 
 	// Create a location itself
 	location, err := httploc.NewLocationWithOptions(loc.Name, rr, options)
@@ -403,8 +440,19 @@ func (s *Service) addLocation(host *Host, loc *Location) error {
 	if err := router.AddLocation(loc.Path, location); err != nil {
 		return err
 	}
+	// Add rate and connection limits
+	for _, rl := range loc.RateLimits {
+		if err := s.upsertLocationRateLimit(host, loc, rl); err != nil {
+			log.Errorf("Failed to add rate limit: %s", err)
+		}
+	}
+	for _, cl := range loc.ConnLimits {
+		if err := s.addLocationConnLimit(host, loc, cl); err != nil {
+			log.Errorf("Failed to add connection limit: %s", err)
+		}
+	}
 	// Once the location added, configure all endpoints
-	return s.configureLocation(host, loc)
+	return s.configureLocationEndpoints(host, loc)
 }
 
 func (s *Service) newRateLimiter(rl *RateLimit) (*tokenbucket.TokenLimiter, error) {
@@ -425,7 +473,7 @@ func (s *Service) newConnLimiter(cl *ConnLimit) (*connlimit.ConnectionLimiter, e
 }
 
 func (s *Service) updateLocationUpstream(host *Host, loc *Location, upstreamId string) error {
-	return s.configureLocation(host, loc)
+	return s.configureLocationEndpoints(host, loc)
 }
 
 func (s *Service) deleteLocation(host *Host, loc *Location) error {

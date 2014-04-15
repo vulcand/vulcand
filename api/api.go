@@ -26,6 +26,7 @@ func InitProxyController(backend backend.Backend, router *mux.Router) {
 
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/rates", api.MakeHandler(controller.AddLocationRateLimit)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/rates/{id}", api.MakeHandler(controller.DeleteLocationRateLimit)).Methods("DELETE")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/rates/{id}", api.MakeHandler(controller.UpdateLocationRateLimit)).Methods("PUT")
 
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/connections", api.MakeHandler(controller.AddLocationConnLimit)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/connections/{id}", api.MakeHandler(controller.DeleteLocationConnLimit)).Methods("DELETE")
@@ -126,6 +127,43 @@ func (c *ProxyController) AddLocationRateLimit(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := c.backend.AddLocationRateLimit(hostname, locationId, id, rateLimit); err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	return api.Response{"message": "Rate added"}, nil
+}
+
+func (c *ProxyController) UpdateLocationRateLimit(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	hostname := params["hostname"]
+	locationId := params["location"]
+	id := params["id"]
+
+	requests, err := api.GetIntField(r, "requests")
+	if err != nil {
+		return nil, err
+	}
+
+	seconds, err := api.GetIntField(r, "seconds")
+	if err != nil {
+		return nil, err
+	}
+
+	burst, err := api.GetIntField(r, "burst")
+	if err != nil {
+		return nil, err
+	}
+
+	variable, err := api.GetStringField(r, "variable")
+	if err != nil {
+		return nil, err
+	}
+
+	rateLimit, err := backend.NewRateLimit(requests, variable, burst, seconds)
+	if err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	if err := c.backend.UpdateLocationRateLimit(hostname, locationId, id, rateLimit); err != nil {
 		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
 	}
 

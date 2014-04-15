@@ -17,6 +17,7 @@ type Backend interface {
 
 	AddLocationRateLimit(hostname, locationId string, id string, rateLimit *RateLimit) error
 	DeleteLocationRateLimit(hostname, locationId, id string) error
+	UpdateLocationRateLimit(hostname, locationId string, id string, rateLimit *RateLimit) error
 
 	AddLocationConnLimit(hostname, locationId, id string, connLimit *ConnLimit) error
 	DeleteLocationConnLimit(hostname, locationId, id string) error
@@ -139,6 +140,7 @@ type Change struct {
 	Parent interface{}
 	Child  interface{}
 	Keys   map[string]string
+	Params map[string]interface{} // refactor the entire thing
 }
 
 type EndpointStats struct {
