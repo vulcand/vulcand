@@ -7,7 +7,7 @@ RUN curl -s https://go.googlecode.com/files/go1.2.src.tar.gz | tar -v -C /usr/lo
 RUN cd /usr/local/go/src && ./make.bash --no-clean 2>&1
 RUN apt-get -y -q install bzr
 
-# Set up environment varialbes
+# Set up environment variables.
 ENV PATH /usr/local/go/bin:$PATH
 ENV GOROOT /usr/local/go
 ENV GOPATH /home/goworld
