@@ -77,6 +77,8 @@ func (vt *VulcanTree) Self() string {
 		return "[hosts]"
 	case []*Upstream:
 		return "[upstreams]"
+	case []*RateLimit:
+		return "[ratelimits]"
 	case *Host:
 		return r.String()
 	case *Location:
@@ -84,6 +86,8 @@ func (vt *VulcanTree) Self() string {
 	case *Upstream:
 		return r.String()
 	case *Endpoint:
+		return r.String()
+	case *RateLimit:
 		return r.String()
 	}
 	return "unknown"
@@ -95,12 +99,18 @@ func (vt *VulcanTree) Children() []Tree {
 		return hostsToTrees(r)
 	case []*Upstream:
 		return upstreamsToTrees(r)
+	case []*RateLimit:
+		return ratesToTrees(r)
 	case *Host:
 		return locationsToTrees(r.Locations)
 	case *Upstream:
 		return endpointsToTrees(r.Endpoints)
 	case *Location:
-		return upstreamsToTrees([]*Upstream{r.Upstream})
+		children := upstreamsToTrees([]*Upstream{r.Upstream})
+		if len(r.RateLimits) > 0 {
+			children = append(children, &VulcanTree{root: r.RateLimits})
+		}
+		return children
 	}
 	return nil
 }
@@ -122,6 +132,14 @@ func locationsToTrees(in []*Location) []Tree {
 }
 
 func upstreamsToTrees(in []*Upstream) []Tree {
+	out := make([]Tree, len(in))
+	for i, _ := range out {
+		out[i] = &VulcanTree{root: in[i]}
+	}
+	return out
+}
+
+func ratesToTrees(in []*RateLimit) []Tree {
 	out := make([]Tree, len(in))
 	for i, _ := range out {
 		out[i] = &VulcanTree{root: in[i]}

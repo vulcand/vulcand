@@ -34,6 +34,10 @@ type Backend interface {
 	WatchChanges(changes chan interface{}, initialSetup bool) error
 }
 
+type StatsGetter interface {
+	GetStats(hostname string, locationId string, endpointId string) (*EndpointStats, error)
+}
+
 type Host struct {
 	EtcdKey   string
 	Name      string
@@ -41,7 +45,7 @@ type Host struct {
 }
 
 func (l *Host) String() string {
-	return fmt.Sprintf("host(name=%s)", l.Name)
+	return fmt.Sprintf("host[name=%s]", l.Name)
 }
 
 type Location struct {
@@ -55,7 +59,7 @@ type Location struct {
 }
 
 func (l *Location) String() string {
-	return fmt.Sprintf("location(id=%s, path=%s, ratelimits=%s, connlimits=%s)", l.Id, l.Path, l.RateLimits, l.ConnLimits)
+	return fmt.Sprintf("location[id=%s, path=%s]", l.Id, l.Path)
 }
 
 type ConnLimit struct {
@@ -96,7 +100,7 @@ func NewRateLimit(requests int, variable string, burst int, periodSeconds int) (
 }
 
 func (rl *RateLimit) String() string {
-	return fmt.Sprintf("ratelimit(var=%s, reqs/%s=%d, burst=%d)", rl.Variable, time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst)
+	return fmt.Sprintf("ratelimit[var=%s, reqs/%s=%d, burst=%d]", rl.Variable, time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst)
 }
 
 func NewConnLimit(connections int, variable string) (*ConnLimit, error) {
@@ -113,7 +117,7 @@ func NewConnLimit(connections int, variable string) (*ConnLimit, error) {
 }
 
 func (cl *ConnLimit) String() string {
-	return fmt.Sprintf("connlimit(conn=%d, var=%s)", cl.Connections, cl.Variable)
+	return fmt.Sprintf("connlimit[conn=%d, var=%s]", cl.Connections, cl.Variable)
 }
 
 type Upstream struct {
@@ -123,7 +127,7 @@ type Upstream struct {
 }
 
 func (u *Upstream) String() string {
-	return fmt.Sprintf("upstream(id=%s)", u.Id)
+	return fmt.Sprintf("upstream[id=%s]", u.Id)
 }
 
 type Endpoint struct {
@@ -136,9 +140,9 @@ type Endpoint struct {
 
 func (e *Endpoint) String() string {
 	if e.Stats == nil {
-		return fmt.Sprintf("endpoint(id=%s, url=%s)", e.Id, e.Url)
+		return fmt.Sprintf("endpoint[id=%s, url=%s]", e.Id, e.Url)
 	} else {
-		return fmt.Sprintf("endpoint(id=%s, url=%s, stats=%s)", e.Id, e.Url, e.Stats)
+		return fmt.Sprintf("endpoint[id=%s, url=%s, %s]", e.Id, e.Url, e.Stats)
 	}
 }
 
@@ -159,11 +163,10 @@ type EndpointStats struct {
 
 func (e *EndpointStats) String() string {
 	reqsSec := (e.Failures + e.Successes) / int64(e.PeriodSeconds)
-	return fmt.Sprintf("(failRate=%.2f/%s, fail/success=%d/%d, freq=%d reqs/sec)", e.FailRate, time.Duration(e.PeriodSeconds)*time.Second, e.Failures, e.Successes, reqsSec)
-}
-
-type StatsGetter interface {
-	GetStats(hostname string, locationId string, endpointId string) (*EndpointStats, error)
+	return fmt.Sprintf("freq=%d reqs/1s, failRate=%.2f/%s",
+		reqsSec,
+		e.FailRate,
+		time.Duration(e.PeriodSeconds)*time.Second)
 }
 
 func VariableToMapper(variable string) (limit.MapperFn, error) {

@@ -10,11 +10,12 @@ import (
 )
 
 type ProxyController struct {
-	backend backend.Backend
+	backend     backend.Backend
+	statsGetter backend.StatsGetter
 }
 
-func InitProxyController(backend backend.Backend, router *mux.Router) {
-	controller := &ProxyController{backend: backend}
+func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, router *mux.Router) {
+	controller := &ProxyController{backend: backend, statsGetter: statsGetter}
 
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.GetHosts)).Methods("GET")
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.AddHost)).Methods("POST")
@@ -40,9 +41,17 @@ func InitProxyController(backend backend.Backend, router *mux.Router) {
 }
 
 func (c *ProxyController) GetHosts(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	servers, err := c.backend.GetHosts()
+	hosts, err := c.backend.GetHosts()
+	for _, h := range hosts {
+		for _, l := range h.Locations {
+			for _, e := range l.Upstream.Endpoints {
+				s, _ := c.statsGetter.GetStats(h.Name, l.Id, e.Id)
+				e.Stats = s
+			}
+		}
+	}
 	return api.Response{
-		"Hosts": servers,
+		"Hosts": hosts,
 	}, err
 }
 

@@ -8,6 +8,7 @@ import (
 	runtime "github.com/mailgun/gotools-runtime"
 	"github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcan/route/hostroute"
+	"github.com/mailgun/vulcand/adapter"
 	"github.com/mailgun/vulcand/api"
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/backend/etcdbackend"
@@ -92,7 +93,7 @@ func (s *Service) createProxy() error {
 
 func (s *Service) initApi() error {
 	s.apiRouter = mux.NewRouter()
-	api.InitProxyController(s.backend, s.apiRouter)
+	api.InitProxyController(s.backend, adapter.NewAdapter(s.proxy), s.apiRouter)
 	return nil
 }
 
