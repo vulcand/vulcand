@@ -1,7 +1,10 @@
+// Defines interfaces and data structures controlling the proxy configuration and changes
 package backend
 
 import (
 	"fmt"
+	"github.com/mailgun/vulcan/limit"
+	"strings"
 	"time"
 )
 
@@ -28,6 +31,7 @@ type Backend interface {
 
 	AddEndpoint(upstreamId, id, url string) error
 	DeleteEndpoint(upstreamId, id string) error
+	WatchChanges(changes chan interface{}, initialSetup bool) error
 }
 
 type Host struct {
@@ -41,26 +45,29 @@ func (l *Host) String() string {
 }
 
 type Location struct {
-	EtcdKey    string
+	Hostname   string
+	EtcdKey    string `json:",omitempty"`
 	Path       string
-	Name       string
+	Id         string
 	Upstream   *Upstream
 	ConnLimits []*ConnLimit
 	RateLimits []*RateLimit
 }
 
 func (l *Location) String() string {
-	return fmt.Sprintf("location(id=%s, path=%s, ratelimits=%s, connlimits=%s)", l.Name, l.Path, l.RateLimits, l.ConnLimits)
+	return fmt.Sprintf("location(id=%s, path=%s, ratelimits=%s, connlimits=%s)", l.Id, l.Path, l.RateLimits, l.ConnLimits)
 }
 
 type ConnLimit struct {
-	EtcdKey     string
+	Id          string
+	EtcdKey     string `json:",omitempty"`
 	Connections int
 	Variable    string
 }
 
 type RateLimit struct {
-	EtcdKey       string
+	Id            string
+	EtcdKey       string `json:",omitempty"`
 	PeriodSeconds int
 	Burst         int
 	Variable      string
@@ -110,18 +117,18 @@ func (cl *ConnLimit) String() string {
 }
 
 type Upstream struct {
-	EtcdKey   string
-	Name      string
+	Id        string
+	EtcdKey   string `json:",omitempty"`
 	Endpoints []*Endpoint
 }
 
 func (u *Upstream) String() string {
-	return fmt.Sprintf("upstream(id=%s)", u.Name)
+	return fmt.Sprintf("upstream(id=%s)", u.Id)
 }
 
 type Endpoint struct {
-	EtcdKey string
-	Name    string
+	EtcdKey string `json:",omitempty"`
+	Id      string
 	Path    string
 	Url     string
 	Stats   *EndpointStats
@@ -129,9 +136,9 @@ type Endpoint struct {
 
 func (e *Endpoint) String() string {
 	if e.Stats == nil {
-		return fmt.Sprintf("endpoint(id=%s, url=%s)", e.Name, e.Url)
+		return fmt.Sprintf("endpoint(id=%s, url=%s)", e.Id, e.Url)
 	} else {
-		return fmt.Sprintf("endpoint(id=%s, url=%s, stats=%s)", e.Name, e.Url, e.Stats)
+		return fmt.Sprintf("endpoint(id=%s, url=%s, stats=%s)", e.Id, e.Url, e.Stats)
 	}
 }
 
@@ -157,4 +164,21 @@ func (e *EndpointStats) String() string {
 
 type StatsGetter interface {
 	GetStats(hostname string, locationId string, endpointId string) (*EndpointStats, error)
+}
+
+func VariableToMapper(variable string) (limit.MapperFn, error) {
+	if variable == "client.ip" {
+		return limit.MapClientIp, nil
+	}
+	if variable == "request.host" {
+		return limit.MapRequestHost, nil
+	}
+	if strings.HasPrefix(variable, "request.header.") {
+		header := strings.TrimPrefix(variable, "request.header.")
+		if len(header) == 0 {
+			return nil, fmt.Errorf("Wrong header: %s", header)
+		}
+		return limit.MakeMapRequestHeader(header), nil
+	}
+	return nil, fmt.Errorf("Unsupported limiting varuable: '%s'", variable)
 }

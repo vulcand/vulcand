@@ -1,12 +1,12 @@
-package backend
+package etcdbackend
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/coreos/go-etcd/etcd"
 	log "github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcan/endpoint"
+	. "github.com/mailgun/vulcand/backend"
 	"net/url"
 	"path"
 	"regexp"
@@ -18,11 +18,9 @@ type EtcdBackend struct {
 	etcdKey     string
 	consistency string
 	client      *etcd.Client
-	changes     chan *Change
-	statsGetter StatsGetter
 }
 
-func NewEtcdBackend(nodes []string, etcdKey, consistency string, changes chan *Change, statsGetter StatsGetter) (*EtcdBackend, error) {
+func NewEtcdBackend(nodes []string, etcdKey, consistency string) (*EtcdBackend, error) {
 	client := etcd.NewClient(nodes)
 	if err := client.SetConsistency(consistency); err != nil {
 		return nil, err
@@ -32,164 +30,12 @@ func NewEtcdBackend(nodes []string, etcdKey, consistency string, changes chan *C
 		etcdKey:     etcdKey,
 		consistency: consistency,
 		client:      client,
-		changes:     changes,
-		statsGetter: statsGetter,
-	}
-	if changes != nil {
-		go b.watchChanges()
 	}
 	return b, nil
 }
 
-func (s *EtcdBackend) watchChanges() {
-	waitIndex := uint64(0)
-	for {
-		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, nil)
-		if err != nil {
-			log.Errorf("Failed to get response from etcd: %s, quitting watch goroutine", err)
-			return
-		}
-		waitIndex = response.Node.ModifiedIndex + 1
-		log.Infof("Got response: %s %s %d %s",
-			response.Action, response.Node.Key, response.EtcdIndex, err)
-		change, err := s.parseChange(response)
-		if err != nil {
-			log.Errorf("Failed to process change: %s, ignoring", err)
-			continue
-		}
-		if change != nil {
-			s.changes <- change
-		}
-
-	}
-}
-
-type MatcherFn func(*etcd.Response) (*Change, error)
-
-func (s *EtcdBackend) parseChange(response *etcd.Response) (*Change, error) {
-	matchers := []MatcherFn{
-		s.parseHostChange,
-		s.parseLocationChange,
-		s.parseUpstreamChange,
-		s.parseRateLimitChange,
-	}
-	for _, matcher := range matchers {
-		a, err := matcher(response)
-		if a != nil || err != nil {
-			return a, err
-		}
-	}
-	return nil, nil
-}
-
-func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (*Change, error) {
-	out := regexp.MustCompile("/upstreams/([^/]+)/endpoints/([^/]+)").FindStringSubmatch(response.Node.Key)
-	if len(out) != 3 {
-		return nil, nil
-	}
-	upstreamId, endpointId := out[1], out[2]
-	upstream, err := s.readUpstream(upstreamId)
-	if err != nil {
-		return nil, err
-	}
-	change := &Change{
-		Action: response.Action,
-		Parent: upstream,
-	}
-	if response.Action == "create" {
-		for _, e := range upstream.Endpoints {
-			if e.Name == endpointId {
-				change.Child = e
-				return change, nil
-			}
-		}
-		return nil, fmt.Errorf("Endpoint %s not found", endpointId)
-	} else if response.Action == "delete" {
-		change.Child = &Endpoint{Name: endpointId}
-		return change, nil
-	}
-	return nil, fmt.Errorf("Unsupported action on the endpoint: %s", response.Action)
-}
-
-func (s *EtcdBackend) parseHostChange(response *etcd.Response) (*Change, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)$").FindStringSubmatch(response.Node.Key)
-	if len(out) != 2 {
-		return nil, nil
-	}
-	return &Change{
-		Action: response.Action,
-		Parent: nil,
-		Child:  &Host{Name: out[1]},
-	}, nil
-}
-
-func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (*Change, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/upstream").FindStringSubmatch(response.Node.Key)
-	if len(out) != 3 {
-		return nil, nil
-	}
-	hostname, locationId := out[1], out[2]
-	host, err := s.readHost(hostname)
-	if err != nil {
-		return nil, err
-	}
-	change := &Change{
-		Action: response.Action,
-		Parent: host,
-	}
-	if response.Action == "create" {
-		location, err := s.readLocation(hostname, locationId)
-		if err != nil {
-			return nil, err
-		}
-		change.Child = location
-		return change, nil
-	} else if response.Action == "delete" {
-		change.Child = &Location{Name: locationId}
-		return change, nil
-	} else if response.Action == "set" {
-		location, err := s.readLocation(hostname, locationId)
-		if err != nil {
-			return nil, err
-		}
-		change.Child = location
-		change.Keys = map[string]string{"upstream": response.Node.Value}
-		return change, nil
-	}
-	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
-}
-
-func (s *EtcdBackend) parseRateLimitChange(response *etcd.Response) (*Change, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/limits/rates/([^/]+)").FindStringSubmatch(response.Node.Key)
-	if len(out) != 4 {
-		return nil, nil
-	}
-	hostname, locationId := out[1], out[2]
-	location, err := s.readLocation(hostname, locationId)
-	if err != nil {
-		return nil, err
-	}
-	change := &Change{
-		Action: response.Action,
-		Parent: location,
-		Params: map[string]interface{}{"host": &Host{Name: hostname}},
-	}
-	if response.Action == "create" || response.Action == "set" {
-		rate, err := s.readLocationRateLimit(response.Node.Key)
-		if err != nil {
-			return nil, err
-		}
-		change.Child = rate
-		return change, nil
-	} else if response.Action == "delete" {
-		change.Child = &RateLimit{EtcdKey: response.Node.Key}
-		return change, nil
-	}
-	return nil, fmt.Errorf("Unsupported action on the rate: %s", response.Action)
-}
-
 func (s *EtcdBackend) GetHosts() ([]*Host, error) {
-	return s.readHosts()
+	return s.readHosts(true)
 }
 
 func (s *EtcdBackend) AddHost(name string) error {
@@ -422,10 +268,243 @@ func (s *EtcdBackend) DeleteLocationConnLimit(hostname, locationId, id string) e
 	return nil
 }
 
-func (s *EtcdBackend) readHosts() ([]*Host, error) {
+func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) error {
+	if initialSetup == true {
+		log.Infof("Etcd backend reading initial configuration")
+		if err := s.generateChanges(changes); err != nil {
+			log.Errorf("Failed to generate changes: %s, stopping watch.", err)
+			return err
+		}
+	}
+	waitIndex := uint64(0)
+	for {
+		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, nil)
+		if err != nil {
+			log.Errorf("Failed to get response from etcd: %s, quitting watch goroutine", err)
+			return err
+		}
+		waitIndex = response.Node.ModifiedIndex + 1
+		log.Infof("Got response: %s %s %d %s",
+			response.Action, response.Node.Key, response.EtcdIndex, err)
+		change, err := s.parseChange(response)
+		if err != nil {
+			log.Errorf("Failed to process change: %s, ignoring", err)
+			continue
+		}
+		if change != nil {
+			changes <- change
+		}
+	}
+	return nil
+}
+
+// Makes full configuration read and generates the sequence of changes to create this config
+func (s *EtcdBackend) generateChanges(changes chan interface{}) error {
+	upstreams, err := s.readUpstreams()
+	if err != nil {
+		return err
+	}
+	for _, u := range upstreams {
+		changes <- &UpstreamAdded{
+			Upstream: u,
+		}
+		for _, e := range u.Endpoints {
+			changes <- &EndpointAdded{
+				Upstream: u,
+				Endpoint: e,
+			}
+		}
+	}
+
+	hosts, err := s.readHosts(true)
+	if err != nil {
+		return err
+	}
+
+	for _, h := range hosts {
+		changes <- &HostAdded{
+			Host: h,
+		}
+		for _, l := range h.Locations {
+			changes <- &LocationAdded{
+				Host:     h,
+				Location: l,
+			}
+		}
+	}
+	return nil
+}
+
+type MatcherFn func(*etcd.Response) (interface{}, error)
+
+func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) {
+	matchers := []MatcherFn{
+		s.parseHostChange,
+		s.parseLocationChange,
+		s.parseUpstreamChange,
+		s.parseRateLimitChange,
+	}
+	for _, matcher := range matchers {
+		a, err := matcher(response)
+		if a != nil || err != nil {
+			return a, err
+		}
+	}
+	return nil, nil
+}
+
+func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)$").FindStringSubmatch(response.Node.Key)
+	if len(out) != 2 {
+		return nil, nil
+	}
+
+	hostname := out[1]
+
+	if response.Action == "create" {
+		host, err := s.readHost(hostname, false)
+		if err != nil {
+			return nil, err
+		}
+		return &HostAdded{
+			Host: host,
+		}, nil
+	} else if response.Action == "delete" {
+		return &HostDeleted{
+			Name: hostname,
+		}, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/upstream").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	hostname, locationId := out[1], out[2]
+	upstreamId := suffix(response.Node.Key)
+
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.Action == "create" {
+		location, err := s.readLocation(hostname, locationId)
+		if err != nil {
+			return nil, err
+		}
+		return &LocationAdded{
+			Host:     host,
+			Location: location,
+		}, nil
+	} else if response.Action == "delete" {
+		return &LocationDeleted{
+			Host:       host,
+			LocationId: locationId,
+		}, nil
+	} else if response.Action == "set" {
+		location, err := s.readLocation(hostname, locationId)
+		if err != nil {
+			return nil, err
+		}
+		return &LocationUpstreamUpdated{
+			Host:       host,
+			Location:   location,
+			UpstreamId: upstreamId,
+		}, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/upstreams/([^/]+)/endpoints/([^/]+)").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	upstreamId, endpointId := out[1], out[2]
+	upstream, err := s.readUpstream(upstreamId)
+	if err != nil {
+		return nil, err
+	}
+
+	affectedLocations, err := s.upstreamUsedBy(upstreamId)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.Action == "create" {
+		for _, e := range upstream.Endpoints {
+			if e.Id == endpointId {
+				return &EndpointAdded{
+					Upstream:          upstream,
+					Endpoint:          e,
+					AffectedLocations: affectedLocations,
+				}, nil
+			}
+		}
+		return nil, fmt.Errorf("Endpoint %s not found", endpointId)
+	} else if response.Action == "delete" {
+		return &EndpointDeleted{
+			Upstream:          upstream,
+			EndpointId:        endpointId,
+			AffectedLocations: affectedLocations,
+		}, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the endpoint: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseRateLimitChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/limits/rates").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	hostname, locationId := out[1], out[2]
+	rateLimitId := suffix(response.Node.Key)
+
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	location, err := s.readLocation(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+	if response.Action == "create" {
+		rate, err := s.readLocationRateLimit(response.Node.Key)
+		if err != nil {
+			return nil, err
+		}
+		return &LocationRateLimitAdded{
+			Host:      host,
+			Location:  location,
+			RateLimit: rate,
+		}, nil
+	} else if response.Action == "set" {
+		rate, err := s.readLocationRateLimit(response.Node.Key)
+		if err != nil {
+			return nil, err
+		}
+		return &LocationRateLimitUpdated{
+			Host:      host,
+			Location:  location,
+			RateLimit: rate,
+		}, nil
+	} else if response.Action == "delete" {
+		return &LocationRateLimitDeleted{
+			Host:        host,
+			Location:    location,
+			RateLimitId: rateLimitId,
+		}, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the rate: %s", response.Action)
+}
+
+func (s *EtcdBackend) readHosts(deep bool) ([]*Host, error) {
 	hosts := []*Host{}
 	for _, hostKey := range s.getDirs(s.etcdKey, "hosts") {
-		host, err := s.readHost(suffix(hostKey))
+		host, err := s.readHost(suffix(hostKey), deep)
 		if err != nil {
 			return nil, err
 		}
@@ -434,19 +513,7 @@ func (s *EtcdBackend) readHosts() ([]*Host, error) {
 	return hosts, nil
 }
 
-func (s *EtcdBackend) readUpstreams() ([]*Upstream, error) {
-	upstreams := []*Upstream{}
-	for _, upstreamKey := range s.getDirs(s.etcdKey, "upstreams") {
-		upstream, err := s.readUpstream(suffix(upstreamKey))
-		if err != nil {
-			return nil, err
-		}
-		upstreams = append(upstreams, upstream)
-	}
-	return upstreams, nil
-}
-
-func (s *EtcdBackend) readHost(hostname string) (*Host, error) {
+func (s *EtcdBackend) readHost(hostname string, deep bool) (*Host, error) {
 	hostKey := join(s.etcdKey, "hosts", hostname)
 	_, err := s.client.Get(hostKey, false, false)
 	if err != nil {
@@ -459,6 +526,10 @@ func (s *EtcdBackend) readHost(hostname string) (*Host, error) {
 		Name:      hostname,
 		EtcdKey:   hostKey,
 		Locations: []*Location{},
+	}
+
+	if !deep {
+		return host, nil
 	}
 
 	for _, locationKey := range s.getDirs(hostKey, "locations") {
@@ -489,7 +560,8 @@ func (s *EtcdBackend) readLocation(hostname, locationId string) (*Location, erro
 		return nil, fmt.Errorf("Missing location upstream: %s", locationKey)
 	}
 	location := &Location{
-		Name:       suffix(locationKey),
+		Hostname:   hostname,
+		Id:         suffix(locationKey),
 		EtcdKey:    locationKey,
 		Path:       path,
 		ConnLimits: []*ConnLimit{},
@@ -499,15 +571,6 @@ func (s *EtcdBackend) readLocation(hostname, locationId string) (*Location, erro
 	if err != nil {
 		return nil, err
 	}
-	for _, e := range upstream.Endpoints {
-		stats, err := s.statsGetter.GetStats(hostname, locationId, e.Name)
-		if err == nil {
-			e.Stats = stats
-		} else {
-			log.Errorf("Failed to get stats about endpoint: %s, err: %s", e, err)
-		}
-	}
-
 	for _, cl := range s.getVals(locationKey, "limits", "connections") {
 		connLimit, err := s.readLocationConnLimit(cl.Key)
 		if err == nil {
@@ -526,6 +589,18 @@ func (s *EtcdBackend) readLocation(hostname, locationId string) (*Location, erro
 	return location, nil
 }
 
+func (s *EtcdBackend) readUpstreams() ([]*Upstream, error) {
+	upstreams := []*Upstream{}
+	for _, upstreamKey := range s.getDirs(s.etcdKey, "upstreams") {
+		upstream, err := s.readUpstream(suffix(upstreamKey))
+		if err != nil {
+			return nil, err
+		}
+		upstreams = append(upstreams, upstream)
+	}
+	return upstreams, nil
+}
+
 func (s *EtcdBackend) readLocationRateLimit(rateKey string) (*RateLimit, error) {
 	rate, ok := s.getVal(rateKey)
 	if !ok {
@@ -536,6 +611,7 @@ func (s *EtcdBackend) readLocationRateLimit(rateKey string) (*RateLimit, error) 
 		return nil, err
 	}
 	rl.EtcdKey = rateKey
+	rl.Id = suffix(rl.EtcdKey)
 	return rl, nil
 }
 
@@ -549,6 +625,7 @@ func (s *EtcdBackend) readLocationConnLimit(connKey string) (*ConnLimit, error) 
 		return nil, err
 	}
 	cl.EtcdKey = connKey
+	cl.Id = suffix(cl.EtcdKey)
 	return cl, nil
 }
 
@@ -560,7 +637,7 @@ func (s *EtcdBackend) readUpstream(upstreamId string) (*Upstream, error) {
 		return nil, err
 	}
 	upstream := &Upstream{
-		Name:      suffix(upstreamKey),
+		Id:        suffix(upstreamKey),
 		EtcdKey:   upstreamKey,
 		Endpoints: []*Endpoint{},
 	}
@@ -575,39 +652,22 @@ func (s *EtcdBackend) readUpstream(upstreamId string) (*Upstream, error) {
 		e := &Endpoint{
 			Url:     e.Val,
 			EtcdKey: e.Key,
-			Name:    suffix(e.Key),
+			Id:      suffix(e.Key),
 		}
 		upstream.Endpoints = append(upstream.Endpoints, e)
 	}
 	return upstream, nil
 }
 
-func (s *EtcdBackend) findLocation(hostname, path string) (*Location, error) {
-	hosts, err := s.readHosts()
-	if err != nil {
-		return nil, err
-	}
-	for _, h := range hosts {
-		if h.Name == hostname {
-			for _, l := range h.Locations {
-				if l.Path == path {
-					return l, nil
-				}
-			}
-		}
-	}
-	return nil, nil
-}
-
 func (s *EtcdBackend) upstreamUsedBy(upstreamId string) ([]*Location, error) {
 	var locations []*Location
-	hosts, err := s.readHosts()
+	hosts, err := s.readHosts(true)
 	if err != nil {
 		return nil, err
 	}
 	for _, h := range hosts {
 		for _, l := range h.Locations {
-			if l.Upstream.Name == upstreamId {
+			if l.Upstream.Id == upstreamId {
 				locations = append(locations, l)
 			}
 		}
@@ -716,15 +776,4 @@ func isDupe(err error) bool {
 
 func isDir(n *etcd.Node) bool {
 	return n != nil && n.Dir == true
-}
-
-func enumerateLocations(ls []*Location) string {
-	b := &bytes.Buffer{}
-	for i, l := range ls {
-		b.WriteString(l.Name)
-		if i != len(ls)-1 {
-			b.WriteString(", ")
-		}
-	}
-	return b.String()
 }
