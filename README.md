@@ -148,14 +148,32 @@ Rate add or removes rate limit restrictions on the location
 ```bash
 # limit access per client ip to 10 requests per second in 
 # location 'loc1' in host 'example.com'
-$ vulcanctl ratelimit add --variable client.ip --host example.com --loc loc1 --reqs 10 
+$ vulcanctl ratelimit add --variable client.ip --host example.com --loc loc1 --requests 10
 
 # limit access per custom http header value 'X-Account-Id' to 100 requests per second 
 # to location 'loc1' in host 'example.com'
-$ vulcanctl ratelimit add --variable request.header.X-Account-Id --host example.com --loc loc1 --reqs 10 
+$ vulcanctl ratelimit add --variable request.header.X-Account-Id --host example.com --loc loc1 --requests 10
 
 # remove rate limit restriction with id 'r1' from host 'example.com' location 'loc1'
 $ vulcanctl ratelimit rm --id r1  --host example.com --loc 'loc1'
+```
+
+Connection limit
+----------
+
+Rate add or removes rate limit restrictions on the location
+
+```bash
+# limit access per client ip to 10 simultaneous connections for
+# location 'loc1' in host 'example.com'
+$ vulcanctl connlimit add --id c1 -host example.com -loc loc1 -connections 10
+
+# limit access per custom http header value 'X-Account-Id' to 100 simultaneous connections
+# to location 'loc1' in host 'example.com'
+$ vulcanctl connlimit add --variable request.header.X-Account-Id --host example.com --loc loc1 --connections 10
+
+# remove connection limit restriction with id 'c1' from host 'example.com' location 'loc1'
+$ vulcanctl connlimit rm --id c1  --host example.com --loc 'loc1'
 ```
 
 Docker
