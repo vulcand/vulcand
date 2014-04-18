@@ -93,7 +93,7 @@ func (s *Service) createProxy() error {
 
 func (s *Service) initApi() error {
 	s.apiRouter = mux.NewRouter()
-	api.InitProxyController(s.backend, adapter.NewAdapter(s.proxy), s.apiRouter)
+	api.InitProxyController(s.backend, adapter.NewAdapter(s.proxy), s.configurator.GetConnWatcher(), s.apiRouter)
 	return nil
 }
 

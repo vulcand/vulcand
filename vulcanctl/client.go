@@ -22,7 +22,7 @@ func NewClient(addr string) *Client {
 
 func (c *Client) GetHosts() ([]*Host, error) {
 	hosts := HostsResponse{}
-	err := c.Get(c.endpoint("hosts"), &hosts)
+	err := c.Get(c.endpoint("hosts"), url.Values{}, &hosts)
 	return hosts.Hosts, err
 }
 
@@ -67,9 +67,21 @@ func (c *Client) DeleteUpstream(id string) (*StatusResponse, error) {
 	return &response, c.Delete(c.endpoint("upstreams", id), &response)
 }
 
+func (c *Client) GetUpstream(id string) (*Upstream, error) {
+	response := UpstreamResponse{}
+	err := c.Get(c.endpoint("upstreams", id), url.Values{}, &response)
+	return response.Upstream, err
+}
+
+func (c *Client) DrainUpstreamConnections(upstreamId, timeout string) (int, error) {
+	connections := ConnectionsResponse{}
+	err := c.Get(c.endpoint("upstreams", upstreamId, "drain"), url.Values{"timeout": {timeout}}, &connections)
+	return connections.Connections, err
+}
+
 func (c *Client) GetUpstreams() ([]*Upstream, error) {
 	upstreams := UpstreamsResponse{}
-	err := c.Get(c.endpoint("upstreams"), &upstreams)
+	err := c.Get(c.endpoint("upstreams"), url.Values{}, &upstreams)
 	return upstreams.Upstreams, err
 }
 
@@ -169,9 +181,14 @@ func (c *Client) Delete(endpoint string, in interface{}) error {
 	}, in)
 }
 
-func (c *Client) Get(url string, in interface{}) error {
+func (c *Client) Get(u string, params url.Values, in interface{}) error {
+	baseUrl, err := url.Parse(u)
+	if err != nil {
+		return err
+	}
+	baseUrl.RawQuery = params.Encode()
 	return c.RoundTripJson(func() (*http.Response, error) {
-		return http.Get(url)
+		return http.Get(baseUrl.String())
 	}, in)
 }
 
@@ -208,6 +225,14 @@ type UpstreamsResponse struct {
 	Upstreams []*Upstream
 }
 
+type UpstreamResponse struct {
+	Upstream *Upstream
+}
+
 type StatusResponse struct {
 	Message string
+}
+
+type ConnectionsResponse struct {
+	Connections int
 }

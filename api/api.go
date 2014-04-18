@@ -5,17 +5,23 @@ import (
 	"github.com/gorilla/mux"
 	api "github.com/mailgun/gotools-api"
 	log "github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/backend"
+	. "github.com/mailgun/vulcand/connwatch"
 	"net/http"
+	"net/url"
+	"strconv"
+	"time"
 )
 
 type ProxyController struct {
 	backend     backend.Backend
+	connWatcher *ConnectionWatcher
 	statsGetter backend.StatsGetter
 }
 
-func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, router *mux.Router) {
-	controller := &ProxyController{backend: backend, statsGetter: statsGetter}
+func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, connWatcher *ConnectionWatcher, router *mux.Router) {
+	controller := &ProxyController{backend: backend, statsGetter: statsGetter, connWatcher: connWatcher}
 
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.GetHosts)).Methods("GET")
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.AddHost)).Methods("POST")
@@ -36,6 +42,8 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.AddUpstream)).Methods("POST")
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.GetUpstreams)).Methods("GET")
 	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.DeleteUpstream)).Methods("DELETE")
+	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.GetUpstream)).Methods("GET")
+	router.HandleFunc("/v1/upstreams/{id}/drain", api.MakeHandler(controller.DrainUpstreamConnections)).Methods("GET")
 
 	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeHandler(controller.AddEndpoint)).Methods("POST")
 	router.HandleFunc("/v1/upstreams/{upstream}/endpoints/{endpoint}", api.MakeHandler(controller.DeleteEndpoint)).Methods("DELETE")
@@ -281,6 +289,56 @@ func (c *ProxyController) GetUpstreams(w http.ResponseWriter, r *http.Request, p
 	upstreams, err := c.backend.GetUpstreams()
 	return api.Response{
 		"Upstreams": upstreams,
+	}, err
+}
+
+func (c *ProxyController) GetUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	upstream, err := c.backend.GetUpstream(params["id"])
+	if err != nil {
+		return nil, err
+	}
+	if upstream == nil {
+		return nil, api.NotFoundError{Description: "Upstream not found"}
+	}
+	return api.Response{
+		"Upstream": upstream,
+	}, err
+}
+
+func (c *ProxyController) DrainUpstreamConnections(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	upstream, err := c.backend.GetUpstream(params["id"])
+	if err != nil {
+		return nil, err
+	}
+	if upstream == nil {
+		return nil, api.NotFoundError{Description: "Upstream not found"}
+	}
+
+	timeoutS, err := api.GetStringField(r, "timeout")
+	if err != nil {
+		return nil, err
+	}
+
+	timeout, err := strconv.Atoi(timeoutS)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoints := make([]*url.URL, len(upstream.Endpoints))
+	for i, e := range upstream.Endpoints {
+		u, err := netutils.ParseUrl(e.Url)
+		if err != nil {
+			return nil, err
+		}
+		endpoints[i] = u
+	}
+
+	connections, err := c.connWatcher.DrainConnections(time.Duration(timeout)*time.Second, endpoints...)
+	if err != nil {
+		return nil, err
+	}
+	return api.Response{
+		"Connections": connections,
 	}, err
 }
 

@@ -106,6 +106,10 @@ $ vulcanctl upstream add
 
 # Remove upstream with id 'u1'
 $ vulcanctl upstream rm --id u1
+
+# "Drain" - wait till there are no more active connections from the endpoints of the upstream 'u1'
+# or timeout after 10 seconds if there are remaining connections
+vulcanctl upstream drain -id u1 -timeout 10
 ```
 
 Endpoint
@@ -138,6 +142,11 @@ $ vulcanctl location add --host example.com --path /hello2 --up u1
 
 # remove location with id 'loc1' from host 'example.com'
 $ vulcanctl location rm --host example.com --id loc1 
+
+# update upstream of the location 'loc1' in host 'example.com' to be 'u2'
+# this redirects the traffic gracefully from endpoints in the previous upstream
+# to endpoints of the upstream 'u2', see drain for connection draining
+$ vulcanctl location set_upstream --host example.com --id loc1 --up u2
 ```
 
 Rate limit

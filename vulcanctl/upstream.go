@@ -35,6 +35,15 @@ func NewUpstreamSubcommands() []cli.Command {
 			Usage:  "List upstreams",
 			Action: listUpstreamsAction,
 		},
+		{
+			Name:  "drain",
+			Usage: "Wait till there are no more connections for endpoints in the upstream",
+			Flags: []cli.Flag{
+				cli.StringFlag{"id", "", "upstream id"},
+				cli.IntFlag{"timeout", 5, "timeout in seconds"},
+			},
+			Action: upstreamDrainConnections,
+		},
 	}
 }
 
@@ -52,5 +61,18 @@ func listUpstreamsAction(c *cli.Context) {
 		printError(err)
 	} else {
 		printUpstreams(out)
+	}
+}
+
+func upstreamDrainConnections(c *cli.Context) {
+	connections, err := client(c).DrainUpstreamConnections(c.String("id"), c.String("timeout"))
+	if err != nil {
+		printError(err)
+		return
+	}
+	if connections == 0 {
+		printOk("Connections: %d", connections)
+	} else {
+		printInfo("Connections: %d", connections)
 	}
 }

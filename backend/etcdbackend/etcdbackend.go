@@ -128,6 +128,10 @@ func (s *EtcdBackend) GetUpstreams() ([]*Upstream, error) {
 	return s.readUpstreams()
 }
 
+func (s *EtcdBackend) GetUpstream(id string) (*Upstream, error) {
+	return s.readUpstream(id)
+}
+
 func (s *EtcdBackend) AddUpstream(upstreamId string) error {
 	if upstreamId == "" {
 		if _, err := s.addChildDir(join(s.etcdKey, "upstreams"), 0); err != nil {

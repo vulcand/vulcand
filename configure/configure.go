@@ -11,21 +11,30 @@ import (
 	"github.com/mailgun/vulcan/route/pathroute"
 	. "github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
+	. "github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
 	"strings"
 )
 
+const ConnWatch = "_vulcanConnWatch"
+
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
 type Configurator struct {
-	proxy *vulcan.Proxy
-	a     *Adapter
+	connWatcher *ConnectionWatcher
+	proxy       *vulcan.Proxy
+	a           *Adapter
 }
 
 func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
 	return &Configurator{
-		proxy: proxy,
-		a:     NewAdapter(proxy),
+		proxy:       proxy,
+		a:           NewAdapter(proxy),
+		connWatcher: NewConnectionWatcher(),
 	}
+}
+
+func (c *Configurator) GetConnWatcher() *ConnectionWatcher {
+	return c.connWatcher
 }
 
 func (c *Configurator) WatchChanges(changes chan interface{}) error {
@@ -104,6 +113,10 @@ func (c *Configurator) addLocation(host *Host, loc *Location) error {
 		Before: before,
 		After:  after,
 	}
+
+	// Always register a global connection watcher
+	before.Upsert(ConnWatch, c.connWatcher)
+	after.Upsert(ConnWatch, c.connWatcher)
 
 	// Create a location itself
 	location, err := httploc.NewLocationWithOptions(loc.Id, rr, options)

@@ -29,6 +29,7 @@ type Backend interface {
 	GetUpstreams() ([]*Upstream, error)
 	AddUpstream(id string) error
 	DeleteUpstream(id string) error
+	GetUpstream(id string) (*Upstream, error)
 
 	AddEndpoint(upstreamId, id, url string) error
 	DeleteEndpoint(upstreamId, id string) error

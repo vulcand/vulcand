@@ -184,8 +184,12 @@ func printError(err error) {
 	fmt.Printf("[ERROR]: %s\n", err)
 }
 
-func printOk(message string) {
-	fmt.Printf("[SUCCESS]: %s\n", message)
+func printOk(message string, params ...interface{}) {
+	fmt.Printf("[SUCCESS]: %s\n", fmt.Sprintf(message, params))
+}
+
+func printInfo(message string, params ...interface{}) {
+	fmt.Printf("[INFO]: %s\n", fmt.Sprintf(message, params))
 }
 
 func printHosts(hosts []*Host) {
