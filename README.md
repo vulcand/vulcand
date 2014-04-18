@@ -161,7 +161,7 @@ $ vulcanctl ratelimit rm --id r1  --host example.com --loc 'loc1'
 Connection limit
 ----------
 
-Rate add or removes rate limit restrictions on the location
+Control simultaneous connections for a location.
 
 ```bash
 # limit access per client ip to 10 simultaneous connections for
