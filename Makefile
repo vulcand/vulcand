@@ -6,6 +6,7 @@ deps:
 	go get -v -u github.com/mailgun/vulcan
 	go get -v -u github.com/coreos/go-etcd/etcd
 	go get -v -u launchpad.net/gocheck
+	cd vulcanctl && $(MAKE) deps && cd ..
 
 clean:
 	find . -name flymake_* -delete
@@ -22,7 +23,7 @@ sloccount:
 
 install: clean
 	go install github.com/mailgun/vulcand
-	cd vulcanctl && $(MAKE) deps && $(MAKE) install && cd ..
+	cd vulcanctl && $(MAKE) install && cd ..
 
 run: install
 	vulcand -etcd=http://127.0.0.1:4001 -etcdKey=/vulcan
