@@ -12,6 +12,7 @@ import (
 	. "github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/endpoint"
+	"strings"
 )
 
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
@@ -51,8 +52,16 @@ func (c *Configurator) processChange(ch interface{}) error {
 		return c.syncLocationEndpoints(change.Location)
 	case *LocationRateLimitAdded:
 		return c.upsertLocationRateLimit(change.Host, change.Location, change.RateLimit)
+	case *LocationRateLimitUpdated:
+		return c.upsertLocationRateLimit(change.Host, change.Location, change.RateLimit)
 	case *LocationRateLimitDeleted:
 		return c.deleteLocationRateLimit(change.Host, change.Location, change.RateLimitId)
+	case *LocationConnLimitAdded:
+		return c.upsertLocationConnLimit(change.Host, change.Location, change.ConnLimit)
+	case *LocationConnLimitUpdated:
+		return c.upsertLocationConnLimit(change.Host, change.Location, change.ConnLimit)
+	case *LocationConnLimitDeleted:
+		return c.deleteLocationConnLimit(change.Host, change.Location, change.ConnLimitId)
 	case *UpstreamAdded:
 		return nil
 	case *UpstreamDeleted:
@@ -112,7 +121,7 @@ func (c *Configurator) addLocation(host *Host, loc *Location) error {
 		}
 	}
 	for _, cl := range loc.ConnLimits {
-		if err := c.addLocationConnLimit(host, loc, cl); err != nil {
+		if err := c.upsertLocationConnLimit(host, loc, cl); err != nil {
 			log.Errorf("Failed to add connection limit: %s", err)
 		}
 	}
@@ -136,7 +145,7 @@ func (c *Configurator) deleteLocation(host *Host, locationId string) error {
 	return err
 }
 
-func (c *Configurator) addLocationConnLimit(host *Host, loc *Location, cl *ConnLimit) error {
+func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *ConnLimit) error {
 	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
 	if err != nil {
 		return err
@@ -148,10 +157,9 @@ func (c *Configurator) addLocationConnLimit(host *Host, loc *Location, cl *ConnL
 	before := location.GetBefore().(*callback.BeforeChain)
 	after := location.GetAfter().(*callback.AfterChain)
 
-	if err := before.Add(cl.Id, limiter); err != nil {
-		return err
-	}
-	return after.Add(cl.Id, limiter)
+	before.Upsert(cl.EtcdKey, limiter)
+	after.Upsert(cl.EtcdKey, limiter)
+	return nil
 }
 
 func (c *Configurator) upsertLocationRateLimit(host *Host, loc *Location, rl *RateLimit) error {
@@ -166,12 +174,12 @@ func (c *Configurator) upsertLocationRateLimit(host *Host, loc *Location, rl *Ra
 	before := location.GetBefore().(*callback.BeforeChain)
 	after := location.GetAfter().(*callback.AfterChain)
 
-	before.Upsert(rl.Id, limiter)
-	after.Update(rl.Id, limiter)
+	before.Upsert(rl.EtcdKey, limiter)
+	after.Update(rl.EtcdKey, limiter)
 	return nil
 }
 
-func (c *Configurator) deleteLocationRateLimit(host *Host, loc *Location, rateLimitId string) error {
+func (c *Configurator) deleteLocationRateLimit(host *Host, loc *Location, limitId string) error {
 	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
 	if err != nil {
 		return err
@@ -179,10 +187,24 @@ func (c *Configurator) deleteLocationRateLimit(host *Host, loc *Location, rateLi
 	before := location.GetBefore().(*callback.BeforeChain)
 	after := location.GetAfter().(*callback.AfterChain)
 
-	if err := before.Remove(rateLimitId); err != nil {
-		log.Errorf("Failed to remove rate limiter: %s")
+	if err := before.Remove(limitId); err != nil {
+		log.Errorf("Failed to remove limiter: %s")
 	}
-	return after.Remove(rateLimitId)
+	return after.Remove(limitId)
+}
+
+func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitId string) error {
+	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
+	if err != nil {
+		return err
+	}
+	before := location.GetBefore().(*callback.BeforeChain)
+	after := location.GetAfter().(*callback.AfterChain)
+
+	if err := before.Remove(limitId); err != nil {
+		log.Errorf("Failed to remove limiter: %s")
+	}
+	return after.Remove(limitId)
 }
 
 func (c *Configurator) syncLocationEndpoints(location *Location) error {
@@ -251,4 +273,8 @@ func (c *Configurator) deleteEndpoint(upstream *Upstream, endpointId string, aff
 		}
 	}
 	return nil
+}
+
+func join(vals ...string) string {
+	return strings.Join(vals, ",")
 }

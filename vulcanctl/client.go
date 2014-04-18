@@ -114,6 +114,33 @@ func (c *Client) DeleteRateLimit(hostname, location, id string) (*StatusResponse
 	return &response, c.Delete(c.endpoint("hosts", hostname, "locations", location, "limits", "rates", id), &response)
 }
 
+func (c *Client) AddConnLimit(hostname, location, id, variable, connections string) (*StatusResponse, error) {
+	response := StatusResponse{}
+	return &response, c.PostForm(
+		c.endpoint("hosts", hostname, "locations", location, "limits", "connections"),
+		url.Values{
+			"id":          {id},
+			"variable":    {variable},
+			"connections": {connections},
+		}, &response)
+}
+
+func (c *Client) UpdateConnLimit(hostname, location, id, variable, connections string) (*StatusResponse, error) {
+	response := StatusResponse{}
+	return &response, c.PutForm(
+		c.endpoint("hosts", hostname, "locations", location, "limits", "connections", id),
+		url.Values{
+			"id":          {id},
+			"variable":    {variable},
+			"connections": {connections},
+		}, &response)
+}
+
+func (c *Client) DeleteConnLimit(hostname, location, id string) (*StatusResponse, error) {
+	response := StatusResponse{}
+	return &response, c.Delete(c.endpoint("hosts", hostname, "locations", location, "limits", "connections", id), &response)
+}
+
 func (c *Client) PutForm(endpoint string, values url.Values, in interface{}) error {
 	return c.RoundTripJson(func() (*http.Response, error) {
 		req, err := http.NewRequest("PUT", endpoint, strings.NewReader(values.Encode()))

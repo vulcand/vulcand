@@ -12,33 +12,26 @@ func NewRateLimitCommand() cli.Command {
 }
 
 func NewRateLimitSubcommands() []cli.Command {
+	addFlags := []cli.Flag{
+		cli.StringFlag{"id", "", "rate id"},
+		cli.StringFlag{"host", "", "location's host"},
+		cli.StringFlag{"loc", "", "location"},
+		cli.StringFlag{"var", "client.ip", "variable to rate against, e.g. client.ip, request.host or request.header.X-Header"},
+		cli.IntFlag{"requests", 1, "amount of requests"},
+		cli.IntFlag{"period", 1, "rate limit period in seconds"},
+		cli.IntFlag{"burst", 1, "allowed burst"},
+	}
 	return []cli.Command{
 		{
-			Name:  "add",
-			Usage: "Add a new rate to a location",
-			Flags: []cli.Flag{
-				cli.StringFlag{"id", "", "rate id"},
-				cli.StringFlag{"host", "", "location's host"},
-				cli.StringFlag{"loc", "", "location"},
-				cli.StringFlag{"var", "client.ip", "variable to rate against, e.g. client.ip, request.host or request.header.X-Header"},
-				cli.IntFlag{"reqs", -1, "amount of requests"},
-				cli.IntFlag{"period", 1, "rate limit period in seconds"},
-				cli.IntFlag{"burst", 1, "allowed burst"},
-			},
+			Name:   "add",
+			Usage:  "Add a new rate to a location",
+			Flags:  addFlags,
 			Action: addRateLimitAction,
 		},
 		{
-			Name:  "update",
-			Usage: "Update existing rate of a location",
-			Flags: []cli.Flag{
-				cli.StringFlag{"id", "", "rate id"},
-				cli.StringFlag{"host", "", "location's host"},
-				cli.StringFlag{"loc", "", "location"},
-				cli.StringFlag{"var", "client.ip", "variable to rate against, e.g. client.ip, request.host or request.header.X-Header"},
-				cli.IntFlag{"reqs", -1, "amount of requests"},
-				cli.IntFlag{"period", 1, "rate limit period in seconds"},
-				cli.IntFlag{"burst", 1, "allowed burst"},
-			},
+			Name:   "update",
+			Usage:  "Update existing rate",
+			Flags:  addFlags,
 			Action: updateRateLimitAction,
 		},
 		{
@@ -61,7 +54,7 @@ func addRateLimitAction(c *cli.Context) {
 			c.String("loc"),
 			c.String("id"),
 			c.String("var"),
-			c.String("reqs"),
+			c.String("requests"),
 			c.String("period"),
 			c.String("burst")))
 }
@@ -73,7 +66,7 @@ func updateRateLimitAction(c *cli.Context) {
 			c.String("loc"),
 			c.String("id"),
 			c.String("var"),
-			c.String("reqs"),
+			c.String("requests"),
 			c.String("period"),
 			c.String("burst")))
 }

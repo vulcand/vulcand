@@ -24,6 +24,7 @@ type Backend interface {
 
 	AddLocationConnLimit(hostname, locationId, id string, connLimit *ConnLimit) error
 	DeleteLocationConnLimit(hostname, locationId, id string) error
+	UpdateLocationConnLimit(hostname, locationId string, id string, connLimit *ConnLimit) error
 
 	GetUpstreams() ([]*Upstream, error)
 	AddUpstream(id string) error
@@ -100,7 +101,7 @@ func NewRateLimit(requests int, variable string, burst int, periodSeconds int) (
 }
 
 func (rl *RateLimit) String() string {
-	return fmt.Sprintf("ratelimit[var=%s, reqs/%s=%d, burst=%d]", rl.Variable, time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst)
+	return fmt.Sprintf("ratelimit[id=%s, var=%s, reqs/%s=%d, burst=%d]", rl.Id, rl.Variable, time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst)
 }
 
 func NewConnLimit(connections int, variable string) (*ConnLimit, error) {
@@ -117,7 +118,7 @@ func NewConnLimit(connections int, variable string) (*ConnLimit, error) {
 }
 
 func (cl *ConnLimit) String() string {
-	return fmt.Sprintf("connlimit[conn=%d, var=%s]", cl.Connections, cl.Variable)
+	return fmt.Sprintf("connlimit[id=%s, conn=%d, var=%s]", cl.Id, cl.Connections, cl.Variable)
 }
 
 type Upstream struct {

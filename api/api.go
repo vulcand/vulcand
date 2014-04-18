@@ -31,6 +31,7 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/connections", api.MakeHandler(controller.AddLocationConnLimit)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/connections/{id}", api.MakeHandler(controller.DeleteLocationConnLimit)).Methods("DELETE")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{location}/limits/connections/{id}", api.MakeHandler(controller.UpdateLocationConnLimit)).Methods("PUT")
 
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.AddUpstream)).Methods("POST")
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.GetUpstreams)).Methods("GET")
@@ -214,7 +215,34 @@ func (c *ProxyController) AddLocationConnLimit(w http.ResponseWriter, r *http.Re
 		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
 	}
 
-	return api.Response{"message": "Rate added"}, nil
+	return api.Response{"message": "Connection limit added"}, nil
+}
+
+func (c *ProxyController) UpdateLocationConnLimit(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	hostname := params["hostname"]
+	locationId := params["location"]
+	id := params["id"]
+
+	connections, err := api.GetIntField(r, "connections")
+	if err != nil {
+		return nil, err
+	}
+
+	variable, err := api.GetStringField(r, "variable")
+	if err != nil {
+		return nil, err
+	}
+
+	connLimit, err := backend.NewConnLimit(connections, variable)
+	if err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	if err := c.backend.UpdateLocationConnLimit(hostname, locationId, id, connLimit); err != nil {
+		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+	}
+
+	return api.Response{"message": "Connection limit updated"}, nil
 }
 
 func (c *ProxyController) DeleteLocationConnLimit(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {

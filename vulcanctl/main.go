@@ -30,6 +30,9 @@ func main() {
 	ratelimit := app.AddSubcommand(NewRateLimitCommand())
 	ratelimit.Commands = NewRateLimitSubcommands()
 
+	connlimit := app.AddSubcommand(NewConnLimitCommand())
+	connlimit.Commands = NewConnLimitSubcommands()
+
 	app.Run(os.Args)
 }
 

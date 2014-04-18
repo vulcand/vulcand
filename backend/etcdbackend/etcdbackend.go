@@ -259,6 +259,24 @@ func (s *EtcdBackend) AddLocationConnLimit(hostname, locationId, id string, conn
 	return nil
 }
 
+func (s *EtcdBackend) UpdateLocationConnLimit(hostname, locationId string, id string, connLimit *ConnLimit) error {
+	if len(id) == 0 || len(hostname) == 0 || len(locationId) == 0 {
+		return fmt.Errorf("Provide hostname, location and rate id to update")
+	}
+	// Make sure location actually exists
+	if _, err := s.readLocation(hostname, locationId); err != nil {
+		return err
+	}
+	bytes, err := json.Marshal(connLimit)
+	if err != nil {
+		return err
+	}
+	if _, err := s.client.Set(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "connections", id), string(bytes), 0); err != nil {
+		return formatErr(err)
+	}
+	return nil
+}
+
 func (s *EtcdBackend) DeleteLocationConnLimit(hostname, locationId, id string) error {
 	if _, err := s.client.Delete(join(s.etcdKey, "hosts", hostname, "locations", locationId, "limits", "connections", id), true); err != nil {
 		if notFound(err) {
@@ -371,7 +389,8 @@ func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, err
 		}, nil
 	} else if response.Action == "delete" {
 		return &HostDeleted{
-			Name: hostname,
+			Name:        hostname,
+			HostEtcdKey: response.Node.Key,
 		}, nil
 	}
 	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
@@ -401,8 +420,9 @@ func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{},
 		}, nil
 	} else if response.Action == "delete" {
 		return &LocationDeleted{
-			Host:       host,
-			LocationId: locationId,
+			Host:            host,
+			LocationId:      locationId,
+			LocationEtcdKey: strings.TrimSuffix(response.Node.Key, "/upstream"),
 		}, nil
 	} else if response.Action == "set" {
 		location, err := s.readLocation(hostname, locationId)
@@ -449,6 +469,7 @@ func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{},
 		return &EndpointDeleted{
 			Upstream:          upstream,
 			EndpointId:        endpointId,
+			EndpointEtcdKey:   response.Node.Key,
 			AffectedLocations: affectedLocations,
 		}, nil
 	}
@@ -493,9 +514,57 @@ func (s *EtcdBackend) parseRateLimitChange(response *etcd.Response) (interface{}
 		}, nil
 	} else if response.Action == "delete" {
 		return &LocationRateLimitDeleted{
-			Host:        host,
-			Location:    location,
-			RateLimitId: rateLimitId,
+			Host:             host,
+			Location:         location,
+			RateLimitId:      rateLimitId,
+			RateLimitEtcdKey: response.Node.Key,
+		}, nil
+	}
+	return nil, fmt.Errorf("Unsupported action on the rate: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseConnLimitChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/limits/connections").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	hostname, locationId := out[1], out[2]
+	connLimitId := suffix(response.Node.Key)
+
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	location, err := s.readLocation(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+	if response.Action == "create" {
+		limit, err := s.readLocationConnLimit(response.Node.Key)
+		if err != nil {
+			return nil, err
+		}
+		return &LocationConnLimitAdded{
+			Host:      host,
+			Location:  location,
+			ConnLimit: limit,
+		}, nil
+	} else if response.Action == "set" {
+		limit, err := s.readLocationConnLimit(response.Node.Key)
+		if err != nil {
+			return nil, err
+		}
+		return &LocationConnLimitUpdated{
+			Host:      host,
+			Location:  location,
+			ConnLimit: limit,
+		}, nil
+	} else if response.Action == "delete" {
+		return &LocationConnLimitDeleted{
+			Host:             host,
+			Location:         location,
+			ConnLimitId:      connLimitId,
+			ConnLimitEtcdKey: response.Node.Key,
 		}, nil
 	}
 	return nil, fmt.Errorf("Unsupported action on the rate: %s", response.Action)
