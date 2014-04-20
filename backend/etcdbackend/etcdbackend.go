@@ -314,6 +314,7 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 			continue
 		}
 		if change != nil {
+			log.Infof("Sending change: %s", change)
 			changes <- change
 		}
 	}
@@ -365,6 +366,7 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 		s.parseLocationChange,
 		s.parseUpstreamChange,
 		s.parseRateLimitChange,
+		s.parseConnLimitChange,
 	}
 	for _, matcher := range matchers {
 		a, err := matcher(response)

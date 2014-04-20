@@ -4,7 +4,6 @@ import (
 	"fmt"
 	log "github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcan/callback"
 	"github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcan/location/httploc"
@@ -107,22 +106,15 @@ func (c *Configurator) addLocation(host *Host, loc *Location) error {
 		return err
 	}
 
-	before := callback.NewBeforeChain()
-	after := callback.NewAfterChain()
-	options := httploc.Options{
-		Before: before,
-		After:  after,
-	}
-
-	// Always register a global connection watcher
-	before.Upsert(ConnWatch, c.connWatcher)
-	after.Upsert(ConnWatch, c.connWatcher)
-
 	// Create a location itself
-	location, err := httploc.NewLocationWithOptions(loc.Id, rr, options)
+	location, err := httploc.NewLocation(loc.Id, rr)
 	if err != nil {
 		return err
 	}
+
+	// Always register a global connection watcher
+	location.GetObserverChain().Upsert(ConnWatch, c.connWatcher)
+
 	// Add the location to the router
 	if err := router.AddLocation(loc.Path, location); err != nil {
 		return err
@@ -167,11 +159,8 @@ func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *Co
 	if err != nil {
 		return err
 	}
-	before := location.GetBefore().(*callback.BeforeChain)
-	after := location.GetAfter().(*callback.AfterChain)
 
-	before.Upsert(cl.EtcdKey, limiter)
-	after.Upsert(cl.EtcdKey, limiter)
+	location.GetMiddlewareChain().Upsert(cl.EtcdKey, limiter)
 	return nil
 }
 
@@ -184,11 +173,8 @@ func (c *Configurator) upsertLocationRateLimit(host *Host, loc *Location, rl *Ra
 	if err != nil {
 		return err
 	}
-	before := location.GetBefore().(*callback.BeforeChain)
-	after := location.GetAfter().(*callback.AfterChain)
 
-	before.Upsert(rl.EtcdKey, limiter)
-	after.Update(rl.EtcdKey, limiter)
+	location.GetMiddlewareChain().Upsert(rl.EtcdKey, limiter)
 	return nil
 }
 
@@ -197,13 +183,7 @@ func (c *Configurator) deleteLocationRateLimit(host *Host, loc *Location, limitI
 	if err != nil {
 		return err
 	}
-	before := location.GetBefore().(*callback.BeforeChain)
-	after := location.GetAfter().(*callback.AfterChain)
-
-	if err := before.Remove(limitId); err != nil {
-		log.Errorf("Failed to remove limiter: %s")
-	}
-	return after.Remove(limitId)
+	return location.GetMiddlewareChain().Remove(limitId)
 }
 
 func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitId string) error {
@@ -211,13 +191,7 @@ func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitI
 	if err != nil {
 		return err
 	}
-	before := location.GetBefore().(*callback.BeforeChain)
-	after := location.GetAfter().(*callback.AfterChain)
-
-	if err := before.Remove(limitId); err != nil {
-		log.Errorf("Failed to remove limiter: %s")
-	}
-	return after.Remove(limitId)
+	return location.GetMiddlewareChain().Remove(limitId)
 }
 
 func (c *Configurator) syncLocationEndpoints(location *Location) error {

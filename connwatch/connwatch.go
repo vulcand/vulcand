@@ -4,7 +4,6 @@ import (
 	log "github.com/mailgun/gotools-log"
 	timetools "github.com/mailgun/gotools-time"
 	. "github.com/mailgun/vulcan/request"
-	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -26,24 +25,22 @@ func NewConnectionWatcher() *ConnectionWatcher {
 	}
 }
 
-func (cw *ConnectionWatcher) Before(r Request) (*http.Response, error) {
+func (cw *ConnectionWatcher) ObserveRequest(r Request) {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
 
 	endpoint := getEndpoint(r)
 	cw.connections[endpoint] += 1
 	log.Infof("endpoint(url=%s) connections: %d", endpoint, cw.connections[endpoint])
-	return nil, nil
 }
 
-func (cw *ConnectionWatcher) After(r Request) error {
+func (cw *ConnectionWatcher) ObserveResponse(r Request, a Attempt) {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
 
 	endpoint := getEndpoint(r)
 	cw.connections[endpoint] -= 1
 	log.Infof("Connections per %s = %d", endpoint, cw.connections[endpoint])
-	return nil
 }
 
 func (cw *ConnectionWatcher) GetConnectionsCount(endpoint *url.URL) (int, error) {
