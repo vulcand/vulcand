@@ -3,7 +3,7 @@ package service
 import (
 	"flag"
 	"fmt"
-	"github.com/coreos/go-etcd/etcd"
+	"github.com/mailgun/go-etcd/etcd"
 )
 
 type Options struct {

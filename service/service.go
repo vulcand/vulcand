@@ -2,8 +2,8 @@ package service
 
 import (
 	"fmt"
-	"github.com/coreos/go-etcd/etcd"
 	"github.com/gorilla/mux"
+	"github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/gotools-log"
 	runtime "github.com/mailgun/gotools-runtime"
 	"github.com/mailgun/vulcan"

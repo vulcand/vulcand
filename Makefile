@@ -4,7 +4,7 @@ test: clean
 deps:
 	go get -v -u github.com/gorilla/mux
 	go get -v -u github.com/mailgun/vulcan
-	go get -v -u github.com/coreos/go-etcd/etcd
+	go get -v -u github.com/mailgun/go-etcd/etcd
 	go get -v -u launchpad.net/gocheck
 	cd vulcanctl && $(MAKE) deps && cd ..
 
