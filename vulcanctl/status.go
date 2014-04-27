@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/mailgun/cli"
+	"github.com/codegangsta/cli"
 )
 
 func NewStatusCommand() cli.Command {

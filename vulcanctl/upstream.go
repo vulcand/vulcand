@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/mailgun/cli"
+	"github.com/codegangsta/cli"
 )
 
 func NewUpstreamCommand() cli.Command {
@@ -9,40 +9,37 @@ func NewUpstreamCommand() cli.Command {
 		Name:  "upstream",
 		Flags: flags(),
 		Usage: "Operations with vulcan upstreams",
-	}
-}
-
-func NewUpstreamSubcommands() []cli.Command {
-	return []cli.Command{
-		{
-			Name:   "add",
-			Usage:  "Add a new upstream to vulcan",
-			Action: addUpstreamAction,
-			Flags: []cli.Flag{
-				cli.StringFlag{"id", "", "upstream id"},
+		Subcommands: []cli.Command{
+			{
+				Name:   "add",
+				Usage:  "Add a new upstream to vulcan",
+				Action: addUpstreamAction,
+				Flags: []cli.Flag{
+					cli.StringFlag{"id", "", "upstream id"},
+				},
 			},
-		},
-		{
-			Name:   "rm",
-			Usage:  "Remove upstream from vulcan",
-			Action: deleteUpstreamAction,
-			Flags: []cli.Flag{
-				cli.StringFlag{"id", "", "upstream id"},
+			{
+				Name:   "rm",
+				Usage:  "Remove upstream from vulcan",
+				Action: deleteUpstreamAction,
+				Flags: []cli.Flag{
+					cli.StringFlag{"id", "", "upstream id"},
+				},
 			},
-		},
-		{
-			Name:   "ls",
-			Usage:  "List upstreams",
-			Action: listUpstreamsAction,
-		},
-		{
-			Name:  "drain",
-			Usage: "Wait till there are no more connections for endpoints in the upstream",
-			Flags: []cli.Flag{
-				cli.StringFlag{"id", "", "upstream id"},
-				cli.IntFlag{"timeout", 5, "timeout in seconds"},
+			{
+				Name:   "ls",
+				Usage:  "List upstreams",
+				Action: listUpstreamsAction,
 			},
-			Action: upstreamDrainConnections,
+			{
+				Name:  "drain",
+				Usage: "Wait till there are no more connections for endpoints in the upstream",
+				Flags: []cli.Flag{
+					cli.StringFlag{"id", "", "upstream id"},
+					cli.IntFlag{"timeout", 5, "timeout in seconds"},
+				},
+				Action: upstreamDrainConnections,
+			},
 		},
 	}
 }

@@ -99,7 +99,7 @@ func (a *Adapter) GetStats(hostname, locationId, endpointId string) (*EndpointSt
 	return &EndpointStats{
 		Successes:     metrics.SuccessCount(),
 		Failures:      metrics.FailureCount(),
-		PeriodSeconds: int(metrics.Resolution() / time.Second),
+		PeriodSeconds: int(metrics.WindowSize() / time.Second),
 		FailRate:      metrics.GetRate(),
 	}, nil
 }

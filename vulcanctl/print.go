@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	. "github.com/mailgun/vulcand/backend"
+	"github.com/wsxiaoys/terminal/color"
 	"strings"
 )
 
@@ -181,15 +182,15 @@ func printStatus(response *StatusResponse, err error) {
 }
 
 func printError(err error) {
-	fmt.Printf("[ERROR]: %s\n", err)
+	color.Print(fmt.Sprintf("@rERROR: %s\n", err))
 }
 
 func printOk(message string, params ...interface{}) {
-	fmt.Printf("[SUCCESS]: %s\n", fmt.Sprintf(message, params))
+	color.Print(fmt.Sprintf("@gOK: %s\n", fmt.Sprintf(message, params...)))
 }
 
 func printInfo(message string, params ...interface{}) {
-	fmt.Printf("[INFO]: %s\n", fmt.Sprintf(message, params))
+	color.Print("INFO: @w%s\n", fmt.Sprintf(message, params...))
 }
 
 func printHosts(hosts []*Host) {

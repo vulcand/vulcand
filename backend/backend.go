@@ -165,10 +165,7 @@ type EndpointStats struct {
 
 func (e *EndpointStats) String() string {
 	reqsSec := (e.Failures + e.Successes) / int64(e.PeriodSeconds)
-	return fmt.Sprintf("freq=%d reqs/1s, failRate=%.2f/%s",
-		reqsSec,
-		e.FailRate,
-		time.Duration(e.PeriodSeconds)*time.Second)
+	return fmt.Sprintf("%d requests/sec, %.2f failures/sec", reqsSec, e.FailRate)
 }
 
 func VariableToMapper(variable string) (limit.MapperFn, error) {

@@ -1,33 +1,30 @@
 package main
 
 import (
-	"github.com/mailgun/cli"
+	"github.com/codegangsta/cli"
 )
 
 func NewHostCommand() cli.Command {
 	return cli.Command{
 		Name:  "host",
 		Usage: "Operations with vulcan hosts",
-	}
-}
-
-func NewHostSubcommands() []cli.Command {
-	return []cli.Command{
-		{
-			Name: "add",
-			Flags: []cli.Flag{
-				cli.StringFlag{"name", "", "hostname"},
+		Subcommands: []cli.Command{
+			{
+				Name: "add",
+				Flags: []cli.Flag{
+					cli.StringFlag{"name", "", "hostname"},
+				},
+				Usage:  "Add a new host to vulcan proxy",
+				Action: addHostAction,
 			},
-			Usage:  "Add a new host to vulcan proxy",
-			Action: addHostAction,
-		},
-		{
-			Name: "rm",
-			Flags: []cli.Flag{
-				cli.StringFlag{"name", "", "hostname"},
+			{
+				Name: "rm",
+				Flags: []cli.Flag{
+					cli.StringFlag{"name", "", "hostname"},
+				},
+				Usage:  "Remove a host from vulcan",
+				Action: deleteHostAction,
 			},
-			Usage:  "Remove a host from vulcan",
-			Action: deleteHostAction,
 		},
 	}
 }

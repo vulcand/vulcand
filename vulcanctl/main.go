@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/mailgun/cli"
+	"github.com/codegangsta/cli"
 	"os"
 )
 
@@ -13,26 +13,13 @@ func main() {
 
 	app.Commands = []cli.Command{
 		NewStatusCommand(),
+		NewLocationCommand(),
+		NewHostCommand(),
+		NewEndpointCommand(),
+		NewUpstreamCommand(),
+		NewRateLimitCommand(),
+		NewConnLimitCommand(),
 	}
-
-	location := app.AddSubcommand(NewLocationCommand())
-	location.Commands = NewLocationSubcommands()
-
-	host := app.AddSubcommand(NewHostCommand())
-	host.Commands = NewHostSubcommands()
-
-	endpoint := app.AddSubcommand(NewEndpointCommand())
-	endpoint.Commands = NewEndpointSubcommands()
-
-	upstream := app.AddSubcommand(NewUpstreamCommand())
-	upstream.Commands = NewUpstreamSubcommands()
-
-	ratelimit := app.AddSubcommand(NewRateLimitCommand())
-	ratelimit.Commands = NewRateLimitSubcommands()
-
-	connlimit := app.AddSubcommand(NewConnLimitCommand())
-	connlimit.Commands = NewConnLimitSubcommands()
-
 	app.Run(os.Args)
 }
 

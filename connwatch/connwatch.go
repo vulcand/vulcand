@@ -1,7 +1,6 @@
 package connwatch
 
 import (
-	log "github.com/mailgun/gotools-log"
 	timetools "github.com/mailgun/gotools-time"
 	. "github.com/mailgun/vulcan/request"
 	"net/url"
@@ -31,7 +30,6 @@ func (cw *ConnectionWatcher) ObserveRequest(r Request) {
 
 	endpoint := getEndpoint(r)
 	cw.connections[endpoint] += 1
-	log.Infof("endpoint(url=%s) connections: %d", endpoint, cw.connections[endpoint])
 }
 
 func (cw *ConnectionWatcher) ObserveResponse(r Request, a Attempt) {
@@ -40,7 +38,6 @@ func (cw *ConnectionWatcher) ObserveResponse(r Request, a Attempt) {
 
 	endpoint := getEndpoint(r)
 	cw.connections[endpoint] -= 1
-	log.Infof("Connections per %s = %d", endpoint, cw.connections[endpoint])
 }
 
 func (cw *ConnectionWatcher) GetConnectionsCount(endpoint *url.URL) (int, error) {

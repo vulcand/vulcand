@@ -1,17 +1,10 @@
 package main
 
 import (
-	"github.com/mailgun/cli"
+	"github.com/codegangsta/cli"
 )
 
 func NewRateLimitCommand() cli.Command {
-	return cli.Command{
-		Name:  "ratelimit",
-		Usage: "Operations with ratelimits",
-	}
-}
-
-func NewRateLimitSubcommands() []cli.Command {
 	addFlags := []cli.Flag{
 		cli.StringFlag{"id", "", "rate id"},
 		cli.StringFlag{"host", "", "location's host"},
@@ -21,28 +14,33 @@ func NewRateLimitSubcommands() []cli.Command {
 		cli.IntFlag{"period", 1, "rate limit period in seconds"},
 		cli.IntFlag{"burst", 1, "allowed burst"},
 	}
-	return []cli.Command{
-		{
-			Name:   "add",
-			Usage:  "Add a new rate to a location",
-			Flags:  addFlags,
-			Action: addRateLimitAction,
-		},
-		{
-			Name:   "update",
-			Usage:  "Update existing rate",
-			Flags:  addFlags,
-			Action: updateRateLimitAction,
-		},
-		{
-			Name:  "rm",
-			Usage: "Delete rate from location",
-			Flags: []cli.Flag{
-				cli.StringFlag{"id", "", "rate id"},
-				cli.StringFlag{"host", "", "location's host"},
-				cli.StringFlag{"loc", "", "location"},
+
+	return cli.Command{
+		Name:  "ratelimit",
+		Usage: "Operations with ratelimits",
+		Subcommands: []cli.Command{
+			{
+				Name:   "add",
+				Usage:  "Add a new rate to a location",
+				Flags:  addFlags,
+				Action: addRateLimitAction,
 			},
-			Action: deleteRateLimitAction,
+			{
+				Name:   "update",
+				Usage:  "Update existing rate",
+				Flags:  addFlags,
+				Action: updateRateLimitAction,
+			},
+			{
+				Name:  "rm",
+				Usage: "Delete rate from location",
+				Flags: []cli.Flag{
+					cli.StringFlag{"id", "", "rate id"},
+					cli.StringFlag{"host", "", "location's host"},
+					cli.StringFlag{"loc", "", "location"},
+				},
+				Action: deleteRateLimitAction,
+			},
 		},
 	}
 }

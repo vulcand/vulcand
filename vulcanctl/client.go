@@ -204,11 +204,11 @@ func (c *Client) RoundTripJson(fn RoundTripFn, in interface{}) error {
 	if err != nil {
 		return err
 	}
-	if response.StatusCode != 200 {
-		return fmt.Errorf("Error: %s", responseBody)
-	}
 	if json.Unmarshal(responseBody, in); err != nil {
 		return fmt.Errorf("Failed to decode response '%s', error: %", responseBody, err)
+	}
+	if response.StatusCode != 200 {
+		return &ErrorResponse{value: in}
 	}
 	return nil
 }
@@ -231,6 +231,18 @@ type UpstreamResponse struct {
 
 type StatusResponse struct {
 	Message string
+}
+
+type ErrorResponse struct {
+	value interface{}
+}
+
+func (e *ErrorResponse) Error() string {
+	switch val := e.value.(type) {
+	case *StatusResponse:
+		return val.Message
+	}
+	return fmt.Sprintf("%s", e.value)
 }
 
 type ConnectionsResponse struct {
