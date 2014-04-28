@@ -9,6 +9,7 @@ import (
 	"github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcan/route/pathroute"
 	. "github.com/mailgun/vulcand/backend"
@@ -91,15 +92,16 @@ func (a *Adapter) GetStats(hostname, locationId, endpointId string) (*EndpointSt
 	if weightedEndpoint == nil {
 		return nil, fmt.Errorf("Weighted Endpoint: %s not found", endpointId)
 	}
-	metrics := weightedEndpoint.GetMetrics()
-	if metrics == nil {
+	meterI := weightedEndpoint.GetMeter()
+	if meterI == nil {
 		return nil, fmt.Errorf("Metrics not found for endpoint %s", endpoint)
 	}
+	meter := meterI.(*metrics.RollingMeter)
 
 	return &EndpointStats{
-		Successes:     metrics.SuccessCount(),
-		Failures:      metrics.FailureCount(),
-		PeriodSeconds: int(metrics.WindowSize() / time.Second),
-		FailRate:      metrics.GetRate(),
+		Successes:     meter.SuccessCount(),
+		Failures:      meter.FailureCount(),
+		PeriodSeconds: int(meter.WindowSize() / time.Second),
+		FailRate:      meter.GetRate(),
 	}, nil
 }
