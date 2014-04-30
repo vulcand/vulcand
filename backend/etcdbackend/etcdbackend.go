@@ -162,9 +162,6 @@ func (s *EtcdBackend) AddEndpoint(upstreamId, id, url string) error {
 	if _, err := endpoint.ParseUrl(url); err != nil {
 		return fmt.Errorf("Endpoint url '%s' is not valid")
 	}
-	if _, err := s.readUpstream(upstreamId); err != nil {
-		return formatErr(err)
-	}
 	if id == "" {
 		if _, err := s.client.AddChild(join(s.etcdKey, "upstreams", upstreamId, "endpoints"), url, 0); err != nil {
 			return formatErr(err)
@@ -362,6 +359,8 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 	matchers := []MatcherFn{
 		s.parseHostChange,
 		s.parseLocationChange,
+		s.parseLocationUpstreamChange,
+		s.parseLocationPathChange,
 		s.parseUpstreamChange,
 		s.parseRateLimitChange,
 		s.parseConnLimitChange,
@@ -401,18 +400,15 @@ func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, err
 }
 
 func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/upstream").FindStringSubmatch(response.Node.Key)
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)$").FindStringSubmatch(response.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
 	hostname, locationId := out[1], out[2]
-	upstreamId := suffix(response.Node.Key)
-
 	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
-
 	if response.Action == "create" {
 		location, err := s.readLocation(hostname, locationId)
 		if err != nil {
@@ -428,18 +424,63 @@ func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{},
 			LocationId:      locationId,
 			LocationEtcdKey: strings.TrimSuffix(response.Node.Key, "/upstream"),
 		}, nil
-	} else if response.Action == "set" {
-		location, err := s.readLocation(hostname, locationId)
-		if err != nil {
-			return nil, err
-		}
-		return &LocationUpstreamUpdated{
-			Host:       host,
-			Location:   location,
-			UpstreamId: upstreamId,
-		}, nil
 	}
 	return nil, fmt.Errorf("Unsupported action on the location: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseLocationUpstreamChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/upstream").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+
+	if response.Action != "create" && response.Action != "set" {
+		return nil, fmt.Errorf("Unsupported action on the location upstream: %s", response.Action)
+	}
+
+	hostname, locationId := out[1], out[2]
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	location, err := s.readLocation(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+	upstreamId := suffix(response.Node.Key)
+
+	return &LocationUpstreamUpdated{
+		Host:       host,
+		Location:   location,
+		UpstreamId: upstreamId,
+	}, nil
+}
+
+func (s *EtcdBackend) parseLocationPathChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/path").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+
+	if response.Action != "create" && response.Action != "set" {
+		return nil, fmt.Errorf("Unsupported action on the location path: %s", response.Action)
+	}
+
+	hostname, locationId := out[1], out[2]
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	location, err := s.readLocation(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LocationPathUpdated{
+		Host:     host,
+		Location: location,
+		Path:     response.Node.Value,
+	}, nil
 }
 
 func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{}, error) {
@@ -458,10 +499,31 @@ func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{},
 		return nil, err
 	}
 
+	var endpoint *Endpoint
+	for _, e := range upstream.Endpoints {
+		if e.Id == endpointId {
+			endpoint = e
+		}
+	}
+	if endpoint == nil {
+		return nil, fmt.Errorf("Endpoint %s not found", endpointId)
+	}
+
 	if response.Action == "create" {
 		for _, e := range upstream.Endpoints {
 			if e.Id == endpointId {
 				return &EndpointAdded{
+					Upstream:          upstream,
+					Endpoint:          e,
+					AffectedLocations: affectedLocations,
+				}, nil
+			}
+		}
+		return nil, fmt.Errorf("Endpoint %s not found", endpointId)
+	} else if response.Action == "set" {
+		for _, e := range upstream.Endpoints {
+			if e.Id == endpointId {
+				return &EndpointUpdated{
 					Upstream:          upstream,
 					Endpoint:          e,
 					AffectedLocations: affectedLocations,

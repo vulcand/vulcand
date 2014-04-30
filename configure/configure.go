@@ -40,7 +40,7 @@ func (c *Configurator) WatchChanges(changes chan interface{}) error {
 	for {
 		change := <-changes
 		if err := c.processChange(change); err != nil {
-			log.Errorf("Failed to process change %s, err: %s", err)
+			log.Errorf("Failed to process change %#v, err: %s", change, err)
 		}
 	}
 	return nil
@@ -49,15 +49,17 @@ func (c *Configurator) WatchChanges(changes chan interface{}) error {
 func (c *Configurator) processChange(ch interface{}) error {
 	switch change := ch.(type) {
 	case *HostAdded:
-		return c.addHost(change.Host)
+		return c.upsertHost(change.Host)
 	case *HostDeleted:
 		return c.deleteHost(change.Name)
 	case *LocationAdded:
-		return c.addLocation(change.Host, change.Location)
+		return c.upsertLocation(change.Host, change.Location)
 	case *LocationDeleted:
 		return c.deleteLocation(change.Host, change.LocationId)
 	case *LocationUpstreamUpdated:
-		return c.syncLocationEndpoints(change.Location)
+		return c.updateLocationUpstream(change.Host, change.Location)
+	case *LocationPathUpdated:
+		return c.updateLocationPath(change.Host, change.Location, change.Path)
 	case *LocationRateLimitAdded:
 		return c.upsertLocationRateLimit(change.Host, change.Location, change.RateLimit)
 	case *LocationRateLimitUpdated:
@@ -76,13 +78,15 @@ func (c *Configurator) processChange(ch interface{}) error {
 		return nil
 	case *EndpointAdded:
 		return c.addEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
+	case *EndpointUpdated:
+		return c.addEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
 	case *EndpointDeleted:
 		return c.deleteEndpoint(change.Upstream, change.EndpointId, change.AffectedLocations)
 	}
 	return fmt.Errorf("Unsupported change: %#v", ch)
 }
 
-func (c *Configurator) addHost(host *Host) error {
+func (c *Configurator) upsertHost(host *Host) error {
 	router := pathroute.NewPathRouter()
 	c.a.GetHostRouter().SetRouter(host.Name, router)
 	log.Infof("Added %s", host)
@@ -95,7 +99,16 @@ func (c *Configurator) deleteHost(hostname string) error {
 	return nil
 }
 
-func (c *Configurator) addLocation(host *Host, loc *Location) error {
+func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
+	if err := c.upsertHost(host); err != nil {
+		return err
+	}
+
+	// If location already exists, do nothing
+	if loc, err := c.a.FindHttpLocation(host.Name, loc.Id); err != nil || loc != nil {
+		return nil
+	}
+
 	router, err := c.a.GetPathRouter(host.Name)
 	if err != nil {
 		return err
@@ -151,6 +164,10 @@ func (c *Configurator) deleteLocation(host *Host, locationId string) error {
 }
 
 func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *ConnLimit) error {
+	if err := c.upsertLocation(host, loc); err != nil {
+		return err
+	}
+
 	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
 	if err != nil {
 		return err
@@ -165,6 +182,11 @@ func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *Co
 }
 
 func (c *Configurator) upsertLocationRateLimit(host *Host, loc *Location, rl *RateLimit) error {
+
+	if err := c.upsertLocation(host, loc); err != nil {
+		return err
+	}
+
 	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
 	if err != nil {
 		return err
@@ -194,31 +216,46 @@ func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitI
 	return location.GetMiddlewareChain().Remove(limitId)
 }
 
+func (c *Configurator) updateLocationPath(host *Host, location *Location, path string) error {
+	if err := c.deleteLocation(host, location.Id); err != nil {
+		return err
+	}
+	return c.upsertLocation(host, location)
+}
+
+func (c *Configurator) updateLocationUpstream(host *Host, location *Location) error {
+	if err := c.upsertLocation(host, location); err != nil {
+		return err
+	}
+	return c.syncLocationEndpoints(location)
+}
+
 func (c *Configurator) syncLocationEndpoints(location *Location) error {
+
 	rr, err := c.a.GetHttpLocationLb(location.Hostname, location.Id)
 	if err != nil {
 		return err
 	}
 
 	// First, collect and parse endpoints to add
-	endpointsToAdd := map[string]endpoint.Endpoint{}
+	newEndpoints := map[string]endpoint.Endpoint{}
 	for _, e := range location.Upstream.Endpoints {
 		ep, err := EndpointFromUrl(e.Id, e.Url)
 		if err != nil {
 			return fmt.Errorf("Failed to parse endpoint url: %s", e)
 		}
-		endpointsToAdd[ep.GetId()] = ep
+		newEndpoints[ep.GetId()] = ep
 	}
 
 	// Memorize what endpoints exist in load balancer at the moment
-	existing := map[string]endpoint.Endpoint{}
+	existingEndpoints := map[string]endpoint.Endpoint{}
 	for _, e := range rr.GetEndpoints() {
-		existing[e.GetId()] = e
+		existingEndpoints[e.GetId()] = e
 	}
 
 	// First, add endpoints, that should be added and are not in lb
-	for eid, e := range endpointsToAdd {
-		if _, exists := existing[eid]; !exists {
+	for eid, e := range newEndpoints {
+		if _, exists := existingEndpoints[eid]; !exists {
 			if err := rr.AddEndpoint(e); err != nil {
 				log.Errorf("Failed to add %s, err: %s", e, err)
 			} else {
@@ -228,8 +265,8 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 	}
 
 	// Second, remove endpoints that should not be there any more
-	for eid, e := range existing {
-		if _, exists := endpointsToAdd[eid]; !exists {
+	for eid, e := range existingEndpoints {
+		if _, exists := newEndpoints[eid]; !exists {
 			if err := rr.RemoveEndpoint(e); err != nil {
 				log.Errorf("Failed to remove %s, err: %s", e, err)
 			} else {

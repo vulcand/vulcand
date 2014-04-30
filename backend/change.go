@@ -27,6 +27,12 @@ type LocationUpstreamUpdated struct {
 	UpstreamEtcdKey string
 }
 
+type LocationPathUpdated struct {
+	Host     *Host
+	Location *Location
+	Path     string
+}
+
 type LocationRateLimitAdded struct {
 	Host      *Host
 	Location  *Location
@@ -75,6 +81,12 @@ type UpstreamDeleted struct {
 }
 
 type EndpointAdded struct {
+	Upstream          *Upstream
+	Endpoint          *Endpoint
+	AffectedLocations []*Location
+}
+
+type EndpointUpdated struct {
 	Upstream          *Upstream
 	Endpoint          *Endpoint
 	AffectedLocations []*Location

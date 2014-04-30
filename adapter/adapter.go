@@ -56,16 +56,24 @@ func (a *Adapter) GetPathRouter(hostname string) (*pathroute.PathRouter, error) 
 	return r.(*pathroute.PathRouter), nil
 }
 
-func (a *Adapter) GetHttpLocation(hostname string, locationId string) (*httploc.HttpLocation, error) {
+func (a *Adapter) FindHttpLocation(hostname string, locationId string) (*httploc.HttpLocation, error) {
 	router, err := a.GetPathRouter(hostname)
 	if err != nil {
 		return nil, err
 	}
 	ilo := router.GetLocationById(locationId)
 	if ilo == nil {
-		return nil, fmt.Errorf("Failed to get location by id: %s", locationId)
+		return nil, nil
 	}
 	return ilo.(*httploc.HttpLocation), nil
+}
+
+func (a *Adapter) GetHttpLocation(hostname string, locationId string) (*httploc.HttpLocation, error) {
+	location, err := a.FindHttpLocation(hostname, locationId)
+	if location == nil {
+		return nil, fmt.Errorf("Failed to get location by id: %s", locationId)
+	}
+	return location, err
 }
 
 func (a *Adapter) GetHttpLocationLb(hostname string, locationId string) (*roundrobin.RoundRobin, error) {
