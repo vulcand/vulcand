@@ -135,7 +135,6 @@ func (u *Upstream) String() string {
 type Endpoint struct {
 	EtcdKey string `json:",omitempty"`
 	Id      string
-	Path    string
 	Url     string
 	Stats   *EndpointStats
 }

@@ -1,4 +1,4 @@
-package service
+package configure
 
 import (
 	"fmt"
@@ -87,6 +87,9 @@ func (c *Configurator) processChange(ch interface{}) error {
 }
 
 func (c *Configurator) upsertHost(host *Host) error {
+	if c.a.GetHostRouter().GetRouter(host.Name) != nil {
+		return nil
+	}
 	router := pathroute.NewPathRouter()
 	c.a.GetHostRouter().SetRouter(host.Name, router)
 	log.Infof("Added %s", host)
@@ -108,7 +111,6 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	if loc, err := c.a.FindHttpLocation(host.Name, loc.Id); err != nil || loc != nil {
 		return nil
 	}
-
 	router, err := c.a.GetPathRouter(host.Name)
 	if err != nil {
 		return err
@@ -132,11 +134,14 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	if err := router.AddLocation(loc.Path, location); err != nil {
 		return err
 	}
+
 	// Add rate and connection limits
 	for _, rl := range loc.RateLimits {
+
 		if err := c.upsertLocationRateLimit(host, loc, rl); err != nil {
 			log.Errorf("Failed to add rate limit: %s", err)
 		}
+
 	}
 	for _, cl := range loc.ConnLimits {
 		if err := c.upsertLocationConnLimit(host, loc, cl); err != nil {

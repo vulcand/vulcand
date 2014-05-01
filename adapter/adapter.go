@@ -48,12 +48,20 @@ func (a *Adapter) GetHostRouter() *hostroute.HostRouter {
 	return a.proxy.GetRouter().(*hostroute.HostRouter)
 }
 
-func (a *Adapter) GetPathRouter(hostname string) (*pathroute.PathRouter, error) {
+func (a *Adapter) FindPathRouter(hostname string) (*pathroute.PathRouter, error) {
 	r := a.GetHostRouter().GetRouter(hostname)
+	if r == nil {
+		return nil, nil
+	}
+	return r.(*pathroute.PathRouter), nil
+}
+
+func (a *Adapter) GetPathRouter(hostname string) (*pathroute.PathRouter, error) {
+	r, err := a.FindPathRouter(hostname)
 	if r == nil {
 		return nil, fmt.Errorf("Location with host %s not found.", hostname)
 	}
-	return r.(*pathroute.PathRouter), nil
+	return r, err
 }
 
 func (a *Adapter) FindHttpLocation(hostname string, locationId string) (*httploc.HttpLocation, error) {
