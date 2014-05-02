@@ -153,10 +153,12 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 }
 
 func (c *Configurator) deleteLocation(host *Host, locationId string) error {
+
 	router, err := c.a.GetPathRouter(host.Name)
 	if err != nil {
 		return err
 	}
+
 	location := router.GetLocationById(locationId)
 	if location == nil {
 		return fmt.Errorf("Location(id=%s) not found", locationId)
@@ -245,22 +247,22 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 	// First, collect and parse endpoints to add
 	newEndpoints := map[string]endpoint.Endpoint{}
 	for _, e := range location.Upstream.Endpoints {
-		ep, err := EndpointFromUrl(e.Id, e.Url)
+		ep, err := EndpointFromUrl(e.EtcdKey, e.Url)
 		if err != nil {
 			return fmt.Errorf("Failed to parse endpoint url: %s", e)
 		}
-		newEndpoints[ep.GetId()] = ep
+		newEndpoints[e.Url] = ep
 	}
 
 	// Memorize what endpoints exist in load balancer at the moment
 	existingEndpoints := map[string]endpoint.Endpoint{}
 	for _, e := range rr.GetEndpoints() {
-		existingEndpoints[e.GetId()] = e
+		existingEndpoints[e.GetUrl().String()] = e
 	}
 
 	// First, add endpoints, that should be added and are not in lb
-	for eid, e := range newEndpoints {
-		if _, exists := existingEndpoints[eid]; !exists {
+	for _, e := range newEndpoints {
+		if _, exists := existingEndpoints[e.GetUrl().String()]; !exists {
 			if err := rr.AddEndpoint(e); err != nil {
 				log.Errorf("Failed to add %s, err: %s", e, err)
 			} else {
@@ -270,8 +272,8 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 	}
 
 	// Second, remove endpoints that should not be there any more
-	for eid, e := range existingEndpoints {
-		if _, exists := newEndpoints[eid]; !exists {
+	for _, e := range existingEndpoints {
+		if _, exists := newEndpoints[e.GetUrl().String()]; !exists {
 			if err := rr.RemoveEndpoint(e); err != nil {
 				log.Errorf("Failed to remove %s, err: %s", e, err)
 			} else {
@@ -283,7 +285,7 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 }
 
 func (c *Configurator) addEndpoint(upstream *Upstream, e *Endpoint, affectedLocations []*Location) error {
-	endpoint, err := EndpointFromUrl(e.Id, e.Url)
+	endpoint, err := EndpointFromUrl(e.EtcdKey, e.Url)
 	if err != nil {
 		return fmt.Errorf("Failed to parse endpoint url: %s", endpoint)
 	}
