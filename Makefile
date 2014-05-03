@@ -12,7 +12,7 @@ clean:
 	find . -name flymake_* -delete
 
 test-package: clean
-	go test -v ./$(p) -cover
+	go test -v ./$(p)
 
 cover-package: clean
 	go test -v ./$(p)  -coverprofile=/tmp/coverage.out

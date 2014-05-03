@@ -12,7 +12,6 @@ import (
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
-	"strings"
 )
 
 const ConnWatch = "_vulcanConnWatch"
@@ -65,13 +64,13 @@ func (c *Configurator) processChange(ch interface{}) error {
 	case *LocationRateLimitUpdated:
 		return c.upsertLocationRateLimit(change.Host, change.Location, change.RateLimit)
 	case *LocationRateLimitDeleted:
-		return c.deleteLocationRateLimit(change.Host, change.Location, change.RateLimitId)
+		return c.deleteLocationRateLimit(change.Host, change.Location, change.RateLimitEtcdKey)
 	case *LocationConnLimitAdded:
 		return c.upsertLocationConnLimit(change.Host, change.Location, change.ConnLimit)
 	case *LocationConnLimitUpdated:
 		return c.upsertLocationConnLimit(change.Host, change.Location, change.ConnLimit)
 	case *LocationConnLimitDeleted:
-		return c.deleteLocationConnLimit(change.Host, change.Location, change.ConnLimitId)
+		return c.deleteLocationConnLimit(change.Host, change.Location, change.ConnLimitEtcdKey)
 	case *UpstreamAdded:
 		return nil
 	case *UpstreamDeleted:
@@ -185,6 +184,7 @@ func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *Co
 	}
 
 	location.GetMiddlewareChain().Upsert(cl.EtcdKey, limiter)
+
 	return nil
 }
 
@@ -247,7 +247,7 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 	// First, collect and parse endpoints to add
 	newEndpoints := map[string]endpoint.Endpoint{}
 	for _, e := range location.Upstream.Endpoints {
-		ep, err := EndpointFromUrl(e.EtcdKey, e.Url)
+		ep, err := EndpointFromUrl(e.Url, e.Url)
 		if err != nil {
 			return fmt.Errorf("Failed to parse endpoint url: %s", e)
 		}
@@ -304,8 +304,4 @@ func (c *Configurator) deleteEndpoint(upstream *Upstream, endpointId string, aff
 		}
 	}
 	return nil
-}
-
-func join(vals ...string) string {
-	return strings.Join(vals, ",")
 }

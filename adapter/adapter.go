@@ -101,14 +101,7 @@ func (a *Adapter) GetStats(hostname, locationId, endpointId string) (*EndpointSt
 	if endpoint == nil {
 		return nil, fmt.Errorf("Endpoint: %s not found", endpointId)
 	}
-	weightedEndpoint, ok := endpoint.(*roundrobin.WeightedEndpoint)
-	if !ok {
-		return nil, fmt.Errorf("Unuspported endpoint type: %T", endpoint)
-	}
-	if weightedEndpoint == nil {
-		return nil, fmt.Errorf("Weighted Endpoint: %s not found", endpointId)
-	}
-	meterI := weightedEndpoint.GetMeter()
+	meterI := endpoint.GetMeter()
 	if meterI == nil {
 		return nil, fmt.Errorf("Metrics not found for endpoint %s", endpoint)
 	}
