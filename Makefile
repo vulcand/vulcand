@@ -1,3 +1,5 @@
+ETCD_NODES := http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003
+
 test: clean
 	go test -v ./... -cover
 
@@ -11,11 +13,12 @@ deps:
 clean:
 	find . -name flymake_* -delete
 
+
 test-package: clean
-	go test -v ./$(p)
+	VULCAND_ETCD_NODES=${ETCD_NODES} go test -v ./$(p)
 
 cover-package: clean
-	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
+	VULCAND_ETCD_NODES=${ETCD_NODES} go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
 sloccount:

@@ -107,12 +107,13 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	}
 
 	// If location already exists, do nothing
-	if loc, err := c.a.FindHttpLocation(host.Name, loc.Id); err != nil || loc != nil {
+	if loc := c.a.GetHttpLocation(host.Name, loc.Id); loc != nil {
 		return nil
 	}
-	router, err := c.a.GetPathRouter(host.Name)
-	if err != nil {
-		return err
+
+	router := c.a.GetPathRouter(host.Name)
+	if router == nil {
+		return fmt.Errorf("Router not found for %s", host)
 	}
 	// Create a load balancer that handles all the endpoints within the given location
 	rr, err := roundrobin.NewRoundRobin()
@@ -153,20 +154,16 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 
 func (c *Configurator) deleteLocation(host *Host, locationId string) error {
 
-	router, err := c.a.GetPathRouter(host.Name)
-	if err != nil {
-		return err
+	router := c.a.GetPathRouter(host.Name)
+	if router == nil {
+		return fmt.Errorf("Router for %s not found", host)
 	}
 
 	location := router.GetLocationById(locationId)
 	if location == nil {
 		return fmt.Errorf("Location(id=%s) not found", locationId)
 	}
-	err = router.RemoveLocation(location)
-	if err == nil {
-		log.Infof("Deleted location(id=%s)", locationId)
-	}
-	return err
+	return router.RemoveLocation(location)
 }
 
 func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *ConnLimit) error {
@@ -174,17 +171,15 @@ func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *Co
 		return err
 	}
 
-	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
-	if err != nil {
-		return err
+	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
 	}
 	limiter, err := NewConnLimiter(cl)
 	if err != nil {
 		return err
 	}
-
 	location.GetMiddlewareChain().Upsert(cl.EtcdKey, limiter)
-
 	return nil
 }
 
@@ -194,9 +189,9 @@ func (c *Configurator) upsertLocationRateLimit(host *Host, loc *Location, rl *Ra
 		return err
 	}
 
-	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
-	if err != nil {
-		return err
+	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
 	}
 	limiter, err := NewRateLimiter(rl)
 	if err != nil {
@@ -208,17 +203,17 @@ func (c *Configurator) upsertLocationRateLimit(host *Host, loc *Location, rl *Ra
 }
 
 func (c *Configurator) deleteLocationRateLimit(host *Host, loc *Location, limitId string) error {
-	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
-	if err != nil {
-		return err
+	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
 	}
 	return location.GetMiddlewareChain().Remove(limitId)
 }
 
 func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitId string) error {
-	location, err := c.a.GetHttpLocation(host.Name, loc.Id)
-	if err != nil {
-		return err
+	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
 	}
 	return location.GetMiddlewareChain().Remove(limitId)
 }
@@ -239,9 +234,9 @@ func (c *Configurator) updateLocationUpstream(host *Host, location *Location) er
 
 func (c *Configurator) syncLocationEndpoints(location *Location) error {
 
-	rr, err := c.a.GetHttpLocationLb(location.Hostname, location.Id)
-	if err != nil {
-		return err
+	rr := c.a.GetHttpLocationLb(location.Hostname, location.Id)
+	if rr == nil {
+		return fmt.Errorf("%s lb not found", location)
 	}
 
 	// First, collect and parse endpoints to add

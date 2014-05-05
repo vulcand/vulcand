@@ -3,7 +3,6 @@
 package adapter
 
 import (
-	"fmt"
 	"github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcan/limit/connlimit"
 	"github.com/mailgun/vulcan/limit/tokenbucket"
@@ -48,62 +47,46 @@ func (a *Adapter) GetHostRouter() *hostroute.HostRouter {
 	return a.proxy.GetRouter().(*hostroute.HostRouter)
 }
 
-func (a *Adapter) FindPathRouter(hostname string) (*pathroute.PathRouter, error) {
+func (a *Adapter) GetPathRouter(hostname string) *pathroute.PathRouter {
 	r := a.GetHostRouter().GetRouter(hostname)
 	if r == nil {
-		return nil, nil
+		return nil
 	}
-	return r.(*pathroute.PathRouter), nil
+	return r.(*pathroute.PathRouter)
 }
 
-func (a *Adapter) GetPathRouter(hostname string) (*pathroute.PathRouter, error) {
-	r, err := a.FindPathRouter(hostname)
-	if r == nil {
-		return nil, fmt.Errorf("Location with host %s not found.", hostname)
-	}
-	return r, err
-}
-
-func (a *Adapter) FindHttpLocation(hostname string, locationId string) (*httploc.HttpLocation, error) {
-	router, err := a.GetPathRouter(hostname)
-	if err != nil {
-		return nil, err
+func (a *Adapter) GetHttpLocation(hostname string, locationId string) *httploc.HttpLocation {
+	router := a.GetPathRouter(hostname)
+	if router == nil {
+		return nil
 	}
 	ilo := router.GetLocationById(locationId)
 	if ilo == nil {
-		return nil, nil
+		return nil
 	}
-	return ilo.(*httploc.HttpLocation), nil
+	return ilo.(*httploc.HttpLocation)
 }
 
-func (a *Adapter) GetHttpLocation(hostname string, locationId string) (*httploc.HttpLocation, error) {
-	location, err := a.FindHttpLocation(hostname, locationId)
-	if location == nil {
-		return nil, fmt.Errorf("Failed to get location by id: %s", locationId)
+func (a *Adapter) GetHttpLocationLb(hostname string, locationId string) *roundrobin.RoundRobin {
+	loc := a.GetHttpLocation(hostname, locationId)
+	if loc == nil {
+		return nil
 	}
-	return location, err
+	return loc.GetLoadBalancer().(*roundrobin.RoundRobin)
 }
 
-func (a *Adapter) GetHttpLocationLb(hostname string, locationId string) (*roundrobin.RoundRobin, error) {
-	loc, err := a.GetHttpLocation(hostname, locationId)
-	if err != nil {
-		return nil, err
-	}
-	return loc.GetLoadBalancer().(*roundrobin.RoundRobin), nil
-}
-
-func (a *Adapter) GetStats(hostname, locationId, endpointId string) (*EndpointStats, error) {
-	rr, err := a.GetHttpLocationLb(hostname, locationId)
-	if err != nil {
-		return nil, err
+func (a *Adapter) GetStats(hostname, locationId, endpointId string) *EndpointStats {
+	rr := a.GetHttpLocationLb(hostname, locationId)
+	if rr == nil {
+		return nil
 	}
 	endpoint := rr.FindEndpointById(endpointId)
 	if endpoint == nil {
-		return nil, fmt.Errorf("Endpoint: %s not found", endpointId)
+		return nil
 	}
 	meterI := endpoint.GetMeter()
 	if meterI == nil {
-		return nil, fmt.Errorf("Metrics not found for endpoint %s", endpoint)
+		return nil
 	}
 	meter := meterI.(*metrics.RollingMeter)
 
@@ -112,5 +95,5 @@ func (a *Adapter) GetStats(hostname, locationId, endpointId string) (*EndpointSt
 		Failures:      meter.FailureCount(),
 		PeriodSeconds: int(meter.WindowSize() / time.Second),
 		FailRate:      meter.GetRate(),
-	}, nil
+	}
 }

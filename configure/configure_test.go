@@ -55,15 +55,13 @@ func (s *ConfSuite) TestAddDeleteHost(c *C) {
 	err := s.conf.processChange(&HostAdded{Host: host})
 	c.Assert(err, IsNil)
 
-	r, err := s.conf.a.GetPathRouter(host.Name)
-	c.Assert(err, IsNil)
+	r := s.conf.a.GetPathRouter(host.Name)
 	c.Assert(r, NotNil)
 
 	err = s.conf.processChange(&HostDeleted{Name: host.Name})
 	c.Assert(err, IsNil)
 
-	r, err = s.conf.a.FindPathRouter(host.Name)
-	c.Assert(err, IsNil)
+	r = s.conf.a.GetPathRouter(host.Name)
 	c.Assert(r, IsNil)
 }
 
@@ -107,13 +105,11 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure location is here
-	l, err := s.conf.a.GetHttpLocation(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(l, NotNil)
 
 	// Make sure the endpoint has been added to the location
-	lb, err := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Check that endpoint is here
@@ -131,9 +127,18 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure it's no longer in the proxy
-	l, err = s.conf.a.FindHttpLocation(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	l = s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(l, IsNil)
+}
+
+func (s *ConfSuite) TestAddLocationTwice(c *C) {
+	location, host := makeLocation()
+
+	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
+	c.Assert(err, IsNil)
+
+	err = s.conf.processChange(&LocationAdded{Host: host, Location: location})
+	c.Assert(err, IsNil)
 }
 
 func (s *ConfSuite) TestUpdateLocationUpstream(c *C) {
@@ -177,8 +182,7 @@ func (s *ConfSuite) TestUpdateLocationUpstream(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure the endpoint has been added to the location
-	lb, err := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Endpoints are taken from up1
@@ -201,8 +205,7 @@ func (s *ConfSuite) TestUpstreamAddEndpoint(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure the endpoint has been added to the location
-	lb, err := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Endpoints are taken from the upstream
@@ -230,8 +233,7 @@ func (s *ConfSuite) TestUpstreamBadAddEndpoint(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure the endpoint has been added to the location
-	lb, err := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Add some endpoints to location
@@ -261,8 +263,7 @@ func (s *ConfSuite) TestUpstreamDeleteEndpoint(c *C) {
 	err = s.conf.processChange(&EndpointDeleted{Upstream: up, EndpointId: e.Id, EndpointEtcdKey: e.EtcdKey, AffectedLocations: []*Location{location}})
 	c.Assert(err, IsNil)
 
-	lb, err := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 	s.AssertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
 }
@@ -280,8 +281,7 @@ func (s *ConfSuite) TestUpstreamUpdateEndpoint(c *C) {
 	err = s.conf.processChange(&EndpointUpdated{Upstream: up, Endpoint: e, AffectedLocations: []*Location{location}})
 	c.Assert(err, IsNil)
 
-	lb, err := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 	s.AssertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
 }
@@ -312,8 +312,7 @@ func (s *ConfSuite) TestUpdateRateLimit(c *C) {
 	err = s.conf.processChange(&LocationRateLimitAdded{Host: host, Location: location, RateLimit: rl})
 	c.Assert(err, IsNil)
 
-	l, err := s.conf.a.GetHttpLocation(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(l, NotNil)
 
 	// Make sure connection limit and rate limit are here as well
@@ -367,7 +366,7 @@ func (s *ConfSuite) TestAddDeleteRateLimit(c *C) {
 	err = s.conf.processChange(&LocationRateLimitAdded{Host: host, Location: location, RateLimit: rl2})
 	c.Assert(err, IsNil)
 
-	l, err := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 
@@ -398,7 +397,7 @@ func (s *ConfSuite) TestUpdateConnLimit(c *C) {
 	err = s.conf.processChange(&LocationConnLimitAdded{Host: host, Location: location, ConnLimit: cl})
 	c.Assert(err, IsNil)
 
-	l, err := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 
@@ -433,8 +432,7 @@ func (s *ConfSuite) TestAddDeleteConnLimit(c *C) {
 	err = s.conf.processChange(&LocationConnLimitAdded{Host: host, Location: location, ConnLimit: cl})
 	c.Assert(err, IsNil)
 
-	l, err := s.conf.a.GetHttpLocation(host.Name, location.Id)
-	c.Assert(err, IsNil)
+	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(l, NotNil)
 
 	// Make sure connection limit and rate limit are here as well

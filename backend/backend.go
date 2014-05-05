@@ -37,7 +37,7 @@ type Backend interface {
 }
 
 type StatsGetter interface {
-	GetStats(hostname string, locationId string, endpointId string) (*EndpointStats, error)
+	GetStats(hostname string, locationId string, endpointId string) *EndpointStats
 }
 
 type Host struct {

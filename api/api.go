@@ -54,8 +54,7 @@ func (c *ProxyController) GetHosts(w http.ResponseWriter, r *http.Request, param
 	for _, h := range hosts {
 		for _, l := range h.Locations {
 			for _, e := range l.Upstream.Endpoints {
-				s, _ := c.statsGetter.GetStats(h.Name, l.Id, e.Id)
-				e.Stats = s
+				e.Stats = c.statsGetter.GetStats(h.Name, l.Id, e.Id)
 			}
 		}
 	}
