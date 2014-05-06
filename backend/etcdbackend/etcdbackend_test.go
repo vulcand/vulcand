@@ -1,6 +1,7 @@
 package etcdbackend
 
 import (
+	"fmt"
 	"github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/gotools-log"
 	. "github.com/mailgun/vulcand/backend"
@@ -48,15 +49,14 @@ func (s *EtcdBackendSuite) SetUpTest(c *C) {
 	_, err = s.client.Get(s.etcdPrefix, false, false)
 	if err != nil {
 		// There's no key like this
-		if notFound(err) {
-			return
+		if !notFound(err) {
+			// We haven't expected this error, oops
+			c.Assert(err, IsNil)
 		}
-		// We haven't expected this error, oops
+	} else {
+		_, err = s.backend.client.Delete(s.etcdPrefix, true)
 		c.Assert(err, IsNil)
 	}
-
-	_, err = s.backend.client.Delete(s.etcdPrefix, true)
-	c.Assert(err, IsNil)
 
 	s.changesC = make(chan interface{})
 	go s.backend.WatchChanges(s.changesC, false)
@@ -87,14 +87,7 @@ func (s *EtcdBackendSuite) expectChanges(c *C, expected ...interface{}) {
 	}
 }
 
-/*
-func (s *EtcdBackendSuite) TestAddBadHost(c *C) {
-	// Add the host with empty hostname won't work
-	err := s.backend.AddHost("")
-	c.Assert(err, NotNil)
-}*/
-
-func (s *EtcdBackendSuite) TestAddHost(c *C) {
+func (s *EtcdBackendSuite) TestAddDeleteHost(c *C) {
 	// Add the host
 	err := s.backend.AddHost("localhost")
 	c.Assert(err, IsNil)
@@ -104,6 +97,20 @@ func (s *EtcdBackendSuite) TestAddHost(c *C) {
 			Name:      "localhost",
 			EtcdKey:   s.backend.path("hosts", "localhost"),
 			Locations: []*Location{}}})
+
+	err = s.backend.DeleteHost("localhost")
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &HostDeleted{
+		Name:        "localhost",
+		HostEtcdKey: s.backend.path("hosts", "localhost"),
+	})
+}
+
+func (s *EtcdBackendSuite) TestAddBadHost(c *C) {
+	// Add the host with empty hostname won't work
+	err := s.backend.AddHost("")
+	c.Assert(err, NotNil)
 }
 
 func (s *EtcdBackendSuite) TestAddTwice(c *C) {
@@ -113,4 +120,102 @@ func (s *EtcdBackendSuite) TestAddTwice(c *C) {
 
 	err = s.backend.AddHost("localhost")
 	c.Assert(err, NotNil)
+}
+
+func (s *EtcdBackendSuite) TestAddDeleteUpstream(c *C) {
+	err := s.backend.AddUpstream("up1")
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &UpstreamAdded{
+		Upstream: &Upstream{
+			Id:        "up1",
+			EtcdKey:   s.backend.path("upstreams", "up1"),
+			Endpoints: []*Endpoint{}}})
+
+	err = s.backend.DeleteUpstream("up1")
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &UpstreamDeleted{
+		UpstreamId:      "up1",
+		UpstreamEtcdKey: s.backend.path("upstreams", "up1"),
+	})
+}
+
+func (s *EtcdBackendSuite) TestUpstreamAutoId(c *C) {
+	err := s.backend.AddUpstream("")
+	c.Assert(err, IsNil)
+
+	changes := s.collectChanges(c, 1)
+	_, ok := changes[0].(*UpstreamAdded)
+	c.Assert(ok, Equals, true)
+}
+
+func (s *EtcdBackendSuite) TestUpstreamTwice(c *C) {
+	err := s.backend.AddUpstream("up1")
+	c.Assert(err, IsNil)
+
+	err = s.backend.AddUpstream("up1")
+	c.Assert(err, NotNil)
+}
+
+func (s *EtcdBackendSuite) TestAddDeleteEndpoint(c *C) {
+	up := s.makeUpstream(0)
+
+	err := s.backend.AddUpstream(up.Id)
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &UpstreamAdded{Upstream: up})
+	up = s.makeUpstream(1)
+	e := up.Endpoints[0]
+
+	err = s.backend.AddEndpoint(up.Id, e.Id, e.Url)
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &EndpointAdded{
+		Upstream:          up,
+		Endpoint:          e,
+		AffectedLocations: []*Location{},
+	})
+
+	err = s.backend.DeleteEndpoint(up.Id, e.Id)
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &EndpointDeleted{
+		Upstream:          s.makeUpstream(0),
+		EndpointId:        e.Id,
+		EndpointEtcdKey:   e.EtcdKey,
+		AffectedLocations: []*Location{},
+	})
+}
+
+func (s *EtcdBackendSuite) TestAddEndpointUsingSet(c *C) {
+	up := s.makeUpstream(1)
+	e := up.Endpoints[0]
+
+	_, err := s.client.Set(s.backend.path("upstreams", up.Id, "endpoints", e.Id), e.Url, 0)
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &EndpointUpdated{
+		Upstream:          up,
+		Endpoint:          up.Endpoints[0],
+		AffectedLocations: []*Location{},
+	})
+}
+
+func (s *EtcdBackendSuite) makeUpstream(endpoints int) *Upstream {
+	up := &Upstream{
+		Id:        "up1",
+		EtcdKey:   s.backend.path("upstreams", "up1"),
+		Endpoints: []*Endpoint{},
+	}
+
+	for i := 1; i <= endpoints; i += 1 {
+		e := &Endpoint{
+			Id:      fmt.Sprintf("e%d", i),
+			Url:     fmt.Sprintf("http://endpoint%d.com", i),
+			EtcdKey: s.backend.path("upstreams", "up1", "endpoints", fmt.Sprintf("e%d", i)),
+		}
+		up.Endpoints = append(up.Endpoints, e)
+	}
+	return up
 }

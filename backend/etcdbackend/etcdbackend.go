@@ -46,7 +46,7 @@ func (s *EtcdBackend) GetHosts() ([]*Host, error) {
 }
 
 func (s EtcdBackend) path(keys ...string) string {
-	return strings.Join(append([]string{s.etcdKey}, keys...), "/")
+	return "/" + strings.Join(append([]string{s.etcdKey}, keys...), "/")
 }
 
 func (s *EtcdBackend) AddHost(name string) error {
@@ -384,6 +384,8 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 		s.parseLocationUpstreamChange,
 		s.parseLocationPathChange,
 		s.parseUpstreamChange,
+		s.parseUpstreamEndpointChange,
+		s.parseUpstreamChange,
 		s.parseRateLimitChange,
 		s.parseConnLimitChange,
 	}
@@ -506,6 +508,29 @@ func (s *EtcdBackend) parseLocationPathChange(response *etcd.Response) (interfac
 }
 
 func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/upstreams/([^/]+)$").FindStringSubmatch(response.Node.Key)
+	if len(out) != 2 {
+		return nil, nil
+	}
+	upstreamId := out[1]
+	if response.Action == "create" {
+		upstream, err := s.readUpstream(upstreamId)
+		if err != nil {
+			return nil, err
+		}
+		return &UpstreamAdded{
+			Upstream: upstream,
+		}, nil
+	} else if response.Action == "delete" {
+		return &UpstreamDeleted{
+			UpstreamId:      upstreamId,
+			UpstreamEtcdKey: response.Node.Key,
+		}, nil
+	}
+	return nil, fmt.Errorf("Unsupported node action: %s", response)
+}
+
+func (s *EtcdBackend) parseUpstreamEndpointChange(response *etcd.Response) (interface{}, error) {
 	out := regexp.MustCompile("/upstreams/([^/]+)/endpoints/([^/]+)").FindStringSubmatch(response.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
@@ -519,16 +544,6 @@ func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{},
 	affectedLocations, err := s.upstreamUsedBy(upstreamId)
 	if err != nil {
 		return nil, err
-	}
-
-	var endpoint *Endpoint
-	for _, e := range upstream.Endpoints {
-		if e.Id == endpointId {
-			endpoint = e
-		}
-	}
-	if endpoint == nil {
-		return nil, fmt.Errorf("Endpoint %s not found", endpointId)
 	}
 
 	if response.Action == "create" {
@@ -817,7 +832,7 @@ func (s *EtcdBackend) readUpstream(upstreamId string) (*Upstream, error) {
 }
 
 func (s *EtcdBackend) upstreamUsedBy(upstreamId string) ([]*Location, error) {
-	var locations []*Location
+	locations := []*Location{}
 	hosts, err := s.readHosts(true)
 	if err != nil {
 		return nil, err
