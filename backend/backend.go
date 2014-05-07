@@ -181,5 +181,5 @@ func VariableToMapper(variable string) (limit.MapperFn, error) {
 		}
 		return limit.MakeMapRequestHeader(header), nil
 	}
-	return nil, fmt.Errorf("Unsupported limiting varuable: '%s'", variable)
+	return nil, fmt.Errorf("Unsupported limiting variable: '%s'", variable)
 }
