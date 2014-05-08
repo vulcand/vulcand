@@ -21,10 +21,8 @@ type LocationDeleted struct {
 }
 
 type LocationUpstreamUpdated struct {
-	Host            *Host
-	Location        *Location
-	UpstreamId      string
-	UpstreamEtcdKey string
+	Host     *Host
+	Location *Location
 }
 
 type LocationPathUpdated struct {

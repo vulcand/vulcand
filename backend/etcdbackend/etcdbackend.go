@@ -471,12 +471,9 @@ func (s *EtcdBackend) parseLocationUpstreamChange(response *etcd.Response) (inte
 	if err != nil {
 		return nil, err
 	}
-	upstreamId := suffix(response.Node.Key)
-
 	return &LocationUpstreamUpdated{
-		Host:       host,
-		Location:   location,
-		UpstreamId: upstreamId,
+		Host:     host,
+		Location: location,
 	}, nil
 }
 
