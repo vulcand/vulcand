@@ -6,6 +6,11 @@ Vulcand
 
 Status: Moving fast, breaking things. Will be usable soon, though.
 
+Discussions
+-----------
+
+Mailing list: https://groups.google.com/forum/#!forum/vulcan-proxy
+
 Installation
 ------------
 
