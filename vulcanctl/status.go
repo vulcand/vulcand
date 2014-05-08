@@ -9,7 +9,6 @@ func NewStatusCommand() cli.Command {
 		Name:      "status",
 		ShortName: "s",
 		Usage:     "Show vulcan status and configuration",
-		Flags:     flags(),
 		Action:    StatusAction,
 	}
 }

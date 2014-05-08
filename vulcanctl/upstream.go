@@ -7,7 +7,6 @@ import (
 func NewUpstreamCommand() cli.Command {
 	return cli.Command{
 		Name:  "upstream",
-		Flags: flags(),
 		Usage: "Operations with vulcan upstreams",
 		Subcommands: []cli.Command{
 			{
