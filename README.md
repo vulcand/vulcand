@@ -9,7 +9,7 @@ Status: Moving fast, breaking things. Will be usable soon, though.
 Discussions
 -----------
 
-Mailing list: https://groups.google.com/forum/#!forum/vulcan-proxy
+Mailing list: https://groups.google.com/d/forum/vulcan-proxy
 
 Installation
 ------------
