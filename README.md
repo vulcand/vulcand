@@ -173,7 +173,7 @@ $ vulcanctl ratelimit rm --id r1  --host example.com --loc 'loc1'
 ```
 
 Connection limit
-----------
+-----------------
 
 Control simultaneous connections for a location.
 
@@ -189,6 +189,211 @@ $ vulcanctl connlimit add --variable request.header.X-Account-Id --host example.
 # remove connection limit restriction with id 'c1' from host 'example.com' location 'loc1'
 $ vulcanctl connlimit rm --id c1  --host example.com --loc 'loc1'
 ```
+
+HTTP API
+========
+
+Vulcan's HTTP API is the best way to configure one or several instances of Vulcan at the same time.  
+
+Host
+----
+
+```GET /v1/hosts```
+
+Retrieve the existing hosts
+
+
+```POST /v1/hosts```
+
+Add a host to the proxy
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| name          | Hostname      |
+
+
+```DELETE /v1/hosts/<name>```
+
+Delete a host.
+
+
+Upstream
+--------
+
+```GET /v1/upstreams```
+
+Retrieve the existing upstreams
+
+
+```POST /v1/upstreams```
+
+Add upstream to the proxy
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| id          | Optional upstream id, will be generated if omitted.      |
+
+```DELETE /v1/upstreams/<id>```
+
+Delete an upstream.
+
+
+```GET /v1/upstreams/drain```
+
+Wait till there are no more connections to any endpoints to the upstream.
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| timeout       | Timeout in form `1s` for the amount of seconds to wait before time out.      |
+
+
+Endpoint
+--------
+
+```GET /v1/upstreams/<id>/endpoints```
+
+Retrieve the endpoints of the upstream.
+
+
+```GET /v1/upstreams/<id>/endpoints/<endpoint-id>```
+
+Retrieve the particular endpoint with id `endpoint-id`
+
+
+```POST /v1/upstreams/<id>/endpoints```
+
+Add endpoint to the upstream
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| id          | Optional endppint id, will be generated if omitted.|
+| url         | Required valid endpoint url |
+
+
+```DELETE /v1/upstreams/<id>/endpoints/<endpoint-id>```
+
+Delete an endpoint.
+
+
+Location
+--------
+
+```GET /v1/hosts/<hostname>/locations```
+
+Retrieve the locations of the host.
+
+
+```GET /v1/hosts/<hostname>/locations/<location-id>```
+
+Retrieve the particular location in the host `hostname` with id `location-id`
+
+
+```POST /v1/hosts/<hostname>/locations```
+
+Add a location to the host
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| id          | Optional location id, will be generated if omitted.|
+| path         | Required regular expression for path matchng |
+| upstream     | Required id of the existing upstream |
+
+
+```DELETE /v1/hosts/<hostname>/locations/<location-id>```
+
+Delete a location
+
+
+```PUT /v1/hosts/<hostname>/locations/<location-id>```
+
+Update location's upstream. Gracefully Redirects all the traffic to the endpoints of the new upstream.
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| upstream     | Required id of the existing upstream |
+
+
+Rate limit
+----------
+
+```GET /v1/hosts/<hostname>/locations/<location-id>/limits/rates```
+
+Retrieve the rate limits active for the location.
+
+
+```GET /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>```
+
+Retrieve the particular rate of location in the host `hostname` with id `location-id` and rate id `rate-id`
+
+
+```POST /v1/hosts/<hostname>/locations/limits/rates```
+
+Add a rate limit to the location, will take effect immediately.
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| id          | Optional rate id, will be generated if omitted.|
+| requests     | Required amount of allowed requests|
+| seconds     | Required period in seconds for counting the requests |
+| burst     | Required allowed burst of the requests (additional requests exceeding the rate) |
+| variable     | Variable for rate limiting e.g. `client.ip` or `request.header.My-Header` |
+
+
+```DELETE /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>```
+
+Delete a rate limit from the location.
+
+
+```PUT /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>```
+
+Update location's rate limit. Takes effect immdediatelly.
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| requests     | Required amount of allowed requests|
+| seconds     | Required period in seconds for counting the requests |
+| burst     | Required allowed burst of the requests (additional requests exceeding the rate) |
+| variable     | Variable for rate limiting e.g. `client.ip` or `request.header.My-Header` |
+
+
+Connection limit
+-----------------
+
+```GET /v1/hosts/<hostname>/locations/<location-id>/limits/connections```
+
+Retrieve the connection limits active for the location.
+
+
+```GET /v1/hosts/<hostname>/locations/<location-id>/limits/connections/<conn-id>```
+
+Retrieve the particular connection limit of location in the host `hostname` with id `location-id` and connection limit id `conn-id`
+
+
+```POST /v1/hosts/<hostname>/locations/limits/connections```
+
+Add a connection limit to the location, will take effect immediately.
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| id          | Optional limit id, will be generated if omitted.|
+| connections     | Required maximum amount of allowed simultaneous connections|
+| variable     | Variable for limiting e.g. `client.ip` or `request.header.My-Header` |
+
+
+```DELETE /v1/hosts/<hostname>/locations/<location-id>/limits/connections/<conn-id>```
+
+Delete a connection limit from the location.
+
+
+```PUT /v1/hosts/<hostname>/locations/<location-id>/limits/connections/<conn-id>```
+
+Update location's connection limit. Takes effect immdediatelly.
+
+| Parameter     | Description   |
+| ------------- |---------------|
+| connections     | Required maximum amount of allowed simultaneous connections|
+| variable     | Variable for rate limiting e.g. `client.ip` or `request.header.My-Header` |
+
 
 Docker
 ======
