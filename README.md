@@ -195,6 +195,23 @@ HTTP API
 
 Vulcan's HTTP API is the best way to configure one or several instances of Vulcan at the same time.  
 
+Status
+----
+
+```GET /v1/status```
+
+Check status of the vulcan process.
+
+Returns:
+
+```json
+200 OK
+{
+   "Status": "ok"
+}
+```
+
+
 Host
 ----
 

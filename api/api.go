@@ -23,6 +23,7 @@ type ProxyController struct {
 func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, connWatcher *ConnectionWatcher, router *mux.Router) {
 	controller := &ProxyController{backend: backend, statsGetter: statsGetter, connWatcher: connWatcher}
 
+	router.HandleFunc("/v1/status", api.MakeHandler(controller.GetStatus)).Methods("GET")
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.GetHosts)).Methods("GET")
 	router.HandleFunc("/v1/hosts", api.MakeHandler(controller.AddHost)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}", api.MakeHandler(controller.DeleteHost)).Methods("DELETE")
@@ -47,6 +48,12 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 
 	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeHandler(controller.AddEndpoint)).Methods("POST")
 	router.HandleFunc("/v1/upstreams/{upstream}/endpoints/{endpoint}", api.MakeHandler(controller.DeleteEndpoint)).Methods("DELETE")
+}
+
+func (c *ProxyController) GetStatus(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	return api.Response{
+		"Status": "ok",
+	}, nil
 }
 
 func (c *ProxyController) GetHosts(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
