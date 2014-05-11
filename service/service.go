@@ -39,7 +39,7 @@ func NewService(options Options) *Service {
 
 func (s *Service) Start() error {
 	// Init logging
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.Init([]*log.LogConfig{&log.LogConfig{Name: "syslog"}})
 
 	backend, err := NewEtcdBackend(s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
 	if err != nil {

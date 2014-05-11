@@ -122,6 +122,16 @@ func (s *EtcdBackendSuite) TestAddBadHost(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *EtcdBackendSuite) TestGetters(c *C) {
+	hosts, err := s.backend.GetHosts()
+	c.Assert(err, IsNil)
+	c.Assert(len(hosts), Equals, 0)
+
+	upstreams, err := s.backend.GetUpstreams()
+	c.Assert(err, IsNil)
+	c.Assert(len(upstreams), Equals, 0)
+}
+
 func (s *EtcdBackendSuite) TestAddTwice(c *C) {
 	// Add the host twice
 	err := s.backend.AddHost("localhost")
@@ -131,7 +141,7 @@ func (s *EtcdBackendSuite) TestAddTwice(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *EtcdBackendSuite) TestAddDeleteUpstream(c *C) {
+func (s *EtcdBackendSuite) TestUpstreamCRUD(c *C) {
 	err := s.backend.AddUpstream("up1")
 	c.Assert(err, IsNil)
 
@@ -140,6 +150,11 @@ func (s *EtcdBackendSuite) TestAddDeleteUpstream(c *C) {
 			Id:        "up1",
 			EtcdKey:   s.backend.path("upstreams", "up1"),
 			Endpoints: []*Endpoint{}}})
+
+	up, err := s.backend.GetUpstream("up1")
+	c.Assert(err, IsNil)
+	c.Assert(up, NotNil)
+	c.Assert(up.Id, Equals, "up1")
 
 	err = s.backend.DeleteUpstream("up1")
 	c.Assert(err, IsNil)
@@ -218,6 +233,15 @@ func (s *EtcdBackendSuite) TestAddEndpointAutoId(c *C) {
 
 	c.Assert(s.backend.AddUpstream(up.Id), IsNil)
 	c.Assert(s.backend.AddEndpoint(up.Id, e.Id, e.Url), IsNil)
+}
+
+func (s *EtcdBackendSuite) TestAddEndpointBadUrl(c *C) {
+	up := s.makeUpstream("up1", 1)
+	e := up.Endpoints[0]
+	e.Id = ""
+
+	c.Assert(s.backend.AddUpstream(up.Id), IsNil)
+	c.Assert(s.backend.AddEndpoint(up.Id, e.Id, "http-definitely __== == not a good url"), NotNil)
 }
 
 func (s *EtcdBackendSuite) TestDeleteBadEndpoint(c *C) {
@@ -359,6 +383,55 @@ func (s *EtcdBackendSuite) TestLocationRateLimitCRUD(c *C) {
 	})
 }
 
+func (s *EtcdBackendSuite) TestLocationLimitsBadLocation(c *C) {
+	up := s.makeUpstream("u1", 1)
+	host := s.makeHost("localhost")
+	loc := s.makeLocation("loc1", "/hello", host, up)
+
+	// Location does not exist
+	rl := s.makeRateLimit("rl1", 10, "client.ip", 20, 1, loc)
+	c.Assert(s.backend.AddLocationRateLimit(host.Name, "loc2", rl.Id, rl), NotNil)
+
+	cl := s.makeConnLimit("cl1", 10, "client.ip", loc)
+	c.Assert(s.backend.AddLocationConnLimit(loc.Hostname, "loc2", cl.Id, cl), NotNil)
+
+	// Updates will fail as well
+	c.Assert(s.backend.UpdateLocationRateLimit(host.Name, "loc2", rl.Id, rl), NotNil)
+	c.Assert(s.backend.UpdateLocationConnLimit(host.Name, "loc2", cl.Id, cl), NotNil)
+
+	// Simply missing location
+	c.Assert(s.backend.UpdateLocationRateLimit(host.Name, "", rl.Id, rl), NotNil)
+	c.Assert(s.backend.UpdateLocationConnLimit(host.Name, "", cl.Id, cl), NotNil)
+
+	// Limits do not exist, deleteing them should fail
+	c.Assert(s.backend.DeleteLocationRateLimit(loc.Hostname, loc.Id, rl.Id), NotNil)
+	c.Assert(s.backend.DeleteLocationConnLimit(loc.Hostname, loc.Id, cl.Id), NotNil)
+}
+
+func (s *EtcdBackendSuite) TestLocationRateLimitAutoId(c *C) {
+	up := s.makeUpstream("u1", 1)
+	host := s.makeHost("localhost")
+	e := up.Endpoints[0]
+
+	c.Assert(s.backend.AddUpstream(up.Id), IsNil)
+	c.Assert(s.backend.AddEndpoint(up.Id, e.Id, e.Url), IsNil)
+	c.Assert(s.backend.AddHost(host.Name), IsNil)
+	s.collectChanges(c, 3)
+
+	loc := s.makeLocation("loc1", "/hello", host, up)
+
+	c.Assert(s.backend.AddLocation(loc.Id, loc.Hostname, loc.Path, loc.Upstream.Id), IsNil)
+	s.collectChanges(c, 1)
+
+	rl := s.makeRateLimit("", 10, "client.ip", 20, 1, loc)
+	c.Assert(s.backend.AddLocationRateLimit(loc.Hostname, loc.Id, rl.Id, rl), IsNil)
+
+	loc.RateLimits = []*RateLimit{rl}
+	changes := s.collectChanges(c, 1)
+	change := changes[0].(*LocationRateLimitAdded)
+	c.Assert(change.RateLimit.Id, Not(Equals), "")
+}
+
 func (s *EtcdBackendSuite) TestLocationConnLimitCRUD(c *C) {
 	up := s.makeUpstream("u1", 1)
 	host := s.makeHost("localhost")
@@ -403,6 +476,29 @@ func (s *EtcdBackendSuite) TestLocationConnLimitCRUD(c *C) {
 	})
 }
 
+func (s *EtcdBackendSuite) TestLocationConnLimitAutoId(c *C) {
+	up := s.makeUpstream("u1", 1)
+	host := s.makeHost("localhost")
+	e := up.Endpoints[0]
+
+	c.Assert(s.backend.AddUpstream(up.Id), IsNil)
+	c.Assert(s.backend.AddEndpoint(up.Id, e.Id, e.Url), IsNil)
+	c.Assert(s.backend.AddHost(host.Name), IsNil)
+	s.collectChanges(c, 3)
+
+	loc := s.makeLocation("loc1", "/hello", host, up)
+
+	c.Assert(s.backend.AddLocation(loc.Id, loc.Hostname, loc.Path, loc.Upstream.Id), IsNil)
+	s.collectChanges(c, 1)
+
+	cl := s.makeConnLimit("", 10, "client.ip", loc)
+	c.Assert(s.backend.AddLocationConnLimit(loc.Hostname, loc.Id, cl.Id, cl), IsNil)
+
+	changes := s.collectChanges(c, 1)
+	change := changes[0].(*LocationConnLimitAdded)
+	c.Assert(change.ConnLimit.Id, Not(Equals), "")
+}
+
 func (s *EtcdBackendSuite) TestGenerateChanges(c *C) {
 	up := s.makeUpstream("u1", 1)
 	host := s.makeHost("localhost")
@@ -433,6 +529,22 @@ func (s *EtcdBackendSuite) TestGenerateChanges(c *C) {
 		&HostAdded{Host: host},
 		&LocationAdded{Host: host, Location: loc},
 	)
+}
+
+func (s *EtcdBackendSuite) TestDeleteUpstreamUsedByLocation(c *C) {
+	up := s.makeUpstream("u1", 1)
+	host := s.makeHost("localhost")
+	e := up.Endpoints[0]
+	loc := s.makeLocation("loc1", "/hello", host, up)
+
+	c.Assert(s.backend.AddUpstream(up.Id), IsNil)
+	c.Assert(s.backend.AddEndpoint(up.Id, e.Id, e.Url), IsNil)
+	c.Assert(s.backend.AddHost(host.Name), IsNil)
+	c.Assert(s.backend.AddLocation(loc.Id, loc.Hostname, loc.Path, loc.Upstream.Id), IsNil)
+
+	s.collectChanges(c, 4)
+
+	c.Assert(s.backend.DeleteUpstream(up.Id), NotNil)
 }
 
 func (s *EtcdBackendSuite) makeUpstream(id string, endpoints int) *Upstream {

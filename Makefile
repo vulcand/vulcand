@@ -3,6 +3,9 @@ ETCD_NODES := http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003
 test: clean
 	go test -v ./... -cover
 
+test-with-etcd: clean
+	VULCAND_ETCD_NODES=${ETCD_NODES} go test -v ./... -cover
+
 deps:
 	go get -v -u github.com/gorilla/mux
 	go get -v -u github.com/mailgun/vulcan
