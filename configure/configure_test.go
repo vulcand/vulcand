@@ -190,7 +190,7 @@ func (s *ConfSuite) TestUpdateLocationUpstream(c *C) {
 
 	location.Upstream = up2
 	err = s.conf.processChange(
-		&LocationUpstreamUpdated{Host: host, Location: location, UpstreamId: "u2"})
+		&LocationUpstreamUpdated{Host: host, Location: location})
 	c.Assert(err, IsNil)
 
 	// Endpoints are taken from up2
