@@ -1,14 +1,8 @@
-/*
-NOTE:
-
-github.com/davecgh/go-spew/spew package is extremely helpful
-
-when it comes to debugging DeepEquals issues.
-
-Here's how you'd use it:
-
-spew.Printf("%#v\n vs\n %#v\n", a, b)
-*/
+// Note on debugging:
+// github.com/davecgh/go-spew/spew package is extremely helpful when it comes to debugging DeepEquals issues.
+// Here's how one uses it:
+// spew.Printf("%#v\n vs\n %#v\n", a, b)
+//
 package etcdbackend
 
 import (
@@ -24,7 +18,7 @@ import (
 	"time"
 )
 
-func TestConfigure(t *testing.T) { TestingT(t) }
+func TestEtcdBackend(t *testing.T) { TestingT(t) }
 
 type EtcdBackendSuite struct {
 	backend     *EtcdBackend

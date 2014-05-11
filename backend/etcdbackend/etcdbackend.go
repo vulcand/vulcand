@@ -1,3 +1,6 @@
+// Etcd implementation of the backend, where all vulcand properties
+// are implemented as directories or keys. This backend watches the changes
+// and generates events with sequence of changes.
 package etcdbackend
 
 import (
@@ -43,10 +46,6 @@ func (s *EtcdBackend) StopWatching() {
 
 func (s *EtcdBackend) GetHosts() ([]*Host, error) {
 	return s.readHosts(true)
-}
-
-func (s EtcdBackend) path(keys ...string) string {
-	return "/" + strings.Join(append([]string{s.etcdKey}, keys...), "/")
 }
 
 func (s *EtcdBackend) AddHost(name string) error {
@@ -298,6 +297,8 @@ func (s *EtcdBackend) DeleteLocationConnLimit(hostname, locationId, id string) e
 	return nil
 }
 
+// Watches etcd changes and generates structured events telling vulcand to add or delete locations, hosts etc.
+// if initialSetup is true, reads the existing configuration and generates events for inital configuration of the proxy.
 func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) error {
 	if initialSetup == true {
 		log.Infof("Etcd backend reading initial configuration")
@@ -306,6 +307,7 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 			return err
 		}
 	}
+	// This index helps us to get changes in sequence, as they were performed by clients.
 	waitIndex := uint64(0)
 	for {
 		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, s.cancelC)
@@ -338,7 +340,12 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 	return nil
 }
 
-// Makes full configuration read and generates the sequence of changes to create this config
+func (s EtcdBackend) path(keys ...string) string {
+	return "/" + strings.Join(append([]string{s.etcdKey}, keys...), "/")
+}
+
+// Reads the configuration of the vulcand and generates a sequence of events
+// just like as someone was creating locations and hosts in sequence.
 func (s *EtcdBackend) generateChanges(changes chan interface{}) error {
 	upstreams, err := s.readUpstreams()
 	if err != nil {
@@ -377,6 +384,7 @@ func (s *EtcdBackend) generateChanges(changes chan interface{}) error {
 
 type MatcherFn func(*etcd.Response) (interface{}, error)
 
+// Dispatches etcd key changes changes to the etcd to the matching functions
 func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) {
 	matchers := []MatcherFn{
 		s.parseHostChange,
