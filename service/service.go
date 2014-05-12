@@ -13,10 +13,10 @@ import (
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/backend/etcdbackend"
 	. "github.com/mailgun/vulcand/configure"
+	"github.com/mailgun/vulcand/plugin/registry"
 	"net/http"
 	"os"
 	"os/signal"
-	"time"
 )
 
 type Service struct {
@@ -39,9 +39,9 @@ func NewService(options Options) *Service {
 
 func (s *Service) Start() error {
 	// Init logging
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "syslog"}})
+	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := NewEtcdBackend(s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
+	backend, err := NewEtcdBackend(registry.GetRegistry(), s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
 	if err != nil {
 		return err
 	}
@@ -102,8 +102,8 @@ func (s *Service) startProxy() error {
 	server := &http.Server{
 		Addr:           addr,
 		Handler:        s.proxy,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
+		ReadTimeout:    s.options.ReadTimeout,
+		WriteTimeout:   s.options.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 	return server.ListenAndServe()
@@ -115,8 +115,8 @@ func (s *Service) startApi() error {
 	server := &http.Server{
 		Addr:           addr,
 		Handler:        s.apiRouter,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
+		ReadTimeout:    s.options.ReadTimeout,
+		WriteTimeout:   s.options.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 	return server.ListenAndServe()

@@ -2,12 +2,12 @@ package configure
 
 import (
 	"github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcan/limit/connlimit"
 	"github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcan/route/pathroute"
 	. "github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/plugin/ratelimit"
 	. "launchpad.net/gocheck"
 	"testing"
 	"time"
@@ -44,6 +44,18 @@ func (s *ConfSuite) AssertSameEndpoints(c *C, a []*roundrobin.WeightedEndpoint, 
 	c.Assert(x, DeepEquals, y)
 }
 
+func (s *ConfSuite) makeRateLimit(id string, rate int, variable string, burst int, periodSeconds int, loc *Location) *MiddlewareInstance {
+	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
+	if err != nil {
+		panic(err)
+	}
+	return &MiddlewareInstance{
+		Type:       "ratelimit",
+		Id:         id,
+		Middleware: rl,
+	}
+}
+
 func (s *ConfSuite) TestUnsupportedChange(c *C) {
 	err := s.conf.processChange(nil)
 	c.Assert(err, NotNil)
@@ -71,8 +83,7 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 		Id: "up1",
 		Endpoints: []*Endpoint{
 			{
-				EtcdKey: "/up1/e1",
-				Url:     "http://localhost:5000",
+				Url: "http://localhost:5000",
 			},
 		},
 	}
@@ -81,24 +92,10 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 		Path:     "/home",
 		Id:       "loc1",
 		Upstream: upstream,
-		RateLimits: []*RateLimit{
-			{
-				Id:            "r1",
-				PeriodSeconds: 1,
-				Burst:         1,
-				Variable:      "client.ip",
-				Requests:      10,
-				EtcdKey:       "/r1",
-			},
-		},
-		ConnLimits: []*ConnLimit{
-			{
-				Id:          "c1",
-				Variable:    "client.ip",
-				Connections: 10,
-				EtcdKey:     "/c1",
-			},
-		},
+	}
+
+	location.Middlewares = []*MiddlewareInstance{
+		s.makeRateLimit("rl1", 100, "client.ip", 200, 10, location),
 	}
 
 	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
@@ -119,8 +116,7 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 
 	// Make sure connection limit and rate limit are here as well
 	chain := l.GetMiddlewareChain()
-	c.Assert(chain.Get("/c1"), NotNil)
-	c.Assert(chain.Get("/r1"), NotNil)
+	c.Assert(chain.Get("ratelimit.rl1"), NotNil)
 
 	// Delete the location
 	err = s.conf.processChange(&LocationDeleted{Host: host, LocationId: location.Id})
@@ -147,12 +143,10 @@ func (s *ConfSuite) TestUpdateLocationUpstream(c *C) {
 		Id: "up1",
 		Endpoints: []*Endpoint{
 			{
-				EtcdKey: "/up1/e1",
-				Url:     "http://localhost:5000",
+				Url: "http://localhost:5000",
 			},
 			{
-				EtcdKey: "/up1/e2",
-				Url:     "http://localhost:5001",
+				Url: "http://localhost:5001",
 			},
 		},
 	}
@@ -161,11 +155,9 @@ func (s *ConfSuite) TestUpdateLocationUpstream(c *C) {
 		Id: "up2",
 		Endpoints: []*Endpoint{
 			{
-				EtcdKey: "/up2/e1",
-				Url:     "http://localhost:5001",
+				Url: "http://localhost:5001",
 			},
 			{
-				Id:  "/up2/e2",
 				Url: "http://localhost:5002",
 			},
 		},
@@ -213,8 +205,7 @@ func (s *ConfSuite) TestUpstreamAddEndpoint(c *C) {
 
 	// Add some endpoints to location
 	newEndpoint := &Endpoint{
-		EtcdKey: "/up2/new",
-		Url:     "http://localhost:5008",
+		Url: "http://localhost:5008",
 	}
 	up.Endpoints = append(up.Endpoints, newEndpoint)
 
@@ -238,8 +229,7 @@ func (s *ConfSuite) TestUpstreamBadAddEndpoint(c *C) {
 
 	// Add some endpoints to location
 	newEndpoint := &Endpoint{
-		EtcdKey: "/up2/bad",
-		Url:     "http: local-host :500",
+		Url: "http: local-host :500",
 	}
 	up.Endpoints = append(up.Endpoints, newEndpoint)
 
@@ -260,7 +250,11 @@ func (s *ConfSuite) TestUpstreamDeleteEndpoint(c *C) {
 	e := up.Endpoints[0]
 	up.Endpoints = []*Endpoint{}
 
-	err = s.conf.processChange(&EndpointDeleted{Upstream: up, EndpointId: e.Id, EndpointEtcdKey: e.EtcdKey, AffectedLocations: []*Location{location}})
+	err = s.conf.processChange(&EndpointDeleted{
+		Upstream:          up,
+		EndpointId:        e.Id,
+		AffectedLocations: []*Location{location},
+	})
 	c.Assert(err, IsNil)
 
 	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
@@ -291,7 +285,7 @@ func (s *ConfSuite) TestAddRemoveUpstreams(c *C) {
 	up := location.Upstream
 
 	c.Assert(s.conf.processChange(&UpstreamAdded{up}), IsNil)
-	c.Assert(s.conf.processChange(&UpstreamDeleted{UpstreamId: up.Id, UpstreamEtcdKey: up.EtcdKey}), IsNil)
+	c.Assert(s.conf.processChange(&UpstreamDeleted{UpstreamId: up.Id}), IsNil)
 }
 
 func (s *ConfSuite) TestUpdateRateLimit(c *C) {
@@ -300,16 +294,9 @@ func (s *ConfSuite) TestUpdateRateLimit(c *C) {
 	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
 	c.Assert(err, IsNil)
 
-	rl := &RateLimit{
-		Id:            "r1",
-		PeriodSeconds: 1,
-		Burst:         1,
-		Variable:      "client.ip",
-		Requests:      10,
-		EtcdKey:       "/r1",
-	}
+	rl := s.makeRateLimit("rl1", 100, "client.ip", 200, 10, location)
 
-	err = s.conf.processChange(&LocationRateLimitAdded{Host: host, Location: location, RateLimit: rl})
+	err = s.conf.processChange(&LocationMiddlewareAdded{Host: host, Location: location, Middleware: rl})
 	c.Assert(err, IsNil)
 
 	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
@@ -317,20 +304,18 @@ func (s *ConfSuite) TestUpdateRateLimit(c *C) {
 
 	// Make sure connection limit and rate limit are here as well
 	chain := l.GetMiddlewareChain()
-	limiter := chain.Get("/r1").(*tokenbucket.TokenLimiter)
-	c.Assert(limiter.GetRate().Units, Equals, int64(10))
-	c.Assert(limiter.GetRate().Period, Equals, time.Second)
-	c.Assert(limiter.GetBurst(), Equals, 1)
+	limiter := chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
+	c.Assert(limiter.GetRate().Units, Equals, int64(100))
+	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(10))
+	c.Assert(limiter.GetBurst(), Equals, 200)
 
-	// Update the rate limit to some good values
-	rl.Burst = 20
-	rl.Requests = 12
-	rl.PeriodSeconds = 3
-	err = s.conf.processChange(&LocationRateLimitUpdated{Host: host, Location: location, RateLimit: rl})
+	// Update the rate limit
+	rl = s.makeRateLimit("rl1", 12, "client.ip", 20, 3, location)
+	err = s.conf.processChange(&LocationMiddlewareUpdated{Host: host, Location: location, Middleware: rl})
 	c.Assert(err, IsNil)
 
 	// Make sure the changes have taken place
-	limiter = chain.Get("/r1").(*tokenbucket.TokenLimiter)
+	limiter = chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
 	c.Assert(limiter.GetRate().Units, Equals, int64(12))
 	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(3))
 	c.Assert(limiter.GetBurst(), Equals, 20)
@@ -342,108 +327,34 @@ func (s *ConfSuite) TestAddDeleteRateLimit(c *C) {
 	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
 	c.Assert(err, IsNil)
 
-	rl := &RateLimit{
-		Id:            "r1",
-		PeriodSeconds: 1,
-		Burst:         1,
-		Variable:      "client.ip",
-		Requests:      10,
-		EtcdKey:       "/r1",
-	}
+	rl := s.makeRateLimit("r1", 10, "client.ip", 1, 1, location)
+	rl2 := s.makeRateLimit("r2", 10, "client.ip", 1, 1, location)
 
-	rl2 := &RateLimit{
-		Id:            "r2",
-		PeriodSeconds: 1,
-		Burst:         1,
-		Variable:      "client.ip",
-		Requests:      10,
-		EtcdKey:       "/r2",
-	}
-
-	err = s.conf.processChange(&LocationRateLimitAdded{Host: host, Location: location, RateLimit: rl})
+	err = s.conf.processChange(&LocationMiddlewareAdded{Host: host, Location: location, Middleware: rl})
 	c.Assert(err, IsNil)
 
-	err = s.conf.processChange(&LocationRateLimitAdded{Host: host, Location: location, RateLimit: rl2})
+	err = s.conf.processChange(&LocationMiddlewareAdded{Host: host, Location: location, Middleware: rl2})
 	c.Assert(err, IsNil)
 
 	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 
-	// Make sure connection limit and rate limit are here as well
 	chain := l.GetMiddlewareChain()
-	c.Assert(chain.Get("/r1"), NotNil)
+	c.Assert(chain.Get("ratelimit.r1"), NotNil)
+	c.Assert(chain.Get("ratelimit.r2"), NotNil)
 
-	err = s.conf.processChange(&LocationRateLimitDeleted{Host: host, Location: location, RateLimitEtcdKey: rl.EtcdKey})
+	err = s.conf.processChange(
+		&LocationMiddlewareDeleted{
+			Host:           host,
+			Location:       location,
+			MiddlewareId:   rl.Id,
+			MiddlewareType: rl.Type,
+		})
 	c.Assert(err, IsNil)
-	c.Assert(chain.Get("/r1"), IsNil)
+	c.Assert(chain.Get("ratelimit.r1"), IsNil)
 	// Make sure that the other rate limiter is still there
-	c.Assert(chain.Get("/r2"), NotNil)
-}
-
-func (s *ConfSuite) TestUpdateConnLimit(c *C) {
-	location, host := makeLocation()
-
-	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
-	c.Assert(err, IsNil)
-
-	cl := &ConnLimit{
-		Id:          "c1",
-		EtcdKey:     "/c1",
-		Variable:    "client.ip",
-		Connections: 10,
-	}
-
-	err = s.conf.processChange(&LocationConnLimitAdded{Host: host, Location: location, ConnLimit: cl})
-	c.Assert(err, IsNil)
-
-	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
-	c.Assert(err, IsNil)
-	c.Assert(l, NotNil)
-
-	// Make sure connection limit and rate limit are here as well
-	chain := l.GetMiddlewareChain()
-	limiter := chain.Get(cl.EtcdKey).(*connlimit.ConnectionLimiter)
-	c.Assert(limiter.GetMaxConnections(), Equals, 10)
-
-	// Update the rate limit to some good values
-	cl.Connections = 20
-	err = s.conf.processChange(&LocationConnLimitUpdated{Host: host, Location: location, ConnLimit: cl})
-	c.Assert(err, IsNil)
-
-	// Make sure the changes have taken place
-	limiter = chain.Get(cl.EtcdKey).(*connlimit.ConnectionLimiter)
-	c.Assert(limiter.GetMaxConnections(), Equals, 20)
-}
-
-func (s *ConfSuite) TestAddDeleteConnLimit(c *C) {
-	location, host := makeLocation()
-
-	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
-	c.Assert(err, IsNil)
-
-	cl := &ConnLimit{
-		Id:          "c1",
-		EtcdKey:     "/c1",
-		Variable:    "client.ip",
-		Connections: 10,
-	}
-
-	err = s.conf.processChange(&LocationConnLimitAdded{Host: host, Location: location, ConnLimit: cl})
-	c.Assert(err, IsNil)
-
-	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
-	c.Assert(l, NotNil)
-
-	// Make sure connection limit and rate limit are here as well
-	chain := l.GetMiddlewareChain()
-	c.Assert(chain.Get(cl.EtcdKey), NotNil)
-
-	err = s.conf.processChange(&LocationConnLimitDeleted{Host: host, Location: location, ConnLimitEtcdKey: cl.EtcdKey})
-	c.Assert(err, IsNil)
-
-	// Make sure the changes have taken place
-	c.Assert(chain.Get(cl.EtcdKey), IsNil)
+	c.Assert(chain.Get("ratelimit.r2"), NotNil)
 }
 
 func (s *ConfSuite) TestUpdateLocationPath(c *C) {
@@ -480,8 +391,7 @@ func makeLocation() (*Location, *Host) {
 		Id: "up1",
 		Endpoints: []*Endpoint{
 			{
-				EtcdKey: "/up1/e1",
-				Url:     "http://localhost:5000",
+				Url: "http://localhost:5000",
 			},
 		},
 	}

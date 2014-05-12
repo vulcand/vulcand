@@ -4,8 +4,6 @@ package adapter
 
 import (
 	"github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcan/limit/connlimit"
-	"github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcan/location/httploc"
 	"github.com/mailgun/vulcan/metrics"
@@ -14,23 +12,6 @@ import (
 	. "github.com/mailgun/vulcand/backend"
 	"time"
 )
-
-func NewRateLimiter(rl *RateLimit) (*tokenbucket.TokenLimiter, error) {
-	mapper, err := VariableToMapper(rl.Variable)
-	if err != nil {
-		return nil, err
-	}
-	rate := tokenbucket.Rate{Units: int64(rl.Requests), Period: time.Second * time.Duration(rl.PeriodSeconds)}
-	return tokenbucket.NewTokenLimiterWithOptions(mapper, rate, tokenbucket.Options{Burst: rl.Burst})
-}
-
-func NewConnLimiter(cl *ConnLimit) (*connlimit.ConnectionLimiter, error) {
-	mapper, err := VariableToMapper(cl.Variable)
-	if err != nil {
-		return nil, err
-	}
-	return connlimit.NewConnectionLimiter(mapper, cl.Connections)
-}
 
 // Adapter helps to convert vulcan library-specific interfaces to vulcand interfaces and data structures
 type Adapter struct {
@@ -75,12 +56,12 @@ func (a *Adapter) GetHttpLocationLb(hostname string, locationId string) *roundro
 	return loc.GetLoadBalancer().(*roundrobin.RoundRobin)
 }
 
-func (a *Adapter) GetStats(hostname, locationId, endpointId string) *EndpointStats {
+func (a *Adapter) GetStats(hostname, locationId string, e *Endpoint) *EndpointStats {
 	rr := a.GetHttpLocationLb(hostname, locationId)
 	if rr == nil {
 		return nil
 	}
-	endpoint := rr.FindEndpointById(endpointId)
+	endpoint := rr.FindEndpointById(e.GetUniqueId())
 	if endpoint == nil {
 		return nil
 	}

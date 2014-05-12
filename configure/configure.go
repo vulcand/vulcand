@@ -59,18 +59,12 @@ func (c *Configurator) processChange(ch interface{}) error {
 		return c.updateLocationUpstream(change.Host, change.Location)
 	case *LocationPathUpdated:
 		return c.updateLocationPath(change.Host, change.Location, change.Path)
-	case *LocationRateLimitAdded:
-		return c.upsertLocationRateLimit(change.Host, change.Location, change.RateLimit)
-	case *LocationRateLimitUpdated:
-		return c.upsertLocationRateLimit(change.Host, change.Location, change.RateLimit)
-	case *LocationRateLimitDeleted:
-		return c.deleteLocationRateLimit(change.Host, change.Location, change.RateLimitEtcdKey)
-	case *LocationConnLimitAdded:
-		return c.upsertLocationConnLimit(change.Host, change.Location, change.ConnLimit)
-	case *LocationConnLimitUpdated:
-		return c.upsertLocationConnLimit(change.Host, change.Location, change.ConnLimit)
-	case *LocationConnLimitDeleted:
-		return c.deleteLocationConnLimit(change.Host, change.Location, change.ConnLimitEtcdKey)
+	case *LocationMiddlewareAdded:
+		return c.upsertLocationMiddleware(change.Host, change.Location, change.Middleware)
+	case *LocationMiddlewareUpdated:
+		return c.upsertLocationMiddleware(change.Host, change.Location, change.Middleware)
+	case *LocationMiddlewareDeleted:
+		return c.deleteLocationMiddleware(change.Host, change.Location, change.MiddlewareType, change.MiddlewareId)
 	case *UpstreamAdded:
 		return nil
 	case *UpstreamDeleted:
@@ -135,17 +129,10 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 		return err
 	}
 
-	// Add rate and connection limits
-	for _, rl := range loc.RateLimits {
-
-		if err := c.upsertLocationRateLimit(host, loc, rl); err != nil {
-			log.Errorf("Failed to add rate limit: %s", err)
-		}
-
-	}
-	for _, cl := range loc.ConnLimits {
-		if err := c.upsertLocationConnLimit(host, loc, cl); err != nil {
-			log.Errorf("Failed to add connection limit: %s", err)
+	// Add middlewares
+	for _, ml := range loc.Middlewares {
+		if err := c.upsertLocationMiddleware(host, loc, ml); err != nil {
+			log.Errorf("Failed to add middleware: %s", err)
 		}
 	}
 	// Once the location added, configure all endpoints
@@ -166,48 +153,28 @@ func (c *Configurator) deleteLocation(host *Host, locationId string) error {
 	return router.RemoveLocation(location)
 }
 
-func (c *Configurator) upsertLocationConnLimit(host *Host, loc *Location, cl *ConnLimit) error {
+func (c *Configurator) upsertLocationMiddleware(host *Host, loc *Location, m *MiddlewareInstance) error {
 	if err := c.upsertLocation(host, loc); err != nil {
 		return err
 	}
-
 	location := c.a.GetHttpLocation(host.Name, loc.Id)
 	if location == nil {
 		return fmt.Errorf("%s not found", loc)
 	}
-	limiter, err := NewConnLimiter(cl)
+	instance, err := m.Middleware.NewMiddleware()
 	if err != nil {
 		return err
 	}
-	location.GetMiddlewareChain().Upsert(cl.EtcdKey, limiter)
+	location.GetMiddlewareChain().Upsert(fmt.Sprintf("%s.%s", m.Type, m.Id), m.Priority, instance)
 	return nil
 }
 
-func (c *Configurator) upsertLocationRateLimit(host *Host, loc *Location, rl *RateLimit) error {
-
-	if err := c.upsertLocation(host, loc); err != nil {
-		return err
-	}
-
+func (c *Configurator) deleteLocationMiddleware(host *Host, loc *Location, mType, mId string) error {
 	location := c.a.GetHttpLocation(host.Name, loc.Id)
 	if location == nil {
 		return fmt.Errorf("%s not found", loc)
 	}
-	limiter, err := NewRateLimiter(rl)
-	if err != nil {
-		return err
-	}
-
-	location.GetMiddlewareChain().Upsert(rl.EtcdKey, limiter)
-	return nil
-}
-
-func (c *Configurator) deleteLocationRateLimit(host *Host, loc *Location, limitId string) error {
-	location := c.a.GetHttpLocation(host.Name, loc.Id)
-	if location == nil {
-		return fmt.Errorf("%s not found", loc)
-	}
-	return location.GetMiddlewareChain().Remove(limitId)
+	return location.GetMiddlewareChain().Remove(fmt.Sprintf("%s.%s", mType, mId))
 }
 
 func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitId string) error {
@@ -242,7 +209,7 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 	// First, collect and parse endpoints to add
 	newEndpoints := map[string]endpoint.Endpoint{}
 	for _, e := range location.Upstream.Endpoints {
-		ep, err := EndpointFromUrl(e.Url, e.Url)
+		ep, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
 		if err != nil {
 			return fmt.Errorf("Failed to parse endpoint url: %s", e)
 		}
@@ -280,7 +247,7 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 }
 
 func (c *Configurator) addEndpoint(upstream *Upstream, e *Endpoint, affectedLocations []*Location) error {
-	endpoint, err := EndpointFromUrl(e.EtcdKey, e.Url)
+	endpoint, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
 	if err != nil {
 		return fmt.Errorf("Failed to parse endpoint url: %s", endpoint)
 	}

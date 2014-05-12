@@ -4,7 +4,13 @@ Vulcand
 * HTTP proxy that uses Etcd as a configuration backend.
 * Changes to configuration take effect immediately without restarting the service.
 
-Status: Moving fast, breaking things. Will be usable soon, though.
+
+
+![Vulcan diagram](http://coreos.com/assets/images/media/vulcan-1-upstream.png "Vulcan diagram")
+
+Status
+------
+Hardening: Testing, benchmarking. Not usable for production yet.
 
 Discussions
 -----------
@@ -38,26 +44,85 @@ Location
 Hosts contain one or several locations. Each location defines a path - simply a regular expression that will be matched against request's url.
 Location contains link to an upstream and vulcand will use the endpoints from this upstream to serve the request.
 
-E.g. location loc1 will serve the request `curl http://example.com/alice` because it matches the path `/alice`:
+E.g. location loc1 will serve the request `curl http://example.com/search` because it matches the path `/search` and host `example.com`:
 
-```
-    └location(id=loc1, path=/alice)
-      │
-      ...
-```
+![Vulcan diagram](http://coreos.com/assets/images/media/vulcan-diagram.png "Vulcan diagram")
 
 
 Upstream
 ---------
 
-Upstream is a collection of endpoints. Upstream can be assigned to multiple locations at the same time. This is convenient as sometimes one endpoint serves multiple 
-purposes and locations.
+Upstream is a collection of endpoints. Upstream can be assigned to multiple locations at the same time. This is convenient as sometimes one endpoint serves multiple purposes and locations.
 
 
 Endpoint
 ---------
 
 Endpoint is a final destination of the incoming request, each endpoint is defined by `<schema>://<host>:<port>`, e.g. `http://localhost:5000`
+
+Middleware
+----------
+
+Vulcand supports pluggable middlewares. Middlewares can intercept or transform the request to any location. Examples of the supported middlewares are rate limits and connection limits.
+You can add or remove middlewares using command line, API or directly via backends.
+
+Etcd
+====
+
+Vulcan supports reading and updating configuration based on the changes in Etcd. Vulcans watch etcd prefix that is supplied when running an instance and configure themselves.
+*Important* All examples bellow assume that Vulcand is configured to listen on `/vulcand` prefix, which is a default prefix.
+
+
+Upstreams and endpoints
+-----------------------
+
+```bash
+# Upserts upstream and adds an endpoint to it
+etcdctl set /vulcand/upstreams/up1/endpoints/e1 http://localhost:5000
+```
+
+Hosts and locations
+-------------------
+
+```bash
+# Upsert a host "localhost" and add a location to it that matches path "/home" and uses endpoints from upstream "up1"
+etcdctl set /vulcand/hosts/localhost/locations/loc1/path "/home"
+etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
+```
+
+The best part is that you can update upstream using the same command. Let's add another upstream and switch traffic to it:
+
+```bash
+# create a new upstream with endpoint http://localhost:5003
+etcdctl set /vulcand/upstreams/up2/endpoints/e3 http://localhost:5003
+
+# redirect the traffic of the location "loc1" to the endpoints of the upstream "up2"
+etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up2
+```
+
+Note that you can add and remove endpoints to the existing upstream, and vulcan will start redirecting the traffic to them automatically:
+
+```bash
+# Add a new endpoint to the existing upstream
+etcdctl set /vulcand/upstreams/up1/endpoints/e2 http://localhost:5001
+```
+
+Rate and connection limits
+--------------------------
+
+Vulcan supports setting rate and connection limits.
+
+```bash
+# Update or set rate limit the request to location "loc1" to 1 request per second per client ip with bursts up to 3 requests per second.
+# Note the priority here - middlewares with lower priorities will be executed earlier.
+etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/ratelimit/rl1 '{"Type": "ratelimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
+```
+
+```bash
+# Update or set the connection limit to 3 simultaneous connections per client ip at a time
+# Note the priority here - middlewares with lower priorities will be executed earlier.
+etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/connlimit/rl1 '{"Type": "connlimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
+```
 
 
 Command line
@@ -194,13 +259,15 @@ HTTP API
 ========
 
 Vulcan's HTTP API is the best way to configure one or several instances of Vulcan at the same time.  
+Essentially it's a tiny wrapper around the Etcd backend, that writes to the Etcd.
+Multiple Vulcand instances listening to the same prefix would detect changes simultaneously and reload configuration.
 
 Status
 ----
 
 ```GET /v1/status```
 
-Check status of the vulcan process.
+Check status of the Vulcan instance.
 
 Returns:
 
@@ -217,12 +284,66 @@ Host
 
 ```GET /v1/hosts```
 
-Retrieve the existing hosts
+Retrieve the existing hosts.
+
+Example response:
+
+```json
+{
+  "Hosts": [
+    {
+      "Name": "localhost",
+      "Locations": [
+        {
+          "Hostname": "localhost",
+          "Path": "/home",
+          "Id": "loc1",
+          "Upstream": {
+            "Id": "up1",
+            "Endpoints": [
+              {
+                "Id": "e1",
+                "Url": "http://localhost:5000",
+                "UpstreamId": "up1",
+                "Stats": {
+                  "Successes": 0,
+                  "Failures": 0,
+                  "FailRate": 0,
+                  "PeriodSeconds": 10
+                }
+              }
+            ]
+          },
+          "Middlewares": [
+            {
+              "Id": "rl1",
+              "Priority": 0,
+              "Type": "ratelimit",
+              "Middleware": {
+                "PeriodSeconds": 1,
+                "Burst": 3,
+                "Variable": "client.ip",
+                "Requests": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
 
 
-```POST /v1/hosts```
+```POST 'application/json' /v1/hosts```
 
-Add a host to the proxy
+Add a host to the proxy.
+
+```json
+{
+  "Name": "localhost"
+}
+```
 
 | Parameter     | Description   |
 | ------------- |---------------|
@@ -239,23 +360,50 @@ Upstream
 
 ```GET /v1/upstreams```
 
-Retrieve the existing upstreams
+Retrieve the existing upstreams. Example response:
 
+```json
+{
+  "Upstreams": [
+    {
+      "Id": "up1",
+      "Endpoints": [
+        {
+          "Id": "e1",
+          "Url": "http://localhost:5000",
+          "UpstreamId": "up1",
+          "Stats": null
+        },
+        {
+          "Id": "e2",
+          "Url": "http://localhost:5001",
+          "UpstreamId": "up1",
+          "Stats": null
+        }
+      ]
+    }
+  ]
+}
+```
 
-```POST /v1/upstreams```
+```POST 'application/json' /v1/upstreams```
+
+```json
+{"Id": "up1"}
+```
 
 Add upstream to the proxy
 
 | Parameter     | Description   |
 | ------------- |---------------|
-| id          | Optional upstream id, will be generated if omitted.      |
+| id            | Optional upstream id, will be generated if omitted.      |
 
 ```DELETE /v1/upstreams/<id>```
 
 Delete an upstream.
 
 
-```GET /v1/upstreams/drain```
+```GET /v1/upstreams/drain?timeout=3```
 
 Wait till there are no more connections to any endpoints to the upstream.
 
@@ -263,14 +411,33 @@ Wait till there are no more connections to any endpoints to the upstream.
 | ------------- |---------------|
 | timeout       | Timeout in form `1s` for the amount of seconds to wait before time out.      |
 
+Example response:
+
+```json
+{
+  "Connections": 0
+}
+```
+
 
 Endpoint
 --------
 
 ```GET /v1/upstreams/<id>/endpoints```
 
-Retrieve the endpoints of the upstream.
+Retrieve the endpoints of the upstream. Example response:
 
+```json
+{
+  "Endpoints": [
+    {
+      "Id": "e1",
+      "Url": "http://localhost:5000",
+      "UpstreamId": "up1"
+    }
+  ]
+}
+```
 
 ```GET /v1/upstreams/<id>/endpoints/<endpoint-id>```
 
@@ -279,12 +446,32 @@ Retrieve the particular endpoint with id `endpoint-id`
 
 ```POST /v1/upstreams/<id>/endpoints```
 
+```json
+{
+  "Id": "e4",
+  "Url": "http://localhost:5004",
+  "UpstreamId": "up1"
+}
+```
+
 Add endpoint to the upstream
 
 | Parameter     | Description   |
 | ------------- |---------------|
 | id          | Optional endppint id, will be generated if omitted.|
 | url         | Required valid endpoint url |
+
+
+Example response:
+
+```json
+{
+  "Id": "e4",
+  "Url": "http://localhost:5004",
+  "UpstreamId": "up1",
+  "Stats": null
+}
+```
 
 
 ```DELETE /v1/upstreams/<id>/endpoints/<endpoint-id>```
@@ -299,21 +486,117 @@ Location
 
 Retrieve the locations of the host.
 
+Example response:
+
+```json
+{
+  "Locations": [
+    {
+      "Hostname": "localhost",
+      "Path": "/home",
+      "Id": "loc1",
+      "Upstream": {
+        "Id": "up1",
+        "Endpoints": [
+          {
+            "Id": "e1",
+            "Url": "http://localhost:5000",
+            "UpstreamId": "up1",
+            "Stats": null
+          }
+        ]
+      },
+      "Middlewares": []
+    }
+  ]
+}
+```
 
 ```GET /v1/hosts/<hostname>/locations/<location-id>```
 
 Retrieve the particular location in the host `hostname` with id `location-id`
 
+```json
+{
+  "Hostname": "localhost",
+  "Path": "/home",
+  "Id": "loc1",
+  "Upstream": {
+    "Id": "up1",
+    "Endpoints": [
+      {
+        "Id": "e1",
+        "Url": "http://localhost:5000",
+        "UpstreamId": "up1",
+        "Stats": null
+      },
+      {
+        "Id": "e2",
+        "Url": "http://localhost:5001",
+        "UpstreamId": "up1",
+        "Stats": null
+      },
+      {
+        "Id": "e3",
+        "Url": "http://localhost:5003",
+        "UpstreamId": "up1",
+        "Stats": null
+      },
+      {
+        "Id": "e4",
+        "Url": "http://localhost:5004",
+        "UpstreamId": "up1",
+        "Stats": null
+      }
+    ]
+  },
+  "Middlewares": [
+    {
+      "Id": "rl1",
+      "Priority": 0,
+      "Type": "ratelimit",
+      "Middleware": {
+        "PeriodSeconds": 1,
+        "Burst": 3,
+        "Variable": "client.ip",
+        "Requests": 1
+      }
+    },
+    {
+      "Id": "cl1",
+      "Priority": 0,
+      "Type": "connlimit",
+      "Middleware": {
+        "Connections": 3,
+        "Variable": "client.ip"
+      }
+    }
+  ]
+}
+```
 
-```POST /v1/hosts/<hostname>/locations```
+
+```POST 'application/json' /v1/hosts/<hostname>/locations```
 
 Add a location to the host
 
+```json
+{
+  "Id": "loc2",
+  "Hostname": "localhost",
+  "Path": "/home",
+  "Upstream": {
+    "Id": "up1"
+  }
+}
+```
+
 | Parameter     | Description   |
 | ------------- |---------------|
-| id          | Optional location id, will be generated if omitted.|
-| path         | Required regular expression for path matchng |
-| upstream     | Required id of the existing upstream |
+| Id            | Optional location id, will be generated if omitted.|
+| Path          | Required regular expression for path matchng |
+| Upstream.Id   | Required id of the existing upstream |
+| Hostname      | Required hostname|
 
 
 ```DELETE /v1/hosts/<hostname>/locations/<location-id>```
@@ -333,27 +616,50 @@ Update location's upstream. Gracefully Redirects all the traffic to the endpoint
 Rate limit
 ----------
 
-```GET /v1/hosts/<hostname>/locations/<location-id>/limits/rates```
-
-Retrieve the rate limits active for the location.
-
-
-```GET /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>```
+```GET /v1/hosts/<hostname>/locations/<location-id>/middlewares/ratelimit/<rate-id>```
 
 Retrieve the particular rate of location in the host `hostname` with id `location-id` and rate id `rate-id`
 
+```json
+{
+  "Id": "rl1",
+  "Priority": 0,
+  "Type": "ratelimit",
+  "Middleware": {
+    "PeriodSeconds": 1,
+    "Burst": 3,
+    "Variable": "client.ip",
+    "Requests": 1
+  }
+}
+```
 
-```POST /v1/hosts/<hostname>/locations/limits/rates```
+
+```POST 'application/json' /v1/hosts/<hostname>/locations/limits/rates```
 
 Add a rate limit to the location, will take effect immediately.
 
+```json
+{
+  "Id": "rl1",
+  "Priority": 0,
+  "Type": "ratelimit",
+  "Middleware": {
+    "PeriodSeconds": 1,
+    "Burst": 3,
+    "Variable": "client.ip",
+    "Requests": 1
+  }
+}
+```
+
 | Parameter     | Description   |
 | ------------- |---------------|
-| id          | Optional rate id, will be generated if omitted.|
-| requests     | Required amount of allowed requests|
-| seconds     | Required period in seconds for counting the requests |
-| burst     | Required allowed burst of the requests (additional requests exceeding the rate) |
-| variable     | Variable for rate limiting e.g. `client.ip` or `request.header.My-Header` |
+| Id            | Optional rate id, will be generated if omitted.|
+| Requests      | Required amount of allowed requests|
+| PeriodSeconds       | Required period in seconds for counting the requests |
+| Burst         | Required allowed burst of the requests (additional requests exceeding the rate) |
+| Variable      | Variable for rate limiting e.g. `client.ip` or `request.header.My-Header` |
 
 
 ```DELETE /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>```
@@ -365,39 +671,65 @@ Delete a rate limit from the location.
 
 Update location's rate limit. Takes effect immdediatelly.
 
-| Parameter     | Description   |
-| ------------- |---------------|
-| requests     | Required amount of allowed requests|
-| seconds     | Required period in seconds for counting the requests |
-| burst     | Required allowed burst of the requests (additional requests exceeding the rate) |
-| variable     | Variable for rate limiting e.g. `client.ip` or `request.header.My-Header` |
-
+```json
+{
+  "Id": "rl1",
+  "Priority": 0,
+  "Type": "ratelimit",
+  "Middleware": {
+    "PeriodSeconds": 1,
+    "Burst": 3,
+    "Variable": "client.ip",
+    "Requests": 1
+  }
+}
+```
 
 Connection limit
 -----------------
 
-```GET /v1/hosts/<hostname>/locations/<location-id>/limits/connections```
-
-Retrieve the connection limits active for the location.
-
-
-```GET /v1/hosts/<hostname>/locations/<location-id>/limits/connections/<conn-id>```
+```GET /v1/hosts/<hostname>/locations/<location-id>/middlewares/connlimit/<conn-id>```
 
 Retrieve the particular connection limit of location in the host `hostname` with id `location-id` and connection limit id `conn-id`
 
+Example response:
 
-```POST /v1/hosts/<hostname>/locations/limits/connections```
+```json
+{
+  "Id": "cl1",
+  "Priority": 0,
+  "Type": "connlimit",
+  "Middleware": {
+    "Connections": 3,
+    "Variable": "client.ip"
+  }
+}
+```
+
+```POST 'application/json' /v1/hosts/<hostname>/locations/limits/connections```
 
 Add a connection limit to the location, will take effect immediately.
 
+```json
+{
+  "Id": "cl1",
+  "Priority": 0,
+  "Type": "connlimit",
+  "Middleware": {
+    "Connections": 3,
+    "Variable": "client.ip"
+  }
+}
+```
+
 | Parameter     | Description   |
 | ------------- |---------------|
-| id          | Optional limit id, will be generated if omitted.|
-| connections     | Required maximum amount of allowed simultaneous connections|
-| variable     | Variable for limiting e.g. `client.ip` or `request.header.My-Header` |
+| Id          | Optional limit id, will be generated if omitted.|
+| Connections     | Required maximum amount of allowed simultaneous connections|
+| Variable     | Variable for limiting e.g. `client.ip` or `request.header.My-Header` |
 
 
-```DELETE /v1/hosts/<hostname>/locations/<location-id>/limits/connections/<conn-id>```
+```DELETE /v1/hosts/<hostname>/locations/<location-id>/middlewares/connlimit/<conn-id>```
 
 Delete a connection limit from the location.
 
@@ -406,11 +738,17 @@ Delete a connection limit from the location.
 
 Update location's connection limit. Takes effect immdediatelly.
 
-| Parameter     | Description   |
-| ------------- |---------------|
-| connections     | Required maximum amount of allowed simultaneous connections|
-| variable     | Variable for rate limiting e.g. `client.ip` or `request.header.My-Header` |
-
+```json
+{
+  "Id": "cl1",
+  "Priority": 0,
+  "Type": "connlimit",
+  "Middleware": {
+    "Connections": 3,
+    "Variable": "client.ip"
+  }
+}
+```
 
 Docker
 ======
@@ -440,4 +778,3 @@ docker run mailgun/vulcan /opt/vulcan/vulcanctl status  --vulcan 'http://10.0.3.
 Make sure you've specified `--vulcan` flag to tell vulcanctl where the running vulcand is. I've used lxc bridge interface in the example above.
 
 *Note* The dockerfile build in the example above is not reproducible (yet), and the vulcand API is a subject to change.
-

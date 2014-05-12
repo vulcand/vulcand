@@ -4,20 +4,20 @@ import (
 	"github.com/codegangsta/cli"
 )
 
-func NewStatusCommand() cli.Command {
+func NewStatusCommand(cmd *Command) cli.Command {
 	return cli.Command{
 		Name:      "status",
 		ShortName: "s",
 		Usage:     "Show vulcan status and configuration",
-		Action:    StatusAction,
+		Action:    cmd.statusAction,
 	}
 }
 
-func StatusAction(c *cli.Context) {
-	out, err := client(c).GetHosts()
+func (cmd *Command) statusAction(c *cli.Context) {
+	out, err := cmd.client.GetHosts()
 	if err != nil {
-		printError(err)
+		cmd.printError(err)
 	} else {
-		printHosts(out)
+		cmd.printHosts(out)
 	}
 }

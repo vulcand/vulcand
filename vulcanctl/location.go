@@ -4,7 +4,7 @@ import (
 	"github.com/codegangsta/cli"
 )
 
-func NewLocationCommand() cli.Command {
+func NewLocationCommand(cmd *Command) cli.Command {
 	return cli.Command{
 		Name:  "location",
 		Usage: "Operations with vulcan locations",
@@ -18,12 +18,12 @@ func NewLocationCommand() cli.Command {
 					cli.StringFlag{"path", "", " path, will be matched against request's path"},
 					cli.StringFlag{"upstream, up", "", "upstream id"},
 				},
-				Action: addLocationAction,
+				Action: cmd.addLocationAction,
 			},
 			{
 				Name:   "rm",
 				Usage:  "Remove a location from host",
-				Action: deleteLocationAction,
+				Action: cmd.deleteLocationAction,
 				Flags: []cli.Flag{
 					cli.StringFlag{"id", "", "id"},
 					cli.StringFlag{"host", "", "parent host"},
@@ -32,7 +32,7 @@ func NewLocationCommand() cli.Command {
 			{
 				Name:   "set_upstream",
 				Usage:  "Update location upstream",
-				Action: locationUpdateUpstreamAction,
+				Action: cmd.locationUpdateUpstreamAction,
 				Flags: []cli.Flag{
 					cli.StringFlag{"id", "", "id"},
 					cli.StringFlag{"host", "", "parent host"},
@@ -43,14 +43,14 @@ func NewLocationCommand() cli.Command {
 	}
 }
 
-func addLocationAction(c *cli.Context) {
-	printStatus(client(c).AddLocation(c.String("host"), c.String("id"), c.String("path"), c.String("up")))
+func (cmd *Command) addLocationAction(c *cli.Context) {
+	cmd.printStatus(cmd.client.AddLocation(c.String("host"), c.String("id"), c.String("path"), c.String("up")))
 }
 
-func locationUpdateUpstreamAction(c *cli.Context) {
-	printStatus(client(c).UpdateLocationUpstream(c.String("host"), c.String("id"), c.String("up")))
+func (cmd *Command) locationUpdateUpstreamAction(c *cli.Context) {
+	cmd.printStatus(cmd.client.UpdateLocationUpstream(c.String("host"), c.String("id"), c.String("up")))
 }
 
-func deleteLocationAction(c *cli.Context) {
-	printStatus(client(c).DeleteLocation(c.String("host"), c.String("id")))
+func (cmd *Command) deleteLocationAction(c *cli.Context) {
+	cmd.printStatus(cmd.client.DeleteLocation(c.String("host"), c.String("id")))
 }
