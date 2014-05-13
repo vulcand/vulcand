@@ -16,6 +16,7 @@ type Options struct {
 	EtcdNodes       listOptions
 	EtcdKey         string
 	EtcdConsistency string
+	Log             string
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -40,6 +41,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.Interface, "interface", "", "Interface to bind to")
 	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
 	flag.StringVar(&options.CertPath, "certPath", "", "Certificate to use (enables TLS)")
+	flag.StringVar(&options.Log, "log", "console", "Logging to use (syslog or console)")
 	flag.Parse()
 	return options, nil
 }

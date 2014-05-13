@@ -13,7 +13,7 @@ ENV GOROOT /usr/local/go
 ENV GOPATH /home/goworld
 ENV VULCANPATH /home/goworld/src/github.com/mailgun/vulcand
 
-RUN echo "clear cache 1"
+RUN echo "clear cache 4"
 RUN go get -v -u github.com/gorilla/mux
 RUN go get -v -u github.com/mailgun/vulcan
 RUN go get -v -u github.com/mailgun/vulcand
