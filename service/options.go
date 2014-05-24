@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mailgun/go-etcd/etcd"
+	"time"
 )
 
 type Options struct {
@@ -17,6 +18,8 @@ type Options struct {
 	EtcdKey         string
 	EtcdConsistency string
 	Log             string
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -42,6 +45,8 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
 	flag.StringVar(&options.CertPath, "certPath", "", "Certificate to use (enables TLS)")
 	flag.StringVar(&options.Log, "log", "console", "Logging to use (syslog or console)")
+	flag.DurationVar(&options.ReadTimeout, "readTimeout", time.Duration(10)*time.Second, "HTTP server read timeout")
+	flag.DurationVar(&options.WriteTimeout, "writeTimeout", time.Duration(10)*time.Second, "HTTP server write timeout")
 	flag.Parse()
 	return options, nil
 }

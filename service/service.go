@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"time"
 )
 
 type Service struct {
@@ -102,8 +101,8 @@ func (s *Service) startProxy() error {
 	server := &http.Server{
 		Addr:           addr,
 		Handler:        s.proxy,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
+		ReadTimeout:    s.options.ReadTimeout,
+		WriteTimeout:   s.options.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 	return server.ListenAndServe()
@@ -115,8 +114,8 @@ func (s *Service) startApi() error {
 	server := &http.Server{
 		Addr:           addr,
 		Handler:        s.apiRouter,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
+		ReadTimeout:    s.options.ReadTimeout,
+		WriteTimeout:   s.options.WriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 	return server.ListenAndServe()
