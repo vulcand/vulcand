@@ -33,3 +33,4 @@ install: clean
 
 run: install
 	vulcand -etcd=http://127.0.0.1:4001 -etcdKey=/vulcand -readTimeout=10s -writeTimeout=10s
+
