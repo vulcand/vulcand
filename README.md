@@ -25,7 +25,6 @@ Deps: go>=1.2, Etcd
 Install: 
 
 ```bash
-make deps
 make install
 make run
 ```
@@ -764,7 +763,7 @@ docker build -t mailgun/vulcan .
 Starting the daemon:
 
 ```bash
-docker run -p 8182:8182 -p 8181:8181 mailgun/vulcan /opt/vulcan/vulcand -apiInterface="0.0.0.0" -interface="0.0.0.0" --etcd=http://10.0.3.1:7002
+docker run -p 8182:8182 -p 8181:8181 mailgun/vulcan /opt/vulcan/vulcand -apiInterface="0.0.0.0" -interface="0.0.0.0" --etcd=http://10.0.3.1:4001
 ```
 
 Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.

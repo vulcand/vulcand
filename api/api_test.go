@@ -1,17 +1,17 @@
 package api
 
 import (
-	"github.com/gorilla/mux"
-	log "github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcan/route/hostroute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
 	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
-	. "launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"net/http/httptest"
 	"testing"
 )

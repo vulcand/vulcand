@@ -13,14 +13,9 @@ ENV GOROOT /usr/local/go
 ENV GOPATH /home/goworld
 ENV VULCANPATH /home/goworld/src/github.com/mailgun/vulcand
 
-RUN echo "clear cache 6"
-RUN go get -v -u github.com/gorilla/mux
-RUN go get -v -u github.com/mailgun/vulcan
-RUN go get -v -u github.com/mailgun/vulcand
-RUN go get -v -u github.com/mailgun/vulcand/vulcanctl
-RUN go install github.com/mailgun/vulcand
-RUN go install github.com/mailgun/vulcand/vulcanctl
+RUN echo "Rebuild image on 2014 May, 29th 13:48"
+ADD . $VULCANPATH
+RUN cd $VULCANPATH && make install
 RUN mkdir /opt/vulcan
 RUN cp /home/goworld/bin/vulcand /opt/vulcan
 RUN cp /home/goworld/bin/vulcanctl /opt/vulcan
-

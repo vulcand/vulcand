@@ -7,12 +7,12 @@ package etcdbackend
 
 import (
 	"fmt"
-	"github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 	. "github.com/mailgun/vulcand/plugin/registry"
-	. "launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"os"
 	"strings"
 	"testing"

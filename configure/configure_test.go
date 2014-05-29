@@ -1,14 +1,14 @@
 package configure
 
 import (
-	"github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcan/limit/tokenbucket"
-	"github.com/mailgun/vulcan/loadbalance/roundrobin"
-	"github.com/mailgun/vulcan/route/hostroute"
-	"github.com/mailgun/vulcan/route/pathroute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/pathroute"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
-	. "launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"testing"
 	"time"
 )

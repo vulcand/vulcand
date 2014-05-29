@@ -3,12 +3,12 @@
 package adapter
 
 import (
-	"github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcan/loadbalance/roundrobin"
-	"github.com/mailgun/vulcan/location/httploc"
-	"github.com/mailgun/vulcan/metrics"
-	"github.com/mailgun/vulcan/route/hostroute"
-	"github.com/mailgun/vulcan/route/pathroute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/pathroute"
 	. "github.com/mailgun/vulcand/backend"
 	"time"
 )

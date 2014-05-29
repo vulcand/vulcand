@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"fmt"
-	log "github.com/mailgun/gotools-log"
-	. "github.com/mailgun/vulcan/testutils"
-	. "launchpad.net/gocheck"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"strings"

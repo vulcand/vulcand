@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	. "github.com/mailgun/vulcand/backend"
-	"github.com/wsxiaoys/terminal/color"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/wsxiaoys/terminal/color"
 )
 
 func (cmd *Command) printResult(format string, in interface{}, err error) {

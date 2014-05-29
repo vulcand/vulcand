@@ -3,7 +3,7 @@ package backend
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	. "github.com/mailgun/vulcand/plugin"
 	"regexp"
 )

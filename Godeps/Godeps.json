@@ -1,0 +1,69 @@
+{
+	"ImportPath": "github.com/mailgun/vulcand",
+	"GoVersion": "go1.2",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/codegangsta/cli",
+			"Comment": "1.0.0-65-g820deef",
+			"Rev": "820deefc9031d101f085ef773425fc6ca7a5363e"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "708054d61e5a2918b9f4e9700000ee611dcf03f5"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "e718e932ee606838744df844eb75064959eb74bc"
+		},
+		{
+			"ImportPath": "github.com/mailgun/go-etcd/etcd",
+			"Comment": "v0.2.0-rc1-99-g00d8243",
+			"Rev": "00d82433c4e044dcfa5eb73b8c969b8c087f48e7"
+		},
+		{
+			"ImportPath": "github.com/mailgun/gotools-api",
+			"Rev": "cad38181399b899e5831f8f3b550c5868f907825"
+		},
+		{
+			"ImportPath": "github.com/mailgun/gotools-log",
+			"Rev": "da2af22c05c9bd65fe86def9dda80c1a2110e06c"
+		},
+		{
+			"ImportPath": "github.com/mailgun/gotools-runtime",
+			"Rev": "f79a61c068bedc1fa710c9b52304b55aa24f5bd6"
+		},
+		{
+			"ImportPath": "github.com/mailgun/gotools-time",
+			"Rev": "3f148297f09e62c5cc895746877f705d2ddac0d6"
+		},
+		{
+			"ImportPath": "github.com/mailgun/minheap",
+			"Rev": "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
+		},
+		{
+			"ImportPath": "github.com/mailgun/timetools",
+			"Rev": "8aaa539a55a0dbab6abd713146bc2c96fb891640"
+		},
+		{
+			"ImportPath": "github.com/mailgun/ttlmap",
+			"Rev": "f0d152bfd08693df7ddf34eb3471460565d633db"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcan",
+			"Comment": "v0.1-154-gf056a8d",
+			"Rev": "f056a8d842285ee47d39fe53cba69ea5a1c84b1e"
+		},
+		{
+			"ImportPath": "github.com/wsxiaoys/terminal/color",
+			"Rev": "a83cd00f6d7acf3554bc24f06d7f9e48a90d0a47"
+		},
+		{
+			"ImportPath": "launchpad.net/gocheck",
+			"Comment": "87",
+			"Rev": "gustavo@niemeyer.net-20140225173054-xu9zlkf9kxhvow02"
+		}
+	]
+}

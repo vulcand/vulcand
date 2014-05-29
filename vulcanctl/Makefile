@@ -15,11 +15,6 @@ cover: clean
 	go test -v ./ -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
-deps:
-	go get -v -u launchpad.net/gocheck
-	go get -v -u github.com/codegangsta/cli
-	go get -v -u github.com/wsxiaoys/terminal
-
 clean:
 	find . -name flymake_* -delete
 

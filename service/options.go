@@ -3,7 +3,7 @@ package service
 import (
 	"flag"
 	"fmt"
-	"github.com/mailgun/go-etcd/etcd"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	"time"
 )
 
