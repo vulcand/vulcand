@@ -4,7 +4,7 @@ import (
 	"github.com/codegangsta/cli"
 )
 
-func NewHostCommand() cli.Command {
+func NewHostCommand(cmd *Command) cli.Command {
 	return cli.Command{
 		Name:  "host",
 		Usage: "Operations with vulcan hosts",
@@ -15,7 +15,7 @@ func NewHostCommand() cli.Command {
 					cli.StringFlag{"name", "", "hostname"},
 				},
 				Usage:  "Add a new host to vulcan proxy",
-				Action: addHostAction,
+				Action: cmd.addHostAction,
 			},
 			{
 				Name: "rm",
@@ -23,16 +23,17 @@ func NewHostCommand() cli.Command {
 					cli.StringFlag{"name", "", "hostname"},
 				},
 				Usage:  "Remove a host from vulcan",
-				Action: deleteHostAction,
+				Action: cmd.deleteHostAction,
 			},
 		},
 	}
 }
 
-func addHostAction(c *cli.Context) {
-	printStatus(client(c).AddHost(c.String("name")))
+func (cmd *Command) addHostAction(c *cli.Context) {
+	host, err := cmd.client.AddHost(c.String("name"))
+	cmd.printResult("%s added", host, err)
 }
 
-func deleteHostAction(c *cli.Context) {
-	printStatus(client(c).DeleteHost(c.String("name")))
+func (cmd *Command) deleteHostAction(c *cli.Context) {
+	cmd.printStatus(cmd.client.DeleteHost(c.String("name")))
 }

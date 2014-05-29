@@ -13,6 +13,7 @@ import (
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/backend/etcdbackend"
 	. "github.com/mailgun/vulcand/configure"
+	"github.com/mailgun/vulcand/plugin/registry"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,7 +41,7 @@ func (s *Service) Start() error {
 	// Init logging
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := NewEtcdBackend(s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
+	backend, err := NewEtcdBackend(registry.GetRegistry(), s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
 	if err != nil {
 		return err
 	}

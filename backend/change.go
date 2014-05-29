@@ -5,8 +5,7 @@ type HostAdded struct {
 }
 
 type HostDeleted struct {
-	Name        string
-	HostEtcdKey string
+	Name string
 }
 
 type LocationAdded struct {
@@ -15,9 +14,8 @@ type LocationAdded struct {
 }
 
 type LocationDeleted struct {
-	Host            *Host
-	LocationId      string
-	LocationEtcdKey string
+	Host       *Host
+	LocationId string
 }
 
 type LocationUpstreamUpdated struct {
@@ -31,42 +29,23 @@ type LocationPathUpdated struct {
 	Path     string
 }
 
-type LocationRateLimitAdded struct {
-	Host      *Host
-	Location  *Location
-	RateLimit *RateLimit
+type LocationMiddlewareAdded struct {
+	Host       *Host
+	Location   *Location
+	Middleware *MiddlewareInstance
 }
 
-type LocationRateLimitDeleted struct {
-	Host             *Host
-	Location         *Location
-	RateLimitId      string
-	RateLimitEtcdKey string
+type LocationMiddlewareUpdated struct {
+	Host       *Host
+	Location   *Location
+	Middleware *MiddlewareInstance
 }
 
-type LocationRateLimitUpdated struct {
-	Host      *Host
-	Location  *Location
-	RateLimit *RateLimit
-}
-
-type LocationConnLimitAdded struct {
-	Host      *Host
-	Location  *Location
-	ConnLimit *ConnLimit
-}
-
-type LocationConnLimitDeleted struct {
-	Host             *Host
-	Location         *Location
-	ConnLimitId      string
-	ConnLimitEtcdKey string
-}
-
-type LocationConnLimitUpdated struct {
-	Host      *Host
-	Location  *Location
-	ConnLimit *ConnLimit
+type LocationMiddlewareDeleted struct {
+	Host           *Host
+	Location       *Location
+	MiddlewareId   string
+	MiddlewareType string
 }
 
 type UpstreamAdded struct {
@@ -74,8 +53,7 @@ type UpstreamAdded struct {
 }
 
 type UpstreamDeleted struct {
-	UpstreamId      string
-	UpstreamEtcdKey string
+	UpstreamId string
 }
 
 type EndpointAdded struct {
@@ -93,6 +71,5 @@ type EndpointUpdated struct {
 type EndpointDeleted struct {
 	Upstream          *Upstream
 	EndpointId        string
-	EndpointEtcdKey   string
 	AffectedLocations []*Location
 }

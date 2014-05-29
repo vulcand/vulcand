@@ -4,7 +4,7 @@ import (
 	"github.com/codegangsta/cli"
 )
 
-func NewUpstreamCommand() cli.Command {
+func NewUpstreamCommand(cmd *Command) cli.Command {
 	return cli.Command{
 		Name:  "upstream",
 		Usage: "Operations with vulcan upstreams",
@@ -12,7 +12,7 @@ func NewUpstreamCommand() cli.Command {
 			{
 				Name:   "add",
 				Usage:  "Add a new upstream to vulcan",
-				Action: addUpstreamAction,
+				Action: cmd.addUpstreamAction,
 				Flags: []cli.Flag{
 					cli.StringFlag{"id", "", "upstream id"},
 				},
@@ -20,7 +20,7 @@ func NewUpstreamCommand() cli.Command {
 			{
 				Name:   "rm",
 				Usage:  "Remove upstream from vulcan",
-				Action: deleteUpstreamAction,
+				Action: cmd.deleteUpstreamAction,
 				Flags: []cli.Flag{
 					cli.StringFlag{"id", "", "upstream id"},
 				},
@@ -28,7 +28,7 @@ func NewUpstreamCommand() cli.Command {
 			{
 				Name:   "ls",
 				Usage:  "List upstreams",
-				Action: listUpstreamsAction,
+				Action: cmd.listUpstreamsAction,
 			},
 			{
 				Name:  "drain",
@@ -37,38 +37,39 @@ func NewUpstreamCommand() cli.Command {
 					cli.StringFlag{"id", "", "upstream id"},
 					cli.IntFlag{"timeout", 5, "timeout in seconds"},
 				},
-				Action: upstreamDrainConnections,
+				Action: cmd.upstreamDrainConnections,
 			},
 		},
 	}
 }
 
-func addUpstreamAction(c *cli.Context) {
-	printStatus(client(c).AddUpstream(c.String("id")))
+func (cmd *Command) addUpstreamAction(c *cli.Context) {
+	u, err := cmd.client.AddUpstream(c.String("id"))
+	cmd.printResult("%s added", u, err)
 }
 
-func deleteUpstreamAction(c *cli.Context) {
-	printStatus(client(c).DeleteUpstream(c.String("id")))
+func (cmd *Command) deleteUpstreamAction(c *cli.Context) {
+	cmd.printStatus(cmd.client.DeleteUpstream(c.String("id")))
 }
 
-func listUpstreamsAction(c *cli.Context) {
-	out, err := client(c).GetUpstreams()
+func (cmd *Command) listUpstreamsAction(c *cli.Context) {
+	out, err := cmd.client.GetUpstreams()
 	if err != nil {
-		printError(err)
+		cmd.printError(err)
 	} else {
-		printUpstreams(out)
+		cmd.printUpstreams(out)
 	}
 }
 
-func upstreamDrainConnections(c *cli.Context) {
-	connections, err := client(c).DrainUpstreamConnections(c.String("id"), c.String("timeout"))
+func (cmd *Command) upstreamDrainConnections(c *cli.Context) {
+	connections, err := cmd.client.DrainUpstreamConnections(c.String("id"), c.String("timeout"))
 	if err != nil {
-		printError(err)
+		cmd.printError(err)
 		return
 	}
 	if connections == 0 {
-		printOk("Connections: %d", connections)
+		cmd.printOk("Connections: %d", connections)
 	} else {
-		printInfo("Connections: %d", connections)
+		cmd.printInfo("Connections: %d", connections)
 	}
 }
