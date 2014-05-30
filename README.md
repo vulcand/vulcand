@@ -773,5 +773,3 @@ docker run mailgun/vulcan /opt/vulcan/vulcanctl status  --vulcan 'http://10.0.3.
 ```
 
 Make sure you've specified `--vulcan` flag to tell vulcanctl where the running vulcand is. I've used lxc bridge interface in the example above.
-
-*Note* The dockerfile build in the example above is not reproducible (yet), and the vulcand API is a subject to change.
