@@ -752,8 +752,6 @@ Update location's connection limit. Takes effect immdediatelly.
 Docker
 ======
 
-Warning: Docker (and vulcan builds are not reproducible yet!)
-
 Here's how you build vulcan in Docker:
 
 ```bash
