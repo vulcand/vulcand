@@ -13,7 +13,7 @@ ENV GOROOT /usr/local/go
 ENV GOPATH /home/goworld
 ENV VULCANPATH /home/goworld/src/github.com/mailgun/vulcand
 
-RUN echo "Rebuild image on 2014 May, 29th 13:48"
+RUN echo "Rebuild image on 2014 May, 30th 00:10"
 ADD . $VULCANPATH
 RUN cd $VULCANPATH && make install
 RUN mkdir /opt/vulcan

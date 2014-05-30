@@ -1,6 +1,3 @@
-VULCAN_API_URL := http://localhost:8182
-VULCAN_SERVICE_URL := http://localhost:8181
-
 test-with-vulcan: clean
 	VULCAND_TEST_API_URL=${VULCAN_API_URL} VULCAND_TEST_SERVICE_URL=${VULCAN_SERVICE_URL} go test -v ./ -cover
 

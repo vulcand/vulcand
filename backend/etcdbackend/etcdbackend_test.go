@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 	. "github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"os"
 	"strings"
 	"testing"
@@ -35,7 +35,7 @@ var _ = Suite(&EtcdBackendSuite{etcdPrefix: "/vulcandtest", consistency: etcd.ST
 func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
 
-	nodes_string := os.Getenv("VULCAND_ETCD_NODES")
+	nodes_string := os.Getenv("VULCAND_TEST_ETCD_NODES")
 	if nodes_string == "" {
 		// Skips the entire suite
 		c.Skip("This test requires etcd, provide comma separated nodes in VULCAND_TEST_ETCD_NODES environment variable")

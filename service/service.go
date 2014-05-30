@@ -89,8 +89,8 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) watchChanges() {
-	err := s.backend.WatchChanges(s.changeC, true)
 	go s.configurator.WatchChanges(s.changeC)
+	err := s.backend.WatchChanges(s.changeC, true)
 	if err != nil {
 		log.Infof("Stopped watching changes with error: %s. Shutting down with error", err)
 		s.errorC <- err
