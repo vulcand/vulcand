@@ -43,7 +43,7 @@ cover-package-with-vulcan: clean
 	go tool cover -html=/tmp/coverage.out
 
 sloccount:
-	 find . -name "*.go" -print0 | xargs -0 wc -l
+	 find . -path ./Godeps -prune -o -name "*.go" -print0 | xargs -0 wc -l
 
 install: clean
 	go install github.com/mailgun/vulcand
