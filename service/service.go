@@ -26,14 +26,18 @@ type Service struct {
 	options      Options
 	router       *hostroute.HostRouter
 	apiRouter    *mux.Router
-	changes      chan interface{}
+	errorC       chan error
+	changeC      chan interface{}
+	sigC         chan os.Signal
 	configurator *Configurator
 }
 
 func NewService(options Options) *Service {
 	return &Service{
 		options: options,
-		changes: make(chan interface{}),
+		changeC: make(chan interface{}),
+		errorC:  make(chan error),
+		sigC:    make(chan os.Signal),
 	}
 }
 
@@ -63,22 +67,36 @@ func (s *Service) Start() error {
 	// Tell backend to watch configuration changes and pass them to the channel
 	// the second parameter tells backend to do the initial read of the configuration
 	// and produce the stream of changes so proxy would initialise initial config
-	go s.backend.WatchChanges(s.changes, true)
-	// Configurator will listen to the changes from the channel and will
-	go s.configurator.WatchChanges(s.changes)
+	go s.watchChanges()
 
 	if err := s.initApi(); err != nil {
 		return err
 	}
 
 	go s.startApi()
+	signal.Notify(s.sigC, os.Interrupt, os.Kill)
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, os.Kill)
-
-	// Block until a signal is received.
-	log.Infof("Got signal %s, exiting now", <-c)
+	// Block until a signal is received or we got an error
+	select {
+	case signal := <-s.sigC:
+		log.Infof("Got signal %s, exiting now", signal)
+		return nil
+	case err := <-s.errorC:
+		log.Infof("Got request to shutdown with error: %s", err)
+		return err
+	}
 	return nil
+}
+
+func (s *Service) watchChanges() {
+	err := s.backend.WatchChanges(s.changeC, true)
+	go s.configurator.WatchChanges(s.changeC)
+	if err != nil {
+		log.Infof("Stopped watching changes with error: %s. Shutting down with error", err)
+		s.errorC <- err
+	} else {
+		log.Infof("Stopped watching changes without error. Will continue running", err)
+	}
 }
 
 func (s *Service) createProxy() error {
