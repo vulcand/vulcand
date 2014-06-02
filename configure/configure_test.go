@@ -6,9 +6,9 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/pathroute"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"testing"
 	"time"
 )
@@ -382,6 +382,21 @@ func (s *ConfSuite) TestUpdateLocationPath(c *C) {
 	c.Assert(l, IsNil)
 
 	l = pathRouter.GetLocationByPattern(location.Path)
+	c.Assert(l, NotNil)
+}
+
+// Make sure that update location path will actually create a location if it does not exist
+func (s *ConfSuite) TestUpdateLocationPathUpsertsLocation(c *C) {
+	location, host := makeLocation()
+
+	err := s.conf.processChange(&LocationPathUpdated{Host: host, Location: location})
+	c.Assert(err, IsNil)
+
+	router := s.conf.a.GetHostRouter().GetRouter(host.Name)
+	c.Assert(router, NotNil)
+	pathRouter := router.(*pathroute.PathRouter)
+
+	l := pathRouter.GetLocationByPattern(location.Path)
 	c.Assert(l, NotNil)
 }
 

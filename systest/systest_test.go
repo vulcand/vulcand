@@ -109,6 +109,32 @@ func (s *VESuite) TestLocationCrud(c *C) {
 	c.Assert(called, Equals, true)
 }
 
+func (s *VESuite) TestLocationCreateUpstreamFirst(c *C) {
+	called := false
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server.Close()
+
+	// Create upstream and endpoint
+	up, e, url := "up1", "e1", server.URL
+	_, err := s.client.Set(s.path("upstreams", up, "endpoints", e), url, 0)
+	c.Assert(err, IsNil)
+
+	// Add location
+	host, locId, path := "localhost", "loc1", "/path"
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
+	c.Assert(err, IsNil)
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "path"), path, 0)
+	c.Assert(err, IsNil)
+
+	time.Sleep(time.Second)
+	response, _ := Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(called, Equals, true)
+}
+
 func (s *VESuite) TestUpdateUpstreamLocation(c *C) {
 	server1 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("1"))

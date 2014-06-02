@@ -186,8 +186,11 @@ func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitI
 }
 
 func (c *Configurator) updateLocationPath(host *Host, location *Location, path string) error {
-	if err := c.deleteLocation(host, location.Id); err != nil {
-		return err
+	// If location already exists, delete it and re-create from scratch
+	if loc := c.a.GetHttpLocation(host.Name, location.Id); loc != nil {
+		if err := c.deleteLocation(host, location.Id); err != nil {
+			return err
+		}
 	}
 	return c.upsertLocation(host, location)
 }
