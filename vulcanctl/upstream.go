@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/codegangsta/cli"
 )
 
 func NewUpstreamCommand(cmd *Command) cli.Command {

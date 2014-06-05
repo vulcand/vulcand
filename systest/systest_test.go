@@ -5,10 +5,10 @@ package systest
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	"github.com/mailgun/go-etcd/etcd"
+	log "github.com/mailgun/gotools-log"
+	. "github.com/mailgun/vulcan/testutils"
+	. "launchpad.net/gocheck"
 	"net/http"
 	"os"
 	"strings"

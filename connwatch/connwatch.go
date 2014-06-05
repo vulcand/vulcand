@@ -1,8 +1,8 @@
 package connwatch
 
 import (
-	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	timetools "github.com/mailgun/gotools-time"
+	. "github.com/mailgun/vulcan/request"
 	"net/url"
 	"sync"
 	"time"

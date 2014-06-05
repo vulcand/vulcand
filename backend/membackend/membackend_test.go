@@ -1,11 +1,11 @@
 package membackend
 
 import (
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	log "github.com/mailgun/gotools-log"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 	. "github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "launchpad.net/gocheck"
 	"testing"
 )
 

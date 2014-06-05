@@ -2,12 +2,12 @@ package configure
 
 import (
 	"fmt"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/pathroute"
+	log "github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcan/route/pathroute"
 	. "github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/connwatch"

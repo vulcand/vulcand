@@ -2,10 +2,10 @@ package api
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
-	api "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-api"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/gorilla/mux"
+	api "github.com/mailgun/gotools-api"
+	log "github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcan/netutils"
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin"

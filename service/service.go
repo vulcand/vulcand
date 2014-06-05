@@ -2,12 +2,12 @@ package service
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	runtime "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-runtime"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	"github.com/gorilla/mux"
+	"github.com/mailgun/go-etcd/etcd"
+	log "github.com/mailgun/gotools-log"
+	runtime "github.com/mailgun/gotools-runtime"
+	"github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcand/adapter"
 	"github.com/mailgun/vulcand/api"
 	. "github.com/mailgun/vulcand/backend"
