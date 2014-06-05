@@ -13,17 +13,32 @@ import (
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/backend/etcdbackend"
 	. "github.com/mailgun/vulcand/configure"
-	"github.com/mailgun/vulcand/plugin/registry"
+	. "github.com/mailgun/vulcand/plugin"
 	"net/http"
 	"os"
 	"os/signal"
 )
+
+func Run(registry *Registry) error {
+	options, err := ParseCommandLine()
+	if err != nil {
+		return fmt.Errorf("Failed to parse command line: %s", err)
+	}
+	service := NewService(options, registry)
+	if err := service.Start(); err != nil {
+		return fmt.Errorf("Service exited with error: %s", err)
+	} else {
+		log.Infof("Service exited gracefully")
+	}
+	return nil
+}
 
 type Service struct {
 	client       *etcd.Client
 	proxy        *vulcan.Proxy
 	backend      Backend
 	options      Options
+	registry     *Registry
 	router       *hostroute.HostRouter
 	apiRouter    *mux.Router
 	errorC       chan error
@@ -32,12 +47,13 @@ type Service struct {
 	configurator *Configurator
 }
 
-func NewService(options Options) *Service {
+func NewService(options Options, registry *Registry) *Service {
 	return &Service{
-		options: options,
-		changeC: make(chan interface{}),
-		errorC:  make(chan error),
-		sigC:    make(chan os.Signal),
+		registry: registry,
+		options:  options,
+		changeC:  make(chan interface{}),
+		errorC:   make(chan error),
+		sigC:     make(chan os.Signal),
 	}
 }
 
@@ -45,7 +61,7 @@ func (s *Service) Start() error {
 	// Init logging
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := NewEtcdBackend(registry.GetRegistry(), s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
+	backend, err := NewEtcdBackend(s.registry, s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
 	if err != nil {
 		return err
 	}
