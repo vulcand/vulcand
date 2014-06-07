@@ -5,9 +5,9 @@ package etcdbackend
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/go-etcd/etcd"
+	log "github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcan/endpoint"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
 	. "github.com/mailgun/vulcand/plugin"

@@ -1,7 +1,7 @@
 package main
 
 import (
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	log "github.com/mailgun/gotools-log"
 	"os"
 )
 

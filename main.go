@@ -7,13 +7,12 @@ import (
 )
 
 func main() {
-	options, err := service.ParseCommandLine()
+	r, err := GetRegistry()
 	if err != nil {
-		fmt.Printf("Failed to parse command line: %s\n", err)
-		return
+		fmt.Printf("Service exited with error: %s\n", err)
+		os.Exit(255)
 	}
-	service := service.NewService(options)
-	if err := service.Start(); err != nil {
+	if err := service.Run(r); err != nil {
 		fmt.Printf("Service exited with error: %s\n", err)
 		os.Exit(255)
 	} else {

@@ -2,10 +2,10 @@ package ratelimit
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/codegangsta/cli"
+	"github.com/mailgun/vulcan/limit"
+	"github.com/mailgun/vulcan/limit/tokenbucket"
+	"github.com/mailgun/vulcan/middleware"
 	"github.com/mailgun/vulcand/plugin"
 	"time"
 )
