@@ -1,4 +1,4 @@
-package main
+package command
 
 import (
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/plugin"
-	"github.com/mailgun/vulcand/plugin/registry"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -16,11 +15,12 @@ import (
 const CurrentVersion = "v1"
 
 type Client struct {
-	Addr string
+	Addr     string
+	Registry *Registry
 }
 
-func NewClient(addr string) *Client {
-	return &Client{Addr: addr}
+func NewClient(addr string, registry *Registry) *Client {
+	return &Client{Addr: addr, Registry: registry}
 }
 
 func (c *Client) GetStatus() error {
@@ -33,7 +33,7 @@ func (c *Client) GetHosts() ([]*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	return HostsFromJson(data, registry.GetRegistry().GetSpec)
+	return HostsFromJson(data, c.Registry.GetSpec)
 }
 
 func (c *Client) AddHost(name string) (*Host, error) {
@@ -45,7 +45,7 @@ func (c *Client) AddHost(name string) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	return HostFromJson(response, registry.GetRegistry().GetSpec)
+	return HostFromJson(response, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteHost(name string) (*StatusResponse, error) {
@@ -61,7 +61,7 @@ func (c *Client) AddLocation(hostname, id, path, upstream string) (*Location, er
 	if err != nil {
 		return nil, err
 	}
-	return LocationFromJson(response, registry.GetRegistry().GetSpec)
+	return LocationFromJson(response, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteLocation(hostname, id string) (*StatusResponse, error) {
@@ -142,7 +142,7 @@ func (c *Client) AddMiddleware(spec *MiddlewareSpec, hostname, locationId string
 	if err != nil {
 		return nil, err
 	}
-	return MiddlewareFromJson(data, registry.GetRegistry().GetSpec)
+	return MiddlewareFromJson(data, c.Registry.GetSpec)
 }
 
 func (c *Client) UpdateMiddleware(spec *MiddlewareSpec, hostname, locationId string, m *MiddlewareInstance) (*MiddlewareInstance, error) {
@@ -151,7 +151,7 @@ func (c *Client) UpdateMiddleware(spec *MiddlewareSpec, hostname, locationId str
 	if err != nil {
 		return nil, err
 	}
-	return MiddlewareFromJson(data, registry.GetRegistry().GetSpec)
+	return MiddlewareFromJson(data, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteMiddleware(spec *MiddlewareSpec, hostname, locationId, mId string) (*StatusResponse, error) {

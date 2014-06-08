@@ -5,13 +5,13 @@ import (
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
 	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"net/http/httptest"
 	"testing"
 )
@@ -41,7 +41,7 @@ func (s *ApiSuite) SetUpTest(c *C) {
 
 	InitProxyController(s.backend, adapter.NewAdapter(proxy), configurator.GetConnWatcher(), muxRouter)
 	s.testServer = httptest.NewServer(muxRouter)
-	s.client = NewClient(s.testServer.URL)
+	s.client = NewClient(s.testServer.URL, registry.GetRegistry())
 }
 
 func (s *ApiSuite) TearDownTest(c *C) {

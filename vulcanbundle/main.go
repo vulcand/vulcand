@@ -1,15 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 )
 
 var vulcanUrl string
@@ -20,137 +18,132 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "vulcanbundle"
 	app.Usage = "Command line interface to compile plugins into vulcan binary"
-	app.Flags = []cli.Flag{
-		cli.StringSliceFlag{
-			"middleware, m",
-			&cli.StringSlice{},
-			"Path to repo and revision, e.g. github.com/mailgun/vulcand-plugins/auth:6653291c990005550b334ce3a516d840a4e040f5",
+	app.Commands = []cli.Command{
+		{
+			Name:   "init",
+			Usage:  "Init bundle",
+			Action: initBundle,
+			Flags: []cli.Flag{
+				cli.StringSliceFlag{
+					"middleware, m",
+					&cli.StringSlice{},
+					"Path to repo and revision, e.g. github.com/mailgun/vulcand-plugins/auth",
+				},
+			},
 		},
 	}
-	app.Action = bundle
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Errorf("Error: %s\n", err)
 	}
 }
 
-func bundle(c *cli.Context) {
-	log.Infof("Compiling middlewares: %s", c.StringSlice("middleware"))
-	middlewares, err := parseMiddlewares(c.StringSlice("middleware"))
+func initBundle(c *cli.Context) {
+	b, err := NewBundler(c.StringSlice("middleware"))
 	if err != nil {
-		log.Errorf("Failed to parse middlewares: %s", err)
+		log.Errorf("Failed to bundle middlewares: %s", err)
 		return
 	}
-	if err := bundleMiddlewares(middlewares); err != nil {
+	if err := b.bundle(); err != nil {
 		log.Errorf("Failed to bundle middlewares: %s", err)
+	} else {
+		log.Infof("SUCCESS: bundle vulcand and vulcanctl completed")
 	}
 }
 
-func bundleMiddlewares(middlewares []Dependency) error {
-	bundleDir, err := filepath.Abs("bundle")
-	if err != nil {
-		return err
-	}
-	log.Infof("Downloading vulcand into %s", bundleDir)
-	if err := runGo(bundleDir, "get", "github.com/mailgun/vulcand"); err != nil {
-		return err
-	}
-	godepsPath := filepath.Join(bundleDir, "src", "github.com", "mailgun", "vulcand", "Godeps", "Godeps.json")
-	data, err := ioutil.ReadFile(godepsPath)
-	if err != nil {
-		return err
-	}
-	log.Infof("Reading godeps")
-	var godeps *Godeps
-	if err := json.Unmarshal(data, &godeps); err != nil {
-		return err
-	}
-	log.Infof("Injecting deps")
-	// Remove deps taht are
-	for _, godep := range godeps.Deps {
-		for _, m := range middlewares {
-			if m.ImportPath == godep.ImportPath {
+type Bundler struct {
+	bundleDir   string
+	middlewares []string
+}
 
-			}
-		}
-	}
-	godeps.Deps = append(godeps.Deps, middlewares...)
-	encoded, err := json.MarshalIndent(godeps, "", "\t")
-	if err != nil {
+func NewBundler(middlewares []string) (*Bundler, error) {
+	return &Bundler{middlewares: middlewares}, nil
+}
+
+func (b *Bundler) bundle() error {
+	if err := b.writeTemplates(); err != nil {
 		return err
 	}
-	log.Infof("Writing new godeps")
-	if err := ioutil.WriteFile(godepsPath, encoded, 0644); err != nil {
-		return err
-	}
-	log.Infof("Compiling dependencies")
 	return nil
 }
 
-type Godeps struct {
-	ImportPath string
-	GoVersion  string
-	Packages   []string `json:",omitempty"`
-	Deps       []Dependency
-}
-
-type Dependency struct {
-	ImportPath string
-	Comment    string `json:",omitempty"`
-	Rev        string
-}
-
-func parseMiddlewares(in []string) ([]Dependency, error) {
-	out := make([]Dependency, len(in))
-	for i, val := range in {
-		middleware, err := parseMiddleware(val)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = *middleware
+func (b *Bundler) writeTemplates() error {
+	vulcandPath := "."
+	packagePath, err := getPackagePath(vulcandPath)
+	if err != nil {
+		return err
 	}
-	return out, nil
+
+	context := struct {
+		Packages    []Package
+		PackagePath string
+	}{
+		Packages:    appendPackages(builtinPackages(), b.middlewares),
+		PackagePath: packagePath,
+	}
+
+	if err := writeTemplate(
+		filepath.Join(vulcandPath, "main.go"), mainTemplate, context); err != nil {
+		return err
+	}
+	if err := writeTemplate(
+		filepath.Join(vulcandPath, "registry", "registry.go"), registryTemplate, context); err != nil {
+		return err
+	}
+
+	if err := writeTemplate(
+		filepath.Join(vulcandPath, "vulcanctl", "main.go"), vulcanctlTemplate, context); err != nil {
+		return err
+	}
+	return nil
 }
 
-func parseMiddleware(val string) (*Dependency, error) {
-	out := strings.SplitN(val, ":", 2)
+type Package string
+
+func (p Package) Name() string {
+	values := strings.Split(string(p), "/")
+	return values[len(values)-1]
+}
+
+func builtinPackages() []Package {
+	return []Package{
+		"github.com/mailgun/vulcand/plugin/connlimit",
+		"github.com/mailgun/vulcand/plugin/ratelimit",
+	}
+}
+
+func getPackagePath(dir string) (string, error) {
+	path, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	out := strings.Split(path, "src/")
 	if len(out) != 2 {
-		return nil, fmt.Errorf("Expected path <repo-path>:<revision>, got: %s", out)
+		return "", fmt.Errorf("Failed to locate package path (missing top level src folder)")
 	}
-	return &Dependency{ImportPath: out[0], Rev: out[1], Comment: "Injected by vulcanbundle"}, nil
+	return out[1], nil
 }
 
-func runCommand(cmd string, args ...string) error {
-	c := exec.Command(cmd, args...)
-	c.Stdin = os.Stdin
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
-}
-
-func runGo(gopath string, args ...string) error {
-	c := exec.Command("go", args...)
-	c.Env = append(envNoGopath(), "GOPATH="+gopath)
-	c.Stdin = os.Stdin
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
-}
-
-func runGodepGo(gopath string, args ...string) error {
-	c := exec.Command("godep", append([]string{"go"}, args...)...)
-	c.Env = append(envNoGopath(), "GOPATH="+gopath)
-	c.Stdin = os.Stdin
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
-}
-
-func envNoGopath() (a []string) {
-	for _, s := range os.Environ() {
-		if !strings.HasPrefix(s, "GOPATH=") {
-			a = append(a, s)
-		}
+func appendPackages(in []Package, a []string) []Package {
+	for _, p := range a {
+		in = append(in, Package(p))
 	}
-	return a
+	return in
+}
+
+func writeTemplate(filename, contents string, data interface{}) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+
+	t, err := template.New(filename).Parse(contents)
+	if err != nil {
+		return err
+	}
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return t.Execute(file, data)
 }

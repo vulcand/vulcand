@@ -1,9 +1,10 @@
-package main
+package command
 
 import (
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/api"
+	"github.com/mailgun/vulcand/plugin"
 	"io"
 	"os"
 	"strings"
@@ -13,11 +14,13 @@ type Command struct {
 	vulcanUrl string
 	client    *api.Client
 	out       io.Writer
+	registry  *plugin.Registry
 }
 
-func NewCommand() *Command {
+func NewCommand(registry *plugin.Registry) *Command {
 	return &Command{
-		out: os.Stdout,
+		out:      os.Stdout,
+		registry: registry,
 	}
 }
 
@@ -27,7 +30,7 @@ func (cmd *Command) Run(args []string) error {
 		return err
 	}
 	cmd.vulcanUrl = url
-	cmd.client = api.NewClient(cmd.vulcanUrl)
+	cmd.client = api.NewClient(cmd.vulcanUrl, cmd.registry)
 
 	app := cli.NewApp()
 	app.Name = "vulcanctl"

@@ -6,10 +6,10 @@ cover-with-vulcan: clean
 	go tool cover -html=/tmp/coverage.out
 
 test: clean
-	go test -v ./ -cover
+	go test -v ./command -cover
 
 cover: clean
-	go test -v ./ -coverprofile=/tmp/coverage.out
+	go test -v ./command -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
 clean:

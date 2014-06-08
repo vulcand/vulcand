@@ -1,16 +1,15 @@
-package main
+package command
 
 import (
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/plugin"
-	"github.com/mailgun/vulcand/plugin/registry"
 )
 
 func NewMiddlewareCommands(cmd *Command) []cli.Command {
 	out := []cli.Command{}
-	for _, spec := range registry.GetRegistry().GetSpecs() {
+	for _, spec := range cmd.registry.GetSpecs() {
 		if spec.CliFlags != nil && spec.FromCli != nil {
 			out = append(out, makeMiddlewareCommands(cmd, spec))
 		}

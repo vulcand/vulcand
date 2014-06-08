@@ -1,4 +1,4 @@
-package main
+package command
 
 import (
 	"bytes"
@@ -47,7 +47,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	s.testServer = httptest.NewServer(muxRouter)
 
 	s.out = &bytes.Buffer{}
-	s.cmd = &Command{out: s.out, vulcanUrl: s.testServer.URL}
+	s.cmd = &Command{registry: registry.GetRegistry(), out: s.out, vulcanUrl: s.testServer.URL}
 }
 
 func (s *CmdSuite) runString(in string) string {
