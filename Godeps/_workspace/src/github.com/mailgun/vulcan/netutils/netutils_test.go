@@ -58,6 +58,11 @@ func (s *NetUtilsSuite) TestParseSuccess(c *C) {
 			"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
 			BasicAuth{Username: "Aladdin", Password: "open sesame"},
 		},
+		// Make sure that String() produces valid header
+		{
+			(&BasicAuth{Username: "Alice", Password: "Here's bob"}).String(),
+			BasicAuth{Username: "Alice", Password: "Here's bob"},
+		},
 		//empty pass
 		{
 			"Basic QWxhZGRpbjo=",

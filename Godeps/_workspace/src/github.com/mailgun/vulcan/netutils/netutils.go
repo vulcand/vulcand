@@ -76,6 +76,11 @@ type BasicAuth struct {
 	Password string
 }
 
+func (ba *BasicAuth) String() string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", ba.Username, ba.Password)))
+	return fmt.Sprintf("Basic %s", encoded)
+}
+
 func ParseAuthHeader(header string) (*BasicAuth, error) {
 
 	values := strings.Fields(header)
