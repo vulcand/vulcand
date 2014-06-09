@@ -9,7 +9,7 @@ Vulcand
 Project info
 ------------
 
-| ------------- |-----------------------------------------------------------------|
 | documentation | http://www.vulcanproxy.com                                      |
+| :------------- |:-----------------------------------------------------------------|
 | status        | Hardening, testing, benchmarking. Not usable for production yet |
 | discussions   | https://groups.google.com/d/forum/vulcan-proxy                  |
