@@ -1,15 +1,15 @@
 test-with-vulcan: clean
-	VULCAND_TEST_API_URL=${VULCAN_API_URL} VULCAND_TEST_SERVICE_URL=${VULCAN_SERVICE_URL} go test -v ./ -cover
+	VULCAND_TEST_API_URL=${VULCAN_API_URL} VULCAND_TEST_SERVICE_URL=${VULCAN_SERVICE_URL} go test -v ./command -cover
 
 cover-with-vulcan: clean
-	VULCAND_TEST_API_URL=${VULCAN_API_URL} VULCAND_TEST_SERVICE_URL=${VULCAN_SERVICE_URL} go test -v ./ -coverprofile=/tmp/coverage.out
+	VULCAND_TEST_API_URL=${VULCAN_API_URL} VULCAND_TEST_SERVICE_URL=${VULCAN_SERVICE_URL} go test -v ./command -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
 test: clean
-	go test -v ./ -cover
+	go test -v ./command -cover
 
 cover: clean
-	go test -v ./ -coverprofile=/tmp/coverage.out
+	go test -v ./command -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
 clean:
