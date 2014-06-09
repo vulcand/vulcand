@@ -1,0 +1,65 @@
+#header #toggle_code_lang a.current {
+    background-color: white;
+    /* background-color: grey; */
+    /* background-image: linear-gradient(bottom, white 50%, grey 90%); */
+    /* background-image: -o-linear-gradient(bottom, white 50%, grey 90%); */
+    /* background-image: -moz-linear-gradient(bottom, white 50%, grey 90%); */
+    /* background-image: -webkit-linear-gradient(bottom, white 50%, grey 90%); */
+    /* background-image: -ms-linear-gradient(bottom, white 50%, grey 90%); */
+
+}
+
+html #header #toggle_code_lang a.current:hover {
+    background-image: none;
+    background-color: grey;
+}
+
+html #header {
+    display: block;
+    z-index: 10;
+    width: 100%;
+    position: absolute;
+    top: 92px;
+    margin-left: -9px;
+}
+
+html #sphinxsidebar {
+    top: 114px;
+}
+
+#toggle_code_lang {
+    text-align: left;
+}
+
+#toggle_code_lang a {
+    float: left;
+}
+
+#toggle_code_lang label {
+    padding-left: 5px;
+}
+
+#headerButtons {
+    height: 23px;
+}
+
+#header #headerButtons {
+    border-bottom: 1px solid #ACACAC;
+}
+
+div.document {
+    margin-top: 22px;
+}
+
+html #header #headerButtons {
+    background-image: linear-gradient(bottom, #ACACAC 14%, #D8D8D8 57%);
+    background-image: -o-linear-gradient(bottom, #ACACAC 14%, #D8D8D8 57%);
+    background-image: -moz-linear-gradient(bottom, #ACACAC 14%, #D8D8D8 57%);
+    background-image: -webkit-linear-gradient(bottom, #ACACAC 14%, #D8D8D8 57%);
+    background-image: -ms-linear-gradient(bottom, #ACACAC 14%, #D8D8D8 57%);
+}
+
+#toggle_code_lang .headerButton a {
+    border-left: none;
+    border-right: 1px solid #ACACAC;
+}
