@@ -1,7 +1,7 @@
 .. _proxy:
 
-Proxy
-=====
+Vulcand - Proxy
+===============
 
 .. warning::  Status: Hardening, testing, benchmarking. Not usable for production yet.
 

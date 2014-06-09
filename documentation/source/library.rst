@@ -1,7 +1,7 @@
 .. _library:
 
-Library
-=======
+Vulcan - Reverse proxy library
+==============================
 
 Vulcan is a library for creating reverse http proxies written in Go.  If you are wondering, why would you need one, probably this doc is not for you, check out :ref:`proxy` docs instead.
 
