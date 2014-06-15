@@ -13,7 +13,7 @@ deploy:
 install-devmode:
 	pip install livereload
 
-devmode-run:
+run-devmode:
 	python run.py
 
 clean:

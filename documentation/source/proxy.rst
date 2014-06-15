@@ -1,7 +1,7 @@
 .. _proxy:
 
-Vulcand - Proxy
-===============
+Vulcand - Installation and Config
+=================================
 
 .. warning::  Status: Hardening, testing, benchmarking. Not usable for production yet.
 
@@ -12,7 +12,7 @@ Vulcand - Proxy
 
 Mailing list: https://groups.google.com/d/forum/vulcan-proxy
 
-.. figure::  http://coreos.com/assets/images/media/vulcan-1-upstream.png
+.. figure::  _static/img/coreos/vulcan-1-upstream.png
    :align:   center
 
    How Vulcand works
@@ -31,7 +31,7 @@ Location
 Hosts contain one or several locations. Each location defines a path - simply a regular expression that will be matched against request's url.
 Location contains link to an upstream and vulcand will use the endpoints from this upstream to serve the request.
 
-.. figure::  http://coreos.com/assets/images/media/vulcan-diagram.png
+.. figure::  _static/img/coreos/vulcan-diagram.png
    :align:   center
 
    Location ``loc1`` will serve the request ``curl http://example.com/search`` because it matches the path ``/search`` and host ``example.com``
@@ -120,8 +120,8 @@ Vulcan supports setting rate and connection limits.
  etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/connlimit/rl1 '{"Type": "connlimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
 
 
-Command line
-------------
+Vulcanctl
+---------
 
 Vulcanctl is a command line tool that provides a convenient way to confugure Vulcand processes.
 

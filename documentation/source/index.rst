@@ -9,4 +9,6 @@ Tools for building dynamic and easilly expandable HTTP reverse proxies.
    :maxdepth: 2
 
    proxy
+   middlewares
    library
+
