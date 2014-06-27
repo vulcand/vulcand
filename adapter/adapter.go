@@ -74,7 +74,7 @@ func (a *Adapter) GetStats(hostname, locationId string, e *Endpoint) *EndpointSt
 	return &EndpointStats{
 		Successes:     meter.SuccessCount(),
 		Failures:      meter.FailureCount(),
-		PeriodSeconds: int(meter.WindowSize() / time.Second),
+		PeriodSeconds: int(meter.GetWindowSize() / time.Second),
 		FailRate:      meter.GetRate(),
 	}
 }

@@ -116,7 +116,6 @@ func (l *HttpLocation) RoundTrip(req Request) (*http.Response, error) {
 		// e.g. to do request failover. Nil error means that we got proxied the request successfully.
 		response, err := l.proxyToEndpoint(endpoint, req, newRequest)
 		if l.options.ShouldFailover(req) {
-			log.Errorf("Request(%s) failover", req)
 			continue
 		} else {
 			return response, err

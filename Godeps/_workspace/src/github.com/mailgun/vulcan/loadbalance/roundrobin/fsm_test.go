@@ -21,11 +21,12 @@ func (s *FSMSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *FSMSuite) newF() *FSMHandler {
-	o, err := NewFSMHandlerWithOptions(s.tm, FSMDefaultProbingPeriod)
+func (s *FSMSuite) newF(endpoints []*WeightedEndpoint) *FSMHandler {
+	o, err := NewFSMHandlerWithOptions(s.tm)
 	if err != nil {
 		panic(err)
 	}
+	o.Init(endpoints)
 	return o
 }
 
@@ -34,121 +35,155 @@ func (s *FSMSuite) advanceTime(d time.Duration) {
 }
 
 // Check our special greater function that neglects insigificant differences
-func (s *FSMSuite) TestFSMGreater(c *C) {
+func (s *FSMSuite) TestFSMSplit(c *C) {
 	vals := []struct {
-		a        float64
-		b        float64
-		expected bool
+		endpoints []*WeightedEndpoint
+		good      []int
+		bad       []int
 	}{
-		{0, 0, false},
-		{0.1, 0.1, false},
-		{0.15, 0.1, false},
-		{0.01, 0.01, false},
-		{0.012, 0.01, false},
-		{0.2, 0.1, true},
-		{0.51, 0.1, true},
+		{
+			endpoints: newW(0, 0),
+			good:      []int{0, 1},
+			bad:       []int{},
+		},
+		{
+			endpoints: newW(0, 1),
+			good:      []int{0},
+			bad:       []int{1},
+		},
+		{
+			endpoints: newW(0.1, 0.1),
+			good:      []int{0, 1},
+			bad:       []int{},
+		},
+		{
+			endpoints: newW(0.15, 0.1),
+			good:      []int{1},
+			bad:       []int{0},
+		},
+		{
+			endpoints: newW(0.01, 0.01),
+			good:      []int{0, 1},
+			bad:       []int{},
+		},
+		{
+			endpoints: newW(0.012, 0.01, 1),
+			good:      []int{0, 1},
+			bad:       []int{2},
+		},
+		{
+			endpoints: newW(0, 0, 1, 1),
+			good:      []int{0, 1},
+			bad:       []int{2, 3},
+		},
+		{
+			endpoints: newW(0, 0.1, 0.1, 0),
+			good:      []int{0, 3},
+			bad:       []int{1, 2},
+		},
+		{
+			endpoints: newW(0, 0.01, 0.1, 0),
+			good:      []int{0, 3},
+			bad:       []int{1, 2},
+		},
+		{
+			endpoints: newW(0, 0.01, 0.02, 1),
+			good:      []int{0, 1, 2},
+			bad:       []int{3},
+		},
+		{
+			endpoints: newW(0, 0, 0, 0, 0, 0.01, 0.02, 1),
+			good:      []int{0, 1, 2, 3, 4},
+			bad:       []int{5, 6, 7},
+		},
 	}
 	for _, v := range vals {
-		c.Assert(greater(v.a, v.b), Equals, v.expected)
+		good, bad := splitEndpoints(v.endpoints)
+		for _, id := range v.good {
+			c.Assert(good[fmt.Sprintf("http://localhost:500%d", id)], Equals, true)
+		}
+		for _, id := range v.bad {
+			c.Assert(bad[fmt.Sprintf("http://localhost:500%d", id)], Equals, true)
+		}
 	}
 }
 
 func (s *FSMSuite) TestInvalidParameters(c *C) {
-	_, err := NewFSMHandlerWithOptions(nil, FSMDefaultProbingPeriod)
-	c.Assert(err, NotNil)
-
-	_, err = NewFSMHandlerWithOptions(s.tm, time.Millisecond)
+	_, err := NewFSMHandlerWithOptions(nil)
 	c.Assert(err, NotNil)
 }
 
 func (s *FSMSuite) TestNoEndpoints(c *C) {
-	adjusted, err := s.newF().AdjustWeights(newW())
+	adjusted, err := s.newF(newW()).AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(adjusted, IsNil)
+	c.Assert(len(adjusted), Equals, 0)
 }
 
 func (s *FSMSuite) TestOneEndpoint(c *C) {
-	adjusted, err := s.newF().AdjustWeights(newW(1))
+	adjusted, err := s.newF(newW(1)).AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(adjusted, IsNil)
-
-	adjusted, err = s.newF().AdjustWeights(newW(0))
-	c.Assert(err, IsNil)
-	c.Assert(adjusted, IsNil)
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1})
 }
 
 func (s *FSMSuite) TestAllEndpointsAreGood(c *C) {
-	adjusted, err := s.newF().AdjustWeights(newW(0, 0))
+	adjusted, err := s.newF(newW(0, 0)).AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(adjusted, IsNil)
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, 1})
 }
 
 func (s *FSMSuite) TestAllEndpointsAreBad(c *C) {
-	adjusted, err := s.newF().AdjustWeights(newW(0.13, 0.14))
+	adjusted, err := s.newF(newW(0.13, 0.14, 0.14)).AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(adjusted, IsNil)
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, 1, 1})
 }
 
 func (s *FSMSuite) TestMetricsAreNotReady(c *C) {
 	endpoints := []*WeightedEndpoint{
 		&WeightedEndpoint{
-			failRateMeter:   &metrics.TestMeter{Rate: 0.5, NotReady: true},
+			meter:           &metrics.TestMeter{Rate: 0.5, NotReady: true},
 			endpoint:        endpoint.MustParseUrl("http://localhost:5000"),
 			weight:          1,
 			effectiveWeight: 1,
 		},
 		&WeightedEndpoint{
-			failRateMeter:   &metrics.TestMeter{Rate: 0, NotReady: true},
+			meter:           &metrics.TestMeter{Rate: 0, NotReady: true},
 			endpoint:        endpoint.MustParseUrl("http://localhost:5001"),
 			weight:          1,
 			effectiveWeight: 1,
 		},
 	}
-	adjusted, err := s.newF().AdjustWeights(endpoints)
+	adjusted, err := s.newF(endpoints).AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(adjusted, IsNil)
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, 1})
 }
 
 func (s *FSMSuite) TestWeightIncrease(c *C) {
-	f := s.newF()
 	endpoints := newW(0.5, 0)
-	good := endpoints[1]
-	adjusted, err := f.AdjustWeights(endpoints)
+	f := s.newF(endpoints)
 
-	// It will adjust weight and enter probing state
+	adjusted, err := f.AdjustWeights()
+
+	// It will adjust weights and set timer
 	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 1)
-	c.Assert(f.GetState(), DeepEquals, FSMState(FSMProbing))
-	c.Assert(adjusted[0].GetWeight(), Equals, FSMGrowFactor)
+	c.Assert(len(adjusted), Equals, 2)
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, FSMGrowFactor})
+	for _, a := range adjusted {
+		a.GetEndpoint().setEffectiveWeight(a.GetWeight())
+	}
 
-	// We've increased weight of the "better endpoint"
-	c.Assert(adjusted[0].GetEndpoint(), Equals, good)
-
-	// Let's actually apply the weight
-	adjusted[0].GetEndpoint().setEffectiveWeight(adjusted[0].GetWeight())
-
-	// Probing state will wait some time until we gather some stats
-	adjusted, err = f.AdjustWeights(endpoints)
+	// We will wait some time until we gather some stats
+	adjusted, err = f.AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 0)
-
-	// Time has passed and we have commited the weights and went back to start
-	s.advanceTime(FSMDefaultProbingPeriod + time.Second)
-	adjusted, err = f.AdjustWeights(endpoints)
-	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 0)
-	c.Assert(f.GetState(), Equals, FSMState(FSMStart))
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, FSMGrowFactor})
 
 	// As time passes, let's repeat this procedure to see if we hit the ceiling
 	for i := 0; i < 6; i += 1 {
-		adjusted, err := f.AdjustWeights(endpoints)
+		adjusted, err := f.AdjustWeights()
 		c.Assert(err, IsNil)
-		if len(adjusted) != 0 {
-			for _, a := range adjusted {
-				a.GetEndpoint().setEffectiveWeight(a.GetWeight())
-			}
+		for _, a := range adjusted {
+			a.GetEndpoint().setEffectiveWeight(a.GetWeight())
 		}
-		s.advanceTime(FSMDefaultProbingPeriod + time.Second)
+		s.advanceTime(endpoints[0].meter.GetWindowSize()/2 + time.Second)
 	}
 
 	// Algo has not changed the weight of the bad endpoint
@@ -158,95 +193,95 @@ func (s *FSMSuite) TestWeightIncrease(c *C) {
 }
 
 func (s *FSMSuite) TestRevert(c *C) {
-	f := s.newF()
 	endpoints := newW(0.5, 0)
-	bad, good := endpoints[0], endpoints[1]
+	f := s.newF(endpoints)
 
-	adjusted, err := f.AdjustWeights(endpoints)
-
+	bad := endpoints[0]
+	adjusted, err := f.AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 1)
-	c.Assert(adjusted[0].GetWeight(), Equals, FSMGrowFactor)
-	// Apply the suggested changes
-
-	adjusted[0].GetEndpoint().setEffectiveWeight(adjusted[0].GetWeight())
-	// Make sure we've commited the changes and went back to the start state
-	s.advanceTime(FSMDefaultProbingPeriod + time.Second)
-	f.AdjustWeights(endpoints)
-	c.Assert(f.GetState(), Equals, FSMState(FSMStart))
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, FSMGrowFactor})
+	for _, a := range adjusted {
+		a.GetEndpoint().setEffectiveWeight(a.GetWeight())
+	}
 
 	// The situation have recovered, so FSM will try to bring back the bad endpoint into life by reverting the weights back
-	c.Assert(good.GetEffectiveWeight(), Equals, FSMGrowFactor)
+	s.advanceTime(endpoints[0].meter.GetWindowSize()/2 + time.Second)
 	bad.GetMeter().(*metrics.TestMeter).Rate = 0
+	f.AdjustWeights()
 
-	adjusted, err = f.AdjustWeights(endpoints)
+	adjusted, err = f.AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 1)
-	adjusted[0].GetEndpoint().setEffectiveWeight(adjusted[0].GetWeight())
-	c.Assert(good.GetEffectiveWeight(), Equals, 1)
-	c.Assert(bad.GetEffectiveWeight(), Equals, 1)
-	c.Assert(f.GetState(), Equals, FSMState(FSMRevert))
-
-	// We've successfully returned back to the original state
-	s.advanceTime(FSMDefaultProbingPeriod + time.Second)
-	adjusted, err = f.AdjustWeights(endpoints)
-	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 0)
-	c.Assert(f.GetState(), Equals, FSMState(FSMStart))
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, 1})
 }
 
-// Case when the probing went wrong
+// Case when the increasing weights went wrong and the good endpoints started failing
 func (s *FSMSuite) TestProbingUnsuccessfull(c *C) {
-	f := s.newF()
-	endpoints := newW(0.5, 0.01)
-	good := endpoints[1]
-	adjusted, err := f.AdjustWeights(endpoints)
+	endpoints := newW(0.5, 0.5, 0, 0, 0)
+	f := s.newF(endpoints)
 
-	// It will adjust weight and enter probing state
+	adjusted, err := f.AdjustWeights()
+
+	// It will adjust weight and set timer
 	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 1)
-	c.Assert(f.GetState(), Equals, FSMState(FSMProbing))
-	c.Assert(adjusted[0].GetWeight(), Equals, FSMGrowFactor)
-
-	// We've increased weight of the "better endpoint"
-	c.Assert(adjusted[0].GetEndpoint(), Equals, good)
-	adjusted[0].GetEndpoint().setEffectiveWeight(adjusted[0].GetWeight())
-
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, 1, FSMGrowFactor, FSMGrowFactor, FSMGrowFactor})
+	for _, a := range adjusted {
+		a.GetEndpoint().setEffectiveWeight(a.GetWeight())
+	}
 	// Times has passed and good endpoint appears to behave worse now, oh no!
-	good.GetMeter().(*metrics.TestMeter).Rate = 0.2
-	s.advanceTime(FSMDefaultProbingPeriod + time.Second)
+	for _, e := range endpoints {
+		e.GetMeter().(*metrics.TestMeter).Rate = 0.5
+	}
+	s.advanceTime(endpoints[0].meter.GetWindowSize()/2 + time.Second)
 
-	// We will go to rollback state now and revert the weights
-	adjusted, err = f.AdjustWeights(endpoints)
+	// As long as all endpoints are equally bad now, we will revert weights back
+	adjusted, err = f.AdjustWeights()
 	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 1)
-	c.Assert(adjusted[0].GetEndpoint(), Equals, good)
-	c.Assert(adjusted[0].GetWeight(), Equals, 1)
-	adjusted[0].GetEndpoint().setEffectiveWeight(adjusted[0].GetWeight())
-	c.Assert(f.GetState(), Equals, FSMState(FSMRollback))
+	c.Assert(getWeights(adjusted), DeepEquals, []int{1, 1, 1, 1, 1})
+}
 
-	// We are in the rollback state until time passes
-	adjusted, err = f.AdjustWeights(endpoints)
-	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 0)
-	c.Assert(f.GetState(), Equals, FSMState(FSMRollback))
+func (s *FSMSuite) TestNormalize(c *C) {
+	weights := newWeights(1, 2, 3, 4)
+	c.Assert(weights, DeepEquals, normalizeWeights(weights))
+	c.Assert(newWeights(1, 1, 1, 4), DeepEquals, normalizeWeights(newWeights(4, 4, 4, 16)))
+}
 
-	// Time has passed and we have commited the weights and went back to start
-	s.advanceTime(FSMDefaultProbingPeriod + time.Second)
-	adjusted, err = f.AdjustWeights(endpoints)
-	c.Assert(err, IsNil)
-	c.Assert(len(adjusted), Equals, 0)
-	c.Assert(f.GetState(), Equals, FSMState(FSMStart))
+func (s *FSMSuite) TestMedian(c *C) {
+	c.Assert(median([]float64{0.1, 0.2}), Equals, (float64(0.1)+float64(0.2))/2.0)
+	c.Assert(median([]float64{0.3, 0.2, 0.5}), Equals, 0.3)
+}
+
+func (s *FSMSuite) TestMedianEndpoint(c *C) {
+	c.Assert(medianEndpoint(newW(0.1, 0.2)), Equals, (float64(0.1)+float64(0.2))/2.0)
+	c.Assert(medianEndpoint(newW(0.5, 0.1, 0.2)), Equals, 0.2)
 }
 
 func newW(failRates ...float64) []*WeightedEndpoint {
 	out := make([]*WeightedEndpoint, len(failRates))
 	for i, r := range failRates {
 		out[i] = &WeightedEndpoint{
-			failRateMeter:   &metrics.TestMeter{Rate: r},
+			meter:           &metrics.TestMeter{Rate: r, WindowSize: time.Second * 10},
 			endpoint:        endpoint.MustParseUrl(fmt.Sprintf("http://localhost:500%d", i)),
 			weight:          1,
 			effectiveWeight: 1,
+		}
+	}
+	return out
+}
+
+func getWeights(weights []SuggestedWeight) []int {
+	out := make([]int, len(weights))
+	for i, w := range weights {
+		out[i] = w.GetWeight()
+	}
+	return out
+}
+
+func newWeights(weights ...int) []SuggestedWeight {
+	out := make([]SuggestedWeight, len(weights))
+	for i, w := range weights {
+		out[i] = &EndpointWeight{
+			Weight:   w,
+			Endpoint: &WeightedEndpoint{endpoint: endpoint.MustParseUrl(fmt.Sprintf("http://localhost:500%d", i))},
 		}
 	}
 	return out

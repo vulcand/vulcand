@@ -13,6 +13,7 @@ import (
 type FailRateMeter interface {
 	GetRate() float64
 	IsReady() bool
+	GetWindowSize() time.Duration
 	Observer
 }
 
@@ -95,7 +96,7 @@ func (em *RollingMeter) Buckets() int {
 	return em.buckets
 }
 
-func (em *RollingMeter) WindowSize() time.Duration {
+func (em *RollingMeter) GetWindowSize() time.Duration {
 	return time.Duration(em.buckets) * em.resolution
 }
 
@@ -172,8 +173,13 @@ func (em *RollingMeter) sum(buckets []int) int64 {
 }
 
 type TestMeter struct {
-	Rate     float64
-	NotReady bool
+	Rate       float64
+	NotReady   bool
+	WindowSize time.Duration
+}
+
+func (tm *TestMeter) GetWindowSize() time.Duration {
+	return tm.WindowSize
 }
 
 func (tm *TestMeter) IsReady() bool {
