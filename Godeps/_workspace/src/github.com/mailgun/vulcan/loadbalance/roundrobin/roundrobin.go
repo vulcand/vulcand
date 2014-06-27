@@ -40,21 +40,6 @@ type EndpointOptions struct {
 	Meter FailRateMeter
 }
 
-// Wraps the endpoint and adds support for weights and failure detection
-type WeightedEndpoint struct {
-	// This meter will accumulate endpoint stats in realtime and can be used
-	// for failure detection in the failure handlers.
-	failRateMeter FailRateMeter
-	// Original endpoint supplied by user
-	endpoint Endpoint
-	// Original weight supplied by user
-	weight int
-	// Current weight that is in effect at the moment
-	effectiveWeight int
-	// Reference to the parent load balancer
-	rr *RoundRobin
-}
-
 func NewRoundRobin() (*RoundRobin, error) {
 	return NewRoundRobinWithOptions(Options{})
 }
@@ -74,9 +59,12 @@ func NewRoundRobinWithOptions(o Options) (*RoundRobin, error) {
 }
 
 func (r *RoundRobin) NextEndpoint(req Request) (Endpoint, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	e, err := r.nextEndpoint(req)
 	if err != nil {
-		return e, err
+		return nil, err
 	}
 	lastAttempt := req.GetLastAttempt()
 	// This is the first try, so just return the selected endpoint
@@ -86,17 +74,20 @@ func (r *RoundRobin) NextEndpoint(req Request) (Endpoint, error) {
 	// Try to prevent failover to the same endpoint that we've seen before,
 	// that reduces the probability of the scenario when failover hits same endpoint
 	// on the next attempt and fails, so users will see a failed request.
-	if lastAttempt.GetEndpoint().GetId() == e.GetId() {
-		log.Infof("Preventing failover to the same endpoint, whoa")
-		return r.nextEndpoint(req)
+	var endpoint Endpoint
+	for _, _ = range r.endpoints {
+		endpoint, err = r.nextEndpoint(req)
+		if err != nil {
+			return nil, err
+		}
+		if !hasAttempted(req, endpoint) {
+			return endpoint, nil
+		}
 	}
-	return e, err
+	return endpoint, err
 }
 
 func (r *RoundRobin) nextEndpoint(req Request) (Endpoint, error) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	if len(r.endpoints) == 0 {
 		return nil, fmt.Errorf("No endpoints")
 	}
@@ -138,18 +129,21 @@ func (r *RoundRobin) adjustWeights() {
 	if r.options.FailureHandler == nil {
 		return
 	}
-	weights, err := r.options.FailureHandler.AdjustWeights(r.endpoints)
+	weights, err := r.options.FailureHandler.AdjustWeights()
 	if err != nil {
 		log.Errorf("%s returned error: %s", r.options.FailureHandler, err)
 		return
 	}
-	if len(weights) == 0 {
-		return
-	}
+	changed := false
 	for _, w := range weights {
-		w.GetEndpoint().setEffectiveWeight(w.GetWeight())
+		if w.GetEndpoint().GetEffectiveWeight() != w.GetWeight() {
+			w.GetEndpoint().setEffectiveWeight(w.GetWeight())
+			changed = true
+		}
 	}
-	r.resetIterator()
+	if changed {
+		r.resetIterator()
+	}
 }
 
 func (r *RoundRobin) GetEndpoints() []*WeightedEndpoint {
@@ -191,7 +185,7 @@ func (r *RoundRobin) resetIterator() {
 func (r *RoundRobin) resetState() {
 	r.resetIterator()
 	if r.options.FailureHandler != nil {
-		r.options.FailureHandler.Reset()
+		r.options.FailureHandler.Init(r.endpoints)
 	}
 }
 
@@ -248,7 +242,7 @@ func (rr *RoundRobin) newWeightedEndpoint(endpoint Endpoint, options EndpointOpt
 	}
 
 	return &WeightedEndpoint{
-		failRateMeter:   options.Meter,
+		meter:           options.Meter,
 		endpoint:        endpoint,
 		weight:          options.Weight,
 		effectiveWeight: options.Weight,
@@ -291,7 +285,7 @@ func (rr *RoundRobin) ObserveResponse(req Request, a Attempt) {
 		return
 	}
 	// Update stats for the endpoint after the request was done
-	we.failRateMeter.ObserveResponse(req, a)
+	we.meter.ObserveResponse(req, a)
 }
 
 func (rr *RoundRobin) maxWeight() int {
@@ -323,36 +317,6 @@ func gcd(a, b int) int {
 	return a
 }
 
-func (we *WeightedEndpoint) String() string {
-	return fmt.Sprintf("WeightedEndpoint(id=%s, url=%s, weight=%d, effectiveWeight=%d, failRate=%f)",
-		we.GetId(), we.GetUrl(), we.weight, we.effectiveWeight, we.failRateMeter.GetRate())
-}
-
-func (we *WeightedEndpoint) GetId() string {
-	return we.endpoint.GetId()
-}
-
-func (we *WeightedEndpoint) GetUrl() *url.URL {
-	return we.endpoint.GetUrl()
-}
-
-func (we *WeightedEndpoint) setEffectiveWeight(w int) {
-	log.Infof("%s setting effective weight to: %d", we, w)
-	we.effectiveWeight = w
-}
-
-func (we *WeightedEndpoint) GetOriginalWeight() int {
-	return we.weight
-}
-
-func (we *WeightedEndpoint) GetEffectiveWeight() int {
-	return we.effectiveWeight
-}
-
-func (we *WeightedEndpoint) GetMeter() FailRateMeter {
-	return we.failRateMeter
-}
-
 func validateOptions(o Options) (Options, error) {
 	if o.TimeProvider == nil {
 		o.TimeProvider = &timetools.RealTime{}
@@ -366,4 +330,13 @@ func validateOptions(o Options) (Options, error) {
 		o.FailureHandler = failureHandler
 	}
 	return o, nil
+}
+
+func hasAttempted(req Request, endpoint Endpoint) bool {
+	for _, a := range req.GetAttempts() {
+		if a.GetEndpoint().GetId() == endpoint.GetId() {
+			return true
+		}
+	}
+	return false
 }

@@ -28,7 +28,7 @@ func (s *RoundRobinSuite) SetUpSuite(c *C) {
 }
 
 func (s *RoundRobinSuite) newRR() *RoundRobin {
-	handler, err := NewFSMHandlerWithOptions(s.tm, FSMDefaultProbingPeriod)
+	handler, err := NewFSMHandlerWithOptions(s.tm)
 	if err != nil {
 		panic(err)
 	}
@@ -181,7 +181,7 @@ func (s *RoundRobinSuite) advanceTime(d time.Duration) {
 }
 
 func (s *RoundRobinSuite) TestReactsOnFailures(c *C) {
-	handler, err := NewFSMHandlerWithOptions(s.tm, FSMDefaultProbingPeriod)
+	handler, err := NewFSMHandlerWithOptions(s.tm)
 	c.Assert(err, IsNil)
 
 	r, err := NewRoundRobinWithOptions(
@@ -237,6 +237,35 @@ func (s *RoundRobinSuite) TestFailoverAvoidsSameEndpoint(c *C) {
 	u, err := r.NextEndpoint(failedRequest)
 	c.Assert(err, IsNil)
 	c.Assert(u, Equals, uB)
+}
+
+// Make sure that failover avoids to hit the same endpoints in case if there are multiple consequent failures
+func (s *RoundRobinSuite) TestFailoverAvoidsSameEndpointMultipleFailures(c *C) {
+	r := s.newRR()
+
+	uA := MustParseUrl("http://localhost:5000")
+	uB := MustParseUrl("http://localhost:5001")
+	uC := MustParseUrl("http://localhost:5002")
+	r.AddEndpoint(uA)
+	r.AddEndpoint(uB)
+	r.AddEndpoint(uC)
+
+	failedRequest := &BaseRequest{
+		Attempts: []Attempt{
+			&BaseAttempt{
+				Endpoint: uA,
+				Error:    fmt.Errorf("Something failed"),
+			},
+			&BaseAttempt{
+				Endpoint: uB,
+				Error:    fmt.Errorf("Something failed"),
+			},
+		},
+	}
+
+	u, err := r.NextEndpoint(failedRequest)
+	c.Assert(err, IsNil)
+	c.Assert(u, Equals, uC)
 }
 
 // Removing endpoints from the load balancer works fine as well
