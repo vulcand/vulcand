@@ -194,11 +194,15 @@ func (l *HttpLocation) rewriteRequest(req *http.Request, endpoint Endpoint) *htt
 		}
 		outReq.Header.Set(headers.XForwardedFor, clientIP)
 	}
-	if req.TLS != nil {
+
+	if xfp := req.Header.Get(headers.XForwardedProto); xfp != "" && l.options.TrustForwardHeader {
+		outReq.Header.Set(headers.XForwardedProto, xfp)
+	} else if req.TLS != nil {
 		outReq.Header.Set(headers.XForwardedProto, "https")
 	} else {
 		outReq.Header.Set(headers.XForwardedProto, "http")
 	}
+
 	if req.Host != "" {
 		outReq.Header.Set(headers.XForwardedHost, req.Host)
 	}

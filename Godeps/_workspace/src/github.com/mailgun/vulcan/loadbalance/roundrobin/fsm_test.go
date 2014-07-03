@@ -58,8 +58,8 @@ func (s *FSMSuite) TestFSMSplit(c *C) {
 		},
 		{
 			endpoints: newW(0.15, 0.1),
-			good:      []int{1},
-			bad:       []int{0},
+			good:      []int{0, 1},
+			bad:       []int{},
 		},
 		{
 			endpoints: newW(0.01, 0.01),

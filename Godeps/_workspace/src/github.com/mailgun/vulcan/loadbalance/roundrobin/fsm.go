@@ -3,6 +3,7 @@ package roundrobin
 import (
 	"fmt"
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"math"
 	"sort"
 	"time"
@@ -186,7 +187,10 @@ func splitEndpoints(endpoints []*WeightedEndpoint) (map[string]bool, map[string]
 	if len(endpoints)%2 == 0 {
 		newEndpoints = make([]*WeightedEndpoint, len(endpoints)+1)
 		copy(newEndpoints, endpoints)
-		newEndpoints[len(endpoints)] = min(endpoints)
+		// Add a sentinel endpoint so we can distinguish outliers better
+		newEndpoints[len(endpoints)] = &WeightedEndpoint{
+			meter: &metrics.TestMeter{Rate: 0},
+		}
 	} else {
 		newEndpoints = endpoints
 	}
@@ -232,14 +236,4 @@ func medianAbsoluteDeviation(values []*WeightedEndpoint) float64 {
 		distances[i] = math.Abs(v.failRate() - m)
 	}
 	return median(distances)
-}
-
-func min(values []*WeightedEndpoint) *WeightedEndpoint {
-	val := values[0]
-	for _, v := range values {
-		if v.failRate() < val.failRate() {
-			val = v
-		}
-	}
-	return val
 }

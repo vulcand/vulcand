@@ -4,6 +4,7 @@ import (
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/headers"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
@@ -216,4 +217,22 @@ func (s *LocSuite) TestMultipleMiddlewaresRequestIntercepted(c *C) {
 	// Observer was called regardless
 	c.Assert(calls["oReq"], Equals, 1)
 	c.Assert(calls["oRe"], Equals, 1)
+}
+
+// Test that X-Forwarded-For and X-Forwarded-Proto are passed through
+func (s *LocSuite) TestForwardedHeaders(c *C) {
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.Header.Get(headers.XForwardedProto), Equals, "httpx")
+		c.Assert(r.Header.Get(headers.XForwardedFor), Equals, "192.168.1.1, 127.0.0.1")
+	})
+	defer server.Close()
+
+	_, proxy := s.newProxy(s.newRoundRobin(server.URL))
+	defer proxy.Close()
+
+	hdr := http.Header(make(map[string][]string))
+	hdr.Set(headers.XForwardedProto, "httpx")
+	hdr.Set(headers.XForwardedFor, "192.168.1.1")
+
+	Get(c, proxy.URL, hdr, "hello!")
 }

@@ -2,6 +2,7 @@ package netutils
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -25,4 +26,12 @@ func NewHttpResponse(request *http.Request, statusCode int, body []byte, content
 
 func NewTextResponse(request *http.Request, statusCode int, body string) *http.Response {
 	return NewHttpResponse(request, statusCode, []byte(body), "text/plain")
+}
+
+func NewJsonResponse(request *http.Request, statusCode int, message interface{}) *http.Response {
+	bytes, err := json.Marshal(message)
+	if err != nil {
+		bytes = []byte("{}")
+	}
+	return NewHttpResponse(request, statusCode, bytes, "application/json")
 }
