@@ -20,6 +20,7 @@ type Options struct {
 	Log             string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
+	ProxyRequestTimeout time.Duration
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -47,6 +48,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.Log, "log", "console", "Logging to use (syslog or console)")
 	flag.DurationVar(&options.ReadTimeout, "readTimeout", time.Duration(10)*time.Second, "HTTP server read timeout")
 	flag.DurationVar(&options.WriteTimeout, "writeTimeout", time.Duration(10)*time.Second, "HTTP server write timeout")
+	flag.DurationVar(&options.ProxyRequestTimeout, "proxyRequestTimeout", time.Duration(10)*time.Second, "Proxy request timeout")
 	flag.Parse()
 	return options, nil
 }

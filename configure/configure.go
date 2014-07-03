@@ -12,6 +12,7 @@ import (
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
+	"time"
 )
 
 const ConnWatch = "_vulcanConnWatch"
@@ -20,6 +21,7 @@ const ConnWatch = "_vulcanConnWatch"
 type Configurator struct {
 	connWatcher *ConnectionWatcher
 	proxy       *vulcan.Proxy
+	proxyRequestTimeout     time.Duration
 	a           *Adapter
 }
 
@@ -29,6 +31,12 @@ func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
 		a:           NewAdapter(proxy),
 		connWatcher: NewConnectionWatcher(),
 	}
+}
+
+func NewConfiguratorWithTimeout(proxy *vulcan.Proxy, proxyRequestTimeout time.Duration) (c *Configurator) {
+  configurator := NewConfigurator(proxy)
+  configurator.proxyRequestTimeout = proxyRequestTimeout
+  return configurator
 }
 
 func (c *Configurator) GetConnWatcher() *ConnectionWatcher {
@@ -116,7 +124,9 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	}
 
 	// Create a location itself
-	location, err := httploc.NewLocation(loc.Id, rr)
+	options := httploc.Options{}
+	options.Timeouts.Read = c.proxyRequestTimeout
+	location, err := httploc.NewLocationWithOptions(loc.Id, rr, options)
 	if err != nil {
 		return err
 	}

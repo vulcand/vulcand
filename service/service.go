@@ -81,7 +81,7 @@ func (s *Service) Start() error {
 		s.errorC <- s.startProxy()
 	}()
 
-	s.configurator = NewConfigurator(s.proxy)
+	s.configurator = NewConfiguratorWithTimeout(s.proxy, s.options.ProxyRequestTimeout)
 
 	// Tell backend to watch configuration changes and pass them to the channel
 	// the second parameter tells backend to do the initial read of the configuration
@@ -138,6 +138,9 @@ func (s *Service) initApi() error {
 }
 
 func (s *Service) startProxy() error {
+	if s.options.ProxyRequestTimeout > s.options.WriteTimeout {
+		s.options.WriteTimeout = s.options.ProxyRequestTimeout
+	}
 	addr := fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port)
 	server := &http.Server{
 		Addr:           addr,
