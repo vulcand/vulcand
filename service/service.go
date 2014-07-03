@@ -76,7 +76,10 @@ func (s *Service) Start() error {
 	if err := s.createProxy(); err != nil {
 		return err
 	}
-	go s.startProxy()
+
+	go func() {
+		s.errorC <- s.startProxy()
+	}()
 
 	s.configurator = NewConfigurator(s.proxy)
 
@@ -89,7 +92,10 @@ func (s *Service) Start() error {
 		return err
 	}
 
-	go s.startApi()
+	go func() {
+		s.errorC <- s.startApi()
+	}()
+
 	signal.Notify(s.sigC, os.Interrupt, os.Kill)
 
 	// Block until a signal is received or we got an error
