@@ -65,6 +65,9 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*Host, error) {
 	hostKey := s.path("hosts", hostname)
 	_, err := s.client.Get(hostKey, false, false)
 	if err != nil {
+		if etcdErr, ok := err.(*etcd.EtcdError); ok {
+			etcdErr.Message = fmt.Sprintf("Host '%s' not found", hostKey)
+		}
 		return nil, convertErr(err)
 	}
 	host := &Host{
@@ -215,6 +218,9 @@ func (s *EtcdBackend) GetUpstream(upstreamId string) (*Upstream, error) {
 
 	_, err := s.client.Get(upstreamKey, false, false)
 	if err != nil {
+		if etcdErr, ok := err.(*etcd.EtcdError); ok {
+			etcdErr.Message = fmt.Sprintf("Upstream '%s' not found", upstreamKey)
+		}
 		return nil, convertErr(err)
 	}
 	upstream := &Upstream{
@@ -432,6 +438,11 @@ func (s *EtcdBackend) generateChanges(changes chan interface{}) error {
 	if err != nil {
 		return err
 	}
+
+	if len(upstreams) == 0 {
+		log.Warningf("No upstreams found")
+	}
+
 	for _, u := range upstreams {
 		changes <- &UpstreamAdded{
 			Upstream: u,
@@ -447,6 +458,10 @@ func (s *EtcdBackend) generateChanges(changes chan interface{}) error {
 	hosts, err := s.readHosts(true)
 	if err != nil {
 		return err
+	}
+
+	if len(hosts) == 0 {
+		log.Warningf("No hosts found")
 	}
 
 	for _, h := range hosts {
@@ -819,10 +834,10 @@ func convertErr(e error) error {
 	switch err := e.(type) {
 	case *etcd.EtcdError:
 		if err.ErrorCode == 100 {
-			return &NotFoundError{}
+			return &NotFoundError{Message: err.Message}
 		}
 		if err.ErrorCode == 105 {
-			return &AlreadyExistsError{}
+			return &AlreadyExistsError{Message: err.Message}
 		}
 	}
 	return e

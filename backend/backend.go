@@ -196,7 +196,11 @@ type NotFoundError struct {
 }
 
 func (n *NotFoundError) Error() string {
-	return "Object not found"
+	if n.Message != "" {
+		return n.Message
+	} else {
+		return "Object not found"
+	}
 }
 
 type AlreadyExistsError struct {
