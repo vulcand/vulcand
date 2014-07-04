@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 )
 
 func Run(registry *Registry) error {
@@ -96,7 +97,7 @@ func (s *Service) Start() error {
 		s.errorC <- s.startApi()
 	}()
 
-	signal.Notify(s.sigC, os.Interrupt, os.Kill)
+	signal.Notify(s.sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	// Block until a signal is received or we got an error
 	select {
