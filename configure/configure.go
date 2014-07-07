@@ -17,26 +17,26 @@ import (
 
 const ConnWatch = "_vulcanConnWatch"
 
+type ConfiguratorOptions struct {
+	DialTimeout time.Duration
+	ReadTimeout time.Duration
+}
+
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
 type Configurator struct {
 	connWatcher *ConnectionWatcher
 	proxy       *vulcan.Proxy
-	proxyRequestTimeout     time.Duration
+	options     *ConfiguratorOptions
 	a           *Adapter
 }
 
-func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
+func NewConfigurator(proxy *vulcan.Proxy, options *ConfiguratorOptions) (c *Configurator) {
 	return &Configurator{
 		proxy:       proxy,
 		a:           NewAdapter(proxy),
 		connWatcher: NewConnectionWatcher(),
+		options:     options,
 	}
-}
-
-func NewConfiguratorWithTimeout(proxy *vulcan.Proxy, proxyRequestTimeout time.Duration) (c *Configurator) {
-  configurator := NewConfigurator(proxy)
-  configurator.proxyRequestTimeout = proxyRequestTimeout
-  return configurator
 }
 
 func (c *Configurator) GetConnWatcher() *ConnectionWatcher {
@@ -125,7 +125,8 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 
 	// Create a location itself
 	options := httploc.Options{}
-	options.Timeouts.Read = c.proxyRequestTimeout
+	options.Timeouts.Dial = c.options.DialTimeout
+	options.Timeouts.Read = c.options.ReadTimeout
 	location, err := httploc.NewLocationWithOptions(loc.Id, rr, options)
 	if err != nil {
 		return err

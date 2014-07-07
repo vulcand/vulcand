@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
@@ -20,7 +21,10 @@ type Options struct {
 	Log             string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
-	ProxyRequestTimeout time.Duration
+	ServerReadTimeout   time.Duration
+	ServerWriteTimeout  time.Duration
+	EndpointDialTimeout time.Duration
+	EndpointReadTimeout time.Duration
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -35,6 +39,21 @@ func (o *listOptions) Set(value string) error {
 	return nil
 }
 
+func validateOptions(o Options) (Options, error) {
+	if o.ReadTimeout != time.Duration(10)*time.Second {
+		fmt.Print("Warning: using deprecated flag readTimeout\n")
+		o.ServerReadTimeout = o.ReadTimeout
+	}
+	if o.WriteTimeout != time.Duration(10)*time.Second {
+		fmt.Print("Warning: using deprecated flag writeTimeout\n")
+		o.ServerWriteTimeout = o.WriteTimeout
+	}
+	if o.EndpointDialTimeout + o.EndpointReadTimeout >= o.ServerWriteTimeout {
+		return o, errors.New("ServerWriteTimout must be greater than EndpointDialTimeout plus EndpointReadTimeout.")
+	}
+	return o, nil
+}
+
 func ParseCommandLine() (options Options, err error) {
 	flag.Var(&options.EtcdNodes, "etcd", "Etcd discovery service API endpoints")
 	flag.StringVar(&options.EtcdKey, "etcdKey", "vulcand", "Etcd key for storing configuration")
@@ -46,9 +65,16 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
 	flag.StringVar(&options.CertPath, "certPath", "", "Certificate to use (enables TLS)")
 	flag.StringVar(&options.Log, "log", "console", "Logging to use (syslog or console)")
-	flag.DurationVar(&options.ReadTimeout, "readTimeout", time.Duration(10)*time.Second, "HTTP server read timeout")
-	flag.DurationVar(&options.WriteTimeout, "writeTimeout", time.Duration(10)*time.Second, "HTTP server write timeout")
-	flag.DurationVar(&options.ProxyRequestTimeout, "proxyRequestTimeout", time.Duration(10)*time.Second, "Proxy request timeout")
+	flag.DurationVar(&options.ReadTimeout, "readTimeout", time.Duration(10)*time.Second, "HTTP server read timeout (deprecated)")
+	flag.DurationVar(&options.ServerReadTimeout, "serverReadTimeout", time.Duration(60)*time.Second, "HTTP server read timeout")
+	flag.DurationVar(&options.WriteTimeout, "writeTimeout", time.Duration(10)*time.Second, "HTTP server write timeout (deprecated)")
+	flag.DurationVar(&options.ServerWriteTimeout, "serverWriteTimeout", time.Duration(60)*time.Second, "HTTP server write timeout")
+	flag.DurationVar(&options.EndpointDialTimeout, "endpointDialTimeout", time.Duration(5)*time.Second, "Endpoint dial timeout")
+	flag.DurationVar(&options.EndpointReadTimeout, "endpointReadTimeout", time.Duration(50)*time.Second, "Endpoint read timeout")
 	flag.Parse()
+	options, err = validateOptions(options)
+	if err != nil {
+		return options, err
+	}
 	return options, nil
 }
