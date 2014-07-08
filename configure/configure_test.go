@@ -27,7 +27,7 @@ func (s *ConfSuite) SetUpTest(c *C) {
 	if err != nil {
 		c.Fatal(err)
 	}
-	s.conf = NewConfigurator(proxy)
+	s.conf = NewConfigurator(proxy, &ConfiguratorOptions{})
 }
 
 var _ = Suite(&ConfSuite{})

@@ -82,7 +82,11 @@ func (s *Service) Start() error {
 		s.errorC <- s.startProxy()
 	}()
 
-	s.configurator = NewConfigurator(s.proxy)
+	options := &ConfiguratorOptions{
+		DialTimeout: s.options.EndpointDialTimeout,
+		ReadTimeout: s.options.EndpointReadTimeout,
+	}
+	s.configurator = NewConfigurator(s.proxy, options)
 
 	// Tell backend to watch configuration changes and pass them to the channel
 	// the second parameter tells backend to do the initial read of the configuration
@@ -143,8 +147,8 @@ func (s *Service) startProxy() error {
 	server := &http.Server{
 		Addr:           addr,
 		Handler:        s.proxy,
-		ReadTimeout:    s.options.ReadTimeout,
-		WriteTimeout:   s.options.WriteTimeout,
+		ReadTimeout:    s.options.ServerReadTimeout,
+		WriteTimeout:   s.options.ServerWriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 	return server.ListenAndServe()
@@ -156,8 +160,8 @@ func (s *Service) startApi() error {
 	server := &http.Server{
 		Addr:           addr,
 		Handler:        s.apiRouter,
-		ReadTimeout:    s.options.ReadTimeout,
-		WriteTimeout:   s.options.WriteTimeout,
+		ReadTimeout:    s.options.ServerReadTimeout,
+		WriteTimeout:   s.options.ServerWriteTimeout,
 		MaxHeaderBytes: 1 << 20,
 	}
 	return server.ListenAndServe()
