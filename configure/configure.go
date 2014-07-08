@@ -12,22 +12,34 @@ import (
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
+	"time"
 )
 
 const ConnWatch = "_vulcanConnWatch"
 
+type Options struct {
+	DialTimeout time.Duration
+	ReadTimeout time.Duration
+}
+
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
 type Configurator struct {
+	options     Options
 	connWatcher *ConnectionWatcher
 	proxy       *vulcan.Proxy
 	a           *Adapter
 }
 
 func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
+	return NewConfiguratorWithOptions(proxy, Options{})
+}
+
+func NewConfiguratorWithOptions(proxy *vulcan.Proxy, options Options) (c *Configurator) {
 	return &Configurator{
 		proxy:       proxy,
 		a:           NewAdapter(proxy),
 		connWatcher: NewConnectionWatcher(),
+		options:     options,
 	}
 }
 
@@ -116,7 +128,10 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	}
 
 	// Create a location itself
-	location, err := httploc.NewLocation(loc.Id, rr)
+	options := httploc.Options{}
+	options.Timeouts.Dial = c.options.DialTimeout
+	options.Timeouts.Read = c.options.ReadTimeout
+	location, err := httploc.NewLocationWithOptions(loc.Id, rr, options)
 	if err != nil {
 		return err
 	}
