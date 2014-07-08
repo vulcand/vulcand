@@ -17,20 +17,24 @@ import (
 
 const ConnWatch = "_vulcanConnWatch"
 
-type ConfiguratorOptions struct {
+type Options struct {
 	DialTimeout time.Duration
 	ReadTimeout time.Duration
 }
 
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
 type Configurator struct {
+	options     Options
 	connWatcher *ConnectionWatcher
 	proxy       *vulcan.Proxy
-	options     *ConfiguratorOptions
 	a           *Adapter
 }
 
-func NewConfigurator(proxy *vulcan.Proxy, options *ConfiguratorOptions) (c *Configurator) {
+func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
+	return NewConfiguratorWithOptions(proxy, Options{})
+}
+
+func NewConfiguratorWithOptions(proxy *vulcan.Proxy, options Options) (c *Configurator) {
 	return &Configurator{
 		proxy:       proxy,
 		a:           NewAdapter(proxy),

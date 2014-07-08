@@ -10,17 +10,17 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcand/adapter"
 	"github.com/mailgun/vulcand/api"
-	. "github.com/mailgun/vulcand/backend"
-	. "github.com/mailgun/vulcand/backend/etcdbackend"
-	. "github.com/mailgun/vulcand/configure"
-	. "github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/backend/etcdbackend"
+	"github.com/mailgun/vulcand/configure"
+	"github.com/mailgun/vulcand/plugin"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-func Run(registry *Registry) error {
+func Run(registry *plugin.Registry) error {
 	options, err := ParseCommandLine()
 	if err != nil {
 		return fmt.Errorf("Failed to parse command line: %s", err)
@@ -37,18 +37,18 @@ func Run(registry *Registry) error {
 type Service struct {
 	client       *etcd.Client
 	proxy        *vulcan.Proxy
-	backend      Backend
+	backend      backend.Backend
 	options      Options
-	registry     *Registry
+	registry     *plugin.Registry
 	router       *hostroute.HostRouter
 	apiRouter    *mux.Router
 	errorC       chan error
 	changeC      chan interface{}
 	sigC         chan os.Signal
-	configurator *Configurator
+	configurator *configure.Configurator
 }
 
-func NewService(options Options, registry *Registry) *Service {
+func NewService(options Options, registry *plugin.Registry) *Service {
 	return &Service{
 		registry: registry,
 		options:  options,
@@ -62,7 +62,7 @@ func (s *Service) Start() error {
 	// Init logging
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := NewEtcdBackend(s.registry, s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
+	backend, err := etcdbackend.NewEtcdBackend(s.registry, s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
 	if err != nil {
 		return err
 	}
@@ -82,11 +82,10 @@ func (s *Service) Start() error {
 		s.errorC <- s.startProxy()
 	}()
 
-	options := &ConfiguratorOptions{
+	s.configurator = configure.NewConfiguratorWithOptions(s.proxy, configure.Options{
 		DialTimeout: s.options.EndpointDialTimeout,
 		ReadTimeout: s.options.EndpointReadTimeout,
-	}
-	s.configurator = NewConfigurator(s.proxy, options)
+	})
 
 	// Tell backend to watch configuration changes and pass them to the channel
 	// the second parameter tells backend to do the initial read of the configuration
