@@ -53,8 +53,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-165-gc1fa6bf",
-			"Rev": "c1fa6bf568484f93833364a5e9ff4950f774d0ca"
+			"Comment": "v0.1-172-gbb0cbe2",
+			"Rev": "bb0cbe201a144bef3de31660025fc72432650d54"
 		},
 		{
 			"ImportPath": "github.com/wsxiaoys/terminal/color",

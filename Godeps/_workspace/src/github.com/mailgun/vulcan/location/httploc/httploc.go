@@ -7,7 +7,6 @@ import (
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/failover"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/headers"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
@@ -15,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -70,7 +68,8 @@ func NewLocationWithOptions(id string, loadBalancer LoadBalancer, o Options) (*H
 	observerChain.Add(BalancerId, loadBalancer)
 
 	middlewareChain := NewMiddlewareChain()
-	middlewareChain.Add(BalancerId, 0, loadBalancer)
+	middlewareChain.Add(RewriterId, -2, &Rewriter{TrustForwardHeader: o.TrustForwardHeader, Hostname: o.Hostname})
+	middlewareChain.Add(BalancerId, -1, loadBalancer)
 
 	return &HttpLocation{
 		id:           id,
@@ -97,6 +96,7 @@ func (l *HttpLocation) GetObserverChain() *ObserverChain {
 
 // Round trips the request to one of the endpoints and returns the response
 func (l *HttpLocation) RoundTrip(req Request) (*http.Response, error) {
+	originalRequest := req.GetHttpRequest()
 	for {
 		_, err := req.GetBody().Seek(0, 0)
 		if err != nil {
@@ -109,12 +109,13 @@ func (l *HttpLocation) RoundTrip(req Request) (*http.Response, error) {
 			return nil, err
 		}
 
-		// Adds headers, changes urls
-		newRequest := l.rewriteRequest(req.GetHttpRequest(), endpoint)
+		// Adds headers, changes urls. Note that we rewrite request each time we proxy it to the
+		// endpoint, so that each try get's a fresh start
+		req.SetHttpRequest(l.copyRequest(originalRequest, endpoint))
 
 		// In case if error is not nil, we allow load balancer to choose the next endpoint
 		// e.g. to do request failover. Nil error means that we got proxied the request successfully.
-		response, err := l.proxyToEndpoint(endpoint, req, newRequest)
+		response, err := l.proxyToEndpoint(endpoint, req)
 		if l.options.ShouldFailover(req) {
 			continue
 		} else {
@@ -141,7 +142,7 @@ func (l *HttpLocation) unwindIter(it *MiddlewareIter, req Request, a Attempt) {
 }
 
 // Proxy the request to the given endpoint, execute observers and middlewares chains
-func (l *HttpLocation) proxyToEndpoint(endpoint Endpoint, req Request, httpReq *http.Request) (*http.Response, error) {
+func (l *HttpLocation) proxyToEndpoint(endpoint Endpoint, req Request) (*http.Response, error) {
 
 	a := &BaseAttempt{Endpoint: endpoint}
 
@@ -164,13 +165,12 @@ func (l *HttpLocation) proxyToEndpoint(endpoint Endpoint, req Request, httpReq *
 
 	// Forward the request and mirror the response
 	start := l.options.TimeProvider.UtcNow()
-	a.Response, a.Error = l.transport.RoundTrip(httpReq)
+	a.Response, a.Error = l.transport.RoundTrip(req.GetHttpRequest())
 	a.Duration = l.options.TimeProvider.UtcNow().Sub(start)
 	return a.Response, a.Error
 }
 
-// This function alters the original request - adds/removes headers, removes hop headers, changes the request path.
-func (l *HttpLocation) rewriteRequest(req *http.Request, endpoint Endpoint) *http.Request {
+func (l *HttpLocation) copyRequest(req *http.Request, endpoint Endpoint) *http.Request {
 	outReq := new(http.Request)
 	*outReq = *req // includes shallow copies of maps, but we handle this below
 
@@ -181,36 +181,12 @@ func (l *HttpLocation) rewriteRequest(req *http.Request, endpoint Endpoint) *htt
 	outReq.Proto = "HTTP/1.1"
 	outReq.ProtoMajor = 1
 	outReq.ProtoMinor = 1
+
+	// Overwrite close flag so we can keep persistent connection for the backend servers
 	outReq.Close = false
 
 	outReq.Header = make(http.Header)
 	netutils.CopyHeaders(outReq.Header, req.Header)
-
-	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		if l.options.TrustForwardHeader {
-			if prior, ok := outReq.Header[headers.XForwardedFor]; ok {
-				clientIP = strings.Join(prior, ", ") + ", " + clientIP
-			}
-		}
-		outReq.Header.Set(headers.XForwardedFor, clientIP)
-	}
-
-	if xfp := req.Header.Get(headers.XForwardedProto); xfp != "" && l.options.TrustForwardHeader {
-		outReq.Header.Set(headers.XForwardedProto, xfp)
-	} else if req.TLS != nil {
-		outReq.Header.Set(headers.XForwardedProto, "https")
-	} else {
-		outReq.Header.Set(headers.XForwardedProto, "http")
-	}
-
-	if req.Host != "" {
-		outReq.Header.Set(headers.XForwardedHost, req.Host)
-	}
-	outReq.Header.Set(headers.XForwardedServer, l.options.Hostname)
-
-	// Remove hop-by-hop headers to the backend.  Especially important is "Connection" because we want a persistent
-	// connection, regardless of what the client sent to us.
-	netutils.RemoveHeaders(headers.HopHeaders, outReq.Header)
 	return outReq
 }
 
@@ -246,4 +222,5 @@ func parseOptions(o Options) (Options, error) {
 
 const (
 	BalancerId = "__loadBalancer"
+	RewriterId = "__rewriter"
 )

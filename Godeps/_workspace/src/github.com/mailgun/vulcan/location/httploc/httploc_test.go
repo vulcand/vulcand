@@ -1,6 +1,7 @@
 package httploc
 
 import (
+	"fmt"
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
@@ -235,4 +236,66 @@ func (s *LocSuite) TestForwardedHeaders(c *C) {
 	hdr.Set(headers.XForwardedFor, "192.168.1.1")
 
 	Get(c, proxy.URL, hdr, "hello!")
+}
+
+// Test scenario when middleware intercepts the request
+func (s *LocSuite) TestMiddlewareAddsHeader(c *C) {
+	var capturedHeader []string
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		capturedHeader = r.Header["X-Vulcan-Call"]
+		w.Write([]byte("Hi, I'm endpoint"))
+	})
+	defer server.Close()
+
+	location, proxy := s.newProxy(s.newRoundRobin(server.URL))
+	defer proxy.Close()
+
+	m := &MiddlewareWrapper{
+		OnRequest: func(r Request) (*http.Response, error) {
+			r.GetHttpRequest().Header["X-Vulcan-Call"] = []string{"hello"}
+			return nil, nil
+		},
+		OnResponse: func(r Request, a Attempt) {
+		},
+	}
+
+	location.GetMiddlewareChain().Add("m", 0, m)
+
+	response, bodyBytes := Get(c, proxy.URL, nil, "hello!")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(capturedHeader, DeepEquals, []string{"hello"})
+	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
+}
+
+// Make sure that request gets cleaned up in case of the failover
+// and the changes made by middlewares are being erased
+func (s *LocSuite) TestMiddlewareAddsHeaderOnFailover(c *C) {
+
+	var capturedHeader []string
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		capturedHeader = r.Header["X-Vulcan-Call"]
+		w.Write([]byte("Hi, I'm endpoint"))
+	})
+	defer server.Close()
+
+	location, proxy := s.newProxy(s.newRoundRobin("http://localhost:63999", server.URL))
+	defer proxy.Close()
+
+	counter := 0
+	m := &MiddlewareWrapper{
+		OnRequest: func(r Request) (*http.Response, error) {
+			r.GetHttpRequest().Header["X-Vulcan-Call"] = []string{fmt.Sprintf("hello %d", counter)}
+			counter += 1
+			return nil, nil
+		},
+		OnResponse: func(r Request, a Attempt) {
+		},
+	}
+
+	location.GetMiddlewareChain().Add("m", 0, m)
+
+	response, bodyBytes := Get(c, proxy.URL, nil, "hello!")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(capturedHeader, DeepEquals, []string{"hello 1"})
+	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
 }

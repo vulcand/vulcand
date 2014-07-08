@@ -76,7 +76,7 @@ func (m *PathRouter) AddLocation(pattern string, location Location) error {
 
 	for _, p := range m.locations {
 		if p.pattern == pattern {
-			return fmt.Errorf("Pattern: %s already exists")
+			return fmt.Errorf("Pattern: %s already exists", pattern)
 		}
 	}
 

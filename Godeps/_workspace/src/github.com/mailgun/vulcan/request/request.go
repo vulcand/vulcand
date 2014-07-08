@@ -12,6 +12,7 @@ import (
 // Wrapper around http request that provides more info about http.Request
 type Request interface {
 	GetHttpRequest() *http.Request // Original http request
+	SetHttpRequest(*http.Request)  // Can be used to set http request
 	GetId() int64                  // Request id that is unique to this running process
 	GetBody() netutils.MultiReader // Request body fully read and stored in effective manner (buffered to disk for large requests)
 	AddAttempt(Attempt)            // Add last proxy attempt to the request
@@ -63,6 +64,10 @@ func (br *BaseRequest) String() string {
 
 func (br *BaseRequest) GetHttpRequest() *http.Request {
 	return br.HttpRequest
+}
+
+func (br *BaseRequest) SetHttpRequest(r *http.Request) {
+	br.HttpRequest = r
 }
 
 func (br *BaseRequest) GetId() int64 {

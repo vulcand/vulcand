@@ -9,6 +9,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"sync/atomic"
 )
@@ -27,13 +28,17 @@ type Options struct {
 	ErrorFormatter errors.Formatter
 }
 
-// Accepts requests, round trips it to the endpoint and writes backe the response.
+// Accepts requests, round trips it to the endpoint, and writes back the response.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Record the request body so we can replay it on errors.
 	body, err := netutils.NewBodyBuffer(r.Body)
 	if err != nil || body == nil {
 		log.Errorf("Request read error %s", err)
-		p.replyError(errors.FromStatus(http.StatusBadRequest), w, r)
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			p.replyError(errors.FromStatus(http.StatusRequestTimeout), w, r)
+		} else {
+			p.replyError(errors.FromStatus(http.StatusBadRequest), w, r)
+		}
 		return
 	}
 	defer body.Close()
