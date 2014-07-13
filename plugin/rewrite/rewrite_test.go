@@ -1,10 +1,13 @@
 package rewrite
 
 import (
+	"net/http"
+	"net/url"
 	"regexp"
 	"testing"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"github.com/mailgun/vulcand/plugin"
 )
@@ -67,4 +70,38 @@ func (s *RewriteSuite) TestNewRewriteFromCliOk(c *C) {
 	app.Flags = CliFlags()
 	app.Run([]string{"test", "--regexp=^/foo(.*)", "--replacement=$1"})
 	c.Assert(executed, Equals, true)
+}
+
+func (s *RewriteSuite) TestRewriteMatch(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.URL = &url.URL{}
+	request.HttpRequest.URL.Path = "/foo/bar"
+
+	ri, err := NewRewriteInstance("^/foo(.*)", "$1")
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(string(ri.newPath), Equals, "/bar")
+}
+
+func (s *RewriteSuite) TestRewriteNoMatch(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.URL = &url.URL{}
+	request.HttpRequest.URL.Path = "/fooo/bar"
+
+	ri, err := NewRewriteInstance("^/foo/(.*)", "/$1")
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(string(ri.newPath), Equals, "/fooo/bar")
 }

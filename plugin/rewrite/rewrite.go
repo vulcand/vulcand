@@ -29,6 +29,7 @@ type Rewrite struct {
 type RewriteInstance struct {
 	regexp      *regexp.Regexp
 	replacement string
+	newPath     []byte
 }
 
 func (r *RewriteInstance) NewMiddleware() (middleware.Middleware, error) {
@@ -45,8 +46,8 @@ func NewRewriteInstance(regex, replacement string) (*RewriteInstance, error) {
 
 func (rewrite *RewriteInstance) ProcessRequest(r Request) (*http.Response, error) {
 	oldPath := r.GetHttpRequest().URL.Path
-	newPath := rewrite.regexp.ReplaceAll([]byte(oldPath), []byte(rewrite.replacement))
-	r.GetHttpRequest().URL.Path = string(newPath)
+	rewrite.newPath = rewrite.regexp.ReplaceAll([]byte(oldPath), []byte(rewrite.replacement))
+	r.GetHttpRequest().URL.Path = string(rewrite.newPath)
 	return nil, nil
 }
 
