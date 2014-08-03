@@ -1,10 +1,12 @@
 package pathroute
 
 import (
+	"fmt"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"net/http"
 	"testing"
 )
@@ -173,6 +175,23 @@ func (s *MatchSuite) TestAddBad(c *C) {
 	out, err = m.Route(request("http://google.com/a/there"))
 	c.Assert(err, IsNil)
 	c.Assert(out, Equals, locA)
+}
+
+func (s *MatchSuite) BenchmarkMatching(c *C) {
+	rndString := testutils.NewRndString()
+
+	m := NewPathRouter()
+	loc := &Loc{Name: "a"}
+
+	for i := 0; i < 100; i++ {
+		err := m.AddLocation(rndString.MakePath(20, 10), loc)
+		c.Assert(err, IsNil)
+	}
+
+	req := request(fmt.Sprintf("http://google.com/%s", rndString.MakePath(20, 10)))
+	for i := 0; i < c.N; i++ {
+		m.Route(req)
+	}
 }
 
 func request(url string) Request {

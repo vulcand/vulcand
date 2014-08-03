@@ -7,11 +7,12 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/pathroute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 	. "github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	. "github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
+	"strings"
 	"time"
 )
 
@@ -95,7 +96,7 @@ func (c *Configurator) upsertHost(host *Host) error {
 	if c.a.GetHostRouter().GetRouter(host.Name) != nil {
 		return nil
 	}
-	router := pathroute.NewPathRouter()
+	router := exproute.NewExpRouter()
 	c.a.GetHostRouter().SetRouter(host.Name, router)
 	log.Infof("Added %s", host)
 	return nil
@@ -117,7 +118,7 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 		return nil
 	}
 
-	router := c.a.GetPathRouter(host.Name)
+	router := c.a.GetExpRouter(host.Name)
 	if router == nil {
 		return fmt.Errorf("Router not found for %s", host)
 	}
@@ -140,7 +141,7 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	location.GetObserverChain().Upsert(ConnWatch, c.connWatcher)
 
 	// Add the location to the router
-	if err := router.AddLocation(loc.Path, location); err != nil {
+	if err := router.AddLocation(convertPath(loc.Path), location); err != nil {
 		return err
 	}
 
@@ -156,7 +157,7 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 
 func (c *Configurator) deleteLocation(host *Host, locationId string) error {
 
-	router := c.a.GetPathRouter(host.Name)
+	router := c.a.GetExpRouter(host.Name)
 	if router == nil {
 		return fmt.Errorf("Router for %s not found", host)
 	}
@@ -165,7 +166,7 @@ func (c *Configurator) deleteLocation(host *Host, locationId string) error {
 	if location == nil {
 		return fmt.Errorf("Location(id=%s) not found", locationId)
 	}
-	return router.RemoveLocation(location)
+	return router.RemoveLocationById(location.GetId())
 }
 
 func (c *Configurator) upsertLocationMiddleware(host *Host, loc *Location, m *MiddlewareInstance) error {
@@ -284,4 +285,13 @@ func (c *Configurator) deleteEndpoint(upstream *Upstream, endpointId string, aff
 		}
 	}
 	return nil
+}
+
+// Convert path changes strings to structured format /hello -> RegexpRoute("/hello")
+// and leaves structured strings unchanged
+func convertPath(in string) string {
+	if !strings.Contains(in, exproute.TrieRouteFn) && !strings.Contains(in, exproute.RegexpRouteFn) {
+		return fmt.Sprintf(`%s(%#v)`, exproute.RegexpRouteFn, in)
+	}
+	return in
 }

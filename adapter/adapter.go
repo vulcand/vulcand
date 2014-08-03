@@ -7,8 +7,8 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/pathroute"
 	. "github.com/mailgun/vulcand/backend"
 	"time"
 )
@@ -28,16 +28,16 @@ func (a *Adapter) GetHostRouter() *hostroute.HostRouter {
 	return a.proxy.GetRouter().(*hostroute.HostRouter)
 }
 
-func (a *Adapter) GetPathRouter(hostname string) *pathroute.PathRouter {
+func (a *Adapter) GetExpRouter(hostname string) *exproute.ExpRouter {
 	r := a.GetHostRouter().GetRouter(hostname)
 	if r == nil {
 		return nil
 	}
-	return r.(*pathroute.PathRouter)
+	return r.(*exproute.ExpRouter)
 }
 
 func (a *Adapter) GetHttpLocation(hostname string, locationId string) *httploc.HttpLocation {
-	router := a.GetPathRouter(hostname)
+	router := a.GetExpRouter(hostname)
 	if router == nil {
 		return nil
 	}

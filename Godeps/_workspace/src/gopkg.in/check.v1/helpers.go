@@ -1,4 +1,4 @@
-package gocheck
+package check
 
 import (
 	"fmt"
@@ -6,49 +6,56 @@ import (
 	"time"
 )
 
+// TestName returns the current test name in the form "SuiteName.TestName"
+func (c *C) TestName() string {
+	return c.testName
+}
+
 // -----------------------------------------------------------------------
 // Basic succeeding/failing logic.
 
-// Return true if the currently running test has already failed.
+// Failed returns whether the currently running test has already failed.
 func (c *C) Failed() bool {
 	return c.status == failedSt
 }
 
-// Mark the currently running test as failed. Something ought to have been
-// previously logged so that the developer knows what went wrong. The higher
-// level helper functions will fail the test and do the logging properly.
+// Fail marks the currently running test as failed.
+//
+// Something ought to have been previously logged so the developer can tell
+// what went wrong. The higher level helper functions will fail the test
+// and do the logging properly.
 func (c *C) Fail() {
 	c.status = failedSt
 }
 
-// Mark the currently running test as failed, and stop running the test.
-// Something ought to have been previously logged so that the developer
-// knows what went wrong. The higher level helper functions will fail the
-// test and do the logging properly.
+// FailNow marks the currently running test as failed and stops running it.
+// Something ought to have been previously logged so the developer can tell
+// what went wrong. The higher level helper functions will fail the test
+// and do the logging properly.
 func (c *C) FailNow() {
 	c.Fail()
 	c.stopNow()
 }
 
-// Mark the currently running test as succeeded, undoing any previous
-// failures.
+// Succeed marks the currently running test as succeeded, undoing any
+// previous failures.
 func (c *C) Succeed() {
 	c.status = succeededSt
 }
 
-// Mark the currently running test as succeeded, undoing any previous
-// failures, and stop running the test.
+// SucceedNow marks the currently running test as succeeded, undoing any
+// previous failures, and stops running the test.
 func (c *C) SucceedNow() {
 	c.Succeed()
 	c.stopNow()
 }
 
-// Expect the currently running test to fail, for the given reason.  If the
-// test does not fail, an error will be reported to raise the attention to
-// this fact. The reason string is just a summary of why the given test is
-// supposed to fail.  This method is useful to temporarily disable tests
-// which cover well known problems until a better time to fix the problem
-// is found, without forgetting about the fact that a failure still exists.
+// ExpectFailure informs that the running test is knowingly broken for
+// the provided reason. If the test does not fail, an error will be reported
+// to raise attention to this fact. This method is useful to temporarily
+// disable tests which cover well known problems until a better time to
+// fix the problem is found, without forgetting about the fact that a
+// failure still exists.
 func (c *C) ExpectFailure(reason string) {
 	if reason == "" {
 		panic("Missing reason why the test is expected to fail")
@@ -57,9 +64,9 @@ func (c *C) ExpectFailure(reason string) {
 	c.reason = reason
 }
 
-// Skip the running test, for the given reason.  If used within SetUpTest,
-// the individual test being set up will be skipped, and in SetUpSuite it
-// will cause the whole suite to be skipped.
+// Skip skips the running test for the provided reason. If run from within
+// SetUpTest, the individual test being set up will be skipped, and if run
+// from within SetUpSuite, the whole suite is skipped.
 func (c *C) Skip(reason string) {
 	if reason == "" {
 		panic("Missing reason why the test is being skipped")
@@ -72,19 +79,19 @@ func (c *C) Skip(reason string) {
 // -----------------------------------------------------------------------
 // Basic logging.
 
-// Return the current test error output.
+// GetTestLog returns the current test error output.
 func (c *C) GetTestLog() string {
 	return c.logb.String()
 }
 
-// Log some information into the test error output.  The provided arguments
-// will be assembled together into a string using fmt.Sprint().
+// Log logs some information into the test error output.
+// The provided arguments are assembled together into a string with fmt.Sprint.
 func (c *C) Log(args ...interface{}) {
 	c.log(args...)
 }
 
-// Log some information into the test error output.  The provided arguments
-// will be assembled together into a string using fmt.Sprintf().
+// Log logs some information into the test error output.
+// The provided arguments are assembled together into a string with fmt.Sprintf.
 func (c *C) Logf(format string, args ...interface{}) {
 	c.logf(format, args...)
 }
@@ -101,9 +108,8 @@ func (c *C) Output(calldepth int, s string) error {
 	return nil
 }
 
-// Log an error into the test error output, and mark the test as failed.
-// The provided arguments will be assembled together into a string using
-// fmt.Sprint().
+// Error logs an error into the test error output and marks the test as failed.
+// The provided arguments are assembled together into a string with fmt.Sprint.
 func (c *C) Error(args ...interface{}) {
 	c.logCaller(1)
 	c.logString(fmt.Sprint("Error: ", fmt.Sprint(args...)))
@@ -111,9 +117,8 @@ func (c *C) Error(args ...interface{}) {
 	c.Fail()
 }
 
-// Log an error into the test error output, and mark the test as failed.
-// The provided arguments will be assembled together into a string using
-// fmt.Sprintf().
+// Errorf logs an error into the test error output and marks the test as failed.
+// The provided arguments are assembled together into a string with fmt.Sprintf.
 func (c *C) Errorf(format string, args ...interface{}) {
 	c.logCaller(1)
 	c.logString(fmt.Sprintf("Error: "+format, args...))
@@ -121,9 +126,9 @@ func (c *C) Errorf(format string, args ...interface{}) {
 	c.Fail()
 }
 
-// Log an error into the test error output, mark the test as failed, and
-// stop the test execution. The provided arguments will be assembled
-// together into a string using fmt.Sprint().
+// Fatal logs an error into the test error output, marks the test as failed, and
+// stops the test execution. The provided arguments are assembled together into
+// a string with fmt.Sprint.
 func (c *C) Fatal(args ...interface{}) {
 	c.logCaller(1)
 	c.logString(fmt.Sprint("Error: ", fmt.Sprint(args...)))
@@ -131,9 +136,9 @@ func (c *C) Fatal(args ...interface{}) {
 	c.FailNow()
 }
 
-// Log an error into the test error output, mark the test as failed, and
-// stop the test execution. The provided arguments will be assembled
-// together into a string using fmt.Sprintf().
+// Fatlaf logs an error into the test error output, marks the test as failed, and
+// stops the test execution. The provided arguments are assembled together into
+// a string with fmt.Sprintf.
 func (c *C) Fatalf(format string, args ...interface{}) {
 	c.logCaller(1)
 	c.logString(fmt.Sprint("Error: ", fmt.Sprintf(format, args...)))
@@ -144,24 +149,26 @@ func (c *C) Fatalf(format string, args ...interface{}) {
 // -----------------------------------------------------------------------
 // Generic checks and assertions based on checkers.
 
-// Verify if the first value matches with the expected value.  What
-// matching means is defined by the provided checker. In case they do not
-// match, an error will be logged, the test will be marked as failed, and
-// the test execution will continue.  Some checkers may not need the expected
-// argument (e.g. IsNil).  In either case, any extra arguments provided to
-// the function will be logged next to the reported problem when the
-// matching fails.  This is a handy way to provide problem-specific hints.
+// Check verifies if the first value matches the expected value according
+// to the provided checker. If they do not match, an error is logged, the
+// test is marked as failed, and the test execution continues.
+//
+// Some checkers may not need the expected argument (e.g. IsNil).
+//
+// Extra arguments provided to the function are logged next to the reported
+// problem when the matching fails.
 func (c *C) Check(obtained interface{}, checker Checker, args ...interface{}) bool {
 	return c.internalCheck("Check", obtained, checker, args...)
 }
 
-// Ensure that the first value matches with the expected value.  What
-// matching means is defined by the provided checker. In case they do not
-// match, an error will be logged, the test will be marked as failed, and
-// the test execution will stop.  Some checkers may not need the expected
-// argument (e.g. IsNil).  In either case, any extra arguments provided to
-// the function will be logged next to the reported problem when the
-// matching fails.  This is a handy way to provide problem-specific hints.
+// Assert ensures that the first value matches the expected value according
+// to the provided checker. If they do not match, an error is logged, the
+// test is marked as failed, and the test execution stops.
+//
+// Some checkers may not need the expected argument (e.g. IsNil).
+//
+// Extra arguments provided to the function are logged next to the reported
+// problem when the matching fails.
 func (c *C) Assert(obtained interface{}, checker Checker, args ...interface{}) {
 	if !c.internalCheck("Assert", obtained, checker, args...) {
 		c.stopNow()

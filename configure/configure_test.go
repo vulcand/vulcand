@@ -4,11 +4,11 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/pathroute"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"testing"
 	"time"
 )
@@ -67,13 +67,13 @@ func (s *ConfSuite) TestAddDeleteHost(c *C) {
 	err := s.conf.processChange(&HostAdded{Host: host})
 	c.Assert(err, IsNil)
 
-	r := s.conf.a.GetPathRouter(host.Name)
+	r := s.conf.a.GetExpRouter(host.Name)
 	c.Assert(r, NotNil)
 
 	err = s.conf.processChange(&HostDeleted{Name: host.Name})
 	c.Assert(err, IsNil)
 
-	r = s.conf.a.GetPathRouter(host.Name)
+	r = s.conf.a.GetExpRouter(host.Name)
 	c.Assert(r, IsNil)
 }
 
@@ -117,6 +117,43 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 	// Make sure connection limit and rate limit are here as well
 	chain := l.GetMiddlewareChain()
 	c.Assert(chain.Get("ratelimit.rl1"), NotNil)
+
+	// Delete the location
+	err = s.conf.processChange(&LocationDeleted{Host: host, LocationId: location.Id})
+	c.Assert(err, IsNil)
+
+	// Make sure it's no longer in the proxy
+	l = s.conf.a.GetHttpLocation(host.Name, location.Id)
+	c.Assert(l, IsNil)
+}
+
+func (s *ConfSuite) TestAddDeleteTrieLocation(c *C) {
+	host := &Host{Name: "localhost"}
+	upstream := &Upstream{
+		Id: "up1",
+		Endpoints: []*Endpoint{
+			{
+				Url: "http://localhost:5000",
+			},
+		},
+	}
+	location := &Location{
+		Hostname: host.Name,
+		Path:     `TrieRoute("/home")`,
+		Id:       "loc1",
+		Upstream: upstream,
+	}
+
+	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
+	c.Assert(err, IsNil)
+
+	// Make sure location is here
+	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	c.Assert(l, NotNil)
+
+	// Make sure the endpoint has been added to the location
+	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	c.Assert(lb, NotNil)
 
 	// Delete the location
 	err = s.conf.processChange(&LocationDeleted{Host: host, LocationId: location.Id})
@@ -366,10 +403,10 @@ func (s *ConfSuite) TestUpdateLocationPath(c *C) {
 	// Host router matches inner router by hostname
 	router := s.conf.a.GetHostRouter().GetRouter(host.Name)
 	c.Assert(router, NotNil)
-	pathRouter := router.(*pathroute.PathRouter)
+	expRouter := router.(*exproute.ExpRouter)
 
 	// Make sure that path router is configured correctly
-	l := pathRouter.GetLocationByPattern(location.Path)
+	l := expRouter.GetLocationByExpression(convertPath(location.Path))
 	c.Assert(l, NotNil)
 
 	// Update location path
@@ -378,10 +415,10 @@ func (s *ConfSuite) TestUpdateLocationPath(c *C) {
 	err = s.conf.processChange(&LocationPathUpdated{Host: host, Location: location})
 	c.Assert(err, IsNil)
 
-	l = pathRouter.GetLocationByPattern(oldPath)
+	l = expRouter.GetLocationByExpression(convertPath(oldPath))
 	c.Assert(l, IsNil)
 
-	l = pathRouter.GetLocationByPattern(location.Path)
+	l = expRouter.GetLocationByExpression(convertPath(location.Path))
 	c.Assert(l, NotNil)
 }
 
@@ -394,10 +431,16 @@ func (s *ConfSuite) TestUpdateLocationPathUpsertsLocation(c *C) {
 
 	router := s.conf.a.GetHostRouter().GetRouter(host.Name)
 	c.Assert(router, NotNil)
-	pathRouter := router.(*pathroute.PathRouter)
+	expRouter := router.(*exproute.ExpRouter)
 
-	l := pathRouter.GetLocationByPattern(location.Path)
+	l := expRouter.GetLocationByExpression(convertPath(location.Path))
 	c.Assert(l, NotNil)
+}
+
+func (s *ConfSuite) TestConvertPath(c *C) {
+	c.Assert(convertPath(`TrieRoute("hello")`), Equals, `TrieRoute("hello")`)
+	c.Assert(convertPath(`RegexpRoute("hello")`), Equals, `RegexpRoute("hello")`)
+	c.Assert(convertPath(`/hello`), Equals, `RegexpRoute("/hello")`)
 }
 
 func makeLocation() (*Location, *Host) {

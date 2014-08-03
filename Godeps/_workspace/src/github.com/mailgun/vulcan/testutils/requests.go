@@ -2,15 +2,15 @@ package testutils
 
 import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"io/ioutil"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 )
 
-func Get(c *gocheck.C, requestUrl string, header http.Header, body string) (*http.Response, []byte) {
+func Get(c *check.C, requestUrl string, header http.Header, body string) (*http.Response, []byte) {
 	request, _ := http.NewRequest("GET", requestUrl, strings.NewReader(body))
 	netutils.CopyHeaders(request.Header, header)
 	request.Close = true
@@ -31,7 +31,7 @@ func Get(c *gocheck.C, requestUrl string, header http.Header, body string) (*htt
 	return response, bodyBytes
 }
 
-func Post(c *gocheck.C, requestUrl string, header http.Header, body url.Values) (*http.Response, []byte) {
+func Post(c *check.C, requestUrl string, header http.Header, body url.Values) (*http.Response, []byte) {
 	request, _ := http.NewRequest("POST", requestUrl, strings.NewReader(body.Encode()))
 	netutils.CopyHeaders(request.Header, header)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")

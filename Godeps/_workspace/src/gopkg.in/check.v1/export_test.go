@@ -1,4 +1,4 @@
-package gocheck
+package check
 
 func PrintLine(filename string, line int) (string, error) {
 	return printLine(filename, line)

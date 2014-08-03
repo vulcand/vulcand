@@ -1,4 +1,4 @@
-package gocheck
+package check
 
 import (
 	"bytes"

@@ -1,7 +1,7 @@
 package netutils
 
 import (
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"net/http"
 	"net/url"
 	"testing"

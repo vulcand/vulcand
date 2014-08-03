@@ -2,11 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 )
 
 type RestHelper struct{}
