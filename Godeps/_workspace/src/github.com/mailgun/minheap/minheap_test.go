@@ -1,7 +1,7 @@
 package minheap
 
 import (
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "launchpad.net/gocheck"
 	"testing"
 )
 

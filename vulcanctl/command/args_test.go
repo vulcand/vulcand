@@ -1,7 +1,7 @@
 package command
 
 import (
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type ArgsSuite struct {

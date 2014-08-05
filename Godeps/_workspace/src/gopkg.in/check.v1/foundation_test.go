@@ -4,11 +4,11 @@
 // still have to be taken when using external functions, since they should
 // of course not rely on functionality tested here.
 
-package gocheck_test
+package check_test
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"log"
 	"os"
 	"regexp"
@@ -20,13 +20,13 @@ import (
 
 type FoundationS struct{}
 
-var foundationS = gocheck.Suite(&FoundationS{})
+var foundationS = check.Suite(&FoundationS{})
 
-func (s *FoundationS) TestCountSuite(c *gocheck.C) {
+func (s *FoundationS) TestCountSuite(c *check.C) {
 	suitesRun += 1
 }
 
-func (s *FoundationS) TestErrorf(c *gocheck.C) {
+func (s *FoundationS) TestErrorf(c *check.C) {
 	// Do not use checkState() here.  It depends on Errorf() working.
 	expectedLog := fmt.Sprintf("foundation_test.go:%d:\n"+
 		"    c.Errorf(\"Error %%v!\", \"message\")\n"+
@@ -45,7 +45,7 @@ func (s *FoundationS) TestErrorf(c *gocheck.C) {
 	}
 }
 
-func (s *FoundationS) TestError(c *gocheck.C) {
+func (s *FoundationS) TestError(c *check.C) {
 	expectedLog := fmt.Sprintf("foundation_test.go:%d:\n"+
 		"    c\\.Error\\(\"Error \", \"message!\"\\)\n"+
 		"\\.\\.\\. Error: Error message!\n\n",
@@ -59,7 +59,7 @@ func (s *FoundationS) TestError(c *gocheck.C) {
 		})
 }
 
-func (s *FoundationS) TestFailNow(c *gocheck.C) {
+func (s *FoundationS) TestFailNow(c *check.C) {
 	defer (func() {
 		if !c.Failed() {
 			c.Error("FailNow() didn't fail the test")
@@ -75,7 +75,7 @@ func (s *FoundationS) TestFailNow(c *gocheck.C) {
 	c.Log("FailNow() didn't stop the test")
 }
 
-func (s *FoundationS) TestSucceedNow(c *gocheck.C) {
+func (s *FoundationS) TestSucceedNow(c *check.C) {
 	defer (func() {
 		if c.Failed() {
 			c.Error("SucceedNow() didn't succeed the test")
@@ -90,14 +90,14 @@ func (s *FoundationS) TestSucceedNow(c *gocheck.C) {
 	c.Log("SucceedNow() didn't stop the test")
 }
 
-func (s *FoundationS) TestFailureHeader(c *gocheck.C) {
+func (s *FoundationS) TestFailureHeader(c *check.C) {
 	output := String{}
 	failHelper := FailHelper{}
-	gocheck.Run(&failHelper, &gocheck.RunConf{Output: &output})
+	check.Run(&failHelper, &check.RunConf{Output: &output})
 	header := fmt.Sprintf(""+
 		"\n-----------------------------------"+
 		"-----------------------------------\n"+
-		"FAIL: gocheck_test.go:%d: FailHelper.TestLogAndFail\n",
+		"FAIL: check_test.go:%d: FailHelper.TestLogAndFail\n",
 		failHelper.testLine)
 	if strings.Index(output.value, header) == -1 {
 		c.Errorf(""+
@@ -107,7 +107,7 @@ func (s *FoundationS) TestFailureHeader(c *gocheck.C) {
 	}
 }
 
-func (s *FoundationS) TestFatal(c *gocheck.C) {
+func (s *FoundationS) TestFatal(c *check.C) {
 	var line int
 	defer (func() {
 		if !c.Failed() {
@@ -129,7 +129,7 @@ func (s *FoundationS) TestFatal(c *gocheck.C) {
 	c.Log("Fatal() didn't stop the test")
 }
 
-func (s *FoundationS) TestFatalf(c *gocheck.C) {
+func (s *FoundationS) TestFatalf(c *check.C) {
 	var line int
 	defer (func() {
 		if !c.Failed() {
@@ -151,14 +151,14 @@ func (s *FoundationS) TestFatalf(c *gocheck.C) {
 	c.Log("Fatalf() didn't stop the test")
 }
 
-func (s *FoundationS) TestCallerLoggingInsideTest(c *gocheck.C) {
+func (s *FoundationS) TestCallerLoggingInsideTest(c *check.C) {
 	log := fmt.Sprintf(""+
 		"foundation_test.go:%d:\n"+
-		"    result := c.Check\\(10, gocheck.Equals, 20\\)\n"+
+		"    result := c.Check\\(10, check.Equals, 20\\)\n"+
 		"\\.\\.\\. obtained int = 10\n"+
 		"\\.\\.\\. expected int = 20\n\n",
 		getMyLine()+1)
-	result := c.Check(10, gocheck.Equals, 20)
+	result := c.Check(10, check.Equals, 20)
 	checkState(c, result,
 		&expectedState{
 			name:   "Check(10, Equals, 20)",
@@ -168,14 +168,14 @@ func (s *FoundationS) TestCallerLoggingInsideTest(c *gocheck.C) {
 		})
 }
 
-func (s *FoundationS) TestCallerLoggingInDifferentFile(c *gocheck.C) {
+func (s *FoundationS) TestCallerLoggingInDifferentFile(c *check.C) {
 	result, line := checkEqualWrapper(c, 10, 20)
 	testLine := getMyLine() - 1
 	log := fmt.Sprintf(""+
 		"foundation_test.go:%d:\n"+
 		"    result, line := checkEqualWrapper\\(c, 10, 20\\)\n"+
-		"gocheck_test.go:%d:\n"+
-		"    return c.Check\\(obtained, gocheck.Equals, expected\\), getMyLine\\(\\)\n"+
+		"check_test.go:%d:\n"+
+		"    return c.Check\\(obtained, check.Equals, expected\\), getMyLine\\(\\)\n"+
 		"\\.\\.\\. obtained int = 10\n"+
 		"\\.\\.\\. expected int = 20\n\n",
 		testLine, line)
@@ -193,21 +193,21 @@ func (s *FoundationS) TestCallerLoggingInDifferentFile(c *gocheck.C) {
 
 type ExpectFailureSucceedHelper struct{}
 
-func (s *ExpectFailureSucceedHelper) TestSucceed(c *gocheck.C) {
+func (s *ExpectFailureSucceedHelper) TestSucceed(c *check.C) {
 	c.ExpectFailure("It booms!")
 	c.Error("Boom!")
 }
 
 type ExpectFailureFailHelper struct{}
 
-func (s *ExpectFailureFailHelper) TestFail(c *gocheck.C) {
+func (s *ExpectFailureFailHelper) TestFail(c *check.C) {
 	c.ExpectFailure("Bug #XYZ")
 }
 
-func (s *FoundationS) TestExpectFailureFail(c *gocheck.C) {
+func (s *FoundationS) TestExpectFailureFail(c *check.C) {
 	helper := ExpectFailureFailHelper{}
 	output := String{}
-	result := gocheck.Run(&helper, &gocheck.RunConf{Output: &output})
+	result := check.Run(&helper, &check.RunConf{Output: &output})
 
 	expected := "" +
 		"^\n-+\n" +
@@ -223,22 +223,22 @@ func (s *FoundationS) TestExpectFailureFail(c *gocheck.C) {
 		c.Error("ExpectFailure() didn't log properly:\n", output.value)
 	}
 
-	c.Assert(result.ExpectedFailures, gocheck.Equals, 0)
+	c.Assert(result.ExpectedFailures, check.Equals, 0)
 }
 
-func (s *FoundationS) TestExpectFailureSucceed(c *gocheck.C) {
+func (s *FoundationS) TestExpectFailureSucceed(c *check.C) {
 	helper := ExpectFailureSucceedHelper{}
 	output := String{}
-	result := gocheck.Run(&helper, &gocheck.RunConf{Output: &output})
+	result := check.Run(&helper, &check.RunConf{Output: &output})
 
-	c.Assert(output.value, gocheck.Equals, "")
-	c.Assert(result.ExpectedFailures, gocheck.Equals, 1)
+	c.Assert(output.value, check.Equals, "")
+	c.Assert(result.ExpectedFailures, check.Equals, 1)
 }
 
-func (s *FoundationS) TestExpectFailureSucceedVerbose(c *gocheck.C) {
+func (s *FoundationS) TestExpectFailureSucceedVerbose(c *check.C) {
 	helper := ExpectFailureSucceedHelper{}
 	output := String{}
-	result := gocheck.Run(&helper, &gocheck.RunConf{Output: &output, Verbose: true})
+	result := check.Run(&helper, &check.RunConf{Output: &output, Verbose: true})
 
 	expected := "" +
 		"FAIL EXPECTED: foundation_test\\.go:[0-9]+:" +
@@ -251,7 +251,7 @@ func (s *FoundationS) TestExpectFailureSucceedVerbose(c *gocheck.C) {
 		c.Error("ExpectFailure() didn't log properly:\n", output.value)
 	}
 
-	c.Assert(result.ExpectedFailures, gocheck.Equals, 1)
+	c.Assert(result.ExpectedFailures, check.Equals, 1)
 }
 
 // -----------------------------------------------------------------------
@@ -259,25 +259,25 @@ func (s *FoundationS) TestExpectFailureSucceedVerbose(c *gocheck.C) {
 
 type SkipTestHelper struct{}
 
-func (s *SkipTestHelper) TestFail(c *gocheck.C) {
+func (s *SkipTestHelper) TestFail(c *check.C) {
 	c.Skip("Wrong platform or whatever")
 	c.Error("Boom!")
 }
 
-func (s *FoundationS) TestSkip(c *gocheck.C) {
+func (s *FoundationS) TestSkip(c *check.C) {
 	helper := SkipTestHelper{}
 	output := String{}
-	gocheck.Run(&helper, &gocheck.RunConf{Output: &output})
+	check.Run(&helper, &check.RunConf{Output: &output})
 
 	if output.value != "" {
 		c.Error("Skip() logged something:\n", output.value)
 	}
 }
 
-func (s *FoundationS) TestSkipVerbose(c *gocheck.C) {
+func (s *FoundationS) TestSkipVerbose(c *check.C) {
 	helper := SkipTestHelper{}
 	output := String{}
-	gocheck.Run(&helper, &gocheck.RunConf{Output: &output, Verbose: true})
+	check.Run(&helper, &check.RunConf{Output: &output, Verbose: true})
 
 	expected := "SKIP: foundation_test\\.go:[0-9]+: SkipTestHelper\\.TestFail" +
 		" \\(Wrong platform or whatever\\)"
@@ -290,20 +290,20 @@ func (s *FoundationS) TestSkipVerbose(c *gocheck.C) {
 }
 
 // -----------------------------------------------------------------------
-// Check minimum *log.Logger interface provided by *gocheck.C.
+// Check minimum *log.Logger interface provided by *check.C.
 
 type minLogger interface {
 	Output(calldepth int, s string) error
 }
 
-func (s *BootstrapS) TestMinLogger(c *gocheck.C) {
+func (s *BootstrapS) TestMinLogger(c *check.C) {
 	var logger minLogger
 	logger = log.New(os.Stderr, "", 0)
 	logger = c
 	logger.Output(0, "Hello there")
 	expected := `\[LOG\] [0-9]+:[0-9][0-9]\.[0-9][0-9][0-9] +Hello there\n`
 	output := c.GetTestLog()
-	c.Assert(output, gocheck.Matches, expected)
+	c.Assert(output, check.Matches, expected)
 }
 
 // -----------------------------------------------------------------------
@@ -318,18 +318,18 @@ type EmbeddedS struct {
 	EmbeddedInternalS
 }
 
-var embeddedS = gocheck.Suite(&EmbeddedS{})
+var embeddedS = check.Suite(&EmbeddedS{})
 
-func (s *EmbeddedS) TestCountSuite(c *gocheck.C) {
+func (s *EmbeddedS) TestCountSuite(c *check.C) {
 	suitesRun += 1
 }
 
-func (s *EmbeddedInternalS) TestMethod(c *gocheck.C) {
+func (s *EmbeddedInternalS) TestMethod(c *check.C) {
 	c.Error("TestMethod() of the embedded type was called!?")
 }
 
-func (s *EmbeddedS) TestMethod(c *gocheck.C) {
+func (s *EmbeddedS) TestMethod(c *check.C) {
 	// http://code.google.com/p/go/issues/detail?id=906
-	c.Check(s.called, gocheck.Equals, false) // Go issue 906 is affecting the runner?
+	c.Check(s.called, check.Equals, false) // Go issue 906 is affecting the runner?
 	s.called = true
 }

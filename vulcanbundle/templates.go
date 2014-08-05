@@ -48,7 +48,7 @@ func GetRegistry() (*plugin.Registry, error) {
 const vulcanctlTemplate = `package main
 
 import (
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	log "github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcand/vulcanctl/command"
 	"{{.PackagePath}}/registry"
 	"os"

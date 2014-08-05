@@ -1,7 +1,7 @@
-package gocheck_test
+package check_test
 
 import (
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 var _ = Suite(&PrinterS{})

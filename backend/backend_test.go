@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"testing"
 )
 

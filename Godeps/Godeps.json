@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/mailgun/vulcand",
-	"GoVersion": "go1.2",
+	"GoVersion": "go1.3",
 	"Packages": [
 		"./..."
 	],
@@ -25,7 +25,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/gotools-api",
-			"Rev": "cad38181399b899e5831f8f3b550c5868f907825"
+			"Rev": "87768e358c130b8f94627e00f303ecd0863307de"
 		},
 		{
 			"ImportPath": "github.com/mailgun/gotools-log",
@@ -53,17 +53,16 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-172-gbb0cbe2",
-			"Rev": "bb0cbe201a144bef3de31660025fc72432650d54"
+			"Comment": "v0.1-178-gd63d2d2",
+			"Rev": "d63d2d245fc1ea64b82e154b6303166de1b50a54"
 		},
 		{
 			"ImportPath": "github.com/wsxiaoys/terminal/color",
 			"Rev": "a83cd00f6d7acf3554bc24f06d7f9e48a90d0a47"
 		},
 		{
-			"ImportPath": "launchpad.net/gocheck",
-			"Comment": "87",
-			"Rev": "gustavo@niemeyer.net-20140225173054-xu9zlkf9kxhvow02"
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "5b76b26efe7f426789852e983fbde4de62c42282"
 		}
 	]
 }

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"io"
 	"io/ioutil"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"os"
 )
 

@@ -44,11 +44,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer body.Close()
 	r.Body = body
 
-	req := &request.BaseRequest{
-		HttpRequest: r,
-		Id:          atomic.AddInt64(&p.lastRequestId, 1),
-		Body:        body,
-	}
+	req := request.NewBaseRequest(r, atomic.AddInt64(&p.lastRequestId, 1), body)
 
 	err = p.proxyRequest(w, req)
 	if err != nil {

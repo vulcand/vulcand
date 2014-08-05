@@ -1,21 +1,21 @@
 // These tests verify the inner workings of the helper methods associated
-// with gocheck.T.
+// with check.T.
 
-package gocheck_test
+package check_test
 
 import (
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"os"
 	"reflect"
 	"runtime"
 	"sync"
 )
 
-var helpersS = gocheck.Suite(&HelpersS{})
+var helpersS = check.Suite(&HelpersS{})
 
 type HelpersS struct{}
 
-func (s *HelpersS) TestCountSuite(c *gocheck.C) {
+func (s *HelpersS) TestCountSuite(c *check.C) {
 	suitesRun += 1
 }
 
@@ -23,16 +23,16 @@ func (s *HelpersS) TestCountSuite(c *gocheck.C) {
 // Fake checker and bug info to verify the behavior of Assert() and Check().
 
 type MyChecker struct {
-	info   *gocheck.CheckerInfo
+	info   *check.CheckerInfo
 	params []interface{}
 	names  []string
 	result bool
 	error  string
 }
 
-func (checker *MyChecker) Info() *gocheck.CheckerInfo {
+func (checker *MyChecker) Info() *check.CheckerInfo {
 	if checker.info == nil {
-		return &gocheck.CheckerInfo{Name: "MyChecker", Params: []string{"myobtained", "myexpected"}}
+		return &check.CheckerInfo{Name: "MyChecker", Params: []string{"myobtained", "myexpected"}}
 	}
 	return checker.info
 }
@@ -64,16 +64,16 @@ func myComment(s string) myCommentType {
 // -----------------------------------------------------------------------
 // Ensure a real checker actually works fine.
 
-func (s *HelpersS) TestCheckerInterface(c *gocheck.C) {
+func (s *HelpersS) TestCheckerInterface(c *check.C) {
 	testHelperSuccess(c, "Check(1, Equals, 1)", true, func() interface{} {
-		return c.Check(1, gocheck.Equals, 1)
+		return c.Check(1, check.Equals, 1)
 	})
 }
 
 // -----------------------------------------------------------------------
 // Tests for Check(), mostly the same as for Assert() following these.
 
-func (s *HelpersS) TestCheckSucceedWithExpected(c *gocheck.C) {
+func (s *HelpersS) TestCheckSucceedWithExpected(c *check.C) {
 	checker := &MyChecker{result: true}
 	testHelperSuccess(c, "Check(1, checker, 2)", true, func() interface{} {
 		return c.Check(1, checker, 2)
@@ -83,8 +83,8 @@ func (s *HelpersS) TestCheckSucceedWithExpected(c *gocheck.C) {
 	}
 }
 
-func (s *HelpersS) TestCheckSucceedWithoutExpected(c *gocheck.C) {
-	checker := &MyChecker{result: true, info: &gocheck.CheckerInfo{Params: []string{"myvalue"}}}
+func (s *HelpersS) TestCheckSucceedWithoutExpected(c *check.C) {
+	checker := &MyChecker{result: true, info: &check.CheckerInfo{Params: []string{"myvalue"}}}
 	testHelperSuccess(c, "Check(1, checker)", true, func() interface{} {
 		return c.Check(1, checker)
 	})
@@ -93,7 +93,7 @@ func (s *HelpersS) TestCheckSucceedWithoutExpected(c *gocheck.C) {
 	}
 }
 
-func (s *HelpersS) TestCheckFailWithExpected(c *gocheck.C) {
+func (s *HelpersS) TestCheckFailWithExpected(c *check.C) {
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker, 2\\)\n" +
@@ -105,7 +105,7 @@ func (s *HelpersS) TestCheckFailWithExpected(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckFailWithExpectedAndComment(c *gocheck.C) {
+func (s *HelpersS) TestCheckFailWithExpectedAndComment(c *check.C) {
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker, 2, myComment\\(\"Hello world!\"\\)\\)\n" +
@@ -118,7 +118,7 @@ func (s *HelpersS) TestCheckFailWithExpectedAndComment(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckFailWithExpectedAndStaticComment(c *gocheck.C) {
+func (s *HelpersS) TestCheckFailWithExpectedAndStaticComment(c *check.C) {
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    // Nice leading comment\\.\n" +
@@ -132,8 +132,8 @@ func (s *HelpersS) TestCheckFailWithExpectedAndStaticComment(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckFailWithoutExpected(c *gocheck.C) {
-	checker := &MyChecker{result: false, info: &gocheck.CheckerInfo{Params: []string{"myvalue"}}}
+func (s *HelpersS) TestCheckFailWithoutExpected(c *check.C) {
+	checker := &MyChecker{result: false, info: &check.CheckerInfo{Params: []string{"myvalue"}}}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker\\)\n" +
 		"\\.+ myvalue int = 1\n\n"
@@ -143,8 +143,8 @@ func (s *HelpersS) TestCheckFailWithoutExpected(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckFailWithoutExpectedAndMessage(c *gocheck.C) {
-	checker := &MyChecker{result: false, info: &gocheck.CheckerInfo{Params: []string{"myvalue"}}}
+func (s *HelpersS) TestCheckFailWithoutExpectedAndMessage(c *check.C) {
+	checker := &MyChecker{result: false, info: &check.CheckerInfo{Params: []string{"myvalue"}}}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker, myComment\\(\"Hello world!\"\\)\\)\n" +
 		"\\.+ myvalue int = 1\n" +
@@ -155,7 +155,7 @@ func (s *HelpersS) TestCheckFailWithoutExpectedAndMessage(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckWithMissingExpected(c *gocheck.C) {
+func (s *HelpersS) TestCheckWithMissingExpected(c *check.C) {
 	checker := &MyChecker{result: true}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker\\)\n" +
@@ -168,7 +168,7 @@ func (s *HelpersS) TestCheckWithMissingExpected(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckWithTooManyExpected(c *gocheck.C) {
+func (s *HelpersS) TestCheckWithTooManyExpected(c *check.C) {
 	checker := &MyChecker{result: true}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker, 2, 3\\)\n" +
@@ -181,7 +181,7 @@ func (s *HelpersS) TestCheckWithTooManyExpected(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckWithError(c *gocheck.C) {
+func (s *HelpersS) TestCheckWithError(c *check.C) {
 	checker := &MyChecker{result: false, error: "Some not so cool data provided!"}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker, 2\\)\n" +
@@ -194,7 +194,7 @@ func (s *HelpersS) TestCheckWithError(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckWithNilChecker(c *gocheck.C) {
+func (s *HelpersS) TestCheckWithNilChecker(c *check.C) {
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, nil\\)\n" +
 		"\\.+ Check\\(obtained, nil!\\?, \\.\\.\\.\\):\n" +
@@ -205,7 +205,7 @@ func (s *HelpersS) TestCheckWithNilChecker(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestCheckWithParamsAndNamesMutation(c *gocheck.C) {
+func (s *HelpersS) TestCheckWithParamsAndNamesMutation(c *check.C) {
 	checker := &MyChecker{result: false, params: []interface{}{3, 4}, names: []string{"newobtained", "newexpected"}}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    return c\\.Check\\(1, checker, 2\\)\n" +
@@ -220,7 +220,7 @@ func (s *HelpersS) TestCheckWithParamsAndNamesMutation(c *gocheck.C) {
 // -----------------------------------------------------------------------
 // Tests for Assert(), mostly the same as for Check() above.
 
-func (s *HelpersS) TestAssertSucceedWithExpected(c *gocheck.C) {
+func (s *HelpersS) TestAssertSucceedWithExpected(c *check.C) {
 	checker := &MyChecker{result: true}
 	testHelperSuccess(c, "Assert(1, checker, 2)", nil, func() interface{} {
 		c.Assert(1, checker, 2)
@@ -231,8 +231,8 @@ func (s *HelpersS) TestAssertSucceedWithExpected(c *gocheck.C) {
 	}
 }
 
-func (s *HelpersS) TestAssertSucceedWithoutExpected(c *gocheck.C) {
-	checker := &MyChecker{result: true, info: &gocheck.CheckerInfo{Params: []string{"myvalue"}}}
+func (s *HelpersS) TestAssertSucceedWithoutExpected(c *check.C) {
+	checker := &MyChecker{result: true, info: &check.CheckerInfo{Params: []string{"myvalue"}}}
 	testHelperSuccess(c, "Assert(1, checker)", nil, func() interface{} {
 		c.Assert(1, checker)
 		return nil
@@ -242,7 +242,7 @@ func (s *HelpersS) TestAssertSucceedWithoutExpected(c *gocheck.C) {
 	}
 }
 
-func (s *HelpersS) TestAssertFailWithExpected(c *gocheck.C) {
+func (s *HelpersS) TestAssertFailWithExpected(c *check.C) {
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    c\\.Assert\\(1, checker, 2\\)\n" +
@@ -255,7 +255,7 @@ func (s *HelpersS) TestAssertFailWithExpected(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestAssertFailWithExpectedAndMessage(c *gocheck.C) {
+func (s *HelpersS) TestAssertFailWithExpectedAndMessage(c *check.C) {
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    c\\.Assert\\(1, checker, 2, myComment\\(\"Hello world!\"\\)\\)\n" +
@@ -269,8 +269,8 @@ func (s *HelpersS) TestAssertFailWithExpectedAndMessage(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestAssertFailWithoutExpected(c *gocheck.C) {
-	checker := &MyChecker{result: false, info: &gocheck.CheckerInfo{Params: []string{"myvalue"}}}
+func (s *HelpersS) TestAssertFailWithoutExpected(c *check.C) {
+	checker := &MyChecker{result: false, info: &check.CheckerInfo{Params: []string{"myvalue"}}}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    c\\.Assert\\(1, checker\\)\n" +
 		"\\.+ myvalue int = 1\n\n"
@@ -281,8 +281,8 @@ func (s *HelpersS) TestAssertFailWithoutExpected(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestAssertFailWithoutExpectedAndMessage(c *gocheck.C) {
-	checker := &MyChecker{result: false, info: &gocheck.CheckerInfo{Params: []string{"myvalue"}}}
+func (s *HelpersS) TestAssertFailWithoutExpectedAndMessage(c *check.C) {
+	checker := &MyChecker{result: false, info: &check.CheckerInfo{Params: []string{"myvalue"}}}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    c\\.Assert\\(1, checker, myComment\\(\"Hello world!\"\\)\\)\n" +
 		"\\.+ myvalue int = 1\n" +
@@ -294,7 +294,7 @@ func (s *HelpersS) TestAssertFailWithoutExpectedAndMessage(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestAssertWithMissingExpected(c *gocheck.C) {
+func (s *HelpersS) TestAssertWithMissingExpected(c *check.C) {
 	checker := &MyChecker{result: true}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    c\\.Assert\\(1, checker\\)\n" +
@@ -308,7 +308,7 @@ func (s *HelpersS) TestAssertWithMissingExpected(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestAssertWithError(c *gocheck.C) {
+func (s *HelpersS) TestAssertWithError(c *check.C) {
 	checker := &MyChecker{result: false, error: "Some not so cool data provided!"}
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    c\\.Assert\\(1, checker, 2\\)\n" +
@@ -322,7 +322,7 @@ func (s *HelpersS) TestAssertWithError(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestAssertWithNilChecker(c *gocheck.C) {
+func (s *HelpersS) TestAssertWithNilChecker(c *check.C) {
 	log := "(?s)helpers_test\\.go:[0-9]+:.*\nhelpers_test\\.go:[0-9]+:\n" +
 		"    c\\.Assert\\(1, nil\\)\n" +
 		"\\.+ Assert\\(obtained, nil!\\?, \\.\\.\\.\\):\n" +
@@ -337,7 +337,7 @@ func (s *HelpersS) TestAssertWithNilChecker(c *gocheck.C) {
 // -----------------------------------------------------------------------
 // Ensure that values logged work properly in some interesting cases.
 
-func (s *HelpersS) TestValueLoggingWithArrays(c *gocheck.C) {
+func (s *HelpersS) TestValueLoggingWithArrays(c *check.C) {
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test.go:[0-9]+:.*\nhelpers_test.go:[0-9]+:\n" +
 		"    return c\\.Check\\(\\[\\]byte{1, 2}, checker, \\[\\]byte{1, 3}\\)\n" +
@@ -349,7 +349,7 @@ func (s *HelpersS) TestValueLoggingWithArrays(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestValueLoggingWithMultiLine(c *gocheck.C) {
+func (s *HelpersS) TestValueLoggingWithMultiLine(c *check.C) {
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test.go:[0-9]+:.*\nhelpers_test.go:[0-9]+:\n" +
 		"    return c\\.Check\\(\"a\\\\nb\\\\n\", checker, \"a\\\\nb\\\\nc\"\\)\n" +
@@ -366,7 +366,7 @@ func (s *HelpersS) TestValueLoggingWithMultiLine(c *gocheck.C) {
 		})
 }
 
-func (s *HelpersS) TestValueLoggingWithMultiLineException(c *gocheck.C) {
+func (s *HelpersS) TestValueLoggingWithMultiLineException(c *check.C) {
 	// If the newline is at the end of the string, don't log as multi-line.
 	checker := &MyChecker{result: false}
 	log := "(?s)helpers_test.go:[0-9]+:.*\nhelpers_test.go:[0-9]+:\n" +
@@ -393,34 +393,34 @@ type MkDirHelper struct {
 	isDir4 bool
 }
 
-func (s *MkDirHelper) SetUpSuite(c *gocheck.C) {
+func (s *MkDirHelper) SetUpSuite(c *check.C) {
 	s.path1 = c.MkDir()
 	s.isDir1 = isDir(s.path1)
 }
 
-func (s *MkDirHelper) Test(c *gocheck.C) {
+func (s *MkDirHelper) Test(c *check.C) {
 	s.path2 = c.MkDir()
 	s.isDir2 = isDir(s.path2)
 }
 
-func (s *MkDirHelper) TearDownSuite(c *gocheck.C) {
+func (s *MkDirHelper) TearDownSuite(c *check.C) {
 	s.isDir3 = isDir(s.path1)
 	s.isDir4 = isDir(s.path2)
 }
 
-func (s *HelpersS) TestMkDir(c *gocheck.C) {
+func (s *HelpersS) TestMkDir(c *check.C) {
 	helper := MkDirHelper{}
 	output := String{}
-	gocheck.Run(&helper, &gocheck.RunConf{Output: &output})
-	c.Assert(output.value, gocheck.Equals, "")
-	c.Check(helper.isDir1, gocheck.Equals, true)
-	c.Check(helper.isDir2, gocheck.Equals, true)
-	c.Check(helper.isDir3, gocheck.Equals, true)
-	c.Check(helper.isDir4, gocheck.Equals, true)
-	c.Check(helper.path1, gocheck.Not(gocheck.Equals),
+	check.Run(&helper, &check.RunConf{Output: &output})
+	c.Assert(output.value, check.Equals, "")
+	c.Check(helper.isDir1, check.Equals, true)
+	c.Check(helper.isDir2, check.Equals, true)
+	c.Check(helper.isDir3, check.Equals, true)
+	c.Check(helper.isDir4, check.Equals, true)
+	c.Check(helper.path1, check.Not(check.Equals),
 		helper.path2)
-	c.Check(isDir(helper.path1), gocheck.Equals, false)
-	c.Check(isDir(helper.path2), gocheck.Equals, false)
+	c.Check(isDir(helper.path1), check.Equals, false)
+	c.Check(isDir(helper.path2), check.Equals, false)
 }
 
 func isDir(path string) bool {
@@ -432,7 +432,7 @@ func isDir(path string) bool {
 
 // Concurrent logging should not corrupt the underling buffer.
 // Use go test -race to detect the race in this test.
-func (s *HelpersS) TestConcurrentLogging(c *gocheck.C) {
+func (s *HelpersS) TestConcurrentLogging(c *check.C) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(runtime.NumCPU()))
 	var start, stop sync.WaitGroup
 	start.Add(1)
@@ -451,9 +451,37 @@ func (s *HelpersS) TestConcurrentLogging(c *gocheck.C) {
 }
 
 // -----------------------------------------------------------------------
+// Test the TestName function
+
+type TestNameHelper struct {
+	name1 string
+	name2 string
+	name3 string
+	name4 string
+	name5 string
+}
+
+func (s *TestNameHelper) SetUpSuite(c *check.C)    { s.name1 = c.TestName() }
+func (s *TestNameHelper) SetUpTest(c *check.C)     { s.name2 = c.TestName() }
+func (s *TestNameHelper) Test(c *check.C)          { s.name3 = c.TestName() }
+func (s *TestNameHelper) TearDownTest(c *check.C)  { s.name4 = c.TestName() }
+func (s *TestNameHelper) TearDownSuite(c *check.C) { s.name5 = c.TestName() }
+
+func (s *HelpersS) TestTestName(c *check.C) {
+	helper := TestNameHelper{}
+	output := String{}
+	check.Run(&helper, &check.RunConf{Output: &output})
+	c.Check(helper.name1, check.Equals, "")
+	c.Check(helper.name2, check.Equals, "TestNameHelper.Test")
+	c.Check(helper.name3, check.Equals, "TestNameHelper.Test")
+	c.Check(helper.name4, check.Equals, "TestNameHelper.Test")
+	c.Check(helper.name5, check.Equals, "")
+}
+
+// -----------------------------------------------------------------------
 // A couple of helper functions to test helper functions. :-)
 
-func testHelperSuccess(c *gocheck.C, name string, expectedResult interface{}, closure func() interface{}) {
+func testHelperSuccess(c *check.C, name string, expectedResult interface{}, closure func() interface{}) {
 	var result interface{}
 	defer (func() {
 		if err := recover(); err != nil {
@@ -470,7 +498,7 @@ func testHelperSuccess(c *gocheck.C, name string, expectedResult interface{}, cl
 	result = closure()
 }
 
-func testHelperFailure(c *gocheck.C, name string, expectedResult interface{}, shouldStop bool, log string, closure func() interface{}) {
+func testHelperFailure(c *check.C, name string, expectedResult interface{}, shouldStop bool, log string, closure func() interface{}) {
 	var result interface{}
 	defer (func() {
 		if err := recover(); err != nil {

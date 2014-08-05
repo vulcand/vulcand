@@ -4,7 +4,7 @@ Declares gocheck's test suites
 package vulcan
 
 import (
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"testing"
 )
 

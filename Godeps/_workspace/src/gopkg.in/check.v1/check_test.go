@@ -1,17 +1,18 @@
 // This file contains just a few generic helpers which are used by the
 // other test files.
 
-package gocheck_test
+package check_test
 
 import (
 	"flag"
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
 	"os"
 	"regexp"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 // We count the number of suites run at least to get a vague hint that the
@@ -22,8 +23,8 @@ const suitesRunExpected = 8
 var suitesRun int = 0
 
 func Test(t *testing.T) {
-	gocheck.TestingT(t)
-	if suitesRun != suitesRunExpected && flag.Lookup("gocheck.f").Value.String() == "" {
+	check.TestingT(t)
+	if suitesRun != suitesRunExpected && flag.Lookup("check.f").Value.String() == "" {
 		critical(fmt.Sprintf("Expected %d suites to run rather than %d",
 			suitesRunExpected, suitesRun))
 	}
@@ -64,8 +65,8 @@ func (s *String) Write(p []byte) (n int, err error) {
 
 // Trivial wrapper to test errors happening on a different file
 // than the test itself.
-func checkEqualWrapper(c *gocheck.C, obtained, expected interface{}) (result bool, line int) {
-	return c.Check(obtained, gocheck.Equals, expected), getMyLine()
+func checkEqualWrapper(c *check.C, obtained, expected interface{}) (result bool, line int) {
+	return c.Check(obtained, check.Equals, expected), getMyLine()
 }
 
 // -----------------------------------------------------------------------
@@ -75,7 +76,7 @@ type FailHelper struct {
 	testLine int
 }
 
-func (s *FailHelper) TestLogAndFail(c *gocheck.C) {
+func (s *FailHelper) TestLogAndFail(c *check.C) {
 	s.testLine = getMyLine() - 1
 	c.Log("Expected failure!")
 	c.Fail()
@@ -86,7 +87,7 @@ func (s *FailHelper) TestLogAndFail(c *gocheck.C) {
 
 type SuccessHelper struct{}
 
-func (s *SuccessHelper) TestLogAndSucceed(c *gocheck.C) {
+func (s *SuccessHelper) TestLogAndSucceed(c *check.C) {
 	c.Log("Expected success!")
 }
 
@@ -103,7 +104,7 @@ type FixtureHelper struct {
 	bytes   int64
 }
 
-func (s *FixtureHelper) trace(name string, c *gocheck.C) {
+func (s *FixtureHelper) trace(name string, c *check.C) {
 	s.calls = append(s.calls, name)
 	if name == s.panicOn {
 		panic(name)
@@ -116,42 +117,52 @@ func (s *FixtureHelper) trace(name string, c *gocheck.C) {
 	}
 }
 
-func (s *FixtureHelper) SetUpSuite(c *gocheck.C) {
+func (s *FixtureHelper) SetUpSuite(c *check.C) {
 	s.trace("SetUpSuite", c)
 }
 
-func (s *FixtureHelper) TearDownSuite(c *gocheck.C) {
+func (s *FixtureHelper) TearDownSuite(c *check.C) {
 	s.trace("TearDownSuite", c)
 }
 
-func (s *FixtureHelper) SetUpTest(c *gocheck.C) {
+func (s *FixtureHelper) SetUpTest(c *check.C) {
 	s.trace("SetUpTest", c)
 }
 
-func (s *FixtureHelper) TearDownTest(c *gocheck.C) {
+func (s *FixtureHelper) TearDownTest(c *check.C) {
 	s.trace("TearDownTest", c)
 }
 
-func (s *FixtureHelper) Test1(c *gocheck.C) {
+func (s *FixtureHelper) Test1(c *check.C) {
 	s.trace("Test1", c)
 }
 
-func (s *FixtureHelper) Test2(c *gocheck.C) {
+func (s *FixtureHelper) Test2(c *check.C) {
 	s.trace("Test2", c)
 }
 
-func (s *FixtureHelper) Benchmark1(c *gocheck.C) {
+func (s *FixtureHelper) Benchmark1(c *check.C) {
 	s.trace("Benchmark1", c)
 	for i := 0; i < c.N; i++ {
 		time.Sleep(s.sleep)
 	}
 }
 
-func (s *FixtureHelper) Benchmark2(c *gocheck.C) {
+func (s *FixtureHelper) Benchmark2(c *check.C) {
 	s.trace("Benchmark2", c)
 	c.SetBytes(1024)
 	for i := 0; i < c.N; i++ {
 		time.Sleep(s.sleep)
+	}
+}
+
+func (s *FixtureHelper) Benchmark3(c *check.C) {
+	var x []int64
+	s.trace("Benchmark3", c)
+	for i := 0; i < c.N; i++ {
+		time.Sleep(s.sleep)
+		x = make([]int64, 5)
+		_ = x
 	}
 }
 
@@ -170,7 +181,7 @@ type expectedState struct {
 // Verify the state of the test.  Note that since this also verifies if
 // the test is supposed to be in a failed state, no other checks should
 // be done in addition to what is being tested.
-func checkState(c *gocheck.C, result interface{}, expected *expectedState) {
+func checkState(c *check.C, result interface{}, expected *expectedState) {
 	failed := c.Failed()
 	c.Succeed()
 	log := c.GetTestLog()

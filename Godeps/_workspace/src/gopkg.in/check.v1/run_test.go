@@ -1,10 +1,11 @@
 // These tests verify the test running logic.
 
-package gocheck_test
+package check_test
 
 import (
 	"errors"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"os"
 	"sync"
 )
 
@@ -306,8 +307,8 @@ func (s *RunS) TestVerboseMode(c *C) {
 	runConf := RunConf{Output: &output, Verbose: true}
 	Run(&helper, &runConf)
 
-	expected := "PASS: gocheck_test\\.go:[0-9]+: FixtureHelper\\.Test1\t *[.0-9]+s\n" +
-		"PASS: gocheck_test\\.go:[0-9]+: FixtureHelper\\.Test2\t *[.0-9]+s\n"
+	expected := "PASS: check_test\\.go:[0-9]+: FixtureHelper\\.Test1\t *[.0-9]+s\n" +
+		"PASS: check_test\\.go:[0-9]+: FixtureHelper\\.Test2\t *[.0-9]+s\n"
 
 	c.Assert(output.value, Matches, expected)
 }
@@ -319,7 +320,7 @@ func (s *RunS) TestVerboseModeWithFailBeforePass(c *C) {
 	Run(&helper, &runConf)
 
 	expected := "(?s).*PANIC.*\n-+\n" + // Should have an extra line.
-		"PASS: gocheck_test\\.go:[0-9]+: FixtureHelper\\.Test2\t *[.0-9]+s\n"
+		"PASS: check_test\\.go:[0-9]+: FixtureHelper\\.Test2\t *[.0-9]+s\n"
 
 	c.Assert(output.value, Matches, expected)
 }
@@ -394,4 +395,25 @@ func (s *RunS) TestStreamModeWithMiss(c *C) {
 		"MISS: run_test\\.go:[0-9]+: StreamMissHelper\\.Test1\n\n"
 
 	c.Assert(output.value, Matches, expected)
+}
+
+// -----------------------------------------------------------------------
+// Verify that that the keep work dir request indeed does so.
+
+type WorkDirSuite struct{}
+
+func (s *WorkDirSuite) Test(c *C) {
+	c.MkDir()
+}
+
+func (s *RunS) TestKeepWorkDir(c *C) {
+	output := String{}
+	runConf := RunConf{Output: &output, Verbose: true, KeepWorkDir: true}
+	result := Run(&WorkDirSuite{}, &runConf)
+
+	c.Assert(result.String(), Matches, ".*\nWORK="+result.WorkDir)
+
+	stat, err := os.Stat(result.WorkDir)
+	c.Assert(err, IsNil)
+	c.Assert(stat.IsDir(), Equals, true)
 }

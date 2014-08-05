@@ -6,19 +6,23 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"net/http"
+	"sync"
 	"time"
 )
 
 // Wrapper around http request that provides more info about http.Request
 type Request interface {
-	GetHttpRequest() *http.Request // Original http request
-	SetHttpRequest(*http.Request)  // Can be used to set http request
-	GetId() int64                  // Request id that is unique to this running process
-	GetBody() netutils.MultiReader // Request body fully read and stored in effective manner (buffered to disk for large requests)
-	AddAttempt(Attempt)            // Add last proxy attempt to the request
-	GetAttempts() []Attempt        // Returns last attempts to proxy request, may be nil if there are no attempts
-	GetLastAttempt() Attempt       // Convenience method returning the last attempt, may be nil if there are no attempts
-	String() string                // Debugging string representation of the request
+	GetHttpRequest() *http.Request              // Original http request
+	SetHttpRequest(*http.Request)               // Can be used to set http request
+	GetId() int64                               // Request id that is unique to this running process
+	GetBody() netutils.MultiReader              // Request body fully read and stored in effective manner (buffered to disk for large requests)
+	AddAttempt(Attempt)                         // Add last proxy attempt to the request
+	GetAttempts() []Attempt                     // Returns last attempts to proxy request, may be nil if there are no attempts
+	GetLastAttempt() Attempt                    // Convenience method returning the last attempt, may be nil if there are no attempts
+	String() string                             // Debugging string representation of the request
+	SetUserData(key string, baton interface{})  //Provide storage space for data that survives with the request
+	GetUserData(key string) (interface{}, bool) //Fetch user data set from previously SetUserData call
+	DeleteUserData(key string)                  //Clean up user data set from previously SetUserData call
 }
 
 type Attempt interface {
@@ -52,10 +56,22 @@ func (ba *BaseAttempt) GetEndpoint() endpoint.Endpoint {
 }
 
 type BaseRequest struct {
-	HttpRequest *http.Request
-	Id          int64
-	Body        netutils.MultiReader
-	Attempts    []Attempt
+	HttpRequest   *http.Request
+	Id            int64
+	Body          netutils.MultiReader
+	Attempts      []Attempt
+	userDataMutex *sync.RWMutex
+	userData      map[string]interface{}
+}
+
+func NewBaseRequest(r *http.Request, id int64, body netutils.MultiReader) *BaseRequest {
+	return &BaseRequest{
+		HttpRequest:   r,
+		Id:            id,
+		Body:          body,
+		userDataMutex: &sync.RWMutex{},
+	}
+
 }
 
 func (br *BaseRequest) String() string {
@@ -91,4 +107,30 @@ func (br *BaseRequest) GetLastAttempt() Attempt {
 		return nil
 	}
 	return br.Attempts[len(br.Attempts)-1]
+}
+func (br *BaseRequest) SetUserData(key string, baton interface{}) {
+	br.userDataMutex.Lock()
+	defer br.userDataMutex.Unlock()
+	if br.userData == nil {
+		br.userData = make(map[string]interface{})
+	}
+	br.userData[key] = baton
+}
+func (br *BaseRequest) GetUserData(key string) (i interface{}, b bool) {
+	br.userDataMutex.RLock()
+	defer br.userDataMutex.RUnlock()
+	if br.userData == nil {
+		return i, false
+	}
+	i, b = br.userData[key]
+	return i, b
+}
+func (br *BaseRequest) DeleteUserData(key string) {
+	br.userDataMutex.Lock()
+	defer br.userDataMutex.Unlock()
+	if br.userData == nil {
+		return
+	}
+
+	delete(br.userData, key)
 }
