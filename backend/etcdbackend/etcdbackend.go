@@ -5,14 +5,17 @@ package etcdbackend
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
+	etcdErr "github.com/coreos/etcd/error"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
 	. "github.com/mailgun/vulcand/plugin"
-	"regexp"
-	"strings"
 )
 
 type EtcdBackend struct {
@@ -402,8 +405,32 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 				log.Infof("Stop watching: graceful shutdown")
 				return nil
 			}
-			log.Errorf("Stop watching: Etcd client error: %v", err)
-			return err
+
+			// The following code was lifted from coreos/fleet and allows us
+			// to handle unexpected errors e.g. server timeout
+			// See: https://github.com/coreos/fleet/pull/411
+			log.Errorf("etcd watcher returned error: %s", err.Error())
+
+			etcdError, ok := err.(*etcd.EtcdError)
+			if !ok {
+				// Let's not slam the etcd server in the event that we know
+				// an unexpected error occurred.
+				time.Sleep(time.Second)
+				continue
+			}
+
+			switch etcdError.ErrorCode {
+			case etcdErr.EcodeEventIndexCleared:
+				// This is racy, but adding one to the last known index
+				// will help get this watcher back into the range of
+				// etcd's internal event history
+				waitIndex++
+			default:
+				// Let's not slam the etcd server in the event that we know
+				// an unexpected error occurred.
+				time.Sleep(time.Second)
+			}
+			continue
 		}
 
 		waitIndex = response.Node.ModifiedIndex + 1
