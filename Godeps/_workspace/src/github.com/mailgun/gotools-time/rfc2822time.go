@@ -19,6 +19,10 @@ func (t RFC2822Time) Unix() int64 {
 	return time.Time(t).Unix()
 }
 
+func (t RFC2822Time) IsZero() bool {
+	return time.Time(t).IsZero()
+}
+
 func (t RFC2822Time) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.Quote(time.Time(t).Format(time.RFC1123))), nil
 }

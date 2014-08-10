@@ -7,30 +7,40 @@ package etcdbackend
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin/ratelimit"
-	. "github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+
+	. "github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/plugin/ratelimit"
+	. "github.com/mailgun/vulcand/plugin/registry"
 )
 
 func TestEtcdBackend(t *testing.T) { TestingT(t) }
 
 type EtcdBackendSuite struct {
-	backend     *EtcdBackend
-	nodes       []string
-	etcdPrefix  string
-	consistency string
-	client      *etcd.Client
-	changesC    chan interface{}
+	backend      *EtcdBackend
+	nodes        []string
+	etcdPrefix   string
+	consistency  string
+	client       *etcd.Client
+	changesC     chan interface{}
+	timeProvider *timetools.FreezedTime
 }
 
-var _ = Suite(&EtcdBackendSuite{etcdPrefix: "/vulcandtest", consistency: etcd.STRONG_CONSISTENCY})
+var _ = Suite(&EtcdBackendSuite{
+	etcdPrefix:  "/vulcandtest",
+	consistency: etcd.STRONG_CONSISTENCY,
+	timeProvider: &timetools.FreezedTime{
+		CurrentTime: time.Date(2012, 3, 4, 5, 6, 7, 0, time.UTC),
+	},
+})
 
 func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
@@ -47,7 +57,7 @@ func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 
 func (s *EtcdBackendSuite) SetUpTest(c *C) {
 	// Initiate a backend with a registry
-	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency)
+	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency, s.timeProvider)
 	c.Assert(err, IsNil)
 	s.backend = backend
 	s.client = s.backend.client
@@ -496,7 +506,7 @@ func (s *EtcdBackendSuite) TestGenerateChanges(c *C) {
 	m := s.makeRateLimit("rl1", 10, "client.ip", 20, 1, loc)
 	_, err = s.backend.AddLocationMiddleware(loc.Hostname, loc.Id, m)
 
-	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency)
+	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency, s.timeProvider)
 	c.Assert(err, IsNil)
 	defer backend.StopWatching()
 
