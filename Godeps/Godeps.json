@@ -20,8 +20,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/go-etcd/etcd",
-			"Comment": "v0.2.0-rc1-99-g00d8243",
-			"Rev": "00d82433c4e044dcfa5eb73b8c969b8c087f48e7"
+			"Comment": "v0.2.0-rc1-100-g264551f",
+			"Rev": "264551f7c5b4453c949dde015d1012ad7efe967d"
 		},
 		{
 			"ImportPath": "github.com/mailgun/gotools-api",
@@ -37,7 +37,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/gotools-time",
-			"Rev": "3f148297f09e62c5cc895746877f705d2ddac0d6"
+			"Rev": "c493a7107b1c8760155d06d893741212eb4e2670"
 		},
 		{
 			"ImportPath": "github.com/mailgun/minheap",

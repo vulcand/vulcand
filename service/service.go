@@ -6,6 +6,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	runtime "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-runtime"
+	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcand/adapter"
@@ -59,10 +60,10 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 }
 
 func (s *Service) Start() error {
-	// Init logging
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := etcdbackend.NewEtcdBackend(s.registry, s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency)
+	backend, err := etcdbackend.NewEtcdBackend(
+		s.registry, s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency, &timetools.RealTime{})
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func (s *Service) Start() error {
 
 	if s.options.PidPath != "" {
 		if err := runtime.WritePid(s.options.PidPath); err != nil {
-			return fmt.Errorf("Failed to write PID file: %v\n", err)
+			return fmt.Errorf("failed to write PID file: %v\n", err)
 		}
 	}
 

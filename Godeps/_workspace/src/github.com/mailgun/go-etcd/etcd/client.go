@@ -168,6 +168,12 @@ func (c *Client) SetTransport(tr *http.Transport) {
 	c.httpClient.Transport = tr
 }
 
+func (c *Client) Close() {
+	if tr, ok := c.httpClient.Transport.(*http.Transport); ok {
+		tr.CloseIdleConnections()
+	}
+}
+
 // initHTTPClient initializes a HTTP client for etcd client
 func (c *Client) initHTTPClient() {
 	tr := &http.Transport{
