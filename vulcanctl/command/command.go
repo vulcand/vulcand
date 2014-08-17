@@ -74,6 +74,6 @@ func cut(i, j int, args []string) []string {
 
 func flags() []cli.Flag {
 	return []cli.Flag{
-		cli.StringFlag{"vulcan", "http://localhost:8182", "Url for vulcan server"},
+		cli.StringFlag{Name: "vulcan", Value: "http://localhost:8182", Usage: "Url for vulcan server"},
 	}
 }

@@ -2,8 +2,8 @@ package ratelimit
 
 import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/plugin"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/vulcand/plugin"
 	"testing"
 )
 
@@ -73,7 +73,7 @@ func (s *RateLimitSuite) TestNewRateLimitFromCliOk(c *C) {
 		rl := out.(*RateLimit)
 		c.Assert(rl.Variable, Equals, "client.ip")
 		c.Assert(rl.Requests, Equals, 10)
-		c.Assert(rl.Burst, Equals, 3)
+		c.Assert(rl.Burst, Equals, int64(3))
 		c.Assert(rl.PeriodSeconds, Equals, 4)
 	}
 	app.Flags = CliFlags()

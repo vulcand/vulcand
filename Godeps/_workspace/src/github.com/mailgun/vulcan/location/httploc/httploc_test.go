@@ -1,7 +1,15 @@
 package httploc
 
 import (
+	"bufio"
 	"fmt"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
@@ -14,10 +22,6 @@ import (
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 type LocSuite struct {
@@ -50,10 +54,16 @@ func (s *LocSuite) newRoundRobin(endpoints ...string) LoadBalancer {
 func (s *LocSuite) newProxyWithParams(
 	l LoadBalancer,
 	readTimeout time.Duration,
-	dialTimeout time.Duration) (*HttpLocation, *httptest.Server) {
+	dialTimeout time.Duration,
+	maxMemBytes int64,
+	maxBodyBytes int64) (*HttpLocation, *httptest.Server) {
 
 	location, err := NewLocationWithOptions("dummy", l, Options{
 		TrustForwardHeader: true,
+		Limits: Limits{
+			MaxMemBodyBytes: maxMemBytes,
+			MaxBodyBytes:    maxBodyBytes,
+		},
 	})
 	if err != nil {
 		panic(err)
@@ -68,7 +78,7 @@ func (s *LocSuite) newProxyWithParams(
 }
 
 func (s *LocSuite) newProxy(l LoadBalancer) (*HttpLocation, *httptest.Server) {
-	return s.newProxyWithParams(l, time.Duration(0), time.Duration(0))
+	return s.newProxyWithParams(l, time.Duration(0), time.Duration(0), int64(0), int64(0))
 }
 
 // No avialable endpoints
@@ -104,7 +114,126 @@ func (s *LocSuite) TestSuccess(c *C) {
 	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
 }
 
-// Make sure failover works
+// Success, make sure we've successfully proxied the response when limit was set but not reached
+func (s *LocSuite) TestSuccessLimitNotReached(c *C) {
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint"))
+	})
+	defer server.Close()
+
+	_, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 4096)
+	defer proxy.Close()
+
+	response, bodyBytes := Get(c, proxy.URL, s.authHeaders, "hello!")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
+}
+
+func (s *LocSuite) TestChunkedEncodingSuccess(c *C) {
+	requestBody := ""
+	contentLength := int64(0)
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		requestBody = string(body)
+		contentLength = r.ContentLength
+		w.Write([]byte("Hi, I'm endpoint"))
+	})
+	defer server.Close()
+
+	_, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 4096)
+	defer proxy.Close()
+
+	conn, err := net.Dial("tcp", netutils.MustParseUrl(proxy.URL).Host)
+	c.Assert(err, IsNil)
+	fmt.Fprintf(conn, "POST / HTTP/1.0\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ntest\r\n5\r\ntest1\r\n5\r\ntest2\r\n0\r\n\r\n")
+	status, err := bufio.NewReader(conn).ReadString('\n')
+
+	c.Assert(requestBody, Equals, "testtest1test2")
+	c.Assert(status, Equals, "HTTP/1.0 200 OK\r\n")
+	c.Assert(contentLength, Equals, int64(len(requestBody)))
+}
+
+func (s *LocSuite) TestLimitReached(c *C) {
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint!"))
+	})
+	defer server.Close()
+
+	_, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 8)
+	defer proxy.Close()
+
+	response, _ := Get(c, proxy.URL, s.authHeaders, "Hello, this request is longer than 8 bytes")
+	c.Assert(response.StatusCode, Equals, http.StatusRequestEntityTooLarge)
+}
+
+func (s *LocSuite) TestChunkedEncodingLimitReached(c *C) {
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint"))
+	})
+	defer server.Close()
+
+	_, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 8)
+	defer proxy.Close()
+
+	conn, err := net.Dial("tcp", netutils.MustParseUrl(proxy.URL).Host)
+	c.Assert(err, IsNil)
+	fmt.Fprintf(conn, "POST / HTTP/1.0\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ntest\r\n5\r\ntest1\r\n5\r\ntest2\r\n0\r\n\r\n")
+	status, err := bufio.NewReader(conn).ReadString('\n')
+
+	c.Assert(status, Equals, "HTTP/1.0 413 Request Entity Too Large\r\n")
+}
+
+func (s *LocSuite) TestUpdateLimit(c *C) {
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint!"))
+	})
+	defer server.Close()
+
+	location, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 1024)
+	defer proxy.Close()
+
+	response, _ := Get(c, proxy.URL, s.authHeaders, "Hello, this request is longer than 8 bytes")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+
+	options := location.GetOptions()
+	options.Limits.MaxBodyBytes = 8
+	err := location.SetOptions(options)
+	c.Assert(err, IsNil)
+
+	response, _ = Get(c, proxy.URL, s.authHeaders, "Hello, this request is longer than 8 bytes")
+	c.Assert(response.StatusCode, Equals, http.StatusRequestEntityTooLarge)
+}
+
+func (s *LocSuite) TestUpdateForwardHeader(c *C) {
+	var header string
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		header = r.Header.Get("X-Forwarded-Server")
+		w.Write([]byte("Hi, I'm endpoint!"))
+	})
+	defer server.Close()
+
+	location, proxy := s.newProxy(s.newRoundRobin(server.URL))
+	defer proxy.Close()
+
+	options := location.GetOptions()
+	options.Hostname = "host1"
+	location.SetOptions(options)
+
+	response, _ := Get(c, proxy.URL, s.authHeaders, "Hello")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(header, Equals, "host1")
+
+	options = location.GetOptions()
+	options.Hostname = "host2"
+	err := location.SetOptions(options)
+	c.Assert(err, IsNil)
+
+	response, _ = Get(c, proxy.URL, s.authHeaders, "Hello")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(header, Equals, "host2")
+}
+
 func (s *LocSuite) TestFailover(c *C) {
 	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hi, I'm endpoint"))

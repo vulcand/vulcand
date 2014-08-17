@@ -14,6 +14,7 @@ const (
 	Trailers           = "Trailers"
 	TransferEncoding   = "Transfer-Encoding"
 	Upgrade            = "Upgrade"
+	ContentLength      = "Content-Length"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.

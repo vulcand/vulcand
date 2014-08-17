@@ -1,19 +1,20 @@
 package api
 
 import (
+	"net/http/httptest"
+	"testing"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
 	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestApi(t *testing.T) { TestingT(t) }
@@ -158,13 +159,14 @@ func (s *ApiSuite) TestLocationCRUD(c *C) {
 	_, err = s.client.AddHost("localhost")
 	c.Assert(err, IsNil)
 
-	loc, err := s.client.AddLocation("localhost", "la", "/home", "up1")
+	loc, err := s.client.AddLocationWithOptions("localhost", "la", "/home", "up1", LocationOptions{Hostname: "somehost"})
 	c.Assert(err, IsNil)
 	c.Assert(loc, NotNil)
 	c.Assert(loc.Hostname, Equals, "localhost")
 	c.Assert(loc.Id, Equals, "la")
 	c.Assert(loc.Path, Equals, "/home")
 	c.Assert(loc.Upstream.Id, Equals, "up1")
+	c.Assert(loc.Options.Hostname, Equals, "somehost")
 
 	// Update location upstream
 	_, err = s.client.AddUpstream("up2")
@@ -186,6 +188,33 @@ func (s *ApiSuite) TestLocationCRUD(c *C) {
 	hosts, err = s.client.GetHosts()
 	c.Assert(err, IsNil)
 	c.Assert(len(hosts[0].Locations), Equals, 0)
+}
+
+func (s *ApiSuite) TestLocationUpdateOptions(c *C) {
+	_, err := s.client.AddUpstream("up1")
+	c.Assert(err, IsNil)
+
+	_, err = s.client.AddEndpoint("up1", "e1", "http://localhost:5000")
+	c.Assert(err, IsNil)
+
+	_, err = s.client.AddHost("localhost")
+	c.Assert(err, IsNil)
+
+	loc, err := s.client.AddLocationWithOptions("localhost", "la", "/home", "up1", LocationOptions{Hostname: "somehost"})
+	c.Assert(err, IsNil)
+	c.Assert(loc, NotNil)
+
+	// Update location upstream
+	_, err = s.client.AddUpstream("up2")
+	c.Assert(err, IsNil)
+
+	_, err = s.client.UpdateLocationOptions("localhost", "la", LocationOptions{Hostname: "somehost2"})
+	c.Assert(err, IsNil)
+
+	// Make sure changes have taken effect
+	hosts, err := s.client.GetHosts()
+	c.Assert(err, IsNil)
+	c.Assert(hosts[0].Locations[0].Options.Hostname, Equals, "somehost2")
 }
 
 func (s *ApiSuite) TestAddLocationTwice(c *C) {
@@ -261,7 +290,7 @@ func (s *ApiSuite) TestGetHosts(c *C) {
 	c.Assert(hosts, NotNil)
 }
 
-func (s *ApiSuite) makeConnLimit(id string, connections int, variable string, priority int, loc *Location) *MiddlewareInstance {
+func (s *ApiSuite) makeConnLimit(id string, connections int64, variable string, priority int, loc *Location) *MiddlewareInstance {
 	rl, err := connlimit.NewConnLimit(connections, variable)
 	if err != nil {
 		panic(err)

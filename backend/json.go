@@ -21,6 +21,7 @@ type rawLocation struct {
 	Id          string
 	Upstream    *Upstream
 	Middlewares []json.RawMessage
+	Options     LocationOptions
 }
 
 type rawMiddleware struct {
@@ -77,7 +78,7 @@ func LocationFromJson(in []byte, getter plugin.SpecGetter) (*Location, error) {
 	if err != nil {
 		return nil, err
 	}
-	loc, err := NewLocation(l.Hostname, l.Id, l.Path, l.Upstream.Id)
+	loc, err := NewLocationWithOptions(l.Hostname, l.Id, l.Path, l.Upstream.Id, l.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +91,18 @@ func LocationFromJson(in []byte, getter plugin.SpecGetter) (*Location, error) {
 		loc.Middlewares = append(loc.Middlewares, m)
 	}
 	return loc, nil
+}
+
+func LocationOptionsFromJson(in []byte) (*LocationOptions, error) {
+	var o *LocationOptions
+	err := json.Unmarshal(in, &o)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := parseLocationOptions(*o); err != nil {
+		return nil, err
+	}
+	return o, nil
 }
 
 func MiddlewareFromJson(in []byte, getter plugin.SpecGetter) (*MiddlewareInstance, error) {

@@ -5,15 +5,16 @@ package systest
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestVulcandWithEtcd(t *testing.T) { TestingT(t) }
@@ -133,6 +134,39 @@ func (s *VESuite) TestLocationCreateUpstreamFirst(c *C) {
 	response, _ := Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "")
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(called, Equals, true)
+}
+
+func (s *VESuite) TestLocationUpdateLimits(c *C) {
+	var headers http.Header
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		headers = r.Header
+		w.Write([]byte("Hello, I'm totally fine"))
+	})
+	defer server.Close()
+
+	// Create upstream and endpoint
+	up, e, url := "up1", "e1", server.URL
+	_, err := s.client.Set(s.path("upstreams", up, "endpoints", e), url, 0)
+	c.Assert(err, IsNil)
+
+	// Add location
+	host, locId, path := "localhost", "loc1", "/path"
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
+	c.Assert(err, IsNil)
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "path"), path, 0)
+	c.Assert(err, IsNil)
+
+	time.Sleep(time.Second)
+	response, _ := Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(response.Header.Get("X-Forwarded-For"), Not(Equals), "hello")
+
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "options"), `{"Limits": {"MaxMemBodyBytes":2, "MaxBodyBytes":4}}`, 0)
+	c.Assert(err, IsNil)
+	time.Sleep(time.Second)
+
+	response, _ = Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "This is longer than allowed 4 bytes")
+	c.Assert(response.StatusCode, Equals, http.StatusRequestEntityTooLarge)
 }
 
 func (s *VESuite) TestUpdateUpstreamLocation(c *C) {

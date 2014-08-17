@@ -2,10 +2,13 @@ package backend
 
 import (
 	"encoding/json"
+	"testing"
+	"time"
+
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"testing"
 )
 
 func TestBackend(t *testing.T) { TestingT(t) }
@@ -36,6 +39,47 @@ func (s *BackendSuite) TestNewLocation(c *C) {
 	c.Assert(l.String(), Not(Equals), "")
 }
 
+func (s *BackendSuite) TestNewLocationWithOptions(c *C) {
+	options := LocationOptions{
+		Timeouts: LocationTimeouts{
+			Read:         "1s",
+			Dial:         "2s",
+			TlsHandshake: "3s",
+		},
+		KeepAlive: LocationKeepAlive{
+			Period:              "4s",
+			MaxIdleConnsPerHost: 3,
+		},
+		Limits: LocationLimits{
+			MaxMemBodyBytes: 12,
+			MaxBodyBytes:    400,
+		},
+		FailoverPredicate:  "IsNetworkError && AttemptsLe(1)",
+		Hostname:           "host1",
+		TrustForwardHeader: true,
+	}
+	l, err := NewLocationWithOptions("localhost", "loc1", "/home", "u1", options)
+	c.Assert(err, IsNil)
+	c.Assert(l.GetId(), Equals, "loc1")
+
+	o, err := l.GetOptions()
+	c.Assert(err, IsNil)
+
+	c.Assert(o.Timeouts.Read, Equals, time.Second)
+	c.Assert(o.Timeouts.Dial, Equals, time.Second*2)
+	c.Assert(o.Timeouts.TlsHandshake, Equals, time.Second*3)
+
+	c.Assert(o.KeepAlive.Period, Equals, time.Second*4)
+	c.Assert(o.KeepAlive.MaxIdleConnsPerHost, Equals, 3)
+
+	c.Assert(o.Limits.MaxMemBodyBytes, Equals, int64(12))
+	c.Assert(o.Limits.MaxBodyBytes, Equals, int64(400))
+
+	c.Assert(o.ShouldFailover, NotNil)
+	c.Assert(o.TrustForwardHeader, Equals, true)
+	c.Assert(o.Hostname, Equals, "host1")
+}
+
 func (s *BackendSuite) TestNewLocationBadParams(c *C) {
 	// Bad path
 	_, err := NewLocation("localhost", "loc1", "** /home  -- afawf \\~", "u1")
@@ -44,6 +88,39 @@ func (s *BackendSuite) TestNewLocationBadParams(c *C) {
 	// Empty params
 	_, err = NewLocation("", "", "", "")
 	c.Assert(err, NotNil)
+}
+
+func (s *BackendSuite) TestNewLocationWithBadOptions(c *C) {
+	options := []LocationOptions{
+		LocationOptions{
+			Timeouts: LocationTimeouts{
+				Read: "1what?",
+			},
+		},
+		LocationOptions{
+			Timeouts: LocationTimeouts{
+				Dial: "1what?",
+			},
+		},
+		LocationOptions{
+			Timeouts: LocationTimeouts{
+				TlsHandshake: "1what?",
+			},
+		},
+		LocationOptions{
+			KeepAlive: LocationKeepAlive{
+				Period: "1what?",
+			},
+		},
+		LocationOptions{
+			FailoverPredicate: "bad predicate",
+		},
+	}
+	for _, o := range options {
+		l, err := NewLocationWithOptions("localhost", "loc1", "/home", "u1", o)
+		c.Assert(err, NotNil)
+		c.Assert(l, IsNil)
+	}
 }
 
 func (s *BackendSuite) TestNewUpstream(c *C) {

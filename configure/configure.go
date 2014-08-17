@@ -8,9 +8,10 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
-	. "github.com/mailgun/vulcand/adapter"
-	. "github.com/mailgun/vulcand/backend"
-	. "github.com/mailgun/vulcand/connwatch"
+
+	"github.com/mailgun/vulcand/adapter"
+	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
 	"strings"
 	"time"
@@ -26,9 +27,9 @@ type Options struct {
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
 type Configurator struct {
 	options     Options
-	connWatcher *ConnectionWatcher
+	connWatcher *connwatch.ConnectionWatcher
 	proxy       *vulcan.Proxy
-	a           *Adapter
+	a           *adapter.Adapter
 }
 
 func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
@@ -38,13 +39,13 @@ func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
 func NewConfiguratorWithOptions(proxy *vulcan.Proxy, options Options) (c *Configurator) {
 	return &Configurator{
 		proxy:       proxy,
-		a:           NewAdapter(proxy),
-		connWatcher: NewConnectionWatcher(),
+		a:           adapter.NewAdapter(proxy),
+		connWatcher: connwatch.NewConnectionWatcher(),
 		options:     options,
 	}
 }
 
-func (c *Configurator) GetConnWatcher() *ConnectionWatcher {
+func (c *Configurator) GetConnWatcher() *connwatch.ConnectionWatcher {
 	return c.connWatcher
 }
 
@@ -60,39 +61,41 @@ func (c *Configurator) WatchChanges(changes chan interface{}) error {
 
 func (c *Configurator) processChange(ch interface{}) error {
 	switch change := ch.(type) {
-	case *HostAdded:
+	case *backend.HostAdded:
 		return c.upsertHost(change.Host)
-	case *HostDeleted:
+	case *backend.HostDeleted:
 		return c.deleteHost(change.Name)
-	case *LocationAdded:
+	case *backend.LocationAdded:
 		return c.upsertLocation(change.Host, change.Location)
-	case *LocationDeleted:
+	case *backend.LocationDeleted:
 		return c.deleteLocation(change.Host, change.LocationId)
-	case *LocationUpstreamUpdated:
+	case *backend.LocationUpstreamUpdated:
 		return c.updateLocationUpstream(change.Host, change.Location)
-	case *LocationPathUpdated:
+	case *backend.LocationPathUpdated:
 		return c.updateLocationPath(change.Host, change.Location, change.Path)
-	case *LocationMiddlewareAdded:
+	case *backend.LocationOptionsUpdated:
+		return c.updateLocationOptions(change.Host, change.Location)
+	case *backend.LocationMiddlewareAdded:
 		return c.upsertLocationMiddleware(change.Host, change.Location, change.Middleware)
-	case *LocationMiddlewareUpdated:
+	case *backend.LocationMiddlewareUpdated:
 		return c.upsertLocationMiddleware(change.Host, change.Location, change.Middleware)
-	case *LocationMiddlewareDeleted:
+	case *backend.LocationMiddlewareDeleted:
 		return c.deleteLocationMiddleware(change.Host, change.Location, change.MiddlewareType, change.MiddlewareId)
-	case *UpstreamAdded:
+	case *backend.UpstreamAdded:
 		return nil
-	case *UpstreamDeleted:
+	case *backend.UpstreamDeleted:
 		return nil
-	case *EndpointAdded:
+	case *backend.EndpointAdded:
 		return c.addEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
-	case *EndpointUpdated:
+	case *backend.EndpointUpdated:
 		return c.addEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
-	case *EndpointDeleted:
+	case *backend.EndpointDeleted:
 		return c.deleteEndpoint(change.Upstream, change.EndpointId, change.AffectedLocations)
 	}
-	return fmt.Errorf("Unsupported change: %#v", ch)
+	return fmt.Errorf("unsupported change: %#v", ch)
 }
 
-func (c *Configurator) upsertHost(host *Host) error {
+func (c *Configurator) upsertHost(host *backend.Host) error {
 	if c.a.GetHostRouter().GetRouter(host.Name) != nil {
 		return nil
 	}
@@ -108,7 +111,23 @@ func (c *Configurator) deleteHost(hostname string) error {
 	return nil
 }
 
-func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
+func (c *Configurator) getLocationOptions(loc *backend.Location) (*httploc.Options, error) {
+	o, err := loc.GetOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply global defaults if options are not set
+	if o.Timeouts.Dial == 0 {
+		o.Timeouts.Dial = c.options.DialTimeout
+	}
+	if o.Timeouts.Read == 0 {
+		o.Timeouts.Read = c.options.ReadTimeout
+	}
+	return o, nil
+}
+
+func (c *Configurator) upsertLocation(host *backend.Host, loc *backend.Location) error {
 	if err := c.upsertHost(host); err != nil {
 		return err
 	}
@@ -120,7 +139,7 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 
 	router := c.a.GetExpRouter(host.Name)
 	if router == nil {
-		return fmt.Errorf("Router not found for %s", host)
+		return fmt.Errorf("router not found for %s", host)
 	}
 	// Create a load balancer that handles all the endpoints within the given location
 	rr, err := roundrobin.NewRoundRobin()
@@ -129,10 +148,11 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	}
 
 	// Create a location itself
-	options := httploc.Options{}
-	options.Timeouts.Dial = c.options.DialTimeout
-	options.Timeouts.Read = c.options.ReadTimeout
-	location, err := httploc.NewLocationWithOptions(loc.Id, rr, options)
+	options, err := c.getLocationOptions(loc)
+	if err != nil {
+		return err
+	}
+	location, err := httploc.NewLocationWithOptions(loc.Id, rr, *options)
 	if err != nil {
 		return err
 	}
@@ -148,14 +168,14 @@ func (c *Configurator) upsertLocation(host *Host, loc *Location) error {
 	// Add middlewares
 	for _, ml := range loc.Middlewares {
 		if err := c.upsertLocationMiddleware(host, loc, ml); err != nil {
-			log.Errorf("Failed to add middleware: %s", err)
+			log.Errorf("failed to add middleware: %s", err)
 		}
 	}
 	// Once the location added, configure all endpoints
 	return c.syncLocationEndpoints(loc)
 }
 
-func (c *Configurator) deleteLocation(host *Host, locationId string) error {
+func (c *Configurator) deleteLocation(host *backend.Host, locationId string) error {
 
 	router := c.a.GetExpRouter(host.Name)
 	if router == nil {
@@ -169,7 +189,24 @@ func (c *Configurator) deleteLocation(host *Host, locationId string) error {
 	return router.RemoveLocationById(location.GetId())
 }
 
-func (c *Configurator) upsertLocationMiddleware(host *Host, loc *Location, m *MiddlewareInstance) error {
+func (c *Configurator) updateLocationOptions(host *backend.Host, loc *backend.Location) error {
+	log.Infof("Updating location options %s, options: %#v", loc, loc.Options)
+
+	if err := c.upsertLocation(host, loc); err != nil {
+		return err
+	}
+	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
+	}
+	options, err := c.getLocationOptions(loc)
+	if err != nil {
+		return err
+	}
+	return location.SetOptions(*options)
+}
+
+func (c *Configurator) upsertLocationMiddleware(host *backend.Host, loc *backend.Location, m *backend.MiddlewareInstance) error {
 	if err := c.upsertLocation(host, loc); err != nil {
 		return err
 	}
@@ -185,7 +222,7 @@ func (c *Configurator) upsertLocationMiddleware(host *Host, loc *Location, m *Mi
 	return nil
 }
 
-func (c *Configurator) deleteLocationMiddleware(host *Host, loc *Location, mType, mId string) error {
+func (c *Configurator) deleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error {
 	location := c.a.GetHttpLocation(host.Name, loc.Id)
 	if location == nil {
 		return fmt.Errorf("%s not found", loc)
@@ -193,15 +230,7 @@ func (c *Configurator) deleteLocationMiddleware(host *Host, loc *Location, mType
 	return location.GetMiddlewareChain().Remove(fmt.Sprintf("%s.%s", mType, mId))
 }
 
-func (c *Configurator) deleteLocationConnLimit(host *Host, loc *Location, limitId string) error {
-	location := c.a.GetHttpLocation(host.Name, loc.Id)
-	if location == nil {
-		return fmt.Errorf("%s not found", loc)
-	}
-	return location.GetMiddlewareChain().Remove(limitId)
-}
-
-func (c *Configurator) updateLocationPath(host *Host, location *Location, path string) error {
+func (c *Configurator) updateLocationPath(host *backend.Host, location *backend.Location, path string) error {
 	// If location already exists, delete it and re-create from scratch
 	if loc := c.a.GetHttpLocation(host.Name, location.Id); loc != nil {
 		if err := c.deleteLocation(host, location.Id); err != nil {
@@ -211,14 +240,14 @@ func (c *Configurator) updateLocationPath(host *Host, location *Location, path s
 	return c.upsertLocation(host, location)
 }
 
-func (c *Configurator) updateLocationUpstream(host *Host, location *Location) error {
+func (c *Configurator) updateLocationUpstream(host *backend.Host, location *backend.Location) error {
 	if err := c.upsertLocation(host, location); err != nil {
 		return err
 	}
 	return c.syncLocationEndpoints(location)
 }
 
-func (c *Configurator) syncLocationEndpoints(location *Location) error {
+func (c *Configurator) syncLocationEndpoints(location *backend.Location) error {
 
 	rr := c.a.GetHttpLocationLb(location.Hostname, location.Id)
 	if rr == nil {
@@ -265,7 +294,7 @@ func (c *Configurator) syncLocationEndpoints(location *Location) error {
 	return nil
 }
 
-func (c *Configurator) addEndpoint(upstream *Upstream, e *Endpoint, affectedLocations []*Location) error {
+func (c *Configurator) addEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
 	endpoint, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
 	if err != nil {
 		return fmt.Errorf("Failed to parse endpoint url: %s", endpoint)
@@ -278,7 +307,7 @@ func (c *Configurator) addEndpoint(upstream *Upstream, e *Endpoint, affectedLoca
 	return nil
 }
 
-func (c *Configurator) deleteEndpoint(upstream *Upstream, endpointId string, affectedLocations []*Location) error {
+func (c *Configurator) deleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error {
 	for _, l := range affectedLocations {
 		if err := c.syncLocationEndpoints(l); err != nil {
 			log.Errorf("Failed to sync %s endpoints err: %s", l, err)
@@ -287,8 +316,7 @@ func (c *Configurator) deleteEndpoint(upstream *Upstream, endpointId string, aff
 	return nil
 }
 
-// Convert path changes strings to structured format /hello -> RegexpRoute("/hello")
-// and leaves structured strings unchanged
+// convertPath changes strings to structured format /hello -> RegexpRoute("/hello") and leaves structured strings unchanged.
 func convertPath(in string) string {
 	if !strings.Contains(in, exproute.TrieRouteFn) && !strings.Contains(in, exproute.RegexpRouteFn) {
 		return fmt.Sprintf(`%s(%#v)`, exproute.RegexpRouteFn, in)

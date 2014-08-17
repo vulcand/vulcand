@@ -12,7 +12,7 @@ func NewHostCommand(cmd *Command) cli.Command {
 			{
 				Name: "add",
 				Flags: []cli.Flag{
-					cli.StringFlag{"name", "", "hostname"},
+					cli.StringFlag{Name: "name", Usage: "hostname"},
 				},
 				Usage:  "Add a new host to vulcan proxy",
 				Action: cmd.addHostAction,
@@ -20,7 +20,7 @@ func NewHostCommand(cmd *Command) cli.Command {
 			{
 				Name: "rm",
 				Flags: []cli.Flag{
-					cli.StringFlag{"name", "", "hostname"},
+					cli.StringFlag{Name: "name", Usage: "hostname"},
 				},
 				Usage:  "Remove a host from vulcan",
 				Action: cmd.deleteHostAction,

@@ -53,7 +53,11 @@ func (c *Client) DeleteHost(name string) (*StatusResponse, error) {
 }
 
 func (c *Client) AddLocation(hostname, id, path, upstream string) (*Location, error) {
-	location, err := NewLocation(hostname, id, path, upstream)
+	return c.AddLocationWithOptions(hostname, id, path, upstream, LocationOptions{})
+}
+
+func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, options LocationOptions) (*Location, error) {
+	location, err := NewLocationWithOptions(hostname, id, path, upstream, options)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +74,14 @@ func (c *Client) DeleteLocation(hostname, id string) (*StatusResponse, error) {
 
 func (c *Client) UpdateLocationUpstream(hostname, location, upstream string) (*StatusResponse, error) {
 	return c.PutForm(c.endpoint("hosts", hostname, "locations", location), url.Values{"upstream": {upstream}})
+}
+
+func (c *Client) UpdateLocationOptions(hostname, location string, options LocationOptions) (*Location, error) {
+	response, err := c.Put(c.endpoint("hosts", hostname, "locations", location, "options"), options)
+	if err != nil {
+		return nil, err
+	}
+	return LocationFromJson(response, c.Registry.GetSpec)
 }
 
 func (c *Client) AddUpstream(id string) (*Upstream, error) {

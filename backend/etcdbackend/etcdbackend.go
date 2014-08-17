@@ -12,6 +12,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
@@ -120,6 +121,12 @@ func (s *EtcdBackend) AddLocation(l *backend.Location) (*backend.Location, error
 		return nil, convertErr(err)
 	}
 
+	// Serialize options to JSON
+	optionsBytes, err := json.Marshal(l.Options)
+	if err != nil {
+		return nil, err
+	}
+
 	// Auto generate id if not set by user, very handy feature
 	if l.Id == "" {
 		response, err := s.client.AddChildDir(s.path("hosts", l.Hostname, "locations"), 0)
@@ -133,12 +140,16 @@ func (s *EtcdBackend) AddLocation(l *backend.Location) (*backend.Location, error
 		}
 	}
 	locationKey := s.path("hosts", l.Hostname, "locations", l.Id)
+	if _, err := s.client.Create(join(locationKey, "options"), string(optionsBytes), 0); err != nil {
+		return nil, err
+	}
 	if _, err := s.client.Create(join(locationKey, "path"), l.Path, 0); err != nil {
 		return nil, err
 	}
 	if _, err := s.client.Create(join(locationKey, "upstream"), l.Upstream.Id, 0); err != nil {
 		return nil, err
 	}
+
 	return l, nil
 }
 
@@ -165,11 +176,22 @@ func (s *EtcdBackend) GetLocation(hostname, locationId string) (*backend.Locatio
 	if !ok {
 		return nil, fmt.Errorf("missing location upstream: %s", locationKey)
 	}
+	optionsKey, ok := s.getVal(locationKey, "options")
+	options := backend.LocationOptions{}
+	if ok {
+		o, err := backend.LocationOptionsFromJson([]byte(optionsKey))
+		if err != nil {
+			return nil, err
+		}
+		options = *o
+	}
+
 	location := &backend.Location{
 		Hostname:    hostname,
 		Id:          locationId,
 		Path:        path,
 		Middlewares: []*backend.MiddlewareInstance{},
+		Options:     options,
 	}
 	upstream, err := s.GetUpstream(upstreamKey)
 	if err != nil {
@@ -206,6 +228,17 @@ func (s *EtcdBackend) UpdateLocationUpstream(hostname, id, upstreamId string) (*
 		return nil, convertErr(err)
 	}
 
+	return s.GetLocation(hostname, id)
+}
+
+func (s *EtcdBackend) UpdateLocationOptions(hostname, id string, o backend.LocationOptions) (*backend.Location, error) {
+	bytes, err := json.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.client.Set(join(s.path("hosts", hostname, "locations", id), "options"), string(bytes), 0); err != nil {
+		return nil, convertErr(err)
+	}
 	return s.GetLocation(hostname, id)
 }
 
@@ -433,14 +466,14 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 			}
 		}
 		waitIndex = response.Node.ModifiedIndex + 1
-		log.Infof("Got response: %s %s %d %v", response.Action, response.Node.Key, response.EtcdIndex, err)
+		log.Infof("%s %s %d %v", response.Action, response.Node.Key, response.EtcdIndex, err)
 		change, err := s.parseChange(response)
 		if err != nil {
-			log.Errorf("Failed to process change: %s, ignoring", err)
+			log.Errorf("Failed to process: %s", err)
 			continue
 		}
 		if change != nil {
-			log.Infof("Sending change: %s", change)
+			log.Infof("%s", change)
 			select {
 			case changes <- change:
 			case <-s.stopC:
@@ -511,6 +544,7 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 		s.parseHostChange,
 		s.parseLocationChange,
 		s.parseLocationUpstreamChange,
+		s.parseLocationOptionsChange,
 		s.parseLocationPathChange,
 		s.parseUpstreamChange,
 		s.parseUpstreamEndpointChange,
@@ -598,6 +632,31 @@ func (s *EtcdBackend) parseLocationUpstreamChange(response *etcd.Response) (inte
 		return nil, err
 	}
 	return &backend.LocationUpstreamUpdated{
+		Host:     host,
+		Location: location,
+	}, nil
+}
+
+func (s *EtcdBackend) parseLocationOptionsChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/options").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+
+	if response.Action != "create" && response.Action != "set" {
+		return nil, fmt.Errorf("unsupported action on the location options: %s", response.Action)
+	}
+
+	hostname, locationId := out[1], out[2]
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	location, err := s.GetLocation(hostname, locationId)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.LocationOptionsUpdated{
 		Host:     host,
 		Location: location,
 	}, nil

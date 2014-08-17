@@ -15,17 +15,17 @@ type Rate struct {
 // and is used by rate limiters to implement various rate limiting strategies
 type TokenBucket struct {
 	// Maximum amount of tokens available at given time (controls burst rate)
-	maxTokens int
+	maxTokens int64
 	// Specifies the period of the rate
 	refillPeriod time.Duration
 	// Current value of tokens
-	tokens int
+	tokens int64
 	// Interface that gives current time (so tests can override)
 	timeProvider timetools.TimeProvider
 	lastRefill   time.Time
 }
 
-func NewTokenBucket(rate Rate, maxTokens int, timeProvider timetools.TimeProvider) (*TokenBucket, error) {
+func NewTokenBucket(rate Rate, maxTokens int64, timeProvider timetools.TimeProvider) (*TokenBucket, error) {
 	if rate.Period == 0 || rate.Units == 0 {
 		return nil, fmt.Errorf("Invalid rate: %v", rate)
 	}
@@ -47,7 +47,7 @@ func NewTokenBucket(rate Rate, maxTokens int, timeProvider timetools.TimeProvide
 // In case if there's enough tokens, consumes tokens and returns 0, nil
 // In case if tokens to consume is larger than max burst returns -1, error
 // In case if there's not enough tokens, returns time to wait till refill
-func (tb *TokenBucket) Consume(tokens int) (time.Duration, error) {
+func (tb *TokenBucket) Consume(tokens int64) (time.Duration, error) {
 	tb.refill()
 	if tokens > tb.maxTokens {
 		return -1, fmt.Errorf("Requested tokens larger than max tokens")
@@ -60,7 +60,7 @@ func (tb *TokenBucket) Consume(tokens int) (time.Duration, error) {
 }
 
 // Returns the time after the capacity of tokens will reach the
-func (tb *TokenBucket) timeToRefill(tokens int) time.Duration {
+func (tb *TokenBucket) timeToRefill(tokens int64) time.Duration {
 	missingTokens := tokens - tb.tokens
 	return time.Duration(missingTokens) * tb.refillPeriod
 }
@@ -69,7 +69,7 @@ func (tb *TokenBucket) refill() {
 	now := tb.timeProvider.UtcNow()
 	timePassed := now.Sub(tb.lastRefill)
 
-	tokens := tb.tokens + int(timePassed/tb.refillPeriod)
+	tokens := tb.tokens + int64(timePassed/tb.refillPeriod)
 	// If we haven't added any tokens that means that not enough time has passed,
 	// in this case do not adjust last refill checkpoint, otherwise it will be
 	// always moving in time in case of frequent requests that exceed the rate

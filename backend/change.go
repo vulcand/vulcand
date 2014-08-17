@@ -29,6 +29,11 @@ type LocationPathUpdated struct {
 	Path     string
 }
 
+type LocationOptionsUpdated struct {
+	Host     *Host
+	Location *Location
+}
+
 type LocationMiddlewareAdded struct {
 	Host       *Host
 	Location   *Location

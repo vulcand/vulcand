@@ -6,9 +6,9 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/ttlmap"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"net/http"
 	"sync"
 	"time"
@@ -18,23 +18,23 @@ type TokenLimiter struct {
 	buckets *ttlmap.TtlMap
 	mutex   *sync.Mutex
 	options Options
-	mapper  MapperFn
+	mapper  limit.MapperFn
 	rate    Rate
 }
 
 type Options struct {
-	Rate         Rate // Average allowed rate
-	Burst        int  // Burst size
-	Capacity     int  // Overall capacity (maximum sumultaneuously active tokens)
-	Mapper       MapperFn
+	Rate         Rate  // Average allowed rate
+	Burst        int64 // Burst size
+	Capacity     int   // Overall capacity (maximum sumultaneuously active tokens)
+	Mapper       limit.MapperFn
 	TimeProvider timetools.TimeProvider
 }
 
-func NewTokenLimiter(mapper MapperFn, rate Rate) (*TokenLimiter, error) {
+func NewTokenLimiter(mapper limit.MapperFn, rate Rate) (*TokenLimiter, error) {
 	return NewTokenLimiterWithOptions(mapper, rate, Options{})
 }
 
-func NewTokenLimiterWithOptions(mapper MapperFn, rate Rate, o Options) (*TokenLimiter, error) {
+func NewTokenLimiterWithOptions(mapper limit.MapperFn, rate Rate, o Options) (*TokenLimiter, error) {
 	if mapper == nil {
 		return nil, fmt.Errorf("Provide mapper function")
 	}
@@ -60,7 +60,7 @@ func (tl *TokenLimiter) GetRate() Rate {
 	return tl.rate
 }
 
-func (tl *TokenLimiter) GetBurst() int {
+func (tl *TokenLimiter) GetBurst() int64 {
 	return tl.options.Burst
 }
 
@@ -68,7 +68,7 @@ func (tl *TokenLimiter) GetCapacity() int {
 	return tl.options.Capacity
 }
 
-func (tl *TokenLimiter) ProcessRequest(r Request) (*http.Response, error) {
+func (tl *TokenLimiter) ProcessRequest(r request.Request) (*http.Response, error) {
 	tl.mutex.Lock()
 	defer tl.mutex.Unlock()
 
@@ -98,7 +98,7 @@ func (tl *TokenLimiter) ProcessRequest(r Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func (tl *TokenLimiter) ProcessResponse(r Request, a Attempt) {
+func (tl *TokenLimiter) ProcessResponse(r request.Request, a request.Attempt) {
 }
 
 // Check arguments and initialize defaults
