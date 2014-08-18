@@ -290,6 +290,35 @@ func (s *EtcdBackendSuite) TestLocationAddReadDelete(c *C) {
 	})
 }
 
+func (s *EtcdBackendSuite) TestLocationAddWithOptions(c *C) {
+	up := s.makeUpstream("u1", 1)
+	e := up.Endpoints[0]
+
+	_, err := s.backend.AddUpstream(up)
+	c.Assert(err, IsNil)
+
+	_, err = s.backend.AddEndpoint(e)
+	c.Assert(err, IsNil)
+
+	host := s.makeHost("localhost")
+
+	_, err = s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	s.collectChanges(c, 3)
+
+	loc := s.makeLocationWithOptions("loc1", "/hello", host, up, LocationOptions{Hostname: "host1"})
+
+	// CREATE
+	locR, err := s.backend.AddLocation(loc)
+	c.Assert(err, IsNil)
+	c.Assert(locR, DeepEquals, loc)
+
+	// READ
+	locR2, err := s.backend.GetLocation(loc.Hostname, loc.Id)
+	c.Assert(err, IsNil)
+	c.Assert(locR2, DeepEquals, loc)
+}
+
 // Make sure we can generate location id when it's not supplied
 func (s *EtcdBackendSuite) TestLocationAutoId(c *C) {
 	up := s.makeUpstream("u1", 1)
@@ -342,6 +371,41 @@ func (s *EtcdBackendSuite) TestLocationUpdateUpstream(c *C) {
 	c.Assert(locU.Upstream, DeepEquals, up2)
 
 	s.expectChanges(c, &LocationUpstreamUpdated{
+		Host:     host,
+		Location: locU,
+	})
+}
+
+func (s *EtcdBackendSuite) TestLocationUpdateOptions(c *C) {
+	up := s.makeUpstream("u1", 1)
+	host := s.makeHost("localhost")
+
+	_, err := s.backend.AddUpstream(up)
+	c.Assert(err, IsNil)
+	_, err = s.backend.AddEndpoint(up.Endpoints[0])
+	c.Assert(err, IsNil)
+
+	_, err = s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	s.collectChanges(c, 3)
+
+	loc := s.makeLocation("loc1", "/hello", host, up)
+
+	_, err = s.backend.AddLocation(loc)
+	c.Assert(err, IsNil)
+	s.collectChanges(c, 1)
+
+	options := LocationOptions{
+		Timeouts: LocationTimeouts{
+			Dial: "7s",
+		},
+	}
+
+	locU, err := s.backend.UpdateLocationOptions(loc.Hostname, loc.Id, options)
+	c.Assert(err, IsNil)
+	c.Assert(locU.Options, DeepEquals, options)
+
+	s.expectChanges(c, &LocationOptionsUpdated{
 		Host:     host,
 		Location: locU,
 	})
@@ -565,17 +629,22 @@ func (s *EtcdBackendSuite) makeHost(name string) *Host {
 		Locations: []*Location{}}
 }
 
-func (s *EtcdBackendSuite) makeLocation(id string, path string, host *Host, up *Upstream) *Location {
+func (s *EtcdBackendSuite) makeLocationWithOptions(id string, path string, host *Host, up *Upstream, options LocationOptions) *Location {
 	return &Location{
 		Id:          id,
 		Hostname:    host.Name,
 		Upstream:    up,
 		Path:        path,
 		Middlewares: []*MiddlewareInstance{},
+		Options:     options,
 	}
 }
 
-func (s *EtcdBackendSuite) makeRateLimit(id string, rate int, variable string, burst int, periodSeconds int, loc *Location) *MiddlewareInstance {
+func (s *EtcdBackendSuite) makeLocation(id string, path string, host *Host, up *Upstream) *Location {
+	return s.makeLocationWithOptions(id, path, host, up, LocationOptions{})
+}
+
+func (s *EtcdBackendSuite) makeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *Location) *MiddlewareInstance {
 	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
 	if err != nil {
 		panic(err)

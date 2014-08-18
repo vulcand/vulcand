@@ -64,7 +64,7 @@ func FromCli(c *cli.Context) (plugin.Middleware, error) {
 
 func CliFlags() []cli.Flag {
 	return []cli.Flag{
-		cli.StringFlag{"regexp", "", "regex to match against http request path"},
-		cli.StringFlag{"replacement", "", "replacement text into which regex expansions are inserted"},
+		cli.StringFlag{Name: "regexp", Usage: "regex to match against http request path"},
+		cli.StringFlag{Name: "replacement", Usage: "replacement text into which regex expansions are inserted"},
 	}
 }

@@ -125,6 +125,15 @@ func (m *MemBackend) UpdateLocationUpstream(hostname, id string, upstreamId stri
 	return loc, nil
 }
 
+func (m *MemBackend) UpdateLocationOptions(hostname, id string, o LocationOptions) (*Location, error) {
+	loc, err := m.GetLocation(hostname, id)
+	if err != nil {
+		return nil, &NotFoundError{}
+	}
+	loc.Options = o
+	return loc, nil
+}
+
 func (m *MemBackend) AddLocationMiddleware(hostname, locationId string, mi *MiddlewareInstance) (*MiddlewareInstance, error) {
 	loc, err := m.GetLocation(hostname, locationId)
 	if err != nil {

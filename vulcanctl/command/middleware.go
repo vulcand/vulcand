@@ -20,10 +20,10 @@ func NewMiddlewareCommands(cmd *Command) []cli.Command {
 func makeMiddlewareCommands(cmd *Command, spec *MiddlewareSpec) cli.Command {
 	flags := append([]cli.Flag{}, spec.CliFlags...)
 	flags = append(flags,
-		cli.StringFlag{"host", "", "location host"},
-		cli.StringFlag{"location, loc", "", "location id"},
-		cli.IntFlag{"priority", 1, "middleware priority, smaller values are lower"},
-		cli.StringFlag{"id", "", fmt.Sprintf("%s id", spec.Type)})
+		cli.StringFlag{Name: "host", Usage: "location host"},
+		cli.StringFlag{Name: "location, loc", Usage: "location id"},
+		cli.IntFlag{Name: "priority", Value: 1, Usage: "middleware priority, smaller values are lower"},
+		cli.StringFlag{Name: "id", Usage: fmt.Sprintf("%s id", spec.Type)})
 
 	return cli.Command{
 		Name:  spec.Type,
@@ -46,9 +46,9 @@ func makeMiddlewareCommands(cmd *Command, spec *MiddlewareSpec) cli.Command {
 				Usage:  fmt.Sprintf("Remove %s from location", spec.Type),
 				Action: makeDeleteMiddlewareAction(cmd, spec),
 				Flags: []cli.Flag{
-					cli.StringFlag{"host", "", "location's host"},
-					cli.StringFlag{"location, loc", "", "Location id"},
-					cli.StringFlag{"id", "", fmt.Sprintf("%s id", spec.Type)},
+					cli.StringFlag{Name: "host", Usage: "location's host"},
+					cli.StringFlag{Name: "location, loc", Usage: "Location id"},
+					cli.StringFlag{Name: "id", Usage: fmt.Sprintf("%s id", spec.Type)},
 				},
 			},
 		},

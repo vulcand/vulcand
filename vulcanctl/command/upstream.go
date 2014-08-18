@@ -14,7 +14,7 @@ func NewUpstreamCommand(cmd *Command) cli.Command {
 				Usage:  "Add a new upstream to vulcan",
 				Action: cmd.addUpstreamAction,
 				Flags: []cli.Flag{
-					cli.StringFlag{"id", "", "upstream id"},
+					cli.StringFlag{Name: "id", Usage: "upstream id"},
 				},
 			},
 			{
@@ -22,7 +22,7 @@ func NewUpstreamCommand(cmd *Command) cli.Command {
 				Usage:  "Remove upstream from vulcan",
 				Action: cmd.deleteUpstreamAction,
 				Flags: []cli.Flag{
-					cli.StringFlag{"id", "", "upstream id"},
+					cli.StringFlag{Name: "id", Usage: "upstream id"},
 				},
 			},
 			{
@@ -34,8 +34,8 @@ func NewUpstreamCommand(cmd *Command) cli.Command {
 				Name:  "drain",
 				Usage: "Wait till there are no more connections for endpoints in the upstream",
 				Flags: []cli.Flag{
-					cli.StringFlag{"id", "", "upstream id"},
-					cli.IntFlag{"timeout", 5, "timeout in seconds"},
+					cli.StringFlag{Name: "id", Usage: "upstream id"},
+					cli.IntFlag{Name: "timeout", Value: 5, Usage: "timeout in seconds"},
 				},
 				Action: cmd.upstreamDrainConnections,
 			},

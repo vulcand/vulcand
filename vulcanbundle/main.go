@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 )
 
 var vulcanUrl string
@@ -25,9 +26,9 @@ func main() {
 			Action: initBundle,
 			Flags: []cli.Flag{
 				cli.StringSliceFlag{
-					"middleware, m",
-					&cli.StringSlice{},
-					"Path to repo and revision, e.g. github.com/mailgun/vulcand-plugins/auth",
+					Name:  "middleware, m",
+					Value: &cli.StringSlice{},
+					Usage: "Path to repo and revision, e.g. github.com/mailgun/vulcand-plugins/auth",
 				},
 			},
 		},

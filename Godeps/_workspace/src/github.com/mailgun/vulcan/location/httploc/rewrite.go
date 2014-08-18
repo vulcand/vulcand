@@ -1,21 +1,22 @@
 package httploc
 
 import (
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/headers"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/headers"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 )
 
-// Rewrites incom
+// Rewriter is responsible for removing hop-by-hop headers, fixing encodings and content-length
 type Rewriter struct {
 	TrustForwardHeader bool
 	Hostname           string
 }
 
-func (rw *Rewriter) ProcessRequest(r Request) (*http.Response, error) {
+func (rw *Rewriter) ProcessRequest(r request.Request) (*http.Response, error) {
 	req := r.GetHttpRequest()
 
 	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
@@ -44,8 +45,18 @@ func (rw *Rewriter) ProcessRequest(r Request) (*http.Response, error) {
 	// connection, regardless of what the client sent to us.
 	netutils.RemoveHeaders(headers.HopHeaders, req.Header)
 
+	// We need to set ContentLength based on known request size. The incoming request may have been
+	// set without content length or using chunked TransferEncoding
+	totalSize, err := r.GetBody().TotalSize()
+	if err != nil {
+		return nil, err
+	}
+	req.ContentLength = totalSize
+	// Remove TransferEncoding that could have been previously set
+	req.TransferEncoding = []string{}
+
 	return nil, nil
 }
 
-func (tl *Rewriter) ProcessResponse(r Request, a Attempt) {
+func (tl *Rewriter) ProcessResponse(r request.Request, a request.Attempt) {
 }

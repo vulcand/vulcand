@@ -2,16 +2,16 @@
 package vulcan
 
 import (
+	"io"
+	"net"
+	"net/http"
+	"sync/atomic"
+
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
-	"io"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"sync/atomic"
 )
 
 type Proxy struct {
@@ -30,25 +30,7 @@ type Options struct {
 
 // Accepts requests, round trips it to the endpoint, and writes back the response.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Record the request body so we can replay it on errors.
-	body, err := netutils.NewBodyBuffer(r.Body)
-	if err != nil || body == nil {
-		log.Errorf("Request read error %s", err)
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			p.replyError(errors.FromStatus(http.StatusRequestTimeout), w, r)
-		} else {
-			p.replyError(errors.FromStatus(http.StatusBadRequest), w, r)
-		}
-		return
-	}
-	defer body.Close()
-	r.Body = body
-
-	req := request.NewBaseRequest(r, atomic.AddInt64(&p.lastRequestId, 1), body)
-
-	err = p.proxyRequest(w, req)
-	if err != nil {
-		log.Errorf("%s failed: %s", req, err)
+	if err := p.proxyRequest(w, r); err != nil {
 		p.replyError(err, w, r)
 	}
 }
@@ -77,16 +59,21 @@ func (p *Proxy) GetRouter() route.Router {
 }
 
 // Round trips the request to the selected location and writes back the response
-func (p *Proxy) proxyRequest(w http.ResponseWriter, req *request.BaseRequest) error {
+func (p *Proxy) proxyRequest(w http.ResponseWriter, r *http.Request) error {
+
+	// Create a unique request with sequential ids that will be passed to all interfaces.
+	req := request.NewBaseRequest(r, atomic.AddInt64(&p.lastRequestId, 1), nil)
 	location, err := p.router.Route(req)
 	if err != nil {
 		return err
 	}
-	// Router could not find a matching location, we can do nothing more
+
+	// Router could not find a matching location, we can do nothing else.
 	if location == nil {
 		log.Errorf("%s failed to route", req)
 		return errors.FromStatus(http.StatusBadGateway)
 	}
+
 	response, err := location.RoundTrip(req)
 	if response != nil {
 		netutils.CopyHeaders(w.Header(), response.Header)
@@ -99,17 +86,9 @@ func (p *Proxy) proxyRequest(w http.ResponseWriter, req *request.BaseRequest) er
 	}
 }
 
-// Helper function to reply with http errors
+// replyError is a helper function that takes error and replies with HTTP compatible error to the client.
 func (p *Proxy) replyError(err error, w http.ResponseWriter, req *http.Request) {
-	// Discard the request body, so that clients can actually receive the response
-	// otherwise they can only see lost connection
-	// TODO: actually check this
-	proxyError, ok := err.(errors.ProxyError)
-	if !ok {
-		proxyError = errors.FromStatus(http.StatusBadGateway)
-	}
-
-	io.Copy(ioutil.Discard, req.Body)
+	proxyError := convertError(err)
 	statusCode, body, contentType := p.options.ErrorFormatter.Format(proxyError)
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(statusCode)
@@ -121,4 +100,18 @@ func validateOptions(o Options) (Options, error) {
 		o.ErrorFormatter = &errors.JsonFormatter{}
 	}
 	return o, nil
+}
+
+func convertError(err error) errors.ProxyError {
+	switch e := err.(type) {
+	case errors.ProxyError:
+		return e
+	case net.Error:
+		if e.Timeout() {
+			return errors.FromStatus(http.StatusRequestTimeout)
+		}
+	case *netutils.MaxSizeReachedError:
+		return errors.FromStatus(http.StatusRequestEntityTooLarge)
+	}
+	return errors.FromStatus(http.StatusBadGateway)
 }

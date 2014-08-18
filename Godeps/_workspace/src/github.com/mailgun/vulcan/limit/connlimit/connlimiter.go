@@ -4,9 +4,9 @@ package connlimit
 import (
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"net/http"
 	"sync"
 )
@@ -15,17 +15,17 @@ import (
 // and is capable of rejecting connections if they are failed
 type ConnectionLimiter struct {
 	mutex            *sync.Mutex
-	mapper           MapperFn
-	connections      map[string]int
-	maxConnections   int
+	mapper           limit.MapperFn
+	connections      map[string]int64
+	maxConnections   int64
 	totalConnections int64
 }
 
-func NewClientIpLimiter(maxConnections int) (*ConnectionLimiter, error) {
-	return NewConnectionLimiter(MapClientIp, maxConnections)
+func NewClientIpLimiter(maxConnections int64) (*ConnectionLimiter, error) {
+	return NewConnectionLimiter(limit.MapClientIp, maxConnections)
 }
 
-func NewConnectionLimiter(mapper MapperFn, maxConnections int) (*ConnectionLimiter, error) {
+func NewConnectionLimiter(mapper limit.MapperFn, maxConnections int64) (*ConnectionLimiter, error) {
 	if mapper == nil {
 		return nil, fmt.Errorf("Mapper function can not be nil")
 	}
@@ -36,11 +36,11 @@ func NewConnectionLimiter(mapper MapperFn, maxConnections int) (*ConnectionLimit
 		mutex:          &sync.Mutex{},
 		mapper:         mapper,
 		maxConnections: maxConnections,
-		connections:    make(map[string]int),
+		connections:    make(map[string]int64),
 	}, nil
 }
 
-func (cl *ConnectionLimiter) ProcessRequest(r Request) (*http.Response, error) {
+func (cl *ConnectionLimiter) ProcessRequest(r request.Request) (*http.Response, error) {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 
@@ -62,7 +62,7 @@ func (cl *ConnectionLimiter) ProcessRequest(r Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func (cl *ConnectionLimiter) ProcessResponse(r Request, a Attempt) {
+func (cl *ConnectionLimiter) ProcessResponse(r request.Request, a request.Attempt) {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 
@@ -85,10 +85,10 @@ func (cl *ConnectionLimiter) GetConnectionCount() int64 {
 	return cl.totalConnections
 }
 
-func (cl *ConnectionLimiter) GetMaxConnections() int {
+func (cl *ConnectionLimiter) GetMaxConnections() int64 {
 	return cl.maxConnections
 }
 
-func (cl *ConnectionLimiter) SetMaxConnections(max int) {
+func (cl *ConnectionLimiter) SetMaxConnections(max int64) {
 	cl.maxConnections = max
 }

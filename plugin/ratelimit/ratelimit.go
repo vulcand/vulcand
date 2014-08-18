@@ -26,7 +26,7 @@ func GetSpec() *plugin.MiddlewareSpec {
 // Existing implementation is based on the token bucket algorightm http://en.wikipedia.org/wiki/Token_bucket
 type RateLimit struct {
 	PeriodSeconds int    // Period in seconds, e.g. 3600 to set up hourly rates
-	Burst         int    // Burst count, allowes some extra variance for requests exceeding the average rate
+	Burst         int64  // Burst count, allowes some extra variance for requests exceeding the average rate
 	Variable      string // Variable defines how the limiting should be done. e.g. 'client.ip' or 'request.header.X-My-Header'
 	Requests      int    // Allowed average requests
 }
@@ -41,7 +41,7 @@ func (r *RateLimit) NewMiddleware() (middleware.Middleware, error) {
 	return tokenbucket.NewTokenLimiterWithOptions(mapper, rate, tokenbucket.Options{Burst: r.Burst})
 }
 
-func NewRateLimit(requests int, variable string, burst int, periodSeconds int) (*RateLimit, error) {
+func NewRateLimit(requests int, variable string, burst int64, periodSeconds int) (*RateLimit, error) {
 	if _, err := limit.VariableToMapper(variable); err != nil {
 		return nil, err
 	}
@@ -73,14 +73,14 @@ func FromOther(rate RateLimit) (plugin.Middleware, error) {
 
 // Constructs the middleware from the command line
 func FromCli(c *cli.Context) (plugin.Middleware, error) {
-	return NewRateLimit(c.Int("requests"), c.String("var"), c.Int("burst"), c.Int("period"))
+	return NewRateLimit(c.Int("requests"), c.String("var"), int64(c.Int("burst")), c.Int("period"))
 }
 
 func CliFlags() []cli.Flag {
 	return []cli.Flag{
-		cli.StringFlag{"variable, var", "client.ip", "variable to rate against, e.g. client.ip, request.host or request.header.X-Header"},
-		cli.IntFlag{"requests", 1, "amount of requests"},
-		cli.IntFlag{"period", 1, "rate limit period in seconds"},
-		cli.IntFlag{"burst", 1, "allowed burst"},
+		cli.StringFlag{Name: "variable, var", Value: "client.ip", Usage: "variable to rate against, e.g. client.ip, request.host or request.header.X-Header"},
+		cli.IntFlag{Name: "requests", Value: 1, Usage: "amount of requests"},
+		cli.IntFlag{Name: "period", Value: 1, Usage: "rate limit period in seconds"},
+		cli.IntFlag{Name: "burst", Value: 1, Usage: "allowed burst"},
 	}
 }

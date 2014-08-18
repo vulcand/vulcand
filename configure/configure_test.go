@@ -1,16 +1,17 @@
 package configure
 
 import (
+	"testing"
+	"time"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"testing"
-	"time"
 )
 
 func TestConfigure(t *testing.T) { TestingT(t) }
@@ -44,7 +45,7 @@ func (s *ConfSuite) AssertSameEndpoints(c *C, a []*roundrobin.WeightedEndpoint, 
 	c.Assert(x, DeepEquals, y)
 }
 
-func (s *ConfSuite) makeRateLimit(id string, rate int, variable string, burst int, periodSeconds int, loc *Location) *MiddlewareInstance {
+func (s *ConfSuite) makeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *Location) *MiddlewareInstance {
 	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
 	if err != nil {
 		panic(err)
@@ -92,6 +93,11 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 		Path:     "/home",
 		Id:       "loc1",
 		Upstream: upstream,
+		Options: LocationOptions{
+			Timeouts: LocationTimeouts{
+				Dial: "14s",
+			},
+		},
 	}
 
 	location.Middlewares = []*MiddlewareInstance{
@@ -104,6 +110,7 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 	// Make sure location is here
 	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
 	c.Assert(l, NotNil)
+	c.Assert(l.GetOptions().Timeouts.Dial, Equals, time.Second*14)
 
 	// Make sure the endpoint has been added to the location
 	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
@@ -226,6 +233,27 @@ func (s *ConfSuite) TestUpdateLocationUpstream(c *C) {
 	s.AssertSameEndpoints(c, lb.GetEndpoints(), up2.Endpoints)
 }
 
+func (s *ConfSuite) TestUpdateLocationOptions(c *C) {
+	location, host := makeLocation()
+
+	err := s.conf.processChange(&LocationAdded{Host: host, Location: location})
+	c.Assert(err, IsNil)
+
+	location.Options = LocationOptions{
+		Timeouts: LocationTimeouts{
+			Dial: "7s",
+		},
+		FailoverPredicate: "IsNetworkError",
+	}
+
+	err = s.conf.processChange(&LocationOptionsUpdated{Host: host, Location: location})
+	c.Assert(err, IsNil)
+
+	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	c.Assert(l.GetOptions().ShouldFailover, NotNil)
+	c.Assert(l.GetOptions().Timeouts.Dial, Equals, time.Second*7)
+}
+
 func (s *ConfSuite) TestUpstreamAddEndpoint(c *C) {
 	location, host := makeLocation()
 	up := location.Upstream
@@ -344,7 +372,7 @@ func (s *ConfSuite) TestUpdateRateLimit(c *C) {
 	limiter := chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
 	c.Assert(limiter.GetRate().Units, Equals, int64(100))
 	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(10))
-	c.Assert(limiter.GetBurst(), Equals, 200)
+	c.Assert(limiter.GetBurst(), Equals, int64(200))
 
 	// Update the rate limit
 	rl = s.makeRateLimit("rl1", 12, "client.ip", 20, 3, location)
@@ -355,7 +383,7 @@ func (s *ConfSuite) TestUpdateRateLimit(c *C) {
 	limiter = chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
 	c.Assert(limiter.GetRate().Units, Equals, int64(12))
 	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(3))
-	c.Assert(limiter.GetBurst(), Equals, 20)
+	c.Assert(limiter.GetBurst(), Equals, int64(20))
 }
 
 func (s *ConfSuite) TestAddDeleteRateLimit(c *C) {

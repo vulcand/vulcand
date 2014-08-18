@@ -2,10 +2,10 @@ package membackend
 
 import (
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 	. "github.com/mailgun/vulcand/plugin/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"testing"
 )
 
@@ -350,6 +350,24 @@ func (s *MemBackendSuite) TestLocationUpdateUpstreamBadParams(c *C) {
 	c.Assert(err, FitsTypeOf, &NotFoundError{})
 }
 
+func (s *MemBackendSuite) TestLocationUpdateOptions(c *C) {
+	h, _, loc := s.setUpLocation(c)
+
+	o := LocationOptions{}
+	l, err := s.backend.UpdateLocationOptions(h.Name, loc.Id, o)
+	c.Assert(err, IsNil)
+	c.Assert(l, NotNil)
+}
+
+func (s *MemBackendSuite) TestLocationUpdateOptionsLocNotFound(c *C) {
+	h, _, _ := s.setUpLocation(c)
+
+	o := LocationOptions{}
+	l, err := s.backend.UpdateLocationOptions(h.Name, "notfound", o)
+	c.Assert(err, NotNil)
+	c.Assert(l, IsNil)
+}
+
 func (s *MemBackendSuite) TestLocationMiddlewareOps(c *C) {
 	h, _, loc := s.setUpLocation(c)
 
@@ -451,7 +469,7 @@ func (s *MemBackendSuite) TestAddLocationMiddlewareBadArgs(c *C) {
 	c.Assert(err, FitsTypeOf, &NotFoundError{})
 }
 
-func (s *MemBackendSuite) makeRateLimit(id string, rate int, variable string, burst int, periodSeconds int, loc *Location) *MiddlewareInstance {
+func (s *MemBackendSuite) makeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *Location) *MiddlewareInstance {
 	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
 	if err != nil {
 		panic(err)

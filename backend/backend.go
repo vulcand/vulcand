@@ -1,11 +1,15 @@
-// Defines interfaces and structures controlling the proxy configuration and changes
+// Package backend defines interfaces and structures controlling the proxy configuration and changes.
 package backend
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcand/plugin"
 	"regexp"
+	"time"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/failover"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcand/plugin"
 )
 
 type Backend interface {
@@ -17,6 +21,7 @@ type Backend interface {
 	AddLocation(*Location) (*Location, error)
 	GetLocation(hostname, id string) (*Location, error)
 	UpdateLocationUpstream(hostname, id string, upstream string) (*Location, error)
+	UpdateLocationOptions(hostname, locationId string, o LocationOptions) (*Location, error)
 	DeleteLocation(hostname, id string) error
 
 	AddLocationMiddleware(hostname, locationId string, m *MiddlewareInstance) (*MiddlewareInstance, error)
@@ -33,18 +38,19 @@ type Backend interface {
 	GetEndpoint(upstreamId, id string) (*Endpoint, error)
 	DeleteEndpoint(upstreamId, id string) error
 
-	// Watch changes is an entry point for getting the configuration changes
-	// as well as the initial configuration. It should be have in the following way:
+	// WatchChanges is an entry point for getting the configuration changes as well as the initial configuration.
+	// It should behave in the following way:
+	//
 	// * This should be a blocking function generating events from change.go to the changes channel
-	// If the initalSetup is true, it should read the existing configuration and generate the events to the channel
-	// just as someone was creating the elements one by one.
+	// * If the initalSetup is true, it should read the existing configuration and generate the events to the channel
+	//   just as someone was creating the elements one by one.
 	WatchChanges(changes chan interface{}, initialSetup bool) error
 
-	// Returns registry with the supported plugins
-	GetRegistry() *Registry
+	// GetRegistry returns registry with the supported plugins.
+	GetRegistry() *plugin.Registry
 }
 
-// Provides realtime stats about endpoint specific to a particular location.
+// StatsGetter provides realtime stats about endpoint specific to a particular location.
 type StatsGetter interface {
 	GetStats(hostname string, locationId string, e *Endpoint) *EndpointStats
 }
@@ -67,7 +73,7 @@ func NewHost(name string) (*Host, error) {
 }
 
 func (h *Host) String() string {
-	return fmt.Sprintf("Host(name=%s, locations=%s)", h.Name, h.Locations)
+	return fmt.Sprintf("Host(%s)", h.Name)
 }
 
 func (h *Host) GetId() string {
@@ -83,6 +89,44 @@ type Location struct {
 	Id          string
 	Upstream    *Upstream
 	Middlewares []*MiddlewareInstance
+	Options     LocationOptions
+}
+
+type LocationTimeouts struct {
+	// Socket read timeout (before we receive the first reply header)
+	Read string
+	// Socket connect timeout
+	Dial string
+	// TLS handshake timeout
+	TlsHandshake string
+}
+
+type LocationKeepAlive struct {
+	// Keepalive period
+	Period string
+	// How many idle connections will be kept per host
+	MaxIdleConnsPerHost int
+}
+
+// Limits contains various limits one can supply for a location.
+type LocationLimits struct {
+	MaxMemBodyBytes int64 // Maximum size to keep in memory before buffering to disk
+	MaxBodyBytes    int64 // Maximum size of a request body in bytes
+}
+
+// Additional options to control this location, such as timeouts
+type LocationOptions struct {
+	Timeouts LocationTimeouts
+	// Controls KeepAlive settins for backend servers
+	KeepAlive LocationKeepAlive
+	// Limits contains various limits one can supply for a location.
+	Limits LocationLimits
+	// Predicate that defines when requests are allowed to failover
+	FailoverPredicate string
+	// Used in forwarding headers
+	Hostname string
+	// In this case appends new forward info to the existing header
+	TrustForwardHeader bool
 }
 
 // Wrapper that contains information about this middleware backend-specific data used for serialization/deserialization
@@ -90,17 +134,25 @@ type MiddlewareInstance struct {
 	Id         string
 	Priority   int
 	Type       string
-	Middleware Middleware
+	Middleware plugin.Middleware
 }
 
 func NewLocation(hostname, id, path, upstreamId string) (*Location, error) {
+	return NewLocationWithOptions(hostname, id, path, upstreamId, LocationOptions{})
+}
+
+func NewLocationWithOptions(hostname, id, path, upstreamId string, options LocationOptions) (*Location, error) {
 	if len(path) == 0 || len(hostname) == 0 || len(upstreamId) == 0 {
-		return nil, fmt.Errorf("Supply valid hostname, path and upstream id")
+		return nil, fmt.Errorf("supply valid hostname, path and upstream id")
 	}
 
 	// Make sure location path is a valid regular expression
 	if _, err := regexp.Compile(path); err != nil {
-		return nil, fmt.Errorf("Path should be a valid Golang regular expression")
+		return nil, fmt.Errorf("path should be a valid Golang regular expression")
+	}
+
+	if _, err := parseLocationOptions(options); err != nil {
+		return nil, err
 	}
 
 	return &Location{
@@ -109,13 +161,61 @@ func NewLocation(hostname, id, path, upstreamId string) (*Location, error) {
 		Id:          id,
 		Upstream:    &Upstream{Id: upstreamId, Endpoints: []*Endpoint{}},
 		Middlewares: []*MiddlewareInstance{},
+		Options:     options,
 	}, nil
 }
 
+func parseLocationOptions(l LocationOptions) (*httploc.Options, error) {
+	o := &httploc.Options{}
+	var err error
+
+	// Connection timeouts
+	if len(l.Timeouts.Read) != 0 {
+		if o.Timeouts.Read, err = time.ParseDuration(l.Timeouts.Read); err != nil {
+			return nil, fmt.Errorf("invalid read timeout: %s", err)
+		}
+	}
+	if len(l.Timeouts.Dial) != 0 {
+		if o.Timeouts.Dial, err = time.ParseDuration(l.Timeouts.Dial); err != nil {
+			return nil, fmt.Errorf("invalid dial timeout: %s", err)
+		}
+	}
+	if len(l.Timeouts.TlsHandshake) != 0 {
+		if o.Timeouts.TlsHandshake, err = time.ParseDuration(l.Timeouts.TlsHandshake); err != nil {
+			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
+		}
+	}
+
+	// Keep Alive parameters
+	if len(l.KeepAlive.Period) != 0 {
+		if o.KeepAlive.Period, err = time.ParseDuration(l.KeepAlive.Period); err != nil {
+			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
+		}
+	}
+	o.KeepAlive.MaxIdleConnsPerHost = l.KeepAlive.MaxIdleConnsPerHost
+
+	// Location-specific limits
+	o.Limits.MaxMemBodyBytes = l.Limits.MaxMemBodyBytes
+	o.Limits.MaxBodyBytes = l.Limits.MaxBodyBytes
+
+	// Failover predicate
+	if len(l.FailoverPredicate) != 0 {
+		if o.ShouldFailover, err = failover.ParseExpression(l.FailoverPredicate); err != nil {
+			return nil, err
+		}
+	}
+
+	o.Hostname = l.Hostname
+	o.TrustForwardHeader = l.TrustForwardHeader
+	return o, nil
+}
+
+func (l *Location) GetOptions() (*httploc.Options, error) {
+	return parseLocationOptions(l.Options)
+}
+
 func (l *Location) String() string {
-	return fmt.Sprintf(
-		"Location(hostname=%s, id=%s, path=%s, upstream=%s, middlewares=%s)",
-		l.Hostname, l.Id, l.Path, l.Upstream, l.Middlewares)
+	return fmt.Sprintf("Location(%s/%s, %s, %s)", l.Hostname, l.Id, l.Path, l.Upstream)
 }
 
 func (l *Location) GetId() string {
@@ -137,7 +237,7 @@ func NewUpstream(id string) (*Upstream, error) {
 }
 
 func (u *Upstream) String() string {
-	return fmt.Sprintf("Upstream(id=%s, endpoints=%s)", u.Id, u.Endpoints)
+	return fmt.Sprintf("Upstream(id=%s)", u.Id)
 }
 
 func (u *Upstream) GetId() string {
@@ -167,7 +267,7 @@ func NewEndpoint(upstreamId, id, url string) (*Endpoint, error) {
 }
 
 func (e *Endpoint) String() string {
-	return fmt.Sprintf("Endpoint(id=%s, up=%s, url=%s, stats=%s)", e.Id, e.UpstreamId, e.Url, e.Stats)
+	return fmt.Sprintf("Endpoint(%s, %s, %s, %s)", e.Id, e.UpstreamId, e.Url, e.Stats)
 }
 
 func (e *Endpoint) GetId() string {

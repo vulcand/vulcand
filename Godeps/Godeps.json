@@ -7,8 +7,8 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.0.0-65-g820deef",
-			"Rev": "820deefc9031d101f085ef773425fc6ca7a5363e"
+			"Comment": "1.2.0-22-g687db20",
+			"Rev": "687db20fc379d1686465a28e9959707cd1acc990"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
@@ -53,8 +53,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-178-gd63d2d2",
-			"Rev": "d63d2d245fc1ea64b82e154b6303166de1b50a54"
+			"Comment": "v0.1-182-g5c6765e",
+			"Rev": "5c6765ea60dd169b5894cb13a212c95f7e7011f1"
 		},
 		{
 			"ImportPath": "github.com/wsxiaoys/terminal/color",

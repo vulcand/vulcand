@@ -2,16 +2,19 @@ package api
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
-	api "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-api"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcand/backend"
-	. "github.com/mailgun/vulcand/connwatch"
-	"github.com/mailgun/vulcand/plugin"
 	"net/http"
 	"net/url"
 	"time"
+
+	api "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-api"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+
+	. "github.com/mailgun/vulcand/backend"
+	. "github.com/mailgun/vulcand/connwatch"
+	"github.com/mailgun/vulcand/plugin"
 )
 
 type ProxyController struct {
@@ -39,6 +42,7 @@ func InitProxyController(backend Backend, statsGetter StatsGetter, connWatcher *
 	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeRawHandler(controller.AddLocation)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeHandler(controller.GetHostLocations)).Methods("GET")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.UpdateLocationUpstream)).Methods("PUT")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}/options", api.MakeRawHandler(controller.UpdateLocationOptions)).Methods("PUT")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.DeleteLocation)).Methods("DELETE")
 
 	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeRawHandler(controller.AddEndpoint)).Methods("POST")
@@ -190,7 +194,6 @@ func (c *ProxyController) AddLocation(w http.ResponseWriter, r *http.Request, pa
 }
 
 func (c *ProxyController) UpdateLocationUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-
 	hostname := params["hostname"]
 	locationId := params["id"]
 
@@ -204,6 +207,17 @@ func (c *ProxyController) UpdateLocationUpstream(w http.ResponseWriter, r *http.
 		return nil, formatError(err)
 	}
 	return api.Response{"message": "Location upstream updated"}, nil
+}
+
+func (c *ProxyController) UpdateLocationOptions(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	hostname := params["hostname"]
+	locationId := params["id"]
+
+	options, err := LocationOptionsFromJson(body)
+	if err != nil {
+		return nil, formatError(err)
+	}
+	return formatResult(c.backend.UpdateLocationOptions(hostname, locationId, *options))
 }
 
 func (c *ProxyController) DeleteLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {

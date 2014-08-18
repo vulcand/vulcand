@@ -2,8 +2,8 @@ package connlimit
 
 import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/plugin"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/vulcand/plugin"
 	"testing"
 )
 
@@ -64,7 +64,7 @@ func (s *ConnLimitSuite) TestNewConnLimitFromCli(c *C) {
 
 		cl := out.(*ConnLimit)
 		c.Assert(cl.Variable, Equals, "client.ip")
-		c.Assert(cl.Connections, Equals, 10)
+		c.Assert(cl.Connections, Equals, int64(10))
 	}
 	app.Flags = CliFlags()
 	app.Run([]string{"test", "--var=client.ip", "--connections=10"})
