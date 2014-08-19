@@ -198,7 +198,7 @@ func (l *HttpLocation) RoundTrip(req request.Request) (*http.Response, error) {
 
 		// Adds headers, changes urls. Note that we rewrite request each time we proxy it to the
 		// endpoint, so that each try gets a fresh start
-		req.SetHttpRequest(l.copyRequest(req, endpoint))
+		req.SetHttpRequest(l.copyRequest(originalRequest, req.GetBody(), endpoint))
 
 		// In case if error is not nil, we allow load balancer to choose the next endpoint
 		// e.g. to do request failover. Nil error means that we got proxied the request successfully.
@@ -264,14 +264,12 @@ func (l *HttpLocation) proxyToEndpoint(tr *http.Transport, o *Options, endpoint 
 	return a.Response, a.Error
 }
 
-func (l *HttpLocation) copyRequest(r request.Request, endpoint endpoint.Endpoint) *http.Request {
-	req := r.GetHttpRequest()
-
+func (l *HttpLocation) copyRequest(req *http.Request, body netutils.MultiReader, endpoint endpoint.Endpoint) *http.Request {
 	outReq := new(http.Request)
 	*outReq = *req // includes shallow copies of maps, but we handle this below
 
 	// Set the body to the enhanced body that can be re-read multiple times and buffered to disk
-	outReq.Body = r.GetBody()
+	outReq.Body = body
 
 	outReq.URL.Scheme = endpoint.GetUrl().Scheme
 	outReq.URL.Host = endpoint.GetUrl().Host

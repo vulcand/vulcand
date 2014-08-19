@@ -428,3 +428,32 @@ func (s *LocSuite) TestMiddlewareAddsHeaderOnFailover(c *C) {
 	c.Assert(capturedHeader, DeepEquals, []string{"hello 1"})
 	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
 }
+
+// Make sure that middleware changes do not propagate during failover
+func (s *LocSuite) TestFailoverHeaders(c *C) {
+	var finalHeaders []string
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		finalHeaders = r.Header["X-Vulcan-Call"]
+		w.Write([]byte("Hi, I'm endpoint"))
+	})
+	defer server.Close()
+
+	location, proxy := s.newProxy(s.newRoundRobin("http://localhost:63999", server.URL))
+	defer proxy.Close()
+
+	// This middleware will be executed on both attempts.
+	// We need to make sure that the first attempt does not interfere with the other.
+	m := &MiddlewareWrapper{
+		OnRequest: func(r Request) (*http.Response, error) {
+			r.GetHttpRequest().Header.Add("X-Vulcan-Call", "call")
+			return nil, nil
+		},
+		OnResponse: func(r Request, a Attempt) {
+		},
+	}
+	location.GetMiddlewareChain().Add("m", 0, m)
+
+	response, _ := Get(c, proxy.URL, s.authHeaders, "hello!")
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(finalHeaders, DeepEquals, []string{"call"})
+}
