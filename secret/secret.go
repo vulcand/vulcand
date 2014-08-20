@@ -9,15 +9,15 @@ import (
 	"code.google.com/p/go.crypto/nacl/secretbox"
 )
 
-func NewPrintableKey() (string, error) {
-	k, err := generateKey()
+func NewKeyString() (string, error) {
+	k, err := newKey()
 	if err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(k), nil
 }
 
-func DecodePrintableKey(key string) (*[keyLength]byte, error) {
+func KeyFromString(key string) (*[keyLength]byte, error) {
 	bytes, err := hex.DecodeString(key)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ type Box struct {
 	key *[32]byte
 }
 
-type EncryptedBytes struct {
+type SealedBytes struct {
 	Val   []byte
 	Nonce []byte
 }
@@ -38,7 +38,7 @@ func NewBox(bytes *[keyLength]byte) (*Box, error) {
 	return &Box{key: bytes}, nil
 }
 
-func (b *Box) Encrypt(value []byte) (*EncryptedBytes, error) {
+func (b *Box) Seal(value []byte) (*SealedBytes, error) {
 	var nonce [nonceLength]byte
 	_, err := io.ReadFull(rand.Reader, nonce[:])
 	if err != nil {
@@ -46,13 +46,13 @@ func (b *Box) Encrypt(value []byte) (*EncryptedBytes, error) {
 	}
 	var encrypted []byte
 	encrypted = secretbox.Seal(encrypted[:0], value, &nonce, b.key)
-	return &EncryptedBytes{
+	return &SealedBytes{
 		Val:   encrypted,
 		Nonce: nonce[:],
 	}, nil
 }
 
-func (b *Box) Decrypt(e *EncryptedBytes) ([]byte, error) {
+func (b *Box) Open(e *SealedBytes) ([]byte, error) {
 	nonce, err := decodeNonce(e.Nonce)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func decodeKey(bytes []byte) (*[keyLength]byte, error) {
 	return &keyBytes, nil
 }
 
-func generateKey() ([]byte, error) {
+func newKey() ([]byte, error) {
 	var bytes [keyLength]byte
 	_, err := io.ReadFull(rand.Reader, bytes[:])
 	if err != nil {

@@ -27,7 +27,7 @@ func NewKeyCommand(cmd *Command) cli.Command {
 }
 
 func (cmd *Command) generateKeyAction(c *cli.Context) {
-	key, err := secret.NewPrintableKey()
+	key, err := secret.NewKeyString()
 	if err != nil {
 		cmd.printError(fmt.Errorf("Unable to generate key: %v", err))
 		return

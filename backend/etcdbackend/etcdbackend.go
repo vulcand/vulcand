@@ -16,30 +16,45 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/secret"
 )
 
 const reconnectTimeout = 3 * time.Second
 
 type EtcdBackend struct {
-	nodes        []string
-	registry     *plugin.Registry
-	etcdKey      string
-	consistency  string
-	client       *etcd.Client
-	cancelC      chan bool
-	stopC        chan bool
-	timeProvider timetools.TimeProvider
+	nodes    []string
+	registry *plugin.Registry
+	etcdKey  string
+	client   *etcd.Client
+	cancelC  chan bool
+	stopC    chan bool
+
+	options Options
 }
 
-func NewEtcdBackend(registry *plugin.Registry, nodes []string, etcdKey, consistency string, timeProvider timetools.TimeProvider) (*EtcdBackend, error) {
+type Options struct {
+	EtcdConsistency string
+	Box             *secret.Box
+	TimeProvider    timetools.TimeProvider
+}
+
+func NewEtcdBackend(registry *plugin.Registry, nodes []string, etcdKey string) (*EtcdBackend, error) {
+	return NewEtcdBackendWithOptions(registry, nodes, etcdKey, Options{})
+}
+
+func NewEtcdBackendWithOptions(registry *plugin.Registry, nodes []string, etcdKey string, options Options) (*EtcdBackend, error) {
+	o, err := parseOptions(options)
+	if err != nil {
+		return nil, err
+	}
+
 	b := &EtcdBackend{
-		nodes:        nodes,
-		registry:     registry,
-		etcdKey:      etcdKey,
-		consistency:  consistency,
-		cancelC:      make(chan bool, 1),
-		stopC:        make(chan bool, 1),
-		timeProvider: timeProvider,
+		nodes:    nodes,
+		registry: registry,
+		etcdKey:  etcdKey,
+		cancelC:  make(chan bool, 1),
+		stopC:    make(chan bool, 1),
+		options:  o,
 	}
 	if err := b.reconnect(); err != nil {
 		return nil, err
@@ -52,7 +67,7 @@ func (s *EtcdBackend) reconnect() error {
 		s.client.Close()
 	}
 	client := etcd.NewClient(s.nodes)
-	if err := client.SetConsistency(s.consistency); err != nil {
+	if err := client.SetConsistency(s.options.EtcdConsistency); err != nil {
 		return err
 	}
 	s.client = client
@@ -70,6 +85,9 @@ func (s *EtcdBackend) GetHosts() ([]*backend.Host, error) {
 func (s *EtcdBackend) AddHost(h *backend.Host) (*backend.Host, error) {
 	if _, err := s.client.CreateDir(s.path("hosts", h.Name), 0); err != nil {
 		return nil, convertErr(err)
+	}
+	if h.Cert != nil {
+
 	}
 	return h, nil
 }
@@ -460,7 +478,7 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 				return nil
 			default:
 				log.Errorf("Unexpected error: %s, reconnecting", err)
-				s.timeProvider.Sleep(reconnectTimeout)
+				s.options.TimeProvider.Sleep(reconnectTimeout)
 				s.reconnect()
 				continue
 			}
@@ -842,6 +860,21 @@ func (s EtcdBackend) path(keys ...string) string {
 	return strings.Join(append([]string{s.etcdKey}, keys...), "/")
 }
 
+func (s *EtcdBackend) setSealedVal(key string, val string) error {
+	if s.options.Box == nil {
+		return fmt.Errorf("this backend does not support encryption")
+	}
+	v, err := s.options.Box.Seal([]byte(val))
+	if err != nil {
+		return err
+	}
+}
+
+func (s *EtcdBackend) setVal(key string, val string) error {
+	_, err := s.client.Set(key, val, 0)
+	return err
+}
+
 func (s *EtcdBackend) getVal(keys ...string) (string, bool) {
 	response, err := s.client.Get(strings.Join(keys, "/"), false, false)
 	if err != nil {
@@ -932,4 +965,22 @@ func convertErr(e error) error {
 
 func isDir(n *etcd.Node) bool {
 	return n != nil && n.Dir == true
+}
+
+func parseOptions(o Options) (Options, error) {
+	if o.TimeProvider == nil {
+		o.TimeProvider = &timetools.RealTime{}
+	}
+	if o.EtcdConsistency == "" {
+		o.EtcdConsistency = etcd.STRONG_CONSISTENCY
+	}
+	return o, nil
+}
+
+type sealedValue struct {
+	Encryption string
+	Value      struct {
+		Val   string
+		Nonce string
+	}
 }

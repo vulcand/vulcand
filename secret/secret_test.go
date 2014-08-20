@@ -1,7 +1,6 @@
 package secret
 
 import (
-	"fmt"
 	"testing"
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -15,21 +14,20 @@ type SecretSuite struct {
 var _ = Suite(&SecretSuite{})
 
 func (s *SecretSuite) TestEncryptDecryptCylce(c *C) {
-	printableKey, err := NewPrintableKey()
+	keyS, err := NewKeyString()
 	c.Assert(err, IsNil)
 
-	key, err := DecodePrintableKey(printableKey)
+	key, err := KeyFromString(keyS)
 	c.Assert(err, IsNil)
 
 	b, err := NewBox(key)
 	c.Assert(err, IsNil)
 
 	message := []byte("hello, box!")
-	encrypted, err := b.Encrypt(message)
+	sealed, err := b.Seal(message)
 	c.Assert(err, IsNil)
-	fmt.Printf("%#v", encrypted)
 
-	out, err := b.Decrypt(encrypted)
+	out, err := b.Open(sealed)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, message)
 }
