@@ -2,23 +2,24 @@ package service
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	runtime "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-runtime"
-	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
-	"github.com/mailgun/vulcand/adapter"
-	"github.com/mailgun/vulcand/api"
-	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/backend/etcdbackend"
-	"github.com/mailgun/vulcand/configure"
-	"github.com/mailgun/vulcand/plugin"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	runtime "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-runtime"
+
+	"github.com/mailgun/vulcand/api"
+	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/backend/etcdbackend"
+	"github.com/mailgun/vulcand/connwatch"
+	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/secret"
+	"github.com/mailgun/vulcand/server"
+	"github.com/mailgun/vulcand/supervisor"
 )
 
 func Run(registry *plugin.Registry) error {
@@ -28,7 +29,7 @@ func Run(registry *plugin.Registry) error {
 	}
 	service := NewService(options, registry)
 	if err := service.Start(); err != nil {
-		return fmt.Errorf("Service exited with error: %s", err)
+		return fmt.Errorf("service start failure: %s", err)
 	} else {
 		log.Infof("Service exited gracefully")
 	}
@@ -36,24 +37,19 @@ func Run(registry *plugin.Registry) error {
 }
 
 type Service struct {
-	client       *etcd.Client
-	proxy        *vulcan.Proxy
-	backend      backend.Backend
-	options      Options
-	registry     *plugin.Registry
-	router       *hostroute.HostRouter
-	apiRouter    *mux.Router
-	errorC       chan error
-	changeC      chan interface{}
-	sigC         chan os.Signal
-	configurator *configure.Configurator
+	client     *etcd.Client
+	options    Options
+	registry   *plugin.Registry
+	apiRouter  *mux.Router
+	errorC     chan error
+	sigC       chan os.Signal
+	supervisor *supervisor.Supervisor
 }
 
 func NewService(options Options, registry *plugin.Registry) *Service {
 	return &Service{
 		registry: registry,
 		options:  options,
-		changeC:  make(chan interface{}),
 		errorC:   make(chan error),
 		sigC:     make(chan os.Signal),
 	}
@@ -62,36 +58,18 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 func (s *Service) Start() error {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := etcdbackend.NewEtcdBackend(
-		s.registry, s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency, &timetools.RealTime{})
-	if err != nil {
-		return err
-	}
-	s.backend = backend
-
 	if s.options.PidPath != "" {
 		if err := runtime.WritePid(s.options.PidPath); err != nil {
 			return fmt.Errorf("failed to write PID file: %v\n", err)
 		}
 	}
 
-	if err := s.createProxy(); err != nil {
+	s.supervisor = supervisor.NewSupervisor(s.newServer, s.newBackend, s.errorC)
+
+	// Tells configurator to perform initial proxy configuration and start watching changes
+	if err := s.supervisor.Start(); err != nil {
 		return err
 	}
-
-	go func() {
-		s.errorC <- s.startProxy()
-	}()
-
-	s.configurator = configure.NewConfiguratorWithOptions(s.proxy, configure.Options{
-		DialTimeout: s.options.EndpointDialTimeout,
-		ReadTimeout: s.options.EndpointReadTimeout,
-	})
-
-	// Tell backend to watch configuration changes and pass them to the channel
-	// the second parameter tells backend to do the initial read of the configuration
-	// and produce the stream of changes so proxy would initialise initial config
-	go s.watchChanges()
 
 	if err := s.initApi(); err != nil {
 		return err
@@ -106,7 +84,14 @@ func (s *Service) Start() error {
 	// Block until a signal is received or we got an error
 	select {
 	case signal := <-s.sigC:
-		log.Infof("Got signal %s, exiting now", signal)
+		if signal == syscall.SIGTERM {
+			log.Infof("Got signal %s, shutting down gracefully", signal)
+			s.supervisor.Stop(true)
+			log.Infof("All servers stopped")
+		} else {
+			log.Infof("Got signal %s, exiting now without waiting", signal)
+			s.supervisor.Stop(false)
+		}
 		return nil
 	case err := <-s.errorC:
 		log.Infof("Got request to shutdown with error: %s", err)
@@ -115,43 +100,55 @@ func (s *Service) Start() error {
 	return nil
 }
 
-func (s *Service) watchChanges() {
-	go s.configurator.WatchChanges(s.changeC)
-	err := s.backend.WatchChanges(s.changeC, true)
-	if err != nil {
-		log.Infof("Stopped watching changes with error: %s. Shutting down with error", err)
-		s.errorC <- err
-	} else {
-		log.Infof("Stopped watching changes without error. Will continue running", err)
+func (s *Service) newBox() (*secret.Box, error) {
+	if s.options.SealKey == "" {
+		return nil, nil
 	}
+	key, err := secret.KeyFromString(s.options.SealKey)
+	if err != nil {
+		return nil, err
+	}
+	return secret.NewBox(key)
 }
 
-func (s *Service) createProxy() error {
-	s.router = hostroute.NewHostRouter()
-	proxy, err := vulcan.NewProxy(s.router)
+func (s *Service) newBackend() (backend.Backend, error) {
+	box, err := s.newBox()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.proxy = proxy
-	return nil
+	return etcdbackend.NewEtcdBackendWithOptions(
+		s.registry, s.options.EtcdNodes, s.options.EtcdKey,
+		etcdbackend.Options{
+			EtcdConsistency: s.options.EtcdConsistency,
+			Box:             box,
+		})
+}
+
+func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
+	return server.NewMuxServerWithOptions(id, cw, server.Options{
+		DialTimeout:    s.options.EndpointDialTimeout,
+		ReadTimeout:    s.options.ServerReadTimeout,
+		WriteTimeout:   s.options.ServerWriteTimeout,
+		MaxHeaderBytes: s.options.ServerMaxHeaderBytes,
+		DefaultListener: &backend.Listener{
+			Id:       "DefaultListener",
+			Protocol: "http",
+			Address: backend.Address{
+				Network: "tcp",
+				Address: fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port),
+			},
+		},
+	})
 }
 
 func (s *Service) initApi() error {
 	s.apiRouter = mux.NewRouter()
-	api.InitProxyController(s.backend, adapter.NewAdapter(s.proxy), s.configurator.GetConnWatcher(), s.apiRouter)
-	return nil
-}
-
-func (s *Service) startProxy() error {
-	addr := fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port)
-	server := &http.Server{
-		Addr:           addr,
-		Handler:        s.proxy,
-		ReadTimeout:    s.options.ServerReadTimeout,
-		WriteTimeout:   s.options.ServerWriteTimeout,
-		MaxHeaderBytes: 1 << 20,
+	b, err := s.newBackend()
+	if err != nil {
+		return err
 	}
-	return server.ListenAndServe()
+	api.InitProxyController(b, s.supervisor, s.supervisor.GetConnWatcher(), s.apiRouter)
+	return nil
 }
 
 func (s *Service) startApi() error {

@@ -8,20 +8,26 @@ import (
 )
 
 type Options struct {
-	ApiPort             int
-	ApiInterface        string
-	PidPath             string
-	Port                int
-	Interface           string
-	CertPath            string
-	EtcdNodes           listOptions
-	EtcdKey             string
-	EtcdConsistency     string
-	Log                 string
-	ServerReadTimeout   time.Duration
-	ServerWriteTimeout  time.Duration
+	ApiPort      int
+	ApiInterface string
+	PidPath      string
+	Port         int
+	Interface    string
+	CertPath     string
+
+	EtcdNodes       listOptions
+	EtcdKey         string
+	EtcdConsistency string
+	Log             string
+
+	ServerReadTimeout    time.Duration
+	ServerWriteTimeout   time.Duration
+	ServerMaxHeaderBytes int
+
 	EndpointDialTimeout time.Duration
 	EndpointReadTimeout time.Duration
+
+	SealKey string
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -48,6 +54,12 @@ func validateOptions(o Options) (Options, error) {
 		if f.Name == "writeTimeout" {
 			fmt.Printf("!!!!!! WARN: Using deprecated writeTimeout flag, use serverWriteTimeout instead\n\n")
 		}
+		if f.Name == "port" {
+			fmt.Printf("!!!!!! WARN: Using deprecated port flag, use Listeners instead\n\n")
+		}
+		if f.Name == "interface" {
+			fmt.Printf("!!!!!! WARN: Using deprecated interface flag, use Listeners instead\n\n")
+		}
 	})
 	return o, nil
 }
@@ -59,16 +71,22 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
 	flag.IntVar(&options.Port, "port", 8181, "Port to listen on")
 	flag.IntVar(&options.ApiPort, "apiPort", 8182, "Port to provide api on")
+
 	flag.StringVar(&options.Interface, "interface", "", "Interface to bind to")
 	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
 	flag.StringVar(&options.CertPath, "certPath", "", "Certificate to use (enables TLS)")
 	flag.StringVar(&options.Log, "log", "console", "Logging to use (syslog or console)")
+
+	flag.IntVar(&options.ServerMaxHeaderBytes, "serverMaxHeaderBytes", 1<<20, "Maximum size of request headers")
 	flag.DurationVar(&options.ServerReadTimeout, "readTimeout", time.Duration(60)*time.Second, "HTTP server read timeout (deprecated)")
 	flag.DurationVar(&options.ServerReadTimeout, "serverReadTimeout", time.Duration(60)*time.Second, "HTTP server read timeout")
 	flag.DurationVar(&options.ServerWriteTimeout, "writeTimeout", time.Duration(60)*time.Second, "HTTP server write timeout (deprecated)")
 	flag.DurationVar(&options.ServerWriteTimeout, "serverWriteTimeout", time.Duration(60)*time.Second, "HTTP server write timeout")
 	flag.DurationVar(&options.EndpointDialTimeout, "endpointDialTimeout", time.Duration(5)*time.Second, "Endpoint dial timeout")
 	flag.DurationVar(&options.EndpointReadTimeout, "endpointReadTimeout", time.Duration(50)*time.Second, "Endpoint read timeout")
+
+	flag.StringVar(&options.SealKey, "sealKey", "", "Seal key used to store encrypted data in the backend")
+
 	flag.Parse()
 	options, err = validateOptions(options)
 	if err != nil {

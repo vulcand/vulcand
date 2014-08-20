@@ -13,6 +13,8 @@ type MemBackend struct {
 	Hosts     []*Host
 	Upstreams []*Upstream
 	Registry  *Registry
+	ChangesC  chan interface{}
+	ErrorsC   chan error
 }
 
 func NewMemBackend(r *Registry) *MemBackend {
@@ -20,7 +22,12 @@ func NewMemBackend(r *Registry) *MemBackend {
 		Hosts:     []*Host{},
 		Upstreams: []*Upstream{},
 		Registry:  r,
+		ChangesC:  make(chan interface{}, 1000),
+		ErrorsC:   make(chan error),
 	}
+}
+
+func (m *MemBackend) Close() {
 }
 
 func (m *MemBackend) autoId() string {
@@ -43,6 +50,15 @@ func (m *MemBackend) AddHost(h *Host) (*Host, error) {
 	return h, nil
 }
 
+func (m *MemBackend) UpdateHostCertificate(hostname string, cert *Certificate) (*Host, error) {
+	host, err := m.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	host.Cert = cert
+	return host, nil
+}
+
 func (m *MemBackend) GetHost(name string) (*Host, error) {
 	for _, h := range m.Hosts {
 		if h.Name == name {
@@ -56,6 +72,45 @@ func (m *MemBackend) DeleteHost(name string) error {
 	for i, h := range m.Hosts {
 		if h.Name == name {
 			m.Hosts = append(m.Hosts[:i], m.Hosts[i+1:]...)
+			return nil
+		}
+	}
+	return &NotFoundError{}
+}
+
+func (m *MemBackend) AddHostListener(hostname string, listener *Listener) (*Listener, error) {
+	host, err := m.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range host.Listeners {
+		if l.Address.Equals(listener.Address) {
+			return nil, &AlreadyExistsError{
+				Message: fmt.Sprintf("listener using the same address %s already exists: %s ", l.Address, l),
+			}
+		}
+		if l.Id == listener.Id {
+			return nil, &AlreadyExistsError{}
+		}
+	}
+
+	if listener.Id == "" {
+		listener.Id = m.autoId()
+	}
+
+	host.Listeners = append(host.Listeners, listener)
+	return listener, nil
+}
+
+func (m *MemBackend) DeleteHostListener(hostname string, listenerId string) error {
+	host, err := m.GetHost(hostname)
+	if err != nil {
+		return err
+	}
+
+	for i, l := range host.Listeners {
+		if l.Id == listenerId {
+			host.Listeners = append(host.Listeners[:i], host.Listeners[i+1:]...)
 			return nil
 		}
 	}
@@ -83,18 +138,18 @@ func (m *MemBackend) AddLocation(loc *Location) (*Location, error) {
 	if l, _ := m.GetLocation(loc.Hostname, loc.Id); l != nil {
 		return nil, &AlreadyExistsError{}
 	}
-
 	up, _ := m.GetUpstream(loc.Upstream.Id)
+
 	if up == nil {
 		return nil, &NotFoundError{}
 	}
-
 	loc.Upstream = up
 
 	if loc.Id == "" {
 		loc.Id = m.autoId()
 	}
 	host.Locations = append(host.Locations, loc)
+
 	return loc, nil
 }
 
@@ -266,6 +321,17 @@ func (m *MemBackend) DeleteEndpoint(upstreamId, id string) error {
 	return &NotFoundError{}
 }
 
-func (m *MemBackend) WatchChanges(changes chan interface{}, initialSetup bool) error {
-	return nil
+func (m *MemBackend) WatchChanges(changes chan interface{}) error {
+	for {
+		select {
+		case change := <-m.ChangesC:
+			select {
+			case changes <- change:
+			case err := <-m.ErrorsC:
+				return err
+			}
+		case err := <-m.ErrorsC:
+			return err
+		}
+	}
 }

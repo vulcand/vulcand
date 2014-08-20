@@ -8,6 +8,20 @@ type HostDeleted struct {
 	Name string
 }
 
+type HostCertUpdated struct {
+	Host *Host
+}
+
+type HostListenerAdded struct {
+	Host     *Host
+	Listener *Listener
+}
+
+type HostListenerDeleted struct {
+	Host       *Host
+	ListenerId string
+}
+
 type LocationAdded struct {
 	Host     *Host
 	Location *Location
