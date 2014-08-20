@@ -2,12 +2,13 @@ package command
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/api"
-	"github.com/mailgun/vulcand/plugin"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/api"
+	"github.com/mailgun/vulcand/plugin"
 )
 
 type Command struct {
@@ -38,6 +39,7 @@ func (cmd *Command) Run(args []string) error {
 	app.Flags = flags()
 
 	app.Commands = []cli.Command{
+		NewKeyCommand(cmd),
 		NewStatusCommand(cmd),
 		NewHostCommand(cmd),
 		NewUpstreamCommand(cmd),

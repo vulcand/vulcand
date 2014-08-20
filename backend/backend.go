@@ -55,11 +55,17 @@ type StatsGetter interface {
 	GetStats(hostname string, locationId string, e *Endpoint) *EndpointStats
 }
 
+type Certificate struct {
+	PrivateKey []byte
+	PublicKey  []byte
+}
+
 // Incoming requests are matched by their hostname first. Hostname is defined by incoming 'Host' header.
 // E.g. curl http://example.com/alice will be matched by the host example.com first.
 type Host struct {
 	Name      string
 	Locations []*Location
+	Cert      *Certificate
 }
 
 func NewHost(name string) (*Host, error) {

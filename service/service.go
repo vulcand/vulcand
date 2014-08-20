@@ -15,6 +15,7 @@ import (
 	"github.com/mailgun/vulcand/backend/etcdbackend"
 	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin"
+
 	"net/http"
 	"os"
 	"os/signal"

@@ -8,18 +8,21 @@ import (
 )
 
 type Options struct {
-	ApiPort             int
-	ApiInterface        string
-	PidPath             string
-	Port                int
-	Interface           string
-	CertPath            string
-	EtcdNodes           listOptions
-	EtcdKey             string
-	EtcdConsistency     string
-	Log                 string
-	ServerReadTimeout   time.Duration
-	ServerWriteTimeout  time.Duration
+	ApiPort      int
+	ApiInterface string
+	PidPath      string
+	Port         int
+	Interface    string
+	CertPath     string
+
+	EtcdNodes       listOptions
+	EtcdKey         string
+	EtcdConsistency string
+	Log             string
+
+	ServerReadTimeout  time.Duration
+	ServerWriteTimeout time.Duration
+
 	EndpointDialTimeout time.Duration
 	EndpointReadTimeout time.Duration
 }
