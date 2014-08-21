@@ -63,8 +63,9 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 func (s *Service) Start() error {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := etcdbackend.NewEtcdBackend(
-		s.registry, s.options.EtcdNodes, s.options.EtcdKey, s.options.EtcdConsistency, &timetools.RealTime{})
+	backend, err := etcdbackend.NewEtcdBackendWithOptions(
+		s.registry, s.options.EtcdNodes, s.options.EtcdKey,
+		etcdbackend.Options{EtcdConsistency: s.options.EtcdConsistency, TimeProvider: &timetools.RealTime{}})
 	if err != nil {
 		return err
 	}

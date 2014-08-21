@@ -57,7 +57,8 @@ func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 
 func (s *EtcdBackendSuite) SetUpTest(c *C) {
 	// Initiate a backend with a registry
-	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency, s.timeProvider)
+	backend, err := NewEtcdBackendWithOptions(
+		GetRegistry(), s.nodes, s.etcdPrefix, Options{EtcdConsistency: s.consistency, TimeProvider: s.timeProvider})
 	c.Assert(err, IsNil)
 	s.backend = backend
 	s.client = s.backend.client
@@ -196,7 +197,7 @@ func (s *EtcdBackendSuite) TestEndpointAddReadDelete(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(eO, DeepEquals, e)
 
-	s.expectChanges(c, &EndpointAdded{
+	s.expectChanges(c, &EndpointUpdated{
 		Upstream:          up,
 		Endpoint:          e,
 		AffectedLocations: []*Location{},
@@ -456,7 +457,7 @@ func (s *EtcdBackendSuite) TestLocationRateLimitCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	loc.Middlewares = []*MiddlewareInstance{m}
-	s.expectChanges(c, &LocationMiddlewareAdded{
+	s.expectChanges(c, &LocationMiddlewareUpdated{
 		Host:       host,
 		Location:   loc,
 		Middleware: m,
@@ -570,7 +571,9 @@ func (s *EtcdBackendSuite) TestGenerateChanges(c *C) {
 	m := s.makeRateLimit("rl1", 10, "client.ip", 20, 1, loc)
 	_, err = s.backend.AddLocationMiddleware(loc.Hostname, loc.Id, m)
 
-	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency, s.timeProvider)
+	backend, err := NewEtcdBackendWithOptions(
+		GetRegistry(), s.nodes, s.etcdPrefix,
+		Options{EtcdConsistency: s.consistency, TimeProvider: s.timeProvider})
 	c.Assert(err, IsNil)
 	defer backend.StopWatching()
 
