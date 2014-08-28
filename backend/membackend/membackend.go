@@ -62,6 +62,43 @@ func (m *MemBackend) DeleteHost(name string) error {
 	return &NotFoundError{}
 }
 
+func (m *MemBackend) AddHostListener(hostname string, listener *Listener) (*Listener, error) {
+	host, err := m.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range host.Listeners {
+		if l.Address.Equals(listener.Address) {
+			return nil, fmt.Errorf("listener using the same address %s already exists: %s ", l.Address, l)
+		}
+		if l.Id == listener.Id {
+			return nil, &AlreadyExistsError{}
+		}
+	}
+
+	if listener.Id == "" {
+		listener.Id = m.autoId()
+	}
+
+	host.Listeners = append(host.Listeners, listener)
+	return listener, nil
+}
+
+func (m *MemBackend) DeleteHostListener(hostname string, listenerId string) error {
+	host, err := m.GetHost(hostname)
+	if err != nil {
+		return err
+	}
+
+	for i, l := range host.Listeners {
+		if l.Id == listenerId {
+			host.Listeners = append(host.Listeners[:i], host.Listeners[i+1:]...)
+			return nil
+		}
+	}
+	return &NotFoundError{}
+}
+
 func (m *MemBackend) GetLocation(hostname, id string) (*Location, error) {
 	host, err := m.GetHost(hostname)
 	if err != nil {

@@ -72,6 +72,15 @@ func HostFromJson(in []byte, getter plugin.SpecGetter) (*Host, error) {
 	return out, nil
 }
 
+func ListenerFromJson(in []byte) (*Listener, error) {
+	var l *Listener
+	err := json.Unmarshal(in, &l)
+	if err != nil {
+		return nil, err
+	}
+	return NewListener(l.Id, l.Protocol, l.Address.Network, l.Address.Address)
+}
+
 func LocationFromJson(in []byte, getter plugin.SpecGetter) (*Location, error) {
 	var l *rawLocation
 	err := json.Unmarshal(in, &l)

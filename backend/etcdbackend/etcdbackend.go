@@ -90,7 +90,43 @@ func (s *EtcdBackend) AddHost(h *backend.Host) (*backend.Host, error) {
 			return nil, err
 		}
 	}
+	if len(h.Listeners) != 0 {
+		for _, l := range h.Listeners {
+			if _, err := s.AddHostListener(h.Name, l); err != nil {
+				return nil, err
+			}
+		}
+	}
 	return h, nil
+}
+
+func (s *EtcdBackend) AddHostListener(hostname string, listener *backend.Listener) (*backend.Listener, error) {
+	host, err := s.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range host.Listeners {
+		if l.Address.Equals(listener.Address) {
+			return nil, fmt.Errorf("listener using the same address %s already exists: %s ", l.Address, l)
+		}
+	}
+
+	if listener.Id == "" {
+		id, err := s.addChildJSONVal(s.path("hosts", hostname, "listeners"), listener)
+		if err != nil {
+			return nil, err
+		}
+		listener.Id = id
+	} else {
+		if err := s.setJSONVal(s.path("hosts", hostname, "listeners", listener.Id), listener); err != nil {
+			return nil, err
+		}
+	}
+	return listener, nil
+}
+
+func (s *EtcdBackend) DeleteHostListener(hostname string, listenerId string) error {
+	return s.deleteKey(s.path("hosts", hostname, "listeners", listenerId))
 }
 
 func (s *EtcdBackend) GetHost(hostname string) (*backend.Host, error) {
@@ -135,14 +171,28 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 		Name:      hostname,
 		Locations: []*backend.Location{},
 		Cert:      cert,
+		Listeners: []*backend.Listener{},
+	}
+
+	listeners, err := s.getVals(hostKey, "listeners")
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range listeners {
+		l, err := backend.ListenerFromJson([]byte(p.Val))
+		if err != nil {
+			return nil, err
+		}
+		l.Id = suffix(p.Key)
+		host.Listeners = append(host.Listeners, l)
 	}
 
 	if !deep {
 		return host, nil
 	}
 
-	for _, locationKey := range s.getDirs(hostKey, "locations") {
-		location, err := s.GetLocation(hostname, suffix(locationKey))
+	for _, key := range s.getDirs(hostKey, "locations") {
+		location, err := s.GetLocation(hostname, suffix(key))
 		if err != nil {
 			return nil, err
 		}
@@ -309,7 +359,6 @@ func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) 
 	for _, e := range endpointPairs {
 		_, err := endpoint.ParseUrl(e.Val)
 		if err != nil {
-			fmt.Printf("Ignoring endpoint: failed to parse url: %s", e.Val)
 			continue
 		}
 		e := &backend.Endpoint{
@@ -471,10 +520,10 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 			}
 		}
 		waitIndex = response.Node.ModifiedIndex + 1
-		log.Infof("%s %s %d %v", response.Action, response.Node.Key, response.EtcdIndex, err)
+		log.Infof("%s", responseToString(response))
 		change, err := s.parseChange(response)
 		if err != nil {
-			log.Errorf("Failed to process: %s", err)
+			log.Warningf("Ignore '%s', error: %s", responseToString(response), err)
 			continue
 		}
 		if change != nil {
@@ -547,6 +596,8 @@ type MatcherFn func(*etcd.Response) (interface{}, error)
 func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) {
 	matchers := []MatcherFn{
 		s.parseHostChange,
+		s.parseHostCertChange,
+		s.parseHostListenerChange,
 		s.parseLocationChange,
 		s.parseLocationUpstreamChange,
 		s.parseLocationOptionsChange,
@@ -587,6 +638,25 @@ func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, err
 		}, nil
 	}
 	return nil, fmt.Errorf("unsupported action on the location: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseHostCertChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/cert").FindStringSubmatch(response.Node.Key)
+	if len(out) != 2 {
+		return nil, nil
+	}
+
+	if response.Action != "create" && response.Action != "set" && response.Action != "delete" {
+		return nil, fmt.Errorf("unsupported action on the certificate: %s", response.Action)
+	}
+	hostname := out[1]
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.HostCertUpdated{
+		Host: host,
+	}, nil
 }
 
 func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{}, error) {
@@ -692,6 +762,37 @@ func (s *EtcdBackend) parseLocationPathChange(response *etcd.Response) (interfac
 		Location: location,
 		Path:     response.Node.Value,
 	}, nil
+}
+
+func (s *EtcdBackend) parseHostListenerChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/listeners/([^/]+)").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	hostname, listenerId := out[1], out[2]
+
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.Action == "create" {
+		for _, l := range host.Listeners {
+			if l.Id == listenerId {
+				return &backend.HostListenerAdded{
+					Host:     host,
+					Listener: l,
+				}, nil
+			}
+		}
+		return nil, fmt.Errorf("listener %s not found", listenerId)
+	} else if response.Action == "delete" {
+		return &backend.HostListenerDeleted{
+			Host:       host,
+			ListenerId: listenerId,
+		}, nil
+	}
+	return nil, fmt.Errorf("unsupported action on the listener: %s", response.Action)
 }
 
 func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{}, error) {
@@ -880,7 +981,7 @@ func (s *EtcdBackend) setStringVal(key string, val string) error {
 }
 
 func (s *EtcdBackend) getSealedVal(key string) ([]byte, error) {
-	if s.options.Box != nil {
+	if s.options.Box == nil {
 		return nil, fmt.Errorf("this backend does not support encryption")
 	}
 	bytes, err := s.getVal(key)
@@ -905,7 +1006,7 @@ func (s *EtcdBackend) getJSONVal(key string, in interface{}) error {
 func (s *EtcdBackend) getVal(key string) (string, error) {
 	response, err := s.client.Get(key, false, false)
 	if err != nil {
-		return "", err
+		return "", convertErr(err)
 	}
 
 	if isDir(response.Node) {
@@ -1077,3 +1178,7 @@ func isNotFoundError(err error) bool {
 }
 
 const encryptionSecretBox = "secretbox.v1"
+
+func responseToString(r *etcd.Response) string {
+	return fmt.Sprintf("%s %s %d", r.Action, r.Node.Key, r.EtcdIndex)
+}

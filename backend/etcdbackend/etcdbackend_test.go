@@ -16,6 +16,7 @@ import (
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/vulcand/secret"
 
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
@@ -32,6 +33,7 @@ type EtcdBackendSuite struct {
 	client       *etcd.Client
 	changesC     chan interface{}
 	timeProvider *timetools.FreezedTime
+	key          string
 }
 
 var _ = Suite(&EtcdBackendSuite{
@@ -45,6 +47,12 @@ var _ = Suite(&EtcdBackendSuite{
 func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
 
+	key, err := secret.NewKeyString()
+	if err != nil {
+		panic(err)
+	}
+	s.key = key
+
 	nodes_string := os.Getenv("VULCAND_TEST_ETCD_NODES")
 	if nodes_string == "" {
 		// Skips the entire suite
@@ -57,8 +65,22 @@ func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 
 func (s *EtcdBackendSuite) SetUpTest(c *C) {
 	// Initiate a backend with a registry
+
+	key, err := secret.KeyFromString(s.key)
+	c.Assert(err, IsNil)
+
+	box, err := secret.NewBox(key)
+	c.Assert(err, IsNil)
+
 	backend, err := NewEtcdBackendWithOptions(
-		GetRegistry(), s.nodes, s.etcdPrefix, Options{EtcdConsistency: s.consistency, TimeProvider: s.timeProvider})
+		GetRegistry(),
+		s.nodes,
+		s.etcdPrefix,
+		Options{
+			EtcdConsistency: s.consistency,
+			TimeProvider:    s.timeProvider,
+			Box:             box,
+		})
 	c.Assert(err, IsNil)
 	s.backend = backend
 	s.client = s.backend.client
@@ -120,6 +142,45 @@ func (s *EtcdBackendSuite) TestAddDeleteHost(c *C) {
 	s.expectChanges(c, &HostDeleted{
 		Name: "localhost",
 	})
+}
+
+func (s *EtcdBackendSuite) TestAddHostWithCert(c *C) {
+	host := s.makeHost("localhost")
+	host.Cert = &Certificate{
+		PrivateKey: []byte("hello"),
+		PublicKey:  []byte("world"),
+	}
+
+	h, err := s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	c.Assert(h, Equals, host)
+
+	hostNoCert := *host
+	hostNoCert.Cert = nil
+
+	s.expectChanges(c, &HostAdded{Host: &hostNoCert}, &HostCertUpdated{Host: host})
+}
+
+func (s *EtcdBackendSuite) TestAddHostWithListeners(c *C) {
+	host := s.makeHost("localhost")
+	host.Listeners = []*Listener{
+		&Listener{
+			Protocol: "http",
+			Address: Address{
+				Network: "tcp",
+				Address: "127.0.0.1:9000",
+			},
+		},
+	}
+
+	h, err := s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	c.Assert(h, Equals, host)
+
+	hostNoListeners := *host
+	hostNoListeners.Listeners = []*Listener{}
+
+	s.expectChanges(c, &HostAdded{Host: &hostNoListeners}, &HostListenerAdded{Host: host, Listener: host.Listeners[0]})
 }
 
 func (s *EtcdBackendSuite) TestGetters(c *C) {
@@ -629,7 +690,9 @@ func (s *EtcdBackendSuite) makeUpstream(id string, endpoints int) *Upstream {
 func (s *EtcdBackendSuite) makeHost(name string) *Host {
 	return &Host{
 		Name:      name,
-		Locations: []*Location{}}
+		Locations: []*Location{},
+		Listeners: []*Listener{},
+	}
 }
 
 func (s *EtcdBackendSuite) makeLocationWithOptions(id string, path string, host *Host, up *Upstream, options LocationOptions) *Location {

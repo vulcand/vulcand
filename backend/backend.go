@@ -4,6 +4,7 @@ package backend
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/failover"
@@ -15,8 +16,11 @@ import (
 type Backend interface {
 	GetHosts() ([]*Host, error)
 	AddHost(*Host) (*Host, error)
-	GetHost(name string) (*Host, error)
 	DeleteHost(name string) error
+	GetHost(name string) (*Host, error)
+
+	AddHostListener(hostname string, listener *Listener) (*Listener, error)
+	DeleteHostListener(hostname string, listenerId string) error
 
 	AddLocation(*Location) (*Location, error)
 	GetLocation(hostname, id string) (*Location, error)
@@ -60,12 +64,31 @@ type Certificate struct {
 	PublicKey  []byte
 }
 
+type Address struct {
+	Network string
+	Address string
+}
+
+// Listener specifies the listening point - the network and interface for each host. Host can have multiple interfaces.
+type Listener struct {
+	Id string
+	// HTTP or HTTPS
+	Protocol string
+	// Adddress specifies network (tcp or unix) and address (ip:port or path to unix socket)
+	Address Address
+}
+
+func (a *Address) Equals(o Address) bool {
+	return a.Network == o.Network && a.Address == o.Address
+}
+
 // Incoming requests are matched by their hostname first. Hostname is defined by incoming 'Host' header.
 // E.g. curl http://example.com/alice will be matched by the host example.com first.
 type Host struct {
 	Name      string
 	Locations []*Location
 	Cert      *Certificate
+	Listeners []*Listener
 }
 
 func NewHost(name string) (*Host, error) {
@@ -141,6 +164,36 @@ type MiddlewareInstance struct {
 	Priority   int
 	Type       string
 	Middleware plugin.Middleware
+}
+
+func NewAddress(network, address string) (*Address, error) {
+	if len(address) == 0 {
+		return nil, fmt.Errorf("supply a non empty address")
+	}
+
+	network = strings.ToLower(network)
+	if network != TCP && network != UNIX {
+		return nil, fmt.Errorf("unsupported network '%s', supported networks are tcp and unix", network)
+	}
+
+	return &Address{Network: network, Address: address}, nil
+}
+
+func NewListener(id, protocol, network, address string) (*Listener, error) {
+	protocol = strings.ToLower(protocol)
+	if protocol != HTTP && protocol != HTTPS {
+		return nil, fmt.Errorf("unsupported protocol '%s', supported protocols are http and https", protocol)
+	}
+
+	a, err := NewAddress(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Listener{
+		Address:  *a,
+		Protocol: protocol,
+	}, nil
 }
 
 func NewLocation(hostname, id, path, upstreamId string) (*Location, error) {
@@ -316,3 +369,10 @@ type AlreadyExistsError struct {
 func (n *AlreadyExistsError) Error() string {
 	return "Object already exists"
 }
+
+const (
+	HTTP  = "http"
+	HTTPS = "https"
+	TCP   = "tcp"
+	UNIX  = "unix"
+)
