@@ -4,31 +4,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
+	"github.com/mailgun/vulcand/server"
 )
 
 func TestConfigure(t *testing.T) { TestingT(t) }
 
 type ConfSuite struct {
-	router *hostroute.HostRouter
-	proxy  *vulcan.Proxy
-	conf   *Configurator
+	conf *Configurator
 }
 
 func (s *ConfSuite) SetUpTest(c *C) {
-	s.router = hostroute.NewHostRouter()
-	proxy, err := vulcan.NewProxy(s.router)
-	if err != nil {
-		c.Fatal(err)
-	}
-	s.conf = NewConfigurator(proxy)
+	s.conf = NewConfigurator(&server.NopServer{})
 }
 
 var _ = Suite(&ConfSuite{})
@@ -68,13 +59,13 @@ func (s *ConfSuite) TestAddDeleteHost(c *C) {
 	err := s.conf.processChange(&HostAdded{Host: host})
 	c.Assert(err, IsNil)
 
-	r := s.conf.a.GetExpRouter(host.Name)
+	r := s.conf.getRouter(host.Name)
 	c.Assert(r, NotNil)
 
 	err = s.conf.processChange(&HostDeleted{Name: host.Name})
 	c.Assert(err, IsNil)
 
-	r = s.conf.a.GetExpRouter(host.Name)
+	r = s.conf.getRouter(host.Name)
 	c.Assert(r, IsNil)
 }
 
@@ -108,12 +99,12 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure location is here
-	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l := s.conf.getLocation(host.Name, location.Id)
 	c.Assert(l, NotNil)
 	c.Assert(l.GetOptions().Timeouts.Dial, Equals, time.Second*14)
 
 	// Make sure the endpoint has been added to the location
-	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	lb := s.conf.getLocationLB(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Check that endpoint is here
@@ -130,7 +121,7 @@ func (s *ConfSuite) TestAddDeleteLocation(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure it's no longer in the proxy
-	l = s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l = s.conf.getLocation(host.Name, location.Id)
 	c.Assert(l, IsNil)
 }
 
@@ -155,11 +146,11 @@ func (s *ConfSuite) TestAddDeleteTrieLocation(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure location is here
-	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l := s.conf.getLocation(host.Name, location.Id)
 	c.Assert(l, NotNil)
 
 	// Make sure the endpoint has been added to the location
-	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	lb := s.conf.getLocationLB(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Delete the location
@@ -167,7 +158,7 @@ func (s *ConfSuite) TestAddDeleteTrieLocation(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure it's no longer in the proxy
-	l = s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l = s.conf.getLocation(host.Name, location.Id)
 	c.Assert(l, IsNil)
 }
 
@@ -218,7 +209,7 @@ func (s *ConfSuite) TestUpdateLocationUpstream(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure the endpoint has been added to the location
-	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	lb := s.conf.getLocationLB(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Endpoints are taken from up1
@@ -249,7 +240,7 @@ func (s *ConfSuite) TestUpdateLocationOptions(c *C) {
 	err = s.conf.processChange(&LocationOptionsUpdated{Host: host, Location: location})
 	c.Assert(err, IsNil)
 
-	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l := s.conf.getLocation(host.Name, location.Id)
 	c.Assert(l.GetOptions().ShouldFailover, NotNil)
 	c.Assert(l.GetOptions().Timeouts.Dial, Equals, time.Second*7)
 }
@@ -262,7 +253,7 @@ func (s *ConfSuite) TestUpstreamAddEndpoint(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure the endpoint has been added to the location
-	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	lb := s.conf.getLocationLB(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Endpoints are taken from the upstream
@@ -289,7 +280,7 @@ func (s *ConfSuite) TestUpstreamBadAddEndpoint(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure the endpoint has been added to the location
-	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	lb := s.conf.getLocationLB(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 
 	// Add some endpoints to location
@@ -322,7 +313,7 @@ func (s *ConfSuite) TestUpstreamDeleteEndpoint(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	lb := s.conf.getLocationLB(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 	s.AssertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
 }
@@ -340,7 +331,7 @@ func (s *ConfSuite) TestUpstreamUpdateEndpoint(c *C) {
 	err = s.conf.processChange(&EndpointUpdated{Upstream: up, Endpoint: e, AffectedLocations: []*Location{location}})
 	c.Assert(err, IsNil)
 
-	lb := s.conf.a.GetHttpLocationLb(host.Name, location.Id)
+	lb := s.conf.getLocationLB(host.Name, location.Id)
 	c.Assert(lb, NotNil)
 	s.AssertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
 }
@@ -364,7 +355,7 @@ func (s *ConfSuite) TestUpdateRateLimit(c *C) {
 	err = s.conf.processChange(&LocationMiddlewareAdded{Host: host, Location: location, Middleware: rl})
 	c.Assert(err, IsNil)
 
-	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l := s.conf.getLocation(host.Name, location.Id)
 	c.Assert(l, NotNil)
 
 	// Make sure connection limit and rate limit are here as well
@@ -401,7 +392,7 @@ func (s *ConfSuite) TestAddDeleteRateLimit(c *C) {
 	err = s.conf.processChange(&LocationMiddlewareAdded{Host: host, Location: location, Middleware: rl2})
 	c.Assert(err, IsNil)
 
-	l := s.conf.a.GetHttpLocation(host.Name, location.Id)
+	l := s.conf.getLocation(host.Name, location.Id)
 	c.Assert(err, IsNil)
 	c.Assert(l, NotNil)
 
@@ -429,9 +420,7 @@ func (s *ConfSuite) TestUpdateLocationPath(c *C) {
 	c.Assert(err, IsNil)
 
 	// Host router matches inner router by hostname
-	router := s.conf.a.GetHostRouter().GetRouter(host.Name)
-	c.Assert(router, NotNil)
-	expRouter := router.(*exproute.ExpRouter)
+	expRouter := s.conf.getRouter(host.Name)
 
 	// Make sure that path router is configured correctly
 	l := expRouter.GetLocationByExpression(convertPath(location.Path))
@@ -457,9 +446,7 @@ func (s *ConfSuite) TestUpdateLocationPathUpsertsLocation(c *C) {
 	err := s.conf.processChange(&LocationPathUpdated{Host: host, Location: location})
 	c.Assert(err, IsNil)
 
-	router := s.conf.a.GetHostRouter().GetRouter(host.Name)
-	c.Assert(router, NotNil)
-	expRouter := router.(*exproute.ExpRouter)
+	expRouter := s.conf.getRouter(host.Name)
 
 	l := expRouter.GetLocationByExpression(convertPath(location.Path))
 	c.Assert(l, NotNil)

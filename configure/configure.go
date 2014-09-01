@@ -3,16 +3,17 @@ package configure
 import (
 	"fmt"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 
-	"github.com/mailgun/vulcand/adapter"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
+	"github.com/mailgun/vulcand/server"
 	"strings"
 	"time"
 )
@@ -20,28 +21,29 @@ import (
 const ConnWatch = "_vulcanConnWatch"
 
 type Options struct {
-	DialTimeout time.Duration
-	ReadTimeout time.Duration
+	DialTimeout     time.Duration
+	ReadTimeout     time.Duration
+	DefaultListener *backend.Listener
 }
 
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
 type Configurator struct {
 	options     Options
 	connWatcher *connwatch.ConnectionWatcher
-	proxy       *vulcan.Proxy
-	a           *adapter.Adapter
+	srv         server.Server
+	hostRouters map[string]*exproute.ExpRouter
 }
 
-func NewConfigurator(proxy *vulcan.Proxy) (c *Configurator) {
-	return NewConfiguratorWithOptions(proxy, Options{})
+func NewConfigurator(srv server.Server) (c *Configurator) {
+	return NewConfiguratorWithOptions(srv, Options{})
 }
 
-func NewConfiguratorWithOptions(proxy *vulcan.Proxy, options Options) (c *Configurator) {
+func NewConfiguratorWithOptions(srv server.Server, options Options) (c *Configurator) {
 	return &Configurator{
-		proxy:       proxy,
-		a:           adapter.NewAdapter(proxy),
+		srv:         srv,
 		connWatcher: connwatch.NewConnectionWatcher(),
 		options:     options,
+		hostRouters: make(map[string]*exproute.ExpRouter),
 	}
 }
 
@@ -65,6 +67,12 @@ func (c *Configurator) processChange(ch interface{}) error {
 		return c.upsertHost(change.Host)
 	case *backend.HostDeleted:
 		return c.deleteHost(change.Name)
+	case *backend.HostCertUpdated:
+		return c.updateHostCert(change.Host)
+	case *backend.HostListenerAdded:
+		return c.addHostListener(change.Host, change.Listener)
+	case *backend.HostListenerDeleted:
+		return c.deleteHostListener(change.Host, change.ListenerId)
 	case *backend.LocationAdded:
 		return c.upsertLocation(change.Host, change.Location)
 	case *backend.LocationDeleted:
@@ -95,20 +103,79 @@ func (c *Configurator) processChange(ch interface{}) error {
 	return fmt.Errorf("unsupported change: %#v", ch)
 }
 
-func (c *Configurator) upsertHost(host *backend.Host) error {
-	if c.a.GetHostRouter().GetRouter(host.Name) != nil {
+func (c *Configurator) GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats {
+	rr := c.getLocationLB(hostname, locationId)
+	if rr == nil {
 		return nil
 	}
+	endpoint := rr.FindEndpointById(e.GetUniqueId())
+	if endpoint == nil {
+		return nil
+	}
+	meterI := endpoint.GetMeter()
+	if meterI == nil {
+		return nil
+	}
+	meter := meterI.(*metrics.RollingMeter)
+
+	return &backend.EndpointStats{
+		Successes:     meter.SuccessCount(),
+		Failures:      meter.FailureCount(),
+		PeriodSeconds: int(meter.GetWindowSize() / time.Second),
+		FailRate:      meter.GetRate(),
+	}
+}
+
+func (c *Configurator) upsertHost(host *backend.Host) error {
+	if _, exists := c.hostRouters[host.Name]; exists {
+		return nil
+	}
+
+	log.Infof("Creating a new %s", host)
+
 	router := exproute.NewExpRouter()
-	c.a.GetHostRouter().SetRouter(host.Name, router)
-	log.Infof("Added %s", host)
+	c.hostRouters[host.Name] = router
+
+	if c.options.DefaultListener != nil {
+		host.Listeners = append(host.Listeners, c.options.DefaultListener)
+	}
+
+	for _, l := range host.Listeners {
+		if err := c.srv.AddHostListener(host, router, l); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (c *Configurator) deleteHost(hostname string) error {
-	log.Infof("Removed host %s", hostname)
-	c.a.GetHostRouter().RemoveRouter(hostname)
+	log.Infof("Delete host '%s'", hostname)
+	if err := c.srv.DeleteHostListeners(hostname); err != nil {
+		return err
+	}
+	delete(c.hostRouters, hostname)
 	return nil
+}
+
+func (c *Configurator) updateHostCert(h *backend.Host) error {
+	return c.srv.UpdateHostCert(h.Name, h.Cert)
+}
+
+func (c *Configurator) addHostListener(h *backend.Host, l *backend.Listener) error {
+	log.Infof("Add %s %s", h, l)
+	if err := c.upsertHost(h); err != nil {
+		return err
+	}
+	if c.srv.HasHostListener(h.Name, l.Id) {
+		return nil
+	}
+	return c.srv.AddHostListener(h, c.hostRouters[h.Name], l)
+}
+
+func (c *Configurator) deleteHostListener(h *backend.Host, listenerId string) error {
+	log.Infof("Delete %s %s", h, listenerId)
+	return c.srv.DeleteHostListener(h.Name, listenerId)
 }
 
 func (c *Configurator) getLocationOptions(loc *backend.Location) (*httploc.Options, error) {
@@ -127,17 +194,41 @@ func (c *Configurator) getLocationOptions(loc *backend.Location) (*httploc.Optio
 	return o, nil
 }
 
+func (c *Configurator) getRouter(hostname string) *exproute.ExpRouter {
+	return c.hostRouters[hostname]
+}
+
+func (c *Configurator) getLocation(hostname string, locationId string) *httploc.HttpLocation {
+	router := c.getRouter(hostname)
+	if router == nil {
+		return nil
+	}
+	ilo := router.GetLocationById(locationId)
+	if ilo == nil {
+		return nil
+	}
+	return ilo.(*httploc.HttpLocation)
+}
+
+func (c *Configurator) getLocationLB(hostname string, locationId string) *roundrobin.RoundRobin {
+	loc := c.getLocation(hostname, locationId)
+	if loc == nil {
+		return nil
+	}
+	return loc.GetLoadBalancer().(*roundrobin.RoundRobin)
+}
+
 func (c *Configurator) upsertLocation(host *backend.Host, loc *backend.Location) error {
 	if err := c.upsertHost(host); err != nil {
 		return err
 	}
 
 	// If location already exists, do nothing
-	if loc := c.a.GetHttpLocation(host.Name, loc.Id); loc != nil {
+	if loc := c.getLocation(host.Name, loc.Id); loc != nil {
 		return nil
 	}
 
-	router := c.a.GetExpRouter(host.Name)
+	router := c.getRouter(host.Name)
 	if router == nil {
 		return fmt.Errorf("router not found for %s", host)
 	}
@@ -176,15 +267,14 @@ func (c *Configurator) upsertLocation(host *backend.Host, loc *backend.Location)
 }
 
 func (c *Configurator) deleteLocation(host *backend.Host, locationId string) error {
-
-	router := c.a.GetExpRouter(host.Name)
+	router := c.getRouter(host.Name)
 	if router == nil {
 		return fmt.Errorf("Router for %s not found", host)
 	}
 
 	location := router.GetLocationById(locationId)
 	if location == nil {
-		return fmt.Errorf("Location(id=%s) not found", locationId)
+		return fmt.Errorf("location(id=%s) not found", locationId)
 	}
 	return router.RemoveLocationById(location.GetId())
 }
@@ -195,7 +285,7 @@ func (c *Configurator) updateLocationOptions(host *backend.Host, loc *backend.Lo
 	if err := c.upsertLocation(host, loc); err != nil {
 		return err
 	}
-	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	location := c.getLocation(host.Name, loc.Id)
 	if location == nil {
 		return fmt.Errorf("%s not found", loc)
 	}
@@ -210,7 +300,7 @@ func (c *Configurator) upsertLocationMiddleware(host *backend.Host, loc *backend
 	if err := c.upsertLocation(host, loc); err != nil {
 		return err
 	}
-	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	location := c.getLocation(host.Name, loc.Id)
 	if location == nil {
 		return fmt.Errorf("%s not found", loc)
 	}
@@ -223,7 +313,7 @@ func (c *Configurator) upsertLocationMiddleware(host *backend.Host, loc *backend
 }
 
 func (c *Configurator) deleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error {
-	location := c.a.GetHttpLocation(host.Name, loc.Id)
+	location := c.getLocation(host.Name, loc.Id)
 	if location == nil {
 		return fmt.Errorf("%s not found", loc)
 	}
@@ -232,7 +322,7 @@ func (c *Configurator) deleteLocationMiddleware(host *backend.Host, loc *backend
 
 func (c *Configurator) updateLocationPath(host *backend.Host, location *backend.Location, path string) error {
 	// If location already exists, delete it and re-create from scratch
-	if loc := c.a.GetHttpLocation(host.Name, location.Id); loc != nil {
+	if loc := c.getLocation(host.Name, location.Id); loc != nil {
 		if err := c.deleteLocation(host, location.Id); err != nil {
 			return err
 		}
@@ -249,7 +339,7 @@ func (c *Configurator) updateLocationUpstream(host *backend.Host, location *back
 
 func (c *Configurator) syncLocationEndpoints(location *backend.Location) error {
 
-	rr := c.a.GetHttpLocationLb(location.Hostname, location.Id)
+	rr := c.getLocationLB(location.Hostname, location.Id)
 	if rr == nil {
 		return fmt.Errorf("%s lb not found", location)
 	}

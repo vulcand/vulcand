@@ -9,15 +9,13 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"github.com/mailgun/vulcand/adapter"
 	"github.com/mailgun/vulcand/api"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
 	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin/registry"
+	"github.com/mailgun/vulcand/server"
 )
 
 func TestVulcanCommandLineTool(t *testing.T) { TestingT(t) }
@@ -39,12 +37,13 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	s.backend = membackend.NewMemBackend(registry.GetRegistry())
 
 	muxRouter := mux.NewRouter()
-	hostRouter := hostroute.NewHostRouter()
-	proxy, err := vulcan.NewProxy(hostRouter)
-	configurator := configure.NewConfigurator(proxy)
+	srv, err := server.NewMuxServer()
 	c.Assert(err, IsNil)
 
-	api.InitProxyController(s.backend, adapter.NewAdapter(proxy), configurator.GetConnWatcher(), muxRouter)
+	configurator := configure.NewConfigurator(srv)
+	c.Assert(err, IsNil)
+
+	api.InitProxyController(s.backend, configurator, configurator.GetConnWatcher(), muxRouter)
 	s.testServer = httptest.NewServer(muxRouter)
 
 	s.out = &bytes.Buffer{}

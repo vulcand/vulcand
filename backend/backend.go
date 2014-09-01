@@ -2,6 +2,8 @@
 package backend
 
 import (
+	"bytes"
+	"crypto/tls"
 	"fmt"
 	"regexp"
 	"strings"
@@ -17,6 +19,8 @@ type Backend interface {
 	GetHosts() ([]*Host, error)
 	AddHost(*Host) (*Host, error)
 	DeleteHost(name string) error
+	UpdateHostCertificate(hostname string, cert *Certificate) (*Host, error)
+
 	GetHost(name string) (*Host, error)
 
 	AddHostListener(hostname string, listener *Listener) (*Listener, error)
@@ -64,6 +68,20 @@ type Certificate struct {
 	PublicKey  []byte
 }
 
+func NewCert(public, private []byte) (*Certificate, error) {
+	if len(private) == 0 || len(public) == 0 {
+		return nil, fmt.Errorf("Provide non-empty private and public key")
+	}
+	if _, err := tls.X509KeyPair(public, private); err != nil {
+		return nil, err
+	}
+	return &Certificate{PrivateKey: private, PublicKey: public}, nil
+}
+
+func (c *Certificate) Equals(o *Certificate) bool {
+	return bytes.Equal(c.PrivateKey, o.PrivateKey) && bytes.Equal(c.PublicKey, o.PublicKey)
+}
+
 type Address struct {
 	Network string
 	Address string
@@ -78,6 +96,10 @@ type Listener struct {
 	Address Address
 }
 
+func (l *Listener) String() string {
+	return fmt.Sprintf("Listener(proto=%s, addr=%s://%s)", l.Protocol, l.Address.Network, l.Address.Address)
+}
+
 func (a *Address) Equals(o Address) bool {
 	return a.Network == o.Network && a.Address == o.Address
 }
@@ -89,6 +111,7 @@ type Host struct {
 	Locations []*Location
 	Cert      *Certificate
 	Listeners []*Listener
+	Default   bool
 }
 
 func NewHost(name string) (*Host, error) {

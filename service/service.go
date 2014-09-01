@@ -7,14 +7,14 @@ import (
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	runtime "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-runtime"
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
-	"github.com/mailgun/vulcand/adapter"
+
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/etcdbackend"
 	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/secret"
+	"github.com/mailgun/vulcand/server"
 
 	"net/http"
 	"os"
@@ -38,11 +38,10 @@ func Run(registry *plugin.Registry) error {
 
 type Service struct {
 	client       *etcd.Client
-	proxy        *vulcan.Proxy
+	server       server.Server
 	backend      backend.Backend
 	options      Options
 	registry     *plugin.Registry
-	router       *hostroute.HostRouter
 	apiRouter    *mux.Router
 	errorC       chan error
 	changeC      chan interface{}
@@ -63,13 +62,30 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 func (s *Service) Start() error {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
-	backend, err := etcdbackend.NewEtcdBackendWithOptions(
+	var box *secret.Box
+	if s.options.BoxKey != "" {
+		key, err := secret.KeyFromString(s.options.BoxKey)
+		if err != nil {
+			return err
+		}
+		b, err := secret.NewBox(key)
+		if err != nil {
+			return err
+		}
+		box = b
+	}
+
+	b, err := etcdbackend.NewEtcdBackendWithOptions(
 		s.registry, s.options.EtcdNodes, s.options.EtcdKey,
-		etcdbackend.Options{EtcdConsistency: s.options.EtcdConsistency, TimeProvider: &timetools.RealTime{}})
+		etcdbackend.Options{
+			EtcdConsistency: s.options.EtcdConsistency,
+			TimeProvider:    &timetools.RealTime{},
+			Box:             box,
+		})
 	if err != nil {
 		return err
 	}
-	s.backend = backend
+	s.backend = b
 
 	if s.options.PidPath != "" {
 		if err := runtime.WritePid(s.options.PidPath); err != nil {
@@ -77,17 +93,27 @@ func (s *Service) Start() error {
 		}
 	}
 
-	if err := s.createProxy(); err != nil {
+	srv, err := server.NewMuxServerWithOptions(server.Options{
+		ReadTimeout:    s.options.ServerReadTimeout,
+		WriteTimeout:   s.options.ServerWriteTimeout,
+		MaxHeaderBytes: s.options.ServerMaxHeaderBytes,
+	})
+	if err != nil {
 		return err
 	}
+	s.server = srv
 
-	go func() {
-		s.errorC <- s.startProxy()
-	}()
-
-	s.configurator = configure.NewConfiguratorWithOptions(s.proxy, configure.Options{
+	s.configurator = configure.NewConfiguratorWithOptions(srv, configure.Options{
 		DialTimeout: s.options.EndpointDialTimeout,
 		ReadTimeout: s.options.EndpointReadTimeout,
+		DefaultListener: &backend.Listener{
+			Id:       "DefaultListener",
+			Protocol: "http",
+			Address: backend.Address{
+				Network: "tcp",
+				Address: fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port),
+			},
+		},
 	})
 
 	// Tell backend to watch configuration changes and pass them to the channel
@@ -128,32 +154,10 @@ func (s *Service) watchChanges() {
 	}
 }
 
-func (s *Service) createProxy() error {
-	s.router = hostroute.NewHostRouter()
-	proxy, err := vulcan.NewProxy(s.router)
-	if err != nil {
-		return err
-	}
-	s.proxy = proxy
-	return nil
-}
-
 func (s *Service) initApi() error {
 	s.apiRouter = mux.NewRouter()
-	api.InitProxyController(s.backend, adapter.NewAdapter(s.proxy), s.configurator.GetConnWatcher(), s.apiRouter)
+	api.InitProxyController(s.backend, s.configurator, s.configurator.GetConnWatcher(), s.apiRouter)
 	return nil
-}
-
-func (s *Service) startProxy() error {
-	addr := fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port)
-	server := &http.Server{
-		Addr:           addr,
-		Handler:        s.proxy,
-		ReadTimeout:    s.options.ServerReadTimeout,
-		WriteTimeout:   s.options.ServerWriteTimeout,
-		MaxHeaderBytes: 1 << 20,
-	}
-	return server.ListenAndServe()
 }
 
 func (s *Service) startApi() error {

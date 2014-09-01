@@ -32,6 +32,7 @@ func InitProxyController(backend Backend, statsGetter StatsGetter, connWatcher *
 	router.HandleFunc("/v1/hosts", api.MakeRawHandler(controller.AddHost)).Methods("POST")
 	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.GetHostLocation)).Methods("GET")
 	router.HandleFunc("/v1/hosts/{hostname}", api.MakeHandler(controller.DeleteHost)).Methods("DELETE")
+	router.HandleFunc("/v1/hosts/{hostname}/cert", api.MakeRawHandler(controller.UpdateHostCert)).Methods("PUT")
 
 	router.HandleFunc("/v1/upstreams", api.MakeRawHandler(controller.AddUpstream)).Methods("POST")
 	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.GetUpstreams)).Methods("GET")
@@ -106,6 +107,15 @@ func (c *ProxyController) AddHost(w http.ResponseWriter, r *http.Request, params
 	}
 	log.Infof("Add %s", host)
 	return formatResult(c.backend.AddHost(host))
+}
+
+func (c *ProxyController) UpdateHostCert(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	hostname := params["hostname"]
+	cert, err := CertFromJson(body)
+	if err != nil {
+		return nil, formatError(err)
+	}
+	return formatResult(c.backend.UpdateHostCertificate(hostname, cert))
 }
 
 func (c *ProxyController) DeleteHost(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {

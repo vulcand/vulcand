@@ -48,6 +48,14 @@ func (c *Client) AddHost(name string) (*Host, error) {
 	return HostFromJson(response, c.Registry.GetSpec)
 }
 
+func (c *Client) UpdateHostCert(hostname string, cert *Certificate) (*Host, error) {
+	response, err := c.Put(c.endpoint("hosts", hostname, "cert"), cert)
+	if err != nil {
+		return nil, err
+	}
+	return HostFromJson(response, c.Registry.GetSpec)
+}
+
 func (c *Client) DeleteHost(name string) (*StatusResponse, error) {
 	return c.Delete(c.endpoint("hosts", name))
 }

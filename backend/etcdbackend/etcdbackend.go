@@ -81,6 +81,18 @@ func (s *EtcdBackend) GetHosts() ([]*backend.Host, error) {
 	return s.readHosts(true)
 }
 
+func (s *EtcdBackend) UpdateHostCertificate(hostname string, cert *backend.Certificate) (*backend.Host, error) {
+	host, err := s.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.setHostCert(host.Name, cert); err != nil {
+		return nil, err
+	}
+	host.Cert = cert
+	return host, nil
+}
+
 func (s *EtcdBackend) AddHost(h *backend.Host) (*backend.Host, error) {
 	if err := s.createDir(s.path("hosts", h.Name)); err != nil {
 		return nil, err
@@ -107,7 +119,9 @@ func (s *EtcdBackend) AddHostListener(hostname string, listener *backend.Listene
 	}
 	for _, l := range host.Listeners {
 		if l.Address.Equals(listener.Address) {
-			return nil, fmt.Errorf("listener using the same address %s already exists: %s ", l.Address, l)
+			return nil, &backend.AlreadyExistsError{
+				Message: fmt.Sprintf("listener using the same address %s already exists: %s ", l.Address, l),
+			}
 		}
 	}
 
@@ -775,8 +789,7 @@ func (s *EtcdBackend) parseHostListenerChange(response *etcd.Response) (interfac
 	if err != nil {
 		return nil, err
 	}
-
-	if response.Action == "create" {
+	if response.Action == "create" || response.Action == "set" {
 		for _, l := range host.Listeners {
 			if l.Id == listenerId {
 				return &backend.HostListenerAdded{

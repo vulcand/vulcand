@@ -1,7 +1,12 @@
 package command
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/backend"
 )
 
 func NewHostCommand(cmd *Command) cli.Command {
@@ -25,6 +30,16 @@ func NewHostCommand(cmd *Command) cli.Command {
 				Usage:  "Remove a host from vulcan",
 				Action: cmd.deleteHostAction,
 			},
+			{
+				Name: "set_cert",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "name", Usage: "hostname"},
+					cli.StringFlag{Name: "private", Usage: "Path to a private key"},
+					cli.StringFlag{Name: "public", Usage: "Path to a public key"},
+				},
+				Usage:  "Set host certificate",
+				Action: cmd.updateHostCertAction,
+			},
 		},
 	}
 }
@@ -34,6 +49,40 @@ func (cmd *Command) addHostAction(c *cli.Context) {
 	cmd.printResult("%s added", host, err)
 }
 
+func (cmd *Command) updateHostCertAction(c *cli.Context) {
+	cert, err := readCert(c.String("private"), c.String("public"))
+	if err != nil {
+		cmd.printError(fmt.Errorf("Failed to read certificate: %s", err))
+		return
+	}
+
+	host, err := cmd.client.UpdateHostCert(c.String("name"), cert)
+	cmd.printResult("%s certificate updated", host, err)
+}
+
 func (cmd *Command) deleteHostAction(c *cli.Context) {
 	cmd.printStatus(cmd.client.DeleteHost(c.String("name")))
+}
+
+func readCert(privatePath, publicPath string) (*backend.Certificate, error) {
+	fprivate, err := os.Open(privatePath)
+	if err != nil {
+		return nil, err
+	}
+	defer fprivate.Close()
+	private, err := ioutil.ReadAll(fprivate)
+	if err != nil {
+		return nil, err
+	}
+
+	fpublic, err := os.Open(publicPath)
+	if err != nil {
+		return nil, err
+	}
+	defer fpublic.Close()
+	public, err := ioutil.ReadAll(fpublic)
+	if err != nil {
+		return nil, err
+	}
+	return backend.NewCert(public, private)
 }

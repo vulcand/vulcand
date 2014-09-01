@@ -5,6 +5,7 @@ ETCD_NODES := ${ETCD_NODE1},${ETCD_NODE2},${ETCD_NODE3}
 API_URL := http://localhost:8182
 SERVICE_URL := http://localhost:8181
 PREFIX := /vulcandtest
+BOX_KEY := 1b727a055500edd9ab826840ce9428dc8bace1c04addc67bbac6b096e25ede4b
 
 ETCD_FLAGS := VULCAND_TEST_ETCD_NODES=${ETCD_NODES}
 VULCAN_FLAGS := VULCAND_TEST_ETCD_NODES=${ETCD_NODES} VULCAND_TEST_ETCD_PREFIX=${PREFIX} VULCAND_TEST_API_URL=${API_URL} VULCAND_TEST_SERVICE_URL=${SERVICE_URL}
@@ -50,7 +51,7 @@ install: clean
 	cd vulcanctl && $(MAKE) install && cd ..
 
 run: install
-	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand
+	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand -boxKey=${BOX_KEY}
 
 run-test-mode: install
 	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=${PREFIX}

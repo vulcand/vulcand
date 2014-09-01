@@ -52,6 +52,30 @@ func (s *MemBackendSuite) TestHostOps(c *C) {
 	c.Assert(s.backend.DeleteHost(h.Name), FitsTypeOf, &NotFoundError{})
 }
 
+func (s *MemBackendSuite) TestHostListenerOps(c *C) {
+	h, err := NewHost("localhost")
+	c.Assert(err, IsNil)
+
+	_, err = s.backend.AddHost(h)
+	c.Assert(err, IsNil)
+
+	listener := &Listener{
+		Protocol: "http",
+		Address: Address{
+			Network: "tcp",
+			Address: "127.0.0.1:9000",
+		},
+	}
+	_, err = s.backend.AddHostListener("localhost", listener)
+	c.Assert(err, IsNil)
+
+	_, err = s.backend.AddHostListener("localhost", listener)
+	c.Assert(err, FitsTypeOf, &AlreadyExistsError{})
+
+	c.Assert(s.backend.DeleteHostListener("localhost", listener.Id), IsNil)
+	c.Assert(s.backend.DeleteHostListener("localhost", listener.Id), FitsTypeOf, &NotFoundError{})
+}
+
 func (s *MemBackendSuite) TestAddHostTwice(c *C) {
 	h, err := NewHost("localhost")
 	c.Assert(err, IsNil)

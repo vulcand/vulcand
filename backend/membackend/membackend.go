@@ -43,6 +43,15 @@ func (m *MemBackend) AddHost(h *Host) (*Host, error) {
 	return h, nil
 }
 
+func (m *MemBackend) UpdateHostCertificate(hostname string, cert *Certificate) (*Host, error) {
+	host, err := m.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	host.Cert = cert
+	return host, nil
+}
+
 func (m *MemBackend) GetHost(name string) (*Host, error) {
 	for _, h := range m.Hosts {
 		if h.Name == name {
@@ -69,7 +78,9 @@ func (m *MemBackend) AddHostListener(hostname string, listener *Listener) (*List
 	}
 	for _, l := range host.Listeners {
 		if l.Address.Equals(listener.Address) {
-			return nil, fmt.Errorf("listener using the same address %s already exists: %s ", l.Address, l)
+			return nil, &AlreadyExistsError{
+				Message: fmt.Sprintf("listener using the same address %s already exists: %s ", l.Address, l),
+			}
 		}
 		if l.Id == listener.Id {
 			return nil, &AlreadyExistsError{}
