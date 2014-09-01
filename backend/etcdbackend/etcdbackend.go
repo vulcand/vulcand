@@ -969,7 +969,7 @@ func (s *EtcdBackend) setSealedVal(key string, val []byte) error {
 	if err != nil {
 		return err
 	}
-	bytes, err := sealedValueToJSON(v)
+	bytes, err := secret.SealedValueToJSON(v)
 	if err != nil {
 		return err
 	}
@@ -1001,7 +1001,7 @@ func (s *EtcdBackend) getSealedVal(key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	sv, err := sealedValueFromJSON([]byte(bytes))
+	sv, err := secret.SealedValueFromJSON([]byte(bytes))
 	if err != nil {
 		return nil, err
 	}
@@ -1159,30 +1159,6 @@ func parseOptions(o Options) (Options, error) {
 		o.EtcdConsistency = etcd.STRONG_CONSISTENCY
 	}
 	return o, nil
-}
-
-type sealedValue struct {
-	Encryption string
-	Value      secret.SealedBytes
-}
-
-func sealedValueToJSON(b *secret.SealedBytes) ([]byte, error) {
-	data := &sealedValue{
-		Encryption: encryptionSecretBox,
-		Value:      *b,
-	}
-	return json.Marshal(&data)
-}
-
-func sealedValueFromJSON(bytes []byte) (*secret.SealedBytes, error) {
-	var v *sealedValue
-	if err := json.Unmarshal(bytes, &v); err != nil {
-		return nil, err
-	}
-	if v.Encryption != encryptionSecretBox {
-		return nil, fmt.Errorf("unsupported encryption type: '%s'", v.Encryption)
-	}
-	return &v.Value, nil
 }
 
 func isNotFoundError(err error) bool {

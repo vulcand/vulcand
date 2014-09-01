@@ -1,14 +1,18 @@
 package command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/api"
+	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/secret"
 )
 
 type Command struct {
@@ -78,4 +82,49 @@ func flags() []cli.Flag {
 	return []cli.Flag{
 		cli.StringFlag{Name: "vulcan", Value: "http://localhost:8182", Usage: "Url for vulcan server"},
 	}
+}
+
+func readCert(privatePath, publicPath string) (*backend.Certificate, error) {
+	fprivate, err := os.Open(privatePath)
+	if err != nil {
+		return nil, err
+	}
+	defer fprivate.Close()
+	private, err := ioutil.ReadAll(fprivate)
+	if err != nil {
+		return nil, err
+	}
+
+	fpublic, err := os.Open(publicPath)
+	if err != nil {
+		return nil, err
+	}
+	defer fpublic.Close()
+	public, err := ioutil.ReadAll(fpublic)
+	if err != nil {
+		return nil, err
+	}
+	return backend.NewCert(public, private)
+}
+
+func readBox(key string) (*secret.Box, error) {
+	keyB, err := secret.KeyFromString(key)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read encryption key: %s", err)
+	}
+	return secret.NewBox(keyB)
+}
+
+func sealCert(box *secret.Box, cert *backend.Certificate) ([]byte, error) {
+	bytes, err := json.Marshal(cert)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to JSON encode certificate: %s", bytes)
+	}
+
+	sealed, err := box.Seal(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return secret.SealedValueToJSON(sealed)
 }

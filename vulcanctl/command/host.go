@@ -2,11 +2,8 @@ package command
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/backend"
 )
 
 func NewHostCommand(cmd *Command) cli.Command {
@@ -62,27 +59,4 @@ func (cmd *Command) updateHostCertAction(c *cli.Context) {
 
 func (cmd *Command) deleteHostAction(c *cli.Context) {
 	cmd.printStatus(cmd.client.DeleteHost(c.String("name")))
-}
-
-func readCert(privatePath, publicPath string) (*backend.Certificate, error) {
-	fprivate, err := os.Open(privatePath)
-	if err != nil {
-		return nil, err
-	}
-	defer fprivate.Close()
-	private, err := ioutil.ReadAll(fprivate)
-	if err != nil {
-		return nil, err
-	}
-
-	fpublic, err := os.Open(publicPath)
-	if err != nil {
-		return nil, err
-	}
-	defer fpublic.Close()
-	public, err := ioutil.ReadAll(fpublic)
-	if err != nil {
-		return nil, err
-	}
-	return backend.NewCert(public, private)
 }

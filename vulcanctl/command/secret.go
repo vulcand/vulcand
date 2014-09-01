@@ -11,15 +11,26 @@ import (
 
 func NewKeyCommand(cmd *Command) cli.Command {
 	return cli.Command{
-		Name:  "key",
+		Name:  "secret",
 		Usage: "Operations with vulcan encryption keys",
 		Subcommands: []cli.Command{
 			{
-				Name:   "generate",
-				Usage:  "Generate new encryption key",
+				Name:   "new_key",
+				Usage:  "Generate new seal key",
 				Action: cmd.generateKeyAction,
 				Flags: []cli.Flag{
 					cli.StringFlag{Name: "file, f", Usage: "File to write to"},
+				},
+			},
+			{
+				Name:   "seal_cert",
+				Usage:  "Seal certificate",
+				Action: cmd.sealCertAction,
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "file, f", Usage: "File to write to"},
+					cli.StringFlag{Name: "key, k", Usage: "Encryption key"},
+					cli.StringFlag{Name: "private", Usage: "Path to a private key"},
+					cli.StringFlag{Name: "public", Usage: "Path to a public key"},
 				},
 			},
 		},
@@ -41,6 +52,43 @@ func (cmd *Command) generateKeyAction(c *cli.Context) {
 		defer closer.Close()
 	}
 	_, err = stream.Write([]byte(key))
+	if err != nil {
+		cmd.printError(fmt.Errorf("failed writing to output stream, error %s", err))
+		return
+	}
+}
+
+func (cmd *Command) sealCertAction(c *cli.Context) {
+	// Read the key and get a box
+	box, err := readBox(c.String("key"))
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+
+	// Read certificate
+	stream, closer, err := getStream(c)
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	if closer != nil {
+		defer closer.Close()
+	}
+
+	cert, err := readCert(c.String("private"), c.String("public"))
+	if err != nil {
+		cmd.printError(fmt.Errorf("Failed to read certificate: %s", err))
+		return
+	}
+
+	bytes, err := sealCert(box, cert)
+	if err != nil {
+		cmd.printError(fmt.Errorf("Failed to seal certificate: %s", err))
+		return
+	}
+
+	_, err = stream.Write(bytes)
 	if err != nil {
 		cmd.printError(fmt.Errorf("failed writing to output stream, error %s", err))
 		return
