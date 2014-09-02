@@ -27,3 +27,6 @@ func (m *NopServer) DeleteHostListeners(hostname string) error {
 func (m *NopServer) UpdateHostCert(hostname string, cert *backend.Certificate) error {
 	return nil
 }
+
+func (m *NopServer) Shutdown(wait bool) {
+}

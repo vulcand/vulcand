@@ -2,6 +2,11 @@ package service
 
 import (
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
@@ -15,11 +20,6 @@ import (
 	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/secret"
 	"github.com/mailgun/vulcand/server"
-
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 func Run(registry *plugin.Registry) error {
@@ -94,18 +94,10 @@ func (s *Service) Start() error {
 	}
 
 	srv, err := server.NewMuxServerWithOptions(server.Options{
+		DialTimeout:    s.options.EndpointDialTimeout,
 		ReadTimeout:    s.options.ServerReadTimeout,
 		WriteTimeout:   s.options.ServerWriteTimeout,
 		MaxHeaderBytes: s.options.ServerMaxHeaderBytes,
-	})
-	if err != nil {
-		return err
-	}
-	s.server = srv
-
-	s.configurator = configure.NewConfiguratorWithOptions(srv, configure.Options{
-		DialTimeout: s.options.EndpointDialTimeout,
-		ReadTimeout: s.options.EndpointReadTimeout,
 		DefaultListener: &backend.Listener{
 			Id:       "DefaultListener",
 			Protocol: "http",
@@ -115,6 +107,12 @@ func (s *Service) Start() error {
 			},
 		},
 	})
+	if err != nil {
+		return err
+	}
+	s.server = srv
+
+	s.configurator = configure.NewConfigurator(srv)
 
 	// Tell backend to watch configuration changes and pass them to the channel
 	// the second parameter tells backend to do the initial read of the configuration
@@ -134,7 +132,14 @@ func (s *Service) Start() error {
 	// Block until a signal is received or we got an error
 	select {
 	case signal := <-s.sigC:
-		log.Infof("Got signal %s, exiting now", signal)
+		if signal == syscall.SIGTERM {
+			log.Infof("Got signal %s, shutting down gracefully", signal)
+			srv.Shutdown(true)
+			log.Infof("All servers stopped")
+		} else {
+			log.Infof("Got signal %s, exiting now without waiting", signal)
+			srv.Shutdown(false)
+		}
 		return nil
 	case err := <-s.errorC:
 		log.Infof("Got request to shutdown with error: %s", err)
@@ -156,7 +161,7 @@ func (s *Service) watchChanges() {
 
 func (s *Service) initApi() error {
 	s.apiRouter = mux.NewRouter()
-	api.InitProxyController(s.backend, s.configurator, s.configurator.GetConnWatcher(), s.apiRouter)
+	api.InitProxyController(s.backend, s.server, s.server.GetConnWatcher(), s.apiRouter)
 	return nil
 }
 

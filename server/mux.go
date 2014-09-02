@@ -1,18 +1,22 @@
 package server
 
 import (
-	"crypto/tls"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
 
-	"net"
-	"net/http"
-
-	"github.com/mailgun/manners"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
+
 	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/connwatch"
+	. "github.com/mailgun/vulcand/endpoint"
 )
 
 // MuxServer is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
@@ -22,6 +26,21 @@ type MuxServer struct {
 
 	// Options hold parameters that are used to initialize http servers
 	options Options
+
+	// Wait group for graceful shutdown
+	wg *sync.WaitGroup
+
+	// Read write mutex for serlialized operations
+	mtx *sync.RWMutex
+
+	// Host routers will be shared between mulitple listeners
+	hostRouters map[string]*exproute.ExpRouter
+
+	// Current server stats
+	state int
+
+	// Connection watcher
+	connWatcher *connwatch.ConnectionWatcher
 }
 
 func NewMuxServer() (*MuxServer, error) {
@@ -30,16 +49,421 @@ func NewMuxServer() (*MuxServer, error) {
 
 func NewMuxServerWithOptions(o Options) (*MuxServer, error) {
 	return &MuxServer{
-		servers: make(map[backend.Address]*srvPack),
-		options: o,
+		hostRouters: make(map[string]*exproute.ExpRouter),
+		servers:     make(map[backend.Address]*srvPack),
+		options:     o,
+		connWatcher: connwatch.NewConnectionWatcher(),
+		wg:          &sync.WaitGroup{},
+		mtx:         &sync.RWMutex{},
 	}, nil
 }
 
-func (m *MuxServer) AddHostListener(host *backend.Host, router route.Router, l *backend.Listener) error {
+func (m *MuxServer) GetConnWatcher() *connwatch.ConnectionWatcher {
+	return m.connWatcher
+}
+
+func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats {
+	rr := m.getLocationLB(hostname, locationId)
+	if rr == nil {
+		return nil
+	}
+	endpoint := rr.FindEndpointById(e.GetUniqueId())
+	if endpoint == nil {
+		return nil
+	}
+	meterI := endpoint.GetMeter()
+	if meterI == nil {
+		return nil
+	}
+	meter := meterI.(*metrics.RollingMeter)
+
+	return &backend.EndpointStats{
+		Successes:     meter.SuccessCount(),
+		Failures:      meter.FailureCount(),
+		PeriodSeconds: int(meter.GetWindowSize() / time.Second),
+		FailRate:      meter.GetRate(),
+	}
+}
+
+func (m *MuxServer) Shutdown(wait bool) {
+	m.mtx.Lock()
+
+	m.state = stateShuttingDown
+	for _, s := range m.servers {
+		s.shutdown()
+	}
+
+	m.mtx.Unlock()
+
+	if wait {
+		log.Infof("Waiting for the wait group to finish")
+		m.wg.Wait()
+		log.Infof("Wait group finished")
+	}
+}
+
+func (m *MuxServer) UpsertHost(host *backend.Host) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if err := m.checkShuttingDown(); err != nil {
+		return err
+	}
+
+	return m.upsertHost(host)
+}
+
+func (m *MuxServer) UpdateHostCert(hostname string, cert *backend.Certificate) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if err := m.checkShuttingDown(); err != nil {
+		return err
+	}
+
+	for _, s := range m.servers {
+		if s.hasHost(hostname) && s.isTLS() {
+			if err := s.updateHostCert(hostname, cert); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (m *MuxServer) AddHostListener(h *backend.Host, l *backend.Listener) error {
+	log.Infof("Add %s %s", h, l)
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if err := m.upsertHost(h); err != nil {
+		return err
+	}
+	if m.hasHostListener(h.Name, l.Id) {
+		return nil
+	}
+	return m.addHostListener(h, m.hostRouters[h.Name], l)
+}
+
+func (m *MuxServer) DeleteHostListener(host *backend.Host, listenerId string) error {
+	log.Infof("DeleteHostListener %s %s", host.Name, listenerId)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	var err error
+	for k, s := range m.servers {
+		if s.hasListener(host.Name, listenerId) {
+			closed, e := s.deleteHost(host.Name)
+			if closed {
+				log.Infof("Closed server listening on %s", k)
+				delete(m.servers, k)
+			}
+			err = e
+		}
+	}
+	return err
+}
+
+func (m *MuxServer) DeleteHost(hostname string) error {
+	log.Infof("Delete host '%s'", hostname)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	for _, s := range m.servers {
+		if _, err := s.deleteHost(hostname); err != nil {
+			return err
+		}
+	}
+
+	delete(m.hostRouters, hostname)
+	return nil
+}
+
+func (m *MuxServer) UpsertLocation(host *backend.Host, loc *backend.Location) error {
+	log.Infof("Upsert %s %s", host, loc)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return m.upsertLocation(host, loc)
+}
+
+func (m *MuxServer) UpsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error {
+	log.Infof("Upsert %s %s", host, loc)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return m.upsertLocationMiddleware(host, loc, mi)
+}
+
+func (m *MuxServer) DeleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error {
+	log.Infof("Delete %s %s", host, loc)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return m.deleteLocationMiddleware(host, loc, mType, mId)
+}
+
+func (m *MuxServer) UpdateLocationUpstream(host *backend.Host, loc *backend.Location) error {
+	log.Infof("Update %s %s", host, loc)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if err := m.upsertLocation(host, loc); err != nil {
+		return err
+	}
+	return m.syncLocationEndpoints(loc)
+}
+
+func (m *MuxServer) UpdateLocationPath(host *backend.Host, loc *backend.Location, path string) error {
+	log.Infof("Update %s %s", host, loc)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	// If location already exists, delete it and re-create from scratch
+	if httploc := m.getLocation(host.Name, loc.Id); httploc != nil {
+		if err := m.deleteLocation(host, loc.Id); err != nil {
+			return err
+		}
+	}
+	return m.upsertLocation(host, loc)
+}
+
+func (m *MuxServer) UpdateLocationOptions(host *backend.Host, loc *backend.Location) error {
+	log.Infof("Update %s, options: %v", loc, loc.Options)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if err := m.upsertLocation(host, loc); err != nil {
+		return err
+	}
+	location := m.getLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
+	}
+	options, err := m.getLocationOptions(loc)
+	if err != nil {
+		return err
+	}
+	return location.SetOptions(*options)
+}
+
+func (m *MuxServer) DeleteLocation(host *backend.Host, locationId string) error {
+	log.Infof("Delete %s %s", host, locationId)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return m.deleteLocation(host, locationId)
+}
+
+func (m *MuxServer) AddEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
+	log.Infof("Add endpoint %s %s", upstream, e)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return m.addEndpoint(upstream, e, affectedLocations)
+}
+
+func (m *MuxServer) DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error {
+	log.Infof("Delete endpoint %s %s", upstream, endpointId)
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	for _, l := range affectedLocations {
+		if err := m.syncLocationEndpoints(l); err != nil {
+			log.Errorf("Failed to sync %s endpoints err: %s", l, err)
+		}
+	}
+	return nil
+}
+
+func (m *MuxServer) getLocationOptions(loc *backend.Location) (*httploc.Options, error) {
+	o, err := loc.GetOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply global defaults if options are not set
+	if o.Timeouts.Dial == 0 {
+		o.Timeouts.Dial = m.options.DialTimeout
+	}
+	if o.Timeouts.Read == 0 {
+		o.Timeouts.Read = m.options.ReadTimeout
+	}
+	return o, nil
+}
+
+func (m *MuxServer) getRouter(hostname string) *exproute.ExpRouter {
+	return m.hostRouters[hostname]
+}
+
+func (m *MuxServer) getLocation(hostname string, locationId string) *httploc.HttpLocation {
+	router := m.getRouter(hostname)
+	if router == nil {
+		return nil
+	}
+	ilo := router.GetLocationById(locationId)
+	if ilo == nil {
+		return nil
+	}
+	return ilo.(*httploc.HttpLocation)
+}
+
+func (m *MuxServer) getLocationLB(hostname string, locationId string) *roundrobin.RoundRobin {
+	loc := m.getLocation(hostname, locationId)
+	if loc == nil {
+		return nil
+	}
+	return loc.GetLoadBalancer().(*roundrobin.RoundRobin)
+}
+
+func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) error {
+	if err := m.upsertHost(host); err != nil {
+		return err
+	}
+
+	// If location already exists, do nothing
+	if loc := m.getLocation(host.Name, loc.Id); loc != nil {
+		return nil
+	}
+
+	router := m.getRouter(host.Name)
+	if router == nil {
+		return fmt.Errorf("router not found for %s", host)
+	}
+	// Create a load balancer that handles all the endpoints within the given location
+	rr, err := roundrobin.NewRoundRobin()
+	if err != nil {
+		return err
+	}
+
+	// Create a location itself
+	options, err := m.getLocationOptions(loc)
+	if err != nil {
+		return err
+	}
+	location, err := httploc.NewLocationWithOptions(loc.Id, rr, *options)
+	if err != nil {
+		return err
+	}
+
+	// Always register a global connection watcher
+	location.GetObserverChain().Upsert(ConnWatch, m.connWatcher)
+
+	// Add the location to the router
+	if err := router.AddLocation(convertPath(loc.Path), location); err != nil {
+		return err
+	}
+
+	// Add middlewares
+	for _, ml := range loc.Middlewares {
+		if err := m.upsertLocationMiddleware(host, loc, ml); err != nil {
+			log.Errorf("failed to add middleware: %s", err)
+		}
+	}
+	// Once the location added, configure all endpoints
+	return m.syncLocationEndpoints(loc)
+}
+
+func (m *MuxServer) upsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error {
+	if err := m.upsertLocation(host, loc); err != nil {
+		return err
+	}
+	location := m.getLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
+	}
+	instance, err := mi.Middleware.NewMiddleware()
+	if err != nil {
+		return err
+	}
+	location.GetMiddlewareChain().Upsert(fmt.Sprintf("%s.%s", mi.Type, mi.Id), mi.Priority, instance)
+	return nil
+}
+
+func (m *MuxServer) deleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error {
+	location := m.getLocation(host.Name, loc.Id)
+	if location == nil {
+		return fmt.Errorf("%s not found", loc)
+	}
+	return location.GetMiddlewareChain().Remove(fmt.Sprintf("%s.%s", mType, mId))
+}
+
+func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
+
+	rr := m.getLocationLB(location.Hostname, location.Id)
+	if rr == nil {
+		return fmt.Errorf("%s lb not found", location)
+	}
+
+	// First, collect and parse endpoints to add
+	newEndpoints := map[string]endpoint.Endpoint{}
+	for _, e := range location.Upstream.Endpoints {
+		ep, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
+		if err != nil {
+			return fmt.Errorf("Failed to parse endpoint url: %s", e)
+		}
+		newEndpoints[e.Url] = ep
+	}
+
+	// Memorize what endpoints exist in load balancer at the moment
+	existingEndpoints := map[string]endpoint.Endpoint{}
+	for _, e := range rr.GetEndpoints() {
+		existingEndpoints[e.GetUrl().String()] = e
+	}
+
+	// First, add endpoints, that should be added and are not in lb
+	for _, e := range newEndpoints {
+		if _, exists := existingEndpoints[e.GetUrl().String()]; !exists {
+			if err := rr.AddEndpoint(e); err != nil {
+				log.Errorf("Failed to add %s, err: %s", e, err)
+			} else {
+				log.Infof("Added %s to %s", e, location)
+			}
+		}
+	}
+
+	// Second, remove endpoints that should not be there any more
+	for _, e := range existingEndpoints {
+		if _, exists := newEndpoints[e.GetUrl().String()]; !exists {
+			if err := rr.RemoveEndpoint(e); err != nil {
+				log.Errorf("Failed to remove %s, err: %s", e, err)
+			} else {
+				log.Infof("Removed %s from %s", e, location)
+			}
+		}
+	}
+	return nil
+}
+
+func (m *MuxServer) addEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
+	endpoint, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
+	if err != nil {
+		return fmt.Errorf("Failed to parse endpoint url: %s", endpoint)
+	}
+	for _, l := range affectedLocations {
+		if err := m.syncLocationEndpoints(l); err != nil {
+			log.Errorf("Failed to sync %s endpoints err: %s", l, err)
+		}
+	}
+	return nil
+}
+
+func (m *MuxServer) addHostListener(host *backend.Host, router route.Router, l *backend.Listener) error {
 	s, exists := m.servers[l.Address]
 	if !exists {
 		var err error
-		if s, err = newSrvPack(host, router, l, m.options); err != nil {
+		if s, err = newSrvPack(m, host, router, l); err != nil {
 			return err
 		}
 		m.servers[l.Address] = s
@@ -55,31 +479,30 @@ func (m *MuxServer) AddHostListener(host *backend.Host, router route.Router, l *
 	return s.addHost(host, router, l)
 }
 
-func (m *MuxServer) DeleteHostListener(hostname string, listenerId string) error {
-	log.Infof("DeleteHostListener %s %s", hostname, listenerId)
-	var err error
-	for k, s := range m.servers {
-		if s.hasListener(hostname, listenerId) {
-			closed, e := s.deleteHost(hostname)
-			if closed {
-				log.Infof("Closed server listening on %s", k)
-				delete(m.servers, k)
-			}
-			err = e
+func (m *MuxServer) upsertHost(host *backend.Host) error {
+	if _, exists := m.hostRouters[host.Name]; exists {
+		return nil
+	}
+
+	log.Infof("Creating a new %s", host)
+
+	router := exproute.NewExpRouter()
+	m.hostRouters[host.Name] = router
+
+	if m.options.DefaultListener != nil {
+		host.Listeners = append(host.Listeners, m.options.DefaultListener)
+	}
+
+	for _, l := range host.Listeners {
+		if err := m.addHostListener(host, router, l); err != nil {
+			return err
 		}
 	}
-	return err
+
+	return nil
 }
 
-func (m *MuxServer) DeleteHostListeners(hostname string) error {
-	var err error
-	for _, s := range m.servers {
-		_, err = s.deleteHost(hostname)
-	}
-	return err
-}
-
-func (m *MuxServer) HasHostListener(hostname, listenerId string) bool {
+func (m *MuxServer) hasHostListener(hostname, listenerId string) bool {
 	for _, s := range m.servers {
 		if s.hasListener(hostname, listenerId) {
 			return true
@@ -88,224 +511,38 @@ func (m *MuxServer) HasHostListener(hostname, listenerId string) bool {
 	return false
 }
 
-func (m *MuxServer) UpdateHostCert(hostname string, cert *backend.Certificate) error {
-	for _, s := range m.servers {
-		if s.hasHost(hostname) && s.isTLS() {
-			if err := s.updateHostCert(hostname, cert); err != nil {
-				return err
-			}
-		}
+func (m *MuxServer) deleteLocation(host *backend.Host, locationId string) error {
+	router := m.getRouter(host.Name)
+	if router == nil {
+		return fmt.Errorf("Router for %s not found", host)
+	}
+
+	location := router.GetLocationById(locationId)
+	if location == nil {
+		return fmt.Errorf("location(id=%s) not found", locationId)
+	}
+	return router.RemoveLocationById(location.GetId())
+}
+
+func (m *MuxServer) checkShuttingDown() error {
+	if m.state == stateShuttingDown {
+		return fmt.Errorf("MuxServer is shutting down, ignore all operations")
 	}
 	return nil
 }
 
-type srvPack struct {
-	defaultHost string
-	router      *hostroute.HostRouter
-	srv         *manners.GracefulServer
-	proxy       *vulcan.Proxy
-	listener    backend.Listener
-	netListener net.Listener
-	certs       map[string]*backend.Certificate
-	options     Options
-	listeners   map[string]backend.Listener
-}
+const (
+	stateInit         = iota // Server has been created, but does not accept connections yet
+	stateActive       = iota // Server is active and accepting connections
+	stateShuttingDown = iota // Server is active, but is draining existing connections and does not accept new connections.
+)
 
-func newSrvPack(host *backend.Host, r route.Router, l *backend.Listener, o Options) (*srvPack, error) {
-	var err error
-	certs := make(map[string]*backend.Certificate)
-	if host.Cert != nil {
-		certs[host.Name] = host.Cert
+const ConnWatch = "_vulcanConnWatch"
+
+// convertPath changes strings to structured format /hello -> RegexpRoute("/hello") and leaves structured strings unchanged.
+func convertPath(in string) string {
+	if !strings.Contains(in, exproute.TrieRouteFn) && !strings.Contains(in, exproute.RegexpRouteFn) {
+		return fmt.Sprintf(`%s(%#v)`, exproute.RegexpRouteFn, in)
 	}
-
-	router := hostroute.NewHostRouter()
-	proxy, err := vulcan.NewProxy(router)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := router.SetRouter(host.Name, r); err != nil {
-		return nil, err
-	}
-
-	listener, err := net.Listen(l.Address.Network, l.Address.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	defaultHost := ""
-	if host.Default {
-		defaultHost = host.Name
-	}
-
-	if len(certs) != 0 {
-		config, err := newTLSConfig(certs, defaultHost)
-		if err != nil {
-			return nil, err
-		}
-		listener = tls.NewListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
-	}
-
-	server := &http.Server{
-		Handler:        proxy,
-		ReadTimeout:    o.ReadTimeout,
-		WriteTimeout:   o.WriteTimeout,
-		MaxHeaderBytes: o.MaxHeaderBytes,
-	}
-
-	gracefulServer := manners.NewWithServer(server)
-
-	return &srvPack{
-		listeners:   map[string]backend.Listener{host.Name: *l},
-		router:      router,
-		proxy:       proxy,
-		srv:         gracefulServer,
-		listener:    *l,
-		netListener: listener,
-		defaultHost: defaultHost,
-		certs:       certs,
-	}, nil
-}
-
-func (srv *srvPack) deleteHost(hostname string) (bool, error) {
-	if srv.router.GetRouter(hostname) == nil {
-		return false, fmt.Errorf("host %s not found", hostname)
-	}
-	srv.router.RemoveRouter(hostname)
-	delete(srv.listeners, hostname)
-
-	if len(srv.listeners) == 0 {
-		srv.srv.Close()
-		return true, nil
-	}
-
-	if _, exists := srv.certs[hostname]; exists {
-		delete(srv.certs, hostname)
-		if srv.defaultHost == hostname {
-			srv.defaultHost = ""
-		}
-		return false, srv.reload()
-	}
-	return false, nil
-}
-
-func (srv *srvPack) isTLS() bool {
-	return srv.listener.Protocol == backend.HTTPS
-}
-
-func (srv *srvPack) updateHostCert(hostname string, cert *backend.Certificate) error {
-	old, exists := srv.certs[hostname]
-	if !exists {
-		return fmt.Errorf("host %s certificate not found")
-	}
-	if old.Equals(cert) {
-		return nil
-	}
-	srv.certs[hostname] = cert
-	return srv.reload()
-}
-
-func (srv *srvPack) addHost(host *backend.Host, router route.Router, listener *backend.Listener) error {
-	if srv.router.GetRouter(host.Name) != nil {
-		return fmt.Errorf("host %s already registered", host)
-	}
-
-	if l, exists := srv.listeners[host.Name]; exists {
-		return fmt.Errorf("host %s arlready has a registered listener %s", host, l)
-	}
-
-	srv.listeners[host.Name] = *listener
-
-	if err := srv.router.SetRouter(host.Name, router); err != nil {
-		return err
-	}
-
-	if host.Default {
-		srv.defaultHost = host.Name
-	}
-
-	// We are serving TLS, reload server
-	if host.Cert != nil {
-		srv.certs[host.Name] = host.Cert
-		return srv.reload()
-	}
-	return nil
-}
-
-func (srv *srvPack) reload() error {
-	// in case if the TLS in not served, we dont' need to do anything
-	if len(srv.certs) == 0 {
-		return nil
-	}
-
-	// Otherwise, we need to generate new TLS config and spin up the new server on the same socket
-	config, err := newTLSConfig(srv.certs, srv.defaultHost)
-	if err != nil {
-		return err
-	}
-
-	httpServer := &http.Server{
-		Handler:        srv.proxy,
-		ReadTimeout:    srv.options.ReadTimeout,
-		WriteTimeout:   srv.options.WriteTimeout,
-		MaxHeaderBytes: srv.options.MaxHeaderBytes,
-	}
-	gracefulServer, err := srv.srv.HijackListener(httpServer, config)
-	if err != nil {
-		return err
-	}
-	go gracefulServer.ListenAndServe()
-	srv.srv.Close()
-	srv.srv = gracefulServer
-	return nil
-}
-
-func (srv *srvPack) hasListener(hostname, listenerId string) bool {
-	l, exists := srv.listeners[hostname]
-	return exists && l.Id == listenerId
-}
-
-func (srv *srvPack) hasHost(hostname string) bool {
-	_, exists := srv.listeners[hostname]
-	return exists
-}
-
-func newTLSConfig(certs map[string]*backend.Certificate, defaultHost string) (*tls.Config, error) {
-	config := &tls.Config{}
-
-	if config.NextProtos == nil {
-		config.NextProtos = []string{"http/1.1"}
-	}
-
-	pairs := make(map[string]tls.Certificate, len(certs))
-	for h, c := range certs {
-		cert, err := tls.X509KeyPair(c.PublicKey, c.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-		pairs[h] = cert
-	}
-
-	config.Certificates = make([]tls.Certificate, 0, len(certs))
-	if defaultHost != "" {
-		cert, exists := pairs[defaultHost]
-		if !exists {
-			return nil, fmt.Errorf("default host '%s' certificate is not passed", defaultHost)
-		}
-		config.Certificates = append(config.Certificates, cert)
-	}
-
-	for h, cert := range pairs {
-		if h != defaultHost {
-			config.Certificates = append(config.Certificates, cert)
-		}
-	}
-
-	config.BuildNameToCertificate()
-
-	return config, nil
-}
-
-func (s *srvPack) serve() {
-	s.srv.Serve(s.netListener)
+	return in
 }

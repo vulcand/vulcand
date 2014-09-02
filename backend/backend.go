@@ -97,7 +97,7 @@ type Listener struct {
 }
 
 func (l *Listener) String() string {
-	return fmt.Sprintf("Listener(proto=%s, addr=%s://%s)", l.Protocol, l.Address.Network, l.Address.Address)
+	return fmt.Sprintf("Listener(%s, %s://%s)", l.Protocol, l.Address.Network, l.Address.Address)
 }
 
 func (a *Address) Equals(o Address) bool {
