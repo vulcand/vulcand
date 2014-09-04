@@ -151,7 +151,6 @@ func (s *srvPack) hijackListener(so *srvPack) error {
 	if err != nil {
 		return err
 	}
-	go s.serve(gracefulServer, nil)
 	s.srv = gracefulServer
 	s.state = srvStateHijacked
 	return nil
@@ -272,6 +271,7 @@ func (s *srvPack) start() error {
 
 func (s *srvPack) serve(srv *manners.GracefulServer, listener net.Listener) {
 	log.Infof("Serve %s", s.listener.String())
+
 	s.mux.wg.Add(1)
 	defer s.mux.wg.Done()
 
