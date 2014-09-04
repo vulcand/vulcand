@@ -38,13 +38,11 @@ func Run(registry *plugin.Registry) error {
 
 type Service struct {
 	client       *etcd.Client
-	server       server.Server
 	backend      backend.Backend
 	options      Options
 	registry     *plugin.Registry
 	apiRouter    *mux.Router
 	errorC       chan error
-	changeC      chan interface{}
 	sigC         chan os.Signal
 	configurator *configure.Configurator
 }
@@ -53,7 +51,6 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 	return &Service{
 		registry: registry,
 		options:  options,
-		changeC:  make(chan interface{}),
 		errorC:   make(chan error),
 		sigC:     make(chan os.Signal),
 	}
@@ -79,7 +76,6 @@ func (s *Service) Start() error {
 		s.registry, s.options.EtcdNodes, s.options.EtcdKey,
 		etcdbackend.Options{
 			EtcdConsistency: s.options.EtcdConsistency,
-			TimeProvider:    &timetools.RealTime{},
 			Box:             box,
 		})
 	if err != nil {
@@ -93,31 +89,29 @@ func (s *Service) Start() error {
 		}
 	}
 
-	srv, err := server.NewMuxServerWithOptions(server.Options{
-		DialTimeout:    s.options.EndpointDialTimeout,
-		ReadTimeout:    s.options.ServerReadTimeout,
-		WriteTimeout:   s.options.ServerWriteTimeout,
-		MaxHeaderBytes: s.options.ServerMaxHeaderBytes,
-		DefaultListener: &backend.Listener{
-			Id:       "DefaultListener",
-			Protocol: "http",
-			Address: backend.Address{
-				Network: "tcp",
-				Address: fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port),
+	serverMaker := func() (server.Server, error) {
+		return server.NewMuxServerWithOptions(server.Options{
+			DialTimeout:    s.options.EndpointDialTimeout,
+			ReadTimeout:    s.options.ServerReadTimeout,
+			WriteTimeout:   s.options.ServerWriteTimeout,
+			MaxHeaderBytes: s.options.ServerMaxHeaderBytes,
+			DefaultListener: &backend.Listener{
+				Id:       "DefaultListener",
+				Protocol: "http",
+				Address: backend.Address{
+					Network: "tcp",
+					Address: fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port),
+				},
 			},
-		},
-	})
-	if err != nil {
+		})
+	}
+
+	s.configurator = configure.NewConfigurator(serverMaker, b, s.errorC, &timetools.RealTime{})
+
+	// Tells configurator to perform initial proxy configuration and start watching changes
+	if err := s.configurator.Start(); err != nil {
 		return err
 	}
-	s.server = srv
-
-	s.configurator = configure.NewConfigurator(srv)
-
-	// Tell backend to watch configuration changes and pass them to the channel
-	// the second parameter tells backend to do the initial read of the configuration
-	// and produce the stream of changes so proxy would initialise initial config
-	go s.watchChanges()
 
 	if err := s.initApi(); err != nil {
 		return err
@@ -134,11 +128,11 @@ func (s *Service) Start() error {
 	case signal := <-s.sigC:
 		if signal == syscall.SIGTERM {
 			log.Infof("Got signal %s, shutting down gracefully", signal)
-			srv.Shutdown(true)
+			s.configurator.Stop(true)
 			log.Infof("All servers stopped")
 		} else {
 			log.Infof("Got signal %s, exiting now without waiting", signal)
-			srv.Shutdown(false)
+			s.configurator.Stop(false)
 		}
 		return nil
 	case err := <-s.errorC:
@@ -148,20 +142,9 @@ func (s *Service) Start() error {
 	return nil
 }
 
-func (s *Service) watchChanges() {
-	go s.configurator.WatchChanges(s.changeC)
-	err := s.backend.WatchChanges(s.changeC, true)
-	if err != nil {
-		log.Infof("Stopped watching changes with error: %s. Shutting down with error", err)
-		s.errorC <- err
-	} else {
-		log.Infof("Stopped watching changes without error. Will continue running", err)
-	}
-}
-
 func (s *Service) initApi() error {
 	s.apiRouter = mux.NewRouter()
-	api.InitProxyController(s.backend, s.server, s.server.GetConnWatcher(), s.apiRouter)
+	api.InitProxyController(s.backend, s.configurator, s.configurator.GetConnWatcher(), s.apiRouter)
 	return nil
 }
 

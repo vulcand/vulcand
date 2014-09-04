@@ -17,20 +17,19 @@ import (
 // srvPack contains all what's necessary to run the HTTP(s) server. srvPack does not work on it's own,
 // it heavilly dependes on MuxServer and it acts as is it's internal data structure.
 type srvPack struct {
-	mux         *MuxServer
 	defaultHost string
+	mux         *MuxServer
 	router      *hostroute.HostRouter
 	srv         *manners.GracefulServer
 	proxy       *vulcan.Proxy
 	listener    backend.Listener
-	netListener net.Listener
+	listeners   map[string]backend.Listener
 	certs       map[string]*backend.Certificate
 	options     Options
-	listeners   map[string]backend.Listener
+	state       int
 }
 
 func newSrvPack(m *MuxServer, host *backend.Host, r route.Router, l *backend.Listener) (*srvPack, error) {
-	var err error
 	certs := make(map[string]*backend.Certificate)
 	if host.Cert != nil {
 		certs[host.Name] = host.Cert
@@ -46,64 +45,41 @@ func newSrvPack(m *MuxServer, host *backend.Host, r route.Router, l *backend.Lis
 		return nil, err
 	}
 
-	listener, err := net.Listen(l.Address.Network, l.Address.Address)
-	if err != nil {
-		return nil, err
-	}
-
 	defaultHost := ""
 	if host.Default {
 		defaultHost = host.Name
 	}
-
-	if len(certs) != 0 {
-		config, err := newTLSConfig(certs, defaultHost)
-		if err != nil {
-			return nil, err
-		}
-		listener = tls.NewListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
-	}
-
-	server := &http.Server{
-		Handler:        proxy,
-		ReadTimeout:    m.options.ReadTimeout,
-		WriteTimeout:   m.options.WriteTimeout,
-		MaxHeaderBytes: m.options.MaxHeaderBytes,
-	}
-
-	gracefulServer := manners.NewWithServer(server)
 
 	return &srvPack{
 		mux:         m,
 		listeners:   map[string]backend.Listener{host.Name: *l},
 		router:      router,
 		proxy:       proxy,
-		srv:         gracefulServer,
 		listener:    *l,
-		netListener: listener,
 		defaultHost: defaultHost,
 		certs:       certs,
+		state:       srvStateInit,
 	}, nil
 }
 
-func (srv *srvPack) deleteHost(hostname string) (bool, error) {
-	if srv.router.GetRouter(hostname) == nil {
+func (s *srvPack) deleteHost(hostname string) (bool, error) {
+	if s.router.GetRouter(hostname) == nil {
 		return false, fmt.Errorf("host %s not found", hostname)
 	}
-	srv.router.RemoveRouter(hostname)
-	delete(srv.listeners, hostname)
+	s.router.RemoveRouter(hostname)
+	delete(s.listeners, hostname)
 
-	if len(srv.listeners) == 0 {
-		srv.srv.Close()
+	if len(s.listeners) == 0 {
+		s.srv.Close()
 		return true, nil
 	}
 
-	if _, exists := srv.certs[hostname]; exists {
-		delete(srv.certs, hostname)
-		if srv.defaultHost == hostname {
-			srv.defaultHost = ""
+	if _, exists := s.certs[hostname]; exists {
+		delete(s.certs, hostname)
+		if s.defaultHost == hostname {
+			s.defaultHost = ""
 		}
-		return false, srv.reload()
+		return false, s.reload()
 	}
 	return false, nil
 }
@@ -112,84 +88,123 @@ func (srv *srvPack) isTLS() bool {
 	return srv.listener.Protocol == backend.HTTPS
 }
 
-func (srv *srvPack) updateHostCert(hostname string, cert *backend.Certificate) error {
-	old, exists := srv.certs[hostname]
+func (s *srvPack) updateHostCert(hostname string, cert *backend.Certificate) error {
+	old, exists := s.certs[hostname]
 	if !exists {
 		return fmt.Errorf("host %s certificate not found")
 	}
 	if old.Equals(cert) {
 		return nil
 	}
-	srv.certs[hostname] = cert
-	return srv.reload()
+	s.certs[hostname] = cert
+	return s.reload()
 }
 
-func (srv *srvPack) addHost(host *backend.Host, router route.Router, listener *backend.Listener) error {
-	if srv.router.GetRouter(host.Name) != nil {
+func (s *srvPack) addHost(host *backend.Host, router route.Router, listener *backend.Listener) error {
+	if s.router.GetRouter(host.Name) != nil {
 		return fmt.Errorf("host %s already registered", host)
 	}
 
-	if l, exists := srv.listeners[host.Name]; exists {
+	if l, exists := s.listeners[host.Name]; exists {
 		return fmt.Errorf("host %s arlready has a registered listener %s", host, l)
 	}
 
-	srv.listeners[host.Name] = *listener
+	s.listeners[host.Name] = *listener
 
-	if err := srv.router.SetRouter(host.Name, router); err != nil {
+	if err := s.router.SetRouter(host.Name, router); err != nil {
 		return err
 	}
 
 	if host.Default {
-		srv.defaultHost = host.Name
+		s.defaultHost = host.Name
 	}
 
 	// We are serving TLS, reload server
 	if host.Cert != nil {
-		srv.certs[host.Name] = host.Cert
-		return srv.reload()
+		s.certs[host.Name] = host.Cert
+		return s.reload()
 	}
 	return nil
 }
 
-func (srv *srvPack) reload() error {
-	// in case if the TLS in not served, we dont' need to do anything
-	if len(srv.certs) == 0 {
+func (s *srvPack) isServing() bool {
+	return s.state == srvStateActive
+}
+
+func (s *srvPack) hasListeners() bool {
+	return s.state == srvStateActive || s.state == srvStateHijacked
+}
+
+func (s *srvPack) hijackListener(so *srvPack) error {
+	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
+	var config *tls.Config
+	if len(s.certs) != 0 {
+		var err error
+		config, err = newTLSConfig(s.certs, s.defaultHost)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	gracefulServer, err := so.srv.HijackListener(s.newHTTPServer(), config)
+	if err != nil {
+		return err
+	}
+	go s.serve(gracefulServer, nil)
+	s.srv = gracefulServer
+	s.state = srvStateHijacked
+	return nil
+}
+
+func (s *srvPack) newHTTPServer() *http.Server {
+	return &http.Server{
+		Handler:        s.proxy,
+		ReadTimeout:    s.options.ReadTimeout,
+		WriteTimeout:   s.options.WriteTimeout,
+		MaxHeaderBytes: s.options.MaxHeaderBytes,
+	}
+}
+
+func (s *srvPack) reload() error {
+	if s.isServing() {
+		return nil
+	}
+
+	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
+	if len(s.certs) == 0 {
 		return nil
 	}
 
 	// Otherwise, we need to generate new TLS config and spin up the new server on the same socket
-	config, err := newTLSConfig(srv.certs, srv.defaultHost)
+	config, err := newTLSConfig(s.certs, s.defaultHost)
 	if err != nil {
 		return err
 	}
+	gracefulServer, err := s.srv.HijackListener(s.newHTTPServer(), config)
+	if err != nil {
+		return err
+	}
+	go s.serve(gracefulServer, nil)
 
-	httpServer := &http.Server{
-		Handler:        srv.proxy,
-		ReadTimeout:    srv.options.ReadTimeout,
-		WriteTimeout:   srv.options.WriteTimeout,
-		MaxHeaderBytes: srv.options.MaxHeaderBytes,
-	}
-	gracefulServer, err := srv.srv.HijackListener(httpServer, config)
-	if err != nil {
-		return err
-	}
-	go gracefulServer.ListenAndServe()
-	srv.srv.Close()
-	srv.srv = gracefulServer
+	s.srv.Close()
+	s.srv = gracefulServer
 	return nil
 }
 
-func (srv *srvPack) shutdown() {
-	srv.srv.Close()
+func (s *srvPack) shutdown() {
+	if s.srv != nil {
+		s.srv.Close()
+	}
 }
 
-func (srv *srvPack) hasListener(hostname, listenerId string) bool {
-	l, exists := srv.listeners[hostname]
+func (s *srvPack) hasListener(hostname, listenerId string) bool {
+	l, exists := s.listeners[hostname]
 	return exists && l.Id == listenerId
 }
 
-func (srv *srvPack) hasHost(hostname string) bool {
-	_, exists := srv.listeners[hostname]
+func (s *srvPack) hasHost(hostname string) bool {
+	_, exists := s.listeners[hostname]
 	return exists
 }
 
@@ -225,14 +240,50 @@ func newTLSConfig(certs map[string]*backend.Certificate, defaultHost string) (*t
 	}
 
 	config.BuildNameToCertificate()
-
 	return config, nil
 }
 
-func (s *srvPack) serve() {
-	log.Infof("Start %s", s.listener.String())
+func (s *srvPack) start() error {
+	switch s.state {
+	case srvStateInit:
+		listener, err := net.Listen(s.listener.Address.Network, s.listener.Address.Address)
+		if err != nil {
+			return err
+		}
+
+		if len(s.certs) != 0 {
+			config, err := newTLSConfig(s.certs, s.defaultHost)
+			if err != nil {
+				return err
+			}
+			listener = tls.NewListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
+		}
+		s.srv = manners.NewWithServer(s.newHTTPServer())
+		go s.serve(s.srv, listener)
+		return nil
+	case srvStateHijacked:
+		go s.serve(s.srv, nil)
+		return nil
+	}
+	return fmt.Errorf("Calling start in unsupported state: %d", s.state)
+}
+
+func (s *srvPack) serve(srv *manners.GracefulServer, listener net.Listener) {
+	log.Infof("Serve %s", s.listener.String())
 	s.mux.wg.Add(1)
 	defer s.mux.wg.Done()
-	s.srv.Serve(s.netListener)
+
+	if listener == nil {
+		srv.ListenAndServe()
+	} else {
+		s.srv.Serve(listener)
+	}
+
 	log.Infof("Stop %s", s.listener.String())
 }
+
+const (
+	srvStateInit     = iota // server has been created
+	srvStateActive   = iota // server is active and is serving requests
+	srvStateHijacked = iota // server has hijacked listeners from other server
+)

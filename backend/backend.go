@@ -47,12 +47,8 @@ type Backend interface {
 	DeleteEndpoint(upstreamId, id string) error
 
 	// WatchChanges is an entry point for getting the configuration changes as well as the initial configuration.
-	// It should behave in the following way:
-	//
-	// * This should be a blocking function generating events from change.go to the changes channel
-	// * If the initalSetup is true, it should read the existing configuration and generate the events to the channel
-	//   just as someone was creating the elements one by one.
-	WatchChanges(changes chan interface{}, initialSetup bool) error
+	// It should be a blocking function generating events from change.go to the changes channel.
+	WatchChanges(changes chan interface{}) error
 
 	// GetRegistry returns registry with the supported plugins.
 	GetRegistry() *plugin.Registry

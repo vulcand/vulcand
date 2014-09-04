@@ -21,6 +21,8 @@ import (
 
 // MuxServer is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
 type MuxServer struct {
+	// Debugging id
+	id int
 	// Each listener address has a server associated with it
 	servers map[backend.Address]*srvPack
 
@@ -41,6 +43,10 @@ type MuxServer struct {
 
 	// Connection watcher
 	connWatcher *connwatch.ConnectionWatcher
+}
+
+func (m *MuxServer) String() string {
+	return fmt.Sprintf("MuxServer(id=%d, state=%s)", m.id, stateDescription(m.state))
 }
 
 func NewMuxServer() (*MuxServer, error) {
@@ -85,10 +91,58 @@ func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *
 	}
 }
 
-func (m *MuxServer) Shutdown(wait bool) {
+func (m *MuxServer) HijackListeners(o Server) error {
 	m.mtx.Lock()
+	defer m.mtx.Unlock()
 
+	other, ok := o.(*MuxServer)
+	if !ok {
+		return fmt.Errorf("can hijack listeners only from other MuxServer")
+	}
+
+	// This is fore debugging purposes
+	m.id = other.id + 1
+
+	for addr, srv := range m.servers {
+		osrv, exists := other.servers[addr]
+		if !exists || !osrv.hasListeners() {
+			continue
+		}
+		if err := osrv.hijackListener(srv); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *MuxServer) Start() error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	log.Infof("Starting %s", m.String())
+
+	if m.state != stateInit {
+		return fmt.Errorf("%s can start only from init state, got %d", m, m.state)
+	}
+
+	m.state = stateActive
+	for _, s := range m.servers {
+		if err := s.start(); err != nil {
+			return err
+		}
+	}
+
+	log.Infof("%s started", m)
+	return nil
+}
+
+func (m *MuxServer) Stop(wait bool) {
+	m.mtx.Lock()
 	m.state = stateShuttingDown
+
+	log.Infof("%s is shutting down", m)
+
 	for _, s := range m.servers {
 		s.shutdown()
 	}
@@ -96,9 +150,9 @@ func (m *MuxServer) Shutdown(wait bool) {
 	m.mtx.Unlock()
 
 	if wait {
-		log.Infof("Waiting for the wait group to finish")
+		log.Infof("%s waiting for the wait group to finish", m)
 		m.wg.Wait()
-		log.Infof("Wait group finished")
+		log.Infof("%s wait group finished", m)
 	}
 }
 
@@ -467,7 +521,13 @@ func (m *MuxServer) addHostListener(host *backend.Host, router route.Router, l *
 			return err
 		}
 		m.servers[l.Address] = s
-		go s.serve()
+		// If we are active, start the server immediatelly
+		if m.state == stateActive {
+			log.Infof("Mux is in active state, starting the HTTP server")
+			if err := s.start(); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
@@ -536,6 +596,18 @@ const (
 	stateActive       = iota // Server is active and accepting connections
 	stateShuttingDown = iota // Server is active, but is draining existing connections and does not accept new connections.
 )
+
+func stateDescription(state int) string {
+	switch state {
+	case stateInit:
+		return "init"
+	case stateActive:
+		return "active"
+	case stateShuttingDown:
+		return "shutting down"
+	}
+	return "undefined"
+}
 
 const ConnWatch = "_vulcanConnWatch"
 

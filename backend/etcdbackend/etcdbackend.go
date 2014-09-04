@@ -7,19 +7,15 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/secret"
 )
-
-const reconnectTimeout = 3 * time.Second
 
 type EtcdBackend struct {
 	nodes    []string
@@ -35,7 +31,6 @@ type EtcdBackend struct {
 type Options struct {
 	EtcdConsistency string
 	Box             *secret.Box
-	TimeProvider    timetools.TimeProvider
 }
 
 func NewEtcdBackend(registry *plugin.Registry, nodes []string, etcdKey string) (*EtcdBackend, error) {
@@ -508,15 +503,7 @@ func (s *EtcdBackend) DeleteLocationMiddleware(hostname, locationId, mType, id s
 }
 
 // Watches etcd changes and generates structured events telling vulcand to add or delete locations, hosts etc.
-// if initialSetup is true, reads the existing configuration and generates events for inital configuration of the proxy.
-func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) error {
-	if initialSetup == true {
-		log.Infof("Etcd backend reading initial configuration, etcd nodes: %s", s.nodes)
-		if err := s.generateChanges(changes); err != nil {
-			log.Errorf("Failed to generate changes: %s, stopping watch.", err)
-			return err
-		}
-	}
+func (s *EtcdBackend) WatchChanges(changes chan interface{}) error {
 	// This index helps us to get changes in sequence, as they were performed by clients.
 	waitIndex := uint64(0)
 	for {
@@ -527,10 +514,8 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 				log.Infof("Stop watching: graceful shutdown")
 				return nil
 			default:
-				log.Errorf("Unexpected error: %s, reconnecting", err)
-				s.options.TimeProvider.Sleep(reconnectTimeout)
-				s.reconnect()
-				continue
+				log.Errorf("Unexpected error: %s, stop watching", err)
+				return err
 			}
 		}
 		waitIndex = response.Node.ModifiedIndex + 1
@@ -555,53 +540,6 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 func (s *EtcdBackend) StopWatching() {
 	s.cancelC <- true
 	s.stopC <- true
-}
-
-// Reads the configuration of the vulcand and generates a sequence of events
-// just like as someone was creating locations and hosts in sequence.
-func (s *EtcdBackend) generateChanges(changes chan interface{}) error {
-	upstreams, err := s.GetUpstreams()
-	if err != nil {
-		return err
-	}
-
-	if len(upstreams) == 0 {
-		log.Warningf("No upstreams found")
-	}
-
-	for _, u := range upstreams {
-		changes <- &backend.UpstreamAdded{
-			Upstream: u,
-		}
-		for _, e := range u.Endpoints {
-			changes <- &backend.EndpointAdded{
-				Upstream: u,
-				Endpoint: e,
-			}
-		}
-	}
-
-	hosts, err := s.readHosts(true)
-	if err != nil {
-		return err
-	}
-
-	if len(hosts) == 0 {
-		log.Warningf("No hosts found")
-	}
-
-	for _, h := range hosts {
-		changes <- &backend.HostAdded{
-			Host: h,
-		}
-		for _, l := range h.Locations {
-			changes <- &backend.LocationAdded{
-				Host:     h,
-				Location: l,
-			}
-		}
-	}
-	return nil
 }
 
 type MatcherFn func(*etcd.Response) (interface{}, error)
@@ -1152,9 +1090,6 @@ func isDir(n *etcd.Node) bool {
 }
 
 func parseOptions(o Options) (Options, error) {
-	if o.TimeProvider == nil {
-		o.TimeProvider = &timetools.RealTime{}
-	}
 	if o.EtcdConsistency == "" {
 		o.EtcdConsistency = etcd.STRONG_CONSISTENCY
 	}

@@ -28,10 +28,13 @@ type Server interface {
 	AddEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error
 	DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error
 
+	HijackListeners(Server) error
+
 	GetConnWatcher() *connwatch.ConnectionWatcher
 	GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats
 
-	Shutdown(wait bool)
+	Start() error
+	Stop(wait bool)
 }
 
 type Options struct {
@@ -41,3 +44,5 @@ type Options struct {
 	MaxHeaderBytes  int
 	DefaultListener *backend.Listener
 }
+
+type NewServerFn func() (Server, error)
