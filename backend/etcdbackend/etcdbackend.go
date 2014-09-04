@@ -199,8 +199,11 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 	if !deep {
 		return host, nil
 	}
-
-	for _, key := range s.getDirs(hostKey, "locations") {
+	locations, err := s.getDirs(hostKey, "locations")
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range locations {
 		location, err := s.GetLocation(hostname, suffix(key))
 		if err != nil {
 			return nil, err
@@ -382,7 +385,11 @@ func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) 
 
 func (s *EtcdBackend) GetUpstreams() ([]*backend.Upstream, error) {
 	upstreams := []*backend.Upstream{}
-	for _, upstreamKey := range s.getDirs(s.etcdKey, "upstreams") {
+	ups, err := s.getDirs(s.etcdKey, "upstreams")
+	if err != nil {
+		return nil, err
+	}
+	for _, upstreamKey := range ups {
 		upstream, err := s.GetUpstream(suffix(upstreamKey))
 		if err != nil {
 			return nil, err
@@ -869,7 +876,11 @@ func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{
 
 func (s *EtcdBackend) readHosts(deep bool) ([]*backend.Host, error) {
 	hosts := []*backend.Host{}
-	for _, hostKey := range s.getDirs(s.etcdKey, "hosts") {
+	vals, err := s.getDirs(s.etcdKey, "hosts")
+	if err != nil {
+		return nil, err
+	}
+	for _, hostKey := range vals {
 		host, err := s.readHost(suffix(hostKey), deep)
 		if err != nil {
 			return nil, err
@@ -966,15 +977,18 @@ func (s *EtcdBackend) getVal(key string) (string, error) {
 	return response.Node.Value, nil
 }
 
-func (s *EtcdBackend) getDirs(keys ...string) []string {
+func (s *EtcdBackend) getDirs(keys ...string) ([]string, error) {
 	var out []string
 	response, err := s.client.Get(strings.Join(keys, "/"), true, true)
-	if notFound(err) {
-		return out
+	if err != nil {
+		if notFound(err) {
+			return out, nil
+		}
+		return nil, err
 	}
 
 	if response == nil || !isDir(response.Node) {
-		return out
+		return out, nil
 	}
 
 	for _, srvNode := range response.Node.Nodes {
@@ -982,7 +996,7 @@ func (s *EtcdBackend) getDirs(keys ...string) []string {
 			out = append(out, srvNode.Key)
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (s *EtcdBackend) getVals(keys ...string) ([]Pair, error) {

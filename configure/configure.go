@@ -15,6 +15,7 @@ import (
 
 // Configurator watches changes to the dynamic backends and applies those changes to the proxy in real time.
 type Configurator struct {
+	lastId       int
 	wg           *sync.WaitGroup
 	newSrvFn     server.NewServerFn
 	srv          server.Server
@@ -45,10 +46,11 @@ func (c *Configurator) GetStats(hostname, locationId string, e *backend.Endpoint
 }
 
 func (c *Configurator) init() error {
-	srv, err := c.newSrvFn()
+	srv, err := c.newSrvFn(c.lastId)
 	if err != nil {
 		return err
 	}
+	c.lastId += 1
 
 	if err := c.initialSetup(srv); err != nil {
 		return err
@@ -83,10 +85,12 @@ func (c *Configurator) init() error {
 	// This goroutine will listen for the changes from backend
 	go func() {
 		if err := c.backend.WatchChanges(changesC); err != nil {
+			log.Infof("Backend watcher got error: '%s', launching reconnect procedure", err)
 			close(changesC)
 			c.rekickC <- err
 		} else {
 			// Graceful shutdown without restart
+			log.Infof("Backend watcher got nil error, gracefully shutdown")
 			close(c.rekickC)
 		}
 	}()
@@ -105,12 +109,15 @@ func (c *Configurator) supervise() {
 			log.Infof("watchErrors - graceful shutdown")
 			return
 		}
-		c.timeProvider.Sleep(retryPeriod)
-
-		log.Infof("supervise() restarting %s on error: %s", c.srv, err)
-		// We failed to initialize server, this error can not be recovered, so send an error and exit
-		if err := c.init(); err != nil {
-			c.errorC <- err
+		for {
+			c.timeProvider.Sleep(retryPeriod)
+			log.Infof("supervise() restarting %s on error: %s", c.srv, err)
+			// We failed to initialize server, this error can not be recovered, so send an error and exit
+			if err := c.init(); err != nil {
+				log.Infof("Failed to initialize %s, will retry", err)
+			} else {
+				break
+			}
 		}
 	}
 }
@@ -207,4 +214,4 @@ func (c *Configurator) processChange(s server.Server, ch interface{}) error {
 	return fmt.Errorf("unsupported change: %#v", ch)
 }
 
-const retryPeriod = 3 * time.Second
+const retryPeriod = 5 * time.Second

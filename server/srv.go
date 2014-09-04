@@ -259,9 +259,11 @@ func (s *srvPack) start() error {
 			listener = tls.NewListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
 		}
 		s.srv = manners.NewWithServer(s.newHTTPServer())
+		s.state = srvStateActive
 		go s.serve(s.srv, listener)
 		return nil
 	case srvStateHijacked:
+		s.state = srvStateActive
 		go s.serve(s.srv, nil)
 		return nil
 	}

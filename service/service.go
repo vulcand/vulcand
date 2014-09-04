@@ -89,8 +89,8 @@ func (s *Service) Start() error {
 		}
 	}
 
-	serverMaker := func() (server.Server, error) {
-		return server.NewMuxServerWithOptions(server.Options{
+	serverMaker := func(id int) (server.Server, error) {
+		return server.NewMuxServerWithOptions(id, server.Options{
 			DialTimeout:    s.options.EndpointDialTimeout,
 			ReadTimeout:    s.options.ServerReadTimeout,
 			WriteTimeout:   s.options.ServerWriteTimeout,

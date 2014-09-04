@@ -49,12 +49,9 @@ func (m *MuxServer) String() string {
 	return fmt.Sprintf("MuxServer(id=%d, state=%s)", m.id, stateDescription(m.state))
 }
 
-func NewMuxServer() (*MuxServer, error) {
-	return nil, nil
-}
-
-func NewMuxServerWithOptions(o Options) (*MuxServer, error) {
+func NewMuxServerWithOptions(id int, o Options) (*MuxServer, error) {
 	return &MuxServer{
+		id:          id,
 		hostRouters: make(map[string]*exproute.ExpRouter),
 		servers:     make(map[backend.Address]*srvPack),
 		options:     o,
@@ -100,15 +97,13 @@ func (m *MuxServer) HijackListeners(o Server) error {
 		return fmt.Errorf("can hijack listeners only from other MuxServer")
 	}
 
-	// This is fore debugging purposes
-	m.id = other.id + 1
-
 	for addr, srv := range m.servers {
 		osrv, exists := other.servers[addr]
 		if !exists || !osrv.hasListeners() {
+			log.Infof("Skipping hijack for address %s, has no listeners", addr)
 			continue
 		}
-		if err := osrv.hijackListener(srv); err != nil {
+		if err := srv.hijackListener(osrv); err != nil {
 			return err
 		}
 	}

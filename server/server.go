@@ -45,4 +45,4 @@ type Options struct {
 	DefaultListener *backend.Listener
 }
 
-type NewServerFn func() (Server, error)
+type NewServerFn func(id int) (Server, error)
