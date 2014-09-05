@@ -65,7 +65,7 @@ func (c *Configurator) init() error {
 
 	oldSrv := c.srv
 	if oldSrv != nil {
-		if err := srv.HijackListeners(oldSrv); err != nil {
+		if err := srv.HijackListenersFrom(oldSrv); err != nil {
 			return err
 		}
 	}

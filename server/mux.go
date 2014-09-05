@@ -88,8 +88,8 @@ func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *
 	}
 }
 
-func (m *MuxServer) HijackListeners(o Server) error {
-	log.Infof("%s HijackListeners from %s", m, o)
+func (m *MuxServer) HijackListenersFrom(o Server) error {
+	log.Infof("%s HijackListenersFrom %s", m, o)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -102,10 +102,10 @@ func (m *MuxServer) HijackListeners(o Server) error {
 	for addr, srv := range m.servers {
 		osrv, exists := other.servers[addr]
 		if !exists || !osrv.hasListeners() {
-			log.Infof("Skipping hijack for address %s, has no listeners", addr)
+			log.Infof("Skipping hijack for address %s, has no active listeners", addr)
 			continue
 		}
-		if err := srv.hijackListener(osrv); err != nil {
+		if err := srv.hijackListenerFrom(osrv); err != nil {
 			return err
 		}
 	}

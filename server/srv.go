@@ -30,7 +30,7 @@ type server struct {
 }
 
 func (s *server) String() string {
-	return fmt.Sprintf("%s.subServer(%s, %s)", s.mux, srvStateDescription(s.state), s.listener.String())
+	return fmt.Sprintf("%s->srv(%s, %s)", s.mux, srvStateDescription(s.state), s.listener.String())
 }
 
 func newServer(m *MuxServer, host *backend.Host, r route.Router, l *backend.Listener) (*server, error) {
@@ -139,7 +139,8 @@ func (s *server) hasListeners() bool {
 	return s.state == srvStateActive || s.state == srvStateHijacked
 }
 
-func (s *server) hijackListener(so *server) error {
+func (s *server) hijackListenerFrom(so *server) error {
+	log.Infof("%s hijackListenerFrom %s", s, so)
 	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
 	var config *tls.Config
 	if len(s.certs) != 0 {
@@ -148,7 +149,6 @@ func (s *server) hijackListener(so *server) error {
 		if err != nil {
 			return err
 		}
-		return nil
 	}
 
 	gracefulServer, err := so.srv.HijackListener(s.newHTTPServer(), config)

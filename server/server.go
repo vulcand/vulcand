@@ -28,7 +28,7 @@ type Server interface {
 	AddEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error
 	DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error
 
-	HijackListeners(Server) error
+	HijackListenersFrom(Server) error
 
 	GetConnWatcher() *connwatch.ConnectionWatcher
 	GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats
