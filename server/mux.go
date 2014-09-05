@@ -24,7 +24,7 @@ type MuxServer struct {
 	// Debugging id
 	id int
 	// Each listener address has a server associated with it
-	servers map[backend.Address]*srvPack
+	servers map[backend.Address]*server
 
 	// Options hold parameters that are used to initialize http servers
 	options Options
@@ -46,14 +46,14 @@ type MuxServer struct {
 }
 
 func (m *MuxServer) String() string {
-	return fmt.Sprintf("MuxServer(id=%d, state=%s)", m.id, stateDescription(m.state))
+	return fmt.Sprintf("MuxServer(%d, %s)", m.id, stateDescription(m.state))
 }
 
 func NewMuxServerWithOptions(id int, o Options) (*MuxServer, error) {
 	return &MuxServer{
 		id:          id,
 		hostRouters: make(map[string]*exproute.ExpRouter),
-		servers:     make(map[backend.Address]*srvPack),
+		servers:     make(map[backend.Address]*server),
 		options:     o,
 		connWatcher: connwatch.NewConnectionWatcher(),
 		wg:          &sync.WaitGroup{},
@@ -89,6 +89,8 @@ func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *
 }
 
 func (m *MuxServer) HijackListeners(o Server) error {
+	log.Infof("%s HijackListeners from %s", m, o)
+
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -112,10 +114,10 @@ func (m *MuxServer) HijackListeners(o Server) error {
 }
 
 func (m *MuxServer) Start() error {
+	log.Infof("%s start", m)
+
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-
-	log.Infof("Starting %s", m.String())
 
 	if m.state != stateInit {
 		return fmt.Errorf("%s can start only from init state, got %d", m, m.state)
@@ -133,10 +135,10 @@ func (m *MuxServer) Start() error {
 }
 
 func (m *MuxServer) Stop(wait bool) {
+	log.Infof("%s Stop(%t)", m, wait)
+
 	m.mtx.Lock()
 	m.state = stateShuttingDown
-
-	log.Infof("%s is shutting down", m)
 
 	for _, s := range m.servers {
 		s.shutdown()
@@ -152,6 +154,8 @@ func (m *MuxServer) Stop(wait bool) {
 }
 
 func (m *MuxServer) UpsertHost(host *backend.Host) error {
+	log.Infof("%s UpsertHost(%s)", m, host)
+
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -163,12 +167,10 @@ func (m *MuxServer) UpsertHost(host *backend.Host) error {
 }
 
 func (m *MuxServer) UpdateHostCert(hostname string, cert *backend.Certificate) error {
+	log.Infof("%s UpdateHostCert(%s)", m, hostname)
+
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-
-	if err := m.checkShuttingDown(); err != nil {
-		return err
-	}
 
 	for _, s := range m.servers {
 		if s.hasHost(hostname) && s.isTLS() {
@@ -181,7 +183,8 @@ func (m *MuxServer) UpdateHostCert(hostname string, cert *backend.Certificate) e
 }
 
 func (m *MuxServer) AddHostListener(h *backend.Host, l *backend.Listener) error {
-	log.Infof("Add %s %s", h, l)
+	log.Infof("%s AddHostLsitener %s %s", m, h, l)
+
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -195,7 +198,7 @@ func (m *MuxServer) AddHostListener(h *backend.Host, l *backend.Listener) error 
 }
 
 func (m *MuxServer) DeleteHostListener(host *backend.Host, listenerId string) error {
-	log.Infof("DeleteHostListener %s %s", host.Name, listenerId)
+	log.Infof("%s DeleteHostListener %s %s", m, host.Name, listenerId)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -215,7 +218,7 @@ func (m *MuxServer) DeleteHostListener(host *backend.Host, listenerId string) er
 }
 
 func (m *MuxServer) DeleteHost(hostname string) error {
-	log.Infof("Delete host '%s'", hostname)
+	log.Infof("%s DeleteHost Host(%s)", m, hostname)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -231,7 +234,7 @@ func (m *MuxServer) DeleteHost(hostname string) error {
 }
 
 func (m *MuxServer) UpsertLocation(host *backend.Host, loc *backend.Location) error {
-	log.Infof("Upsert %s %s", host, loc)
+	log.Infof("%s UpsertLocation %s %s", m, host, loc)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -240,7 +243,7 @@ func (m *MuxServer) UpsertLocation(host *backend.Host, loc *backend.Location) er
 }
 
 func (m *MuxServer) UpsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error {
-	log.Infof("Upsert %s %s", host, loc)
+	log.Infof("%s UpsertLocationMiddleware %s %s %s", m, host, loc, mi)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -249,7 +252,7 @@ func (m *MuxServer) UpsertLocationMiddleware(host *backend.Host, loc *backend.Lo
 }
 
 func (m *MuxServer) DeleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error {
-	log.Infof("Delete %s %s", host, loc)
+	log.Infof("%s DeleteLocationMiddleware %s %s %s %s", m, host, loc, mType, mId)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -258,7 +261,7 @@ func (m *MuxServer) DeleteLocationMiddleware(host *backend.Host, loc *backend.Lo
 }
 
 func (m *MuxServer) UpdateLocationUpstream(host *backend.Host, loc *backend.Location) error {
-	log.Infof("Update %s %s", host, loc)
+	log.Infof("%s UpdateLocationUpstream %s %s", m, host, loc)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -270,7 +273,7 @@ func (m *MuxServer) UpdateLocationUpstream(host *backend.Host, loc *backend.Loca
 }
 
 func (m *MuxServer) UpdateLocationPath(host *backend.Host, loc *backend.Location, path string) error {
-	log.Infof("Update %s %s", host, loc)
+	log.Infof("%s UpdateLocationPath %s %s %s", m, host, loc, path)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -285,7 +288,7 @@ func (m *MuxServer) UpdateLocationPath(host *backend.Host, loc *backend.Location
 }
 
 func (m *MuxServer) UpdateLocationOptions(host *backend.Host, loc *backend.Location) error {
-	log.Infof("Update %s, options: %v", loc, loc.Options)
+	log.Infof("%s UpdateLocationOptions %s %s %s", m, host, loc, loc.Options)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -305,7 +308,7 @@ func (m *MuxServer) UpdateLocationOptions(host *backend.Host, loc *backend.Locat
 }
 
 func (m *MuxServer) DeleteLocation(host *backend.Host, locationId string) error {
-	log.Infof("Delete %s %s", host, locationId)
+	log.Infof("%s DeleteLocation %s %s", m, host, locationId)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -314,7 +317,7 @@ func (m *MuxServer) DeleteLocation(host *backend.Host, locationId string) error 
 }
 
 func (m *MuxServer) AddEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
-	log.Infof("Add endpoint %s %s", upstream, e)
+	log.Infof("%s AddEdpoint %s %s", m, upstream, e)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -323,7 +326,7 @@ func (m *MuxServer) AddEndpoint(upstream *backend.Upstream, e *backend.Endpoint,
 }
 
 func (m *MuxServer) DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error {
-	log.Infof("Delete endpoint %s %s", upstream, endpointId)
+	log.Infof("%s DeleteEndpoint %s %s", m, upstream, endpointId)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -475,9 +478,9 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 	for _, e := range newEndpoints {
 		if _, exists := existingEndpoints[e.GetUrl().String()]; !exists {
 			if err := rr.AddEndpoint(e); err != nil {
-				log.Errorf("Failed to add %s, err: %s", e, err)
+				log.Errorf("%s failed to add %s, err: %s", m, e, err)
 			} else {
-				log.Infof("Added %s to %s", e, location)
+				log.Infof("%s add endpoint %s to %s", m, e, location)
 			}
 		}
 	}
@@ -512,7 +515,7 @@ func (m *MuxServer) addHostListener(host *backend.Host, router route.Router, l *
 	s, exists := m.servers[l.Address]
 	if !exists {
 		var err error
-		if s, err = newSrvPack(m, host, router, l); err != nil {
+		if s, err = newServer(m, host, router, l); err != nil {
 			return err
 		}
 		m.servers[l.Address] = s
@@ -538,8 +541,6 @@ func (m *MuxServer) upsertHost(host *backend.Host) error {
 	if _, exists := m.hostRouters[host.Name]; exists {
 		return nil
 	}
-
-	log.Infof("Creating a new %s", host)
 
 	router := exproute.NewExpRouter()
 	m.hostRouters[host.Name] = router
@@ -588,8 +589,8 @@ func (m *MuxServer) checkShuttingDown() error {
 
 const (
 	stateInit         = iota // Server has been created, but does not accept connections yet
-	stateActive       = iota // Server is active and accepting connections
-	stateShuttingDown = iota // Server is active, but is draining existing connections and does not accept new connections.
+	stateActive              // Server is active and accepting connections
+	stateShuttingDown        // Server is active, but is draining existing connections and does not accept new connections.
 )
 
 func stateDescription(state int) string {

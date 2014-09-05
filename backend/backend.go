@@ -15,6 +15,8 @@ import (
 	"github.com/mailgun/vulcand/plugin"
 )
 
+type NewBackendFn func() (Backend, error)
+
 type Backend interface {
 	GetHosts() ([]*Host, error)
 	AddHost(*Host) (*Host, error)
@@ -52,6 +54,8 @@ type Backend interface {
 
 	// GetRegistry returns registry with the supported plugins.
 	GetRegistry() *plugin.Registry
+
+	Close()
 }
 
 // StatsGetter provides realtime stats about endpoint specific to a particular location.
@@ -60,22 +64,22 @@ type StatsGetter interface {
 }
 
 type Certificate struct {
-	PrivateKey []byte
-	PublicKey  []byte
+	Key  []byte
+	Cert []byte
 }
 
-func NewCert(public, private []byte) (*Certificate, error) {
-	if len(private) == 0 || len(public) == 0 {
-		return nil, fmt.Errorf("Provide non-empty private and public key")
+func NewCert(cert, key []byte) (*Certificate, error) {
+	if len(cert) == 0 || len(key) == 0 {
+		return nil, fmt.Errorf("Provide non-empty certificate and a private key")
 	}
-	if _, err := tls.X509KeyPair(public, private); err != nil {
+	if _, err := tls.X509KeyPair(cert, key); err != nil {
 		return nil, err
 	}
-	return &Certificate{PrivateKey: private, PublicKey: public}, nil
+	return &Certificate{Cert: cert, Key: key}, nil
 }
 
 func (c *Certificate) Equals(o *Certificate) bool {
-	return bytes.Equal(c.PrivateKey, o.PrivateKey) && bytes.Equal(c.PublicKey, o.PublicKey)
+	return bytes.Equal(c.Cert, o.Cert) && bytes.Equal(c.Key, o.Key)
 }
 
 type Address struct {

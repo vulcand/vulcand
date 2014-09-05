@@ -56,10 +56,14 @@ func NewEtcdBackendWithOptions(registry *plugin.Registry, nodes []string, etcdKe
 	return b, nil
 }
 
-func (s *EtcdBackend) reconnect() error {
+func (s *EtcdBackend) Close() {
 	if s.client != nil {
 		s.client.Close()
 	}
+}
+
+func (s *EtcdBackend) reconnect() error {
+	s.Close()
 	client := etcd.NewClient(s.nodes)
 	if err := client.SetConsistency(s.options.EtcdConsistency); err != nil {
 		return err
@@ -173,6 +177,7 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 
 	cert, err := s.readHostCert(hostname)
 	if err != nil && !isNotFoundError(err) {
+
 		return nil, err
 	}
 
@@ -187,6 +192,7 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 	if err != nil {
 		return nil, err
 	}
+
 	for _, p := range listeners {
 		l, err := backend.ListenerFromJson([]byte(p.Val))
 		if err != nil {
@@ -878,6 +884,7 @@ func (s *EtcdBackend) readHosts(deep bool) ([]*backend.Host, error) {
 	hosts := []*backend.Host{}
 	vals, err := s.getDirs(s.etcdKey, "hosts")
 	if err != nil {
+
 		return nil, err
 	}
 	for _, hostKey := range vals {

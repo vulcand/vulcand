@@ -87,7 +87,7 @@ func CertFromJson(in []byte) (*Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewCert(c.PublicKey, c.PrivateKey)
+	return NewCert(c.Cert, c.Key)
 }
 
 func LocationFromJson(in []byte, getter plugin.SpecGetter) (*Location, error) {

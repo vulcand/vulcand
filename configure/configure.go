@@ -19,18 +19,18 @@ type Configurator struct {
 	wg           *sync.WaitGroup
 	newSrvFn     server.NewServerFn
 	srv          server.Server
-	backend      backend.Backend
+	newBackendFn backend.NewBackendFn
 	timeProvider timetools.TimeProvider
 	errorC       chan error
 	rekickC      chan error
 	closeC       chan bool
 }
 
-func NewConfigurator(newSrvFn server.NewServerFn, backend backend.Backend, errorC chan error, timeProvider timetools.TimeProvider) (c *Configurator) {
+func NewConfigurator(newSrvFn server.NewServerFn, newBackendFn backend.NewBackendFn, errorC chan error, timeProvider timetools.TimeProvider) (c *Configurator) {
 	return &Configurator{
 		wg:           &sync.WaitGroup{},
 		newSrvFn:     newSrvFn,
-		backend:      backend,
+		newBackendFn: newBackendFn,
 		timeProvider: timeProvider,
 		errorC:       errorC,
 		rekickC:      make(chan error),
@@ -52,15 +52,19 @@ func (c *Configurator) init() error {
 	}
 	c.lastId += 1
 
-	if err := c.initialSetup(srv); err != nil {
+	backend, err := c.newBackendFn()
+	if err != nil {
 		return err
 	}
 
-	log.Infof("init() initial setup for %s is done", srv)
+	if err := c.initialSetup(backend, srv); err != nil {
+		return err
+	}
+
+	log.Infof("%s init() initial setup done", srv)
 
 	oldSrv := c.srv
 	if oldSrv != nil {
-		log.Infof("init() hijacking listeners from %s for %s", oldSrv, srv)
 		if err := srv.HijackListeners(oldSrv); err != nil {
 			return err
 		}
@@ -84,13 +88,15 @@ func (c *Configurator) init() error {
 
 	// This goroutine will listen for the changes from backend
 	go func() {
-		if err := c.backend.WatchChanges(changesC); err != nil {
-			log.Infof("Backend watcher got error: '%s', launching reconnect procedure", err)
+		if err := backend.WatchChanges(changesC); err != nil {
+			log.Infof("%s backend watcher got error: '%s' will reconnect", srv, err)
+			backend.Close()
 			close(changesC)
 			c.rekickC <- err
 		} else {
 			// Graceful shutdown without restart
-			log.Infof("Backend watcher got nil error, gracefully shutdown")
+			backend.Close()
+			log.Infof("%s backend watcher got nil error, gracefully shutdown", srv)
 			close(c.rekickC)
 		}
 	}()
@@ -149,9 +155,10 @@ func (c *Configurator) watchChanges(srv server.Server, changes chan interface{})
 
 // Reads the configuration of the vulcand and generates a sequence of events
 // just like as someone was creating locations and hosts in sequence.
-func (c *Configurator) initialSetup(srv server.Server) error {
-	hosts, err := c.backend.GetHosts()
+func (c *Configurator) initialSetup(backend backend.Backend, srv server.Server) error {
+	hosts, err := backend.GetHosts()
 	if err != nil {
+		log.Infof("Error getting hosts: %s", err)
 		return err
 	}
 

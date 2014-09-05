@@ -14,9 +14,9 @@ import (
 	"github.com/mailgun/vulcand/backend"
 )
 
-// srvPack contains all what's necessary to run the HTTP(s) server. srvPack does not work on it's own,
+// server contains all what's necessary to run the HTTP(s) server. server does not work on it's own,
 // it heavilly dependes on MuxServer and it acts as is it's internal data structure.
-type srvPack struct {
+type server struct {
 	defaultHost string
 	mux         *MuxServer
 	router      *hostroute.HostRouter
@@ -29,7 +29,11 @@ type srvPack struct {
 	state       int
 }
 
-func newSrvPack(m *MuxServer, host *backend.Host, r route.Router, l *backend.Listener) (*srvPack, error) {
+func (s *server) String() string {
+	return fmt.Sprintf("%s.subServer(%s, %s)", s.mux, srvStateDescription(s.state), s.listener.String())
+}
+
+func newServer(m *MuxServer, host *backend.Host, r route.Router, l *backend.Listener) (*server, error) {
 	certs := make(map[string]*backend.Certificate)
 	if host.Cert != nil {
 		certs[host.Name] = host.Cert
@@ -50,7 +54,7 @@ func newSrvPack(m *MuxServer, host *backend.Host, r route.Router, l *backend.Lis
 		defaultHost = host.Name
 	}
 
-	return &srvPack{
+	return &server{
 		mux:         m,
 		listeners:   map[string]backend.Listener{host.Name: *l},
 		router:      router,
@@ -62,7 +66,7 @@ func newSrvPack(m *MuxServer, host *backend.Host, r route.Router, l *backend.Lis
 	}, nil
 }
 
-func (s *srvPack) deleteHost(hostname string) (bool, error) {
+func (s *server) deleteHost(hostname string) (bool, error) {
 	if s.router.GetRouter(hostname) == nil {
 		return false, fmt.Errorf("host %s not found", hostname)
 	}
@@ -84,11 +88,11 @@ func (s *srvPack) deleteHost(hostname string) (bool, error) {
 	return false, nil
 }
 
-func (srv *srvPack) isTLS() bool {
+func (srv *server) isTLS() bool {
 	return srv.listener.Protocol == backend.HTTPS
 }
 
-func (s *srvPack) updateHostCert(hostname string, cert *backend.Certificate) error {
+func (s *server) updateHostCert(hostname string, cert *backend.Certificate) error {
 	old, exists := s.certs[hostname]
 	if !exists {
 		return fmt.Errorf("host %s certificate not found")
@@ -100,7 +104,7 @@ func (s *srvPack) updateHostCert(hostname string, cert *backend.Certificate) err
 	return s.reload()
 }
 
-func (s *srvPack) addHost(host *backend.Host, router route.Router, listener *backend.Listener) error {
+func (s *server) addHost(host *backend.Host, router route.Router, listener *backend.Listener) error {
 	if s.router.GetRouter(host.Name) != nil {
 		return fmt.Errorf("host %s already registered", host)
 	}
@@ -127,15 +131,15 @@ func (s *srvPack) addHost(host *backend.Host, router route.Router, listener *bac
 	return nil
 }
 
-func (s *srvPack) isServing() bool {
+func (s *server) isServing() bool {
 	return s.state == srvStateActive
 }
 
-func (s *srvPack) hasListeners() bool {
+func (s *server) hasListeners() bool {
 	return s.state == srvStateActive || s.state == srvStateHijacked
 }
 
-func (s *srvPack) hijackListener(so *srvPack) error {
+func (s *server) hijackListener(so *server) error {
 	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
 	var config *tls.Config
 	if len(s.certs) != 0 {
@@ -156,7 +160,7 @@ func (s *srvPack) hijackListener(so *srvPack) error {
 	return nil
 }
 
-func (s *srvPack) newHTTPServer() *http.Server {
+func (s *server) newHTTPServer() *http.Server {
 	return &http.Server{
 		Handler:        s.proxy,
 		ReadTimeout:    s.options.ReadTimeout,
@@ -165,8 +169,8 @@ func (s *srvPack) newHTTPServer() *http.Server {
 	}
 }
 
-func (s *srvPack) reload() error {
-	if s.isServing() {
+func (s *server) reload() error {
+	if !s.isServing() {
 		return nil
 	}
 
@@ -191,18 +195,18 @@ func (s *srvPack) reload() error {
 	return nil
 }
 
-func (s *srvPack) shutdown() {
+func (s *server) shutdown() {
 	if s.srv != nil {
 		s.srv.Close()
 	}
 }
 
-func (s *srvPack) hasListener(hostname, listenerId string) bool {
+func (s *server) hasListener(hostname, listenerId string) bool {
 	l, exists := s.listeners[hostname]
 	return exists && l.Id == listenerId
 }
 
-func (s *srvPack) hasHost(hostname string) bool {
+func (s *server) hasHost(hostname string) bool {
 	_, exists := s.listeners[hostname]
 	return exists
 }
@@ -216,7 +220,7 @@ func newTLSConfig(certs map[string]*backend.Certificate, defaultHost string) (*t
 
 	pairs := make(map[string]tls.Certificate, len(certs))
 	for h, c := range certs {
-		cert, err := tls.X509KeyPair(c.PublicKey, c.PrivateKey)
+		cert, err := tls.X509KeyPair(c.Cert, c.Key)
 		if err != nil {
 			return nil, err
 		}
@@ -242,7 +246,8 @@ func newTLSConfig(certs map[string]*backend.Certificate, defaultHost string) (*t
 	return config, nil
 }
 
-func (s *srvPack) start() error {
+func (s *server) start() error {
+	log.Infof("%s start", s)
 	switch s.state {
 	case srvStateInit:
 		listener, err := net.Listen(s.listener.Address.Network, s.listener.Address.Address)
@@ -255,7 +260,7 @@ func (s *srvPack) start() error {
 			if err != nil {
 				return err
 			}
-			listener = tls.NewListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
+			listener = manners.NewTLSListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
 		}
 		s.srv = manners.NewWithServer(s.newHTTPServer())
 		s.state = srvStateActive
@@ -266,11 +271,11 @@ func (s *srvPack) start() error {
 		go s.serve(s.srv, nil)
 		return nil
 	}
-	return fmt.Errorf("Calling start in unsupported state: %d", s.state)
+	return fmt.Errorf("%s Calling start in unsupported state: %d", s.state)
 }
 
-func (s *srvPack) serve(srv *manners.GracefulServer, listener net.Listener) {
-	log.Infof("Serve %s", s.listener.String())
+func (s *server) serve(srv *manners.GracefulServer, listener net.Listener) {
+	log.Infof("%s serve", s)
 
 	s.mux.wg.Add(1)
 	defer s.mux.wg.Done()
@@ -289,3 +294,15 @@ const (
 	srvStateActive   = iota // server is active and is serving requests
 	srvStateHijacked = iota // server has hijacked listeners from other server
 )
+
+func srvStateDescription(state int) string {
+	switch state {
+	case srvStateInit:
+		return "init"
+	case srvStateActive:
+		return "active"
+	case srvStateHijacked:
+		return "hijacked"
+	}
+	return "undefined"
+}

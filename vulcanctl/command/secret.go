@@ -28,9 +28,9 @@ func NewKeyCommand(cmd *Command) cli.Command {
 				Action: cmd.sealCertAction,
 				Flags: []cli.Flag{
 					cli.StringFlag{Name: "file, f", Usage: "File to write to"},
-					cli.StringFlag{Name: "key, k", Usage: "Encryption key"},
-					cli.StringFlag{Name: "private", Usage: "Path to a private key"},
-					cli.StringFlag{Name: "public", Usage: "Path to a public key"},
+					cli.StringFlag{Name: "sealKey", Usage: "Seal key - used to encrypt and seal certificate and private key"},
+					cli.StringFlag{Name: "privateKey", Usage: "Path to a private key"},
+					cli.StringFlag{Name: "cert", Usage: "Path to a certificate"},
 				},
 			},
 		},
@@ -60,7 +60,7 @@ func (cmd *Command) generateKeyAction(c *cli.Context) {
 
 func (cmd *Command) sealCertAction(c *cli.Context) {
 	// Read the key and get a box
-	box, err := readBox(c.String("key"))
+	box, err := readBox(c.String("sealKey"))
 	if err != nil {
 		cmd.printError(err)
 		return
@@ -76,7 +76,7 @@ func (cmd *Command) sealCertAction(c *cli.Context) {
 		defer closer.Close()
 	}
 
-	cert, err := readCert(c.String("private"), c.String("public"))
+	cert, err := readCert(c.String("cert"), c.String("privateKey"))
 	if err != nil {
 		cmd.printError(fmt.Errorf("Failed to read certificate: %s", err))
 		return

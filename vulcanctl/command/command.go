@@ -84,27 +84,27 @@ func flags() []cli.Flag {
 	}
 }
 
-func readCert(privatePath, publicPath string) (*backend.Certificate, error) {
-	fprivate, err := os.Open(privatePath)
+func readCert(certPath, keyPath string) (*backend.Certificate, error) {
+	fKey, err := os.Open(keyPath)
 	if err != nil {
 		return nil, err
 	}
-	defer fprivate.Close()
-	private, err := ioutil.ReadAll(fprivate)
+	defer fKey.Close()
+	key, err := ioutil.ReadAll(fKey)
 	if err != nil {
 		return nil, err
 	}
 
-	fpublic, err := os.Open(publicPath)
+	fCert, err := os.Open(certPath)
 	if err != nil {
 		return nil, err
 	}
-	defer fpublic.Close()
-	public, err := ioutil.ReadAll(fpublic)
+	defer fCert.Close()
+	cert, err := ioutil.ReadAll(fCert)
 	if err != nil {
 		return nil, err
 	}
-	return backend.NewCert(public, private)
+	return backend.NewCert(cert, key)
 }
 
 func readBox(key string) (*secret.Box, error) {
