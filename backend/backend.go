@@ -104,6 +104,10 @@ func (a *Address) Equals(o Address) bool {
 	return a.Network == o.Network && a.Address == o.Address
 }
 
+type HostOptions struct {
+	Default bool
+}
+
 // Incoming requests are matched by their hostname first. Hostname is defined by incoming 'Host' header.
 // E.g. curl http://example.com/alice will be matched by the host example.com first.
 type Host struct {
@@ -111,7 +115,7 @@ type Host struct {
 	Locations []*Location
 	Cert      *Certificate
 	Listeners []*Listener
-	Default   bool
+	Options   HostOptions
 }
 
 func NewHost(name string) (*Host, error) {

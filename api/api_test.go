@@ -12,9 +12,9 @@ import (
 	"github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
-	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
+	"github.com/mailgun/vulcand/supervisor"
 )
 
 func TestApi(t *testing.T) { TestingT(t) }

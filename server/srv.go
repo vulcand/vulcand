@@ -50,7 +50,7 @@ func newServer(m *MuxServer, host *backend.Host, r route.Router, l *backend.List
 	}
 
 	defaultHost := ""
-	if host.Default {
+	if host.Options.Default {
 		defaultHost = host.Name
 	}
 
@@ -119,7 +119,7 @@ func (s *server) addHost(host *backend.Host, router route.Router, listener *back
 		return err
 	}
 
-	if host.Default {
+	if host.Options.Default {
 		s.defaultHost = host.Name
 	}
 

@@ -93,7 +93,15 @@ func (s *EtcdBackend) UpdateHostCertificate(hostname string, cert *backend.Certi
 }
 
 func (s *EtcdBackend) AddHost(h *backend.Host) (*backend.Host, error) {
-	if err := s.createDir(s.path("hosts", h.Name)); err != nil {
+	hostKey := s.path("hosts", h.Name)
+
+	if err := s.checkKeyExists(hostKey); err == nil {
+		return nil, &backend.AlreadyExistsError{
+			Message: fmt.Sprintf("%s already exists", h),
+		}
+	}
+
+	if err := s.setJSONVal(join(hostKey, "options"), h.Options); err != nil {
 		return nil, err
 	}
 	if h.Cert != nil {
@@ -170,9 +178,20 @@ func (s *EtcdBackend) readHostCert(hostname string) (*backend.Certificate, error
 }
 
 func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error) {
+
 	hostKey := s.path("hosts", hostname)
 	if err := s.checkKeyExists(hostKey); err != nil {
 		return nil, err
+	}
+
+	var options *backend.HostOptions
+	err := s.getJSONVal(join(hostKey, "options"), &options)
+	if err != nil {
+		if isNotFoundError(err) {
+			options = &backend.HostOptions{}
+		} else {
+			return nil, err
+		}
 	}
 
 	cert, err := s.readHostCert(hostname)
@@ -186,6 +205,7 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 		Locations: []*backend.Location{},
 		Cert:      cert,
 		Listeners: []*backend.Listener{},
+		Options:   *options,
 	}
 
 	listeners, err := s.getVals(hostKey, "listeners")
@@ -582,14 +602,14 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 }
 
 func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)$").FindStringSubmatch(response.Node.Key)
+	out := regexp.MustCompile("/hosts/([^/]+)(?:/options)?$").FindStringSubmatch(response.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 
 	hostname := out[1]
 
-	if response.Action == "create" {
+	if response.Action == "create" || response.Action == "set" {
 		host, err := s.readHost(hostname, false)
 		if err != nil {
 			return nil, err
@@ -797,18 +817,7 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(response *etcd.Response) (inte
 		return nil, err
 	}
 
-	if response.Action == "create" {
-		for _, e := range upstream.Endpoints {
-			if e.Id == endpointId {
-				return &backend.EndpointAdded{
-					Upstream:          upstream,
-					Endpoint:          e,
-					AffectedLocations: affectedLocations,
-				}, nil
-			}
-		}
-		return nil, fmt.Errorf("endpoint %s not found", endpointId)
-	} else if response.Action == "set" {
+	if response.Action == "set" || response.Action == "create" {
 		for _, e := range upstream.Endpoints {
 			if e.Id == endpointId {
 				return &backend.EndpointUpdated{
