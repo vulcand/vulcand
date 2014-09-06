@@ -143,7 +143,7 @@ func (s *server) hijackListenerFrom(so *server) error {
 	log.Infof("%s hijackListenerFrom %s", s, so)
 	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
 	var config *tls.Config
-	if len(s.certs) != 0 {
+	if s.isTLS() {
 		var err error
 		config, err = newTLSConfig(s.certs, s.defaultHost)
 		if err != nil {
@@ -175,7 +175,7 @@ func (s *server) reload() error {
 	}
 
 	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
-	if len(s.certs) == 0 {
+	if !s.isTLS() {
 		return nil
 	}
 
@@ -255,7 +255,7 @@ func (s *server) start() error {
 			return err
 		}
 
-		if len(s.certs) != 0 {
+		if s.isTLS() {
 			config, err := newTLSConfig(s.certs, s.defaultHost)
 			if err != nil {
 				return err
