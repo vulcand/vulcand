@@ -16,10 +16,10 @@ import (
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/etcdbackend"
-	"github.com/mailgun/vulcand/configure"
 	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/secret"
 	"github.com/mailgun/vulcand/server"
+	"github.com/mailgun/vulcand/supervisor"
 )
 
 func Run(registry *plugin.Registry) error {
@@ -37,13 +37,13 @@ func Run(registry *plugin.Registry) error {
 }
 
 type Service struct {
-	client       *etcd.Client
-	options      Options
-	registry     *plugin.Registry
-	apiRouter    *mux.Router
-	errorC       chan error
-	sigC         chan os.Signal
-	configurator *configure.Configurator
+	client     *etcd.Client
+	options    Options
+	registry   *plugin.Registry
+	apiRouter  *mux.Router
+	errorC     chan error
+	sigC       chan os.Signal
+	supervisor *supervisor.Supervisor
 }
 
 func NewService(options Options, registry *plugin.Registry) *Service {
@@ -64,11 +64,11 @@ func (s *Service) Start() error {
 		}
 	}
 
-	s.configurator = configure.NewConfigurator(
+	s.supervisor = supervisor.NewSupervisor(
 		s.newServer, s.newBackend, s.errorC, &timetools.RealTime{})
 
 	// Tells configurator to perform initial proxy configuration and start watching changes
-	if err := s.configurator.Start(); err != nil {
+	if err := s.supervisor.Start(); err != nil {
 		return err
 	}
 
@@ -87,11 +87,11 @@ func (s *Service) Start() error {
 	case signal := <-s.sigC:
 		if signal == syscall.SIGTERM {
 			log.Infof("Got signal %s, shutting down gracefully", signal)
-			s.configurator.Stop(true)
+			s.supervisor.Stop(true)
 			log.Infof("All servers stopped")
 		} else {
 			log.Infof("Got signal %s, exiting now without waiting", signal)
-			s.configurator.Stop(false)
+			s.supervisor.Stop(false)
 		}
 		return nil
 	case err := <-s.errorC:
@@ -148,7 +148,7 @@ func (s *Service) initApi() error {
 	if err != nil {
 		return err
 	}
-	api.InitProxyController(b, s.configurator, s.configurator.GetConnWatcher(), s.apiRouter)
+	api.InitProxyController(b, s.supervisor, s.supervisor.GetConnWatcher(), s.apiRouter)
 	return nil
 }
 
