@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -471,6 +472,90 @@ func (s *ServerSuite) TestUpstreamUpdateEndpoint(c *C) {
 	c.Assert(s.mux.UpsertEndpoint(l.Upstream, ep, []*Location{l}), IsNil)
 
 	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "2")
+}
+
+func (s *ServerSuite) TestUpdateRateLimit(c *C) {
+	l, h := makeLocation("localhost", "localhost:31000", "http://localhost:32000")
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	rl := makeRateLimit("rl1", 100, "client.ip", 200, 10, l)
+
+	c.Assert(s.mux.UpsertLocationMiddleware(h, l, rl), IsNil)
+
+	loc := s.mux.getLocation(h.Name, l.Id)
+	c.Assert(loc, NotNil)
+
+	// Make sure connection limit and rate limit are here as well
+	chain := loc.GetMiddlewareChain()
+	limiter := chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
+	c.Assert(limiter.GetRate().Units, Equals, int64(100))
+	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(10))
+	c.Assert(limiter.GetBurst(), Equals, int64(200))
+
+	// Update the rate limit
+	rl = makeRateLimit("rl1", 12, "client.ip", 20, 3, l)
+	c.Assert(s.mux.UpsertLocationMiddleware(h, l, rl), IsNil)
+
+	// Make sure the changes have taken place
+	limiter = chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
+	c.Assert(limiter.GetRate().Units, Equals, int64(12))
+	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(3))
+	c.Assert(limiter.GetBurst(), Equals, int64(20))
+}
+
+func (s *ServerSuite) TestRateLimitCRUD(c *C) {
+	l, h := makeLocation("localhost", "localhost:31000", "http://localhost:32000")
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	rl := makeRateLimit("r1", 10, "client.ip", 1, 1, l)
+	rl2 := makeRateLimit("r2", 10, "client.ip", 1, 1, l)
+
+	c.Assert(s.mux.UpsertLocationMiddleware(h, l, rl), IsNil)
+	c.Assert(s.mux.UpsertLocationMiddleware(h, l, rl2), IsNil)
+
+	loc := s.mux.getLocation(h.Name, l.Id)
+	c.Assert(loc, NotNil)
+
+	chain := loc.GetMiddlewareChain()
+	c.Assert(chain.Get("ratelimit.r1"), NotNil)
+	c.Assert(chain.Get("ratelimit.r2"), NotNil)
+
+	c.Assert(s.mux.DeleteLocationMiddleware(h, l, rl.Type, rl.Id), IsNil)
+
+	c.Assert(chain.Get("ratelimit.r1"), IsNil)
+	// Make sure that the other rate limiter is still there
+	c.Assert(chain.Get("ratelimit.r2"), NotNil)
+}
+
+func (s *ServerSuite) TestUpdateLocationPath(c *C) {
+	e := newTestServer("Hi, I'm endpoint")
+	defer e.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := makeLocation("localhost", "localhost:31000", e.URL)
+
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
+
+	l.Path = `TrieRoute("/hello/path2")`
+
+	c.Assert(s.mux.UpdateLocationPath(h, l, l.Path), IsNil)
+
+	c.Assert(GETResponse(c, "http://localhost:31000/hello/path2", ""), Equals, "Hi, I'm endpoint")
+}
+
+func (s *ServerSuite) TestUpdateLocationPathCreateLocation(c *C) {
+	e := newTestServer("Hi, I'm endpoint")
+	defer e.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := makeLocation("localhost", "localhost:31000", e.URL)
+
+	c.Assert(s.mux.UpdateLocationPath(h, l, l.Path), IsNil)
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 }
 
 func (s *ServerSuite) TestConvertPath(c *C) {
