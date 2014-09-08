@@ -137,19 +137,26 @@ func (m *MuxServer) Start() error {
 func (m *MuxServer) Stop(wait bool) {
 	log.Infof("%s Stop(%t)", m, wait)
 
-	m.mtx.Lock()
-	m.state = stateShuttingDown
-
-	for _, s := range m.servers {
-		s.shutdown()
-	}
-
-	m.mtx.Unlock()
+	m.stopServers()
 
 	if wait {
 		log.Infof("%s waiting for the wait group to finish", m)
 		m.wg.Wait()
 		log.Infof("%s wait group finished", m)
+	}
+}
+
+func (m *MuxServer) stopServers() {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if m.state == stateShuttingDown {
+		return
+	}
+
+	m.state = stateShuttingDown
+	for _, s := range m.servers {
+		s.shutdown()
 	}
 }
 
@@ -224,8 +231,13 @@ func (m *MuxServer) DeleteHost(hostname string) error {
 	defer m.mtx.Unlock()
 
 	for _, s := range m.servers {
-		if _, err := s.deleteHost(hostname); err != nil {
+		closed, err := s.deleteHost(hostname)
+		if err != nil {
 			return err
+		}
+		if closed {
+			log.Infof("%s was closed", s)
+			delete(m.servers, s.listener.Address)
 		}
 	}
 

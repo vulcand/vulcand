@@ -188,7 +188,7 @@ func (s *server) reload() error {
 	if err != nil {
 		return err
 	}
-	go s.serve(gracefulServer, nil)
+	go s.serve(gracefulServer)
 
 	s.srv.Close()
 	s.srv = gracefulServer
@@ -262,29 +262,25 @@ func (s *server) start() error {
 			}
 			listener = manners.NewTLSListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
 		}
-		s.srv = manners.NewWithServer(s.newHTTPServer())
+		s.srv = manners.NewWithListener(s.newHTTPServer(), listener)
 		s.state = srvStateActive
-		go s.serve(s.srv, listener)
+		go s.serve(s.srv)
 		return nil
 	case srvStateHijacked:
 		s.state = srvStateActive
-		go s.serve(s.srv, nil)
+		go s.serve(s.srv)
 		return nil
 	}
 	return fmt.Errorf("%s Calling start in unsupported state: %d", s.state)
 }
 
-func (s *server) serve(srv *manners.GracefulServer, listener net.Listener) {
+func (s *server) serve(srv *manners.GracefulServer) {
 	log.Infof("%s serve", s)
 
 	s.mux.wg.Add(1)
 	defer s.mux.wg.Done()
 
-	if listener == nil {
-		srv.ListenAndServe()
-	} else {
-		s.srv.Serve(listener)
-	}
+	srv.ListenAndServe()
 
 	log.Infof("Stop %s", s.listener.String())
 }
