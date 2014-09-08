@@ -25,7 +25,7 @@ type Server interface {
 	UpsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error
 	DeleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error
 
-	AddEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error
+	UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error
 	DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error
 
 	HijackListenersFrom(Server) error

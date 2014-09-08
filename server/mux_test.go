@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/plugin/ratelimit"
 	"testing"
 )
 
@@ -37,9 +41,7 @@ func (s *ServerSuite) TestStartStop(c *C) {
 }
 
 func (s *ServerSuite) TestServerCRUD(c *C) {
-	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint"))
-	})
+	e := newTestServer("Hi, I'm endpoint")
 	defer e.Close()
 
 	l, h := makeLocation("localhost", "localhost:31000", e.URL)
@@ -49,27 +51,20 @@ func (s *ServerSuite) TestServerCRUD(c *C) {
 
 	c.Assert(s.mux.Start(), IsNil)
 
-	response, bodyBytes, err := GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 
 	c.Assert(s.mux.DeleteHost(h.Name), IsNil)
 
-	_, _, err = GET(makeURL(l, h.Listeners[0]), "")
+	_, _, err := GET(makeURL(l, h.Listeners[0]), "")
 	c.Assert(err, NotNil)
 }
 
 // Test case when you have two hosts on the same domain
 func (s *ServerSuite) TestTwoHosts(c *C) {
-	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint 1"))
-	})
+	e := newTestServer("Hi, I'm endpoint 1")
 	defer e.Close()
 
-	e2 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint 2"))
-	})
+	e2 := newTestServer("Hi, I'm endpoint 2")
 	defer e2.Close()
 
 	c.Assert(s.mux.Start(), IsNil)
@@ -80,21 +75,12 @@ func (s *ServerSuite) TestTwoHosts(c *C) {
 	l2, h2 := makeLocation("otherhost", "localhost:31000", e2.URL)
 	c.Assert(s.mux.UpsertLocation(h2, l2), IsNil)
 
-	response, bodyBytes, err := GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 1")
-
-	response, bodyBytes, err = GET(makeURL(l, h2.Listeners[0]), "otherhost")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 2")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint 1")
+	c.Assert(GETResponse(c, makeURL(l, h2.Listeners[0]), "otherhost"), Equals, "Hi, I'm endpoint 2")
 }
 
 func (s *ServerSuite) TestServerListenerCRUD(c *C) {
-	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint"))
-	})
+	e := newTestServer("Hi, I'm endpoint")
 	defer e.Close()
 
 	c.Assert(s.mux.Start(), IsNil)
@@ -108,21 +94,16 @@ func (s *ServerSuite) TestServerListenerCRUD(c *C) {
 
 	s.mux.AddHostListener(h, h.Listeners[1])
 
-	response, bodyBytes, err := GET(makeURL(l, h.Listeners[1]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[1]), ""), Equals, "Hi, I'm endpoint")
 
 	c.Assert(s.mux.DeleteHostListener(h, h.Listeners[1].Id), IsNil)
 
-	_, _, err = GET(makeURL(l, h.Listeners[1]), "")
+	_, _, err := GET(makeURL(l, h.Listeners[1]), "")
 	c.Assert(err, NotNil)
 }
 
 func (s *ServerSuite) TestServerHTTPSCRUD(c *C) {
-	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint"))
-	})
+	e := newTestServer("Hi, I'm endpoint")
 	defer e.Close()
 
 	l, h := makeLocation("localhost", "localhost:31000", e.URL)
@@ -134,21 +115,16 @@ func (s *ServerSuite) TestServerHTTPSCRUD(c *C) {
 
 	c.Assert(s.mux.Start(), IsNil)
 
-	response, bodyBytes, err := GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 
 	c.Assert(s.mux.DeleteHost(h.Name), IsNil)
 
-	_, _, err = GET(makeURL(l, h.Listeners[0]), "")
+	_, _, err := GET(makeURL(l, h.Listeners[0]), "")
 	c.Assert(err, NotNil)
 }
 
 func (s *ServerSuite) TestLiveCertUpdate(c *C) {
-	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint"))
-	})
+	e := newTestServer("Hi, I'm endpoint")
 	defer e.Close()
 	c.Assert(s.mux.Start(), IsNil)
 
@@ -159,29 +135,19 @@ func (s *ServerSuite) TestLiveCertUpdate(c *C) {
 	c.Assert(s.mux.UpsertHost(h), IsNil)
 	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
 
-	response, bodyBytes, err := GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 
 	h.Cert = &Certificate{Key: localhostKey2, Cert: localhostCert2}
 	c.Assert(s.mux.UpdateHostCert(h.Name, h.Cert), IsNil)
 
-	response, bodyBytes, err = GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 }
 
 func (s *ServerSuite) TestSNI(c *C) {
-	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint 1"))
-	})
+	e := newTestServer("Hi, I'm endpoint 1")
 	defer e.Close()
 
-	e2 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint 2"))
-	})
+	e2 := newTestServer("Hi, I'm endpoint 2")
 	defer e2.Close()
 
 	c.Assert(s.mux.Start(), IsNil)
@@ -197,32 +163,20 @@ func (s *ServerSuite) TestSNI(c *C) {
 	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
 	c.Assert(s.mux.UpsertLocation(h2, l2), IsNil)
 
-	response, bodyBytes, err := GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 1")
-
-	response, bodyBytes, err = GET(makeURL(l, h2.Listeners[0]), "otherhost")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 2")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint 1")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), "otherhost"), Equals, "Hi, I'm endpoint 2")
 
 	s.mux.DeleteHost(h2.Name)
 
-	response, bodyBytes, err = GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 1")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint 1")
 
-	response, _, err = GET(makeURL(l, h2.Listeners[0]), "otherhost")
+	response, _, err := GET(makeURL(l, h2.Listeners[0]), "otherhost")
 	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Not(Equals), http.StatusOK)
 }
 
 func (s *ServerSuite) TestHijacking(c *C) {
-	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint 1"))
-	})
+	e := newTestServer("Hi, I'm endpoint 1")
 	defer e.Close()
 
 	c.Assert(s.mux.Start(), IsNil)
@@ -233,17 +187,12 @@ func (s *ServerSuite) TestHijacking(c *C) {
 
 	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
 
-	response, bodyBytes, err := GET(makeURL(l, h.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 1")
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint 1")
 
 	mux2, err := NewMuxServerWithOptions(s.lastId, Options{})
 	c.Assert(err, IsNil)
 
-	e2 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hi, I'm endpoint 2"))
-	})
+	e2 := newTestServer("Hi, I'm endpoint 2")
 	defer e2.Close()
 
 	l2, h2 := makeLocation("localhost", "localhost:31000", e2.URL)
@@ -257,10 +206,277 @@ func (s *ServerSuite) TestHijacking(c *C) {
 	s.mux.Stop(true)
 	defer mux2.Stop(true)
 
-	response, bodyBytes, err = GET(makeURL(l2, h2.Listeners[0]), "")
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 2")
+	c.Assert(GETResponse(c, makeURL(l2, h2.Listeners[0]), ""), Equals, "Hi, I'm endpoint 2")
+}
+
+func (s *ServerSuite) TestLocationProperties(c *C) {
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := makeLocation("localhost", "localhost:31000", "http://localhost:12345")
+	l.Middlewares = []*MiddlewareInstance{
+		makeRateLimit("rl1", 100, "client.ip", 200, 10, l),
+	}
+	l.Options = LocationOptions{
+		Timeouts: LocationTimeouts{
+			Dial: "14s",
+		},
+	}
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	// Make sure location is here
+	loc := s.mux.getLocation(h.Name, l.Id)
+	c.Assert(loc, NotNil)
+	c.Assert(loc.GetOptions().Timeouts.Dial, Equals, time.Second*14)
+
+	// Make sure the endpoint has been added to the location
+	lb := s.mux.getLocationLB(h.Name, l.Id)
+	c.Assert(lb, NotNil)
+
+	// Check that endpoint is here
+	endpoints := lb.GetEndpoints()
+	c.Assert(len(endpoints), Equals, 1)
+	assertSameEndpoints(c, endpoints, l.Upstream.Endpoints)
+
+	// Make sure connection limit and rate limit are here as well
+	chain := loc.GetMiddlewareChain()
+	c.Assert(chain.Get("ratelimit.rl1"), NotNil)
+
+	// Delete the location
+	c.Assert(s.mux.DeleteLocation(h, l.Id), IsNil)
+
+	// Make sure it's no longer in the proxy
+	loc = s.mux.getLocation(h.Name, l.Id)
+	c.Assert(loc, IsNil)
+}
+
+func (s *ServerSuite) TestUpdateLocationOptions(c *C) {
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := makeLocation("localhost", "localhost:31000", "http://localhost:12345")
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	l.Options = LocationOptions{
+		Timeouts: LocationTimeouts{
+			Dial: "7s",
+		},
+		FailoverPredicate: "IsNetworkError",
+	}
+	c.Assert(s.mux.UpdateLocationOptions(h, l), IsNil)
+
+	lo := s.mux.getLocation(h.Name, l.Id)
+	c.Assert(lo.GetOptions().ShouldFailover, NotNil)
+	c.Assert(lo.GetOptions().Timeouts.Dial, Equals, time.Second*7)
+}
+
+func (s *ServerSuite) TestTrieRoutes(c *C) {
+	e1 := newTestServer("Hi, I'm endpoint 1")
+	defer e1.Close()
+
+	e2 := newTestServer("Hi, I'm endpoint 2")
+	defer e2.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	l1, h1 := makeLocation("localhost", "localhost:31000", e1.URL)
+	l1.Path = `TrieRoute("/loc/path1")`
+	l1.Id = "loc1"
+
+	l2, h2 := makeLocation("localhost", "localhost:31000", e2.URL)
+	l2.Path = `TrieRoute("/loc/path2")`
+	l2.Id = "loc2"
+
+	c.Assert(s.mux.UpsertLocation(h1, l1), IsNil)
+	c.Assert(s.mux.UpsertLocation(h2, l2), IsNil)
+
+	c.Assert(GETResponse(c, "http://localhost:31000/loc/path1", ""), Equals, "Hi, I'm endpoint 1")
+	c.Assert(GETResponse(c, "http://localhost:31000/loc/path2", ""), Equals, "Hi, I'm endpoint 2")
+}
+
+func (s *ServerSuite) TestUpdateLocationUpstream(c *C) {
+	c.Assert(s.mux.Start(), IsNil)
+
+	e1 := newTestServer("1")
+	defer e1.Close()
+
+	e2 := newTestServer("2")
+	defer e2.Close()
+
+	e3 := newTestServer("3")
+	defer e3.Close()
+
+	h := &Host{
+		Name:      "localhost",
+		Listeners: []*Listener{&Listener{Protocol: HTTP, Address: Address{"tcp", "localhost:31000"}}},
+	}
+	up1 := &Upstream{
+		Id: "up1",
+		Endpoints: []*Endpoint{
+			{
+				Url: e1.URL,
+			},
+			{
+				Url: e2.URL,
+			},
+		},
+	}
+
+	up2 := &Upstream{
+		Id: "up2",
+		Endpoints: []*Endpoint{
+			{
+				Url: e2.URL,
+			},
+			{
+				Url: e3.URL,
+			},
+		},
+	}
+
+	l := &Location{
+		Hostname: h.Name,
+		Path:     "/loc1",
+		Id:       "loc1",
+		Upstream: up1,
+	}
+
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	// Make sure the endpoint has been added to the location
+	lb := s.mux.getLocationLB(h.Name, l.Id)
+	c.Assert(lb, NotNil)
+
+	assertSameEndpoints(c, lb.GetEndpoints(), up1.Endpoints)
+
+	responseSet := make(map[string]bool)
+	responseSet[GETResponse(c, "http://localhost:31000/loc1", "")] = true
+	responseSet[GETResponse(c, "http://localhost:31000/loc1", "")] = true
+
+	c.Assert(responseSet, DeepEquals, map[string]bool{"1": true, "2": true})
+
+	l.Upstream = up2
+
+	c.Assert(s.mux.UpdateLocationUpstream(h, l), IsNil)
+
+	assertSameEndpoints(c, lb.GetEndpoints(), up2.Endpoints)
+
+	responseSet = make(map[string]bool)
+	responseSet[GETResponse(c, "http://localhost:31000/loc1", "")] = true
+	responseSet[GETResponse(c, "http://localhost:31000/loc1", "")] = true
+
+	c.Assert(responseSet, DeepEquals, map[string]bool{"2": true, "3": true})
+}
+
+func (s *ServerSuite) TestUpstreamEndpointCRUD(c *C) {
+	e1 := newTestServer("1")
+	defer e1.Close()
+
+	e2 := newTestServer("2")
+	defer e2.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := makeLocation("localhost", "localhost:31000", e1.URL)
+
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	lb := s.mux.getLocationLB(h.Name, l.Id)
+	c.Assert(lb, NotNil)
+
+	// Endpoints are taken from the upstream
+	up := l.Upstream
+	assertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
+
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "1")
+
+	// Add some endpoints to location
+	newEndpoint := &Endpoint{
+		Id:  e2.URL,
+		Url: e2.URL,
+	}
+	up.Endpoints = append(up.Endpoints, newEndpoint)
+
+	c.Assert(s.mux.UpsertEndpoint(up, newEndpoint, []*Location{l}), IsNil)
+
+	// Endpoints have been updated in the load balancer
+	assertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
+
+	// And actually work
+	responseSet := make(map[string]bool)
+	responseSet[GETResponse(c, makeURL(l, h.Listeners[0]), "")] = true
+	responseSet[GETResponse(c, makeURL(l, h.Listeners[0]), "")] = true
+
+	c.Assert(responseSet, DeepEquals, map[string]bool{"1": true, "2": true})
+
+	up.Endpoints = up.Endpoints[:1]
+	c.Assert(s.mux.DeleteEndpoint(up, newEndpoint.Id, []*Location{l}), IsNil)
+
+	assertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
+
+	// And actually work
+	responseSet = make(map[string]bool)
+	responseSet[GETResponse(c, makeURL(l, h.Listeners[0]), "")] = true
+	responseSet[GETResponse(c, makeURL(l, h.Listeners[0]), "")] = true
+
+	c.Assert(responseSet, DeepEquals, map[string]bool{"1": true})
+}
+
+func (s *ServerSuite) TestUpstreamAddBadEndpoint(c *C) {
+	e1 := newTestServer("1")
+	defer e1.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := makeLocation("localhost", "localhost:31000", e1.URL)
+
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	lb := s.mux.getLocationLB(h.Name, l.Id)
+	c.Assert(lb, NotNil)
+
+	// Endpoints are taken from the upstream
+	up := l.Upstream
+	assertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
+
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "1")
+
+	// Add some endpoints to location
+	newEndpoint := &Endpoint{
+		Url: "http: local-host :500",
+	}
+	up.Endpoints = append(up.Endpoints, newEndpoint)
+
+	c.Assert(s.mux.UpsertEndpoint(up, newEndpoint, []*Location{l}), NotNil)
+
+	// Endpoints have not been updated in the load balancer
+	assertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints[:1])
+}
+
+func (s *ServerSuite) TestUpstreamUpdateEndpoint(c *C) {
+	e1 := newTestServer("1")
+	defer e1.Close()
+
+	e2 := newTestServer("2")
+	defer e2.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := makeLocation("localhost", "localhost:31000", e1.URL)
+
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "1")
+
+	ep := l.Upstream.Endpoints[0]
+	ep.Url = e2.URL
+
+	c.Assert(s.mux.UpsertEndpoint(l.Upstream, ep, []*Location{l}), IsNil)
+
+	c.Assert(GETResponse(c, makeURL(l, h.Listeners[0]), ""), Equals, "2")
+}
+
+func (s *ServerSuite) TestConvertPath(c *C) {
+	c.Assert(convertPath(`TrieRoute("hello")`), Equals, `TrieRoute("hello")`)
+	c.Assert(convertPath(`RegexpRoute("hello")`), Equals, `RegexpRoute("hello")`)
+	c.Assert(convertPath(`/hello`), Equals, `RegexpRoute("/hello")`)
 }
 
 func makeURL(loc *Location, l *Listener) string {
@@ -276,6 +492,7 @@ func makeLocation(hostname, listenerAddress, endpointURL string) (*Location, *Ho
 		Id: "up1",
 		Endpoints: []*Endpoint{
 			{
+				Id:  endpointURL,
 				Url: endpointURL,
 			},
 		},
@@ -287,6 +504,13 @@ func makeLocation(hostname, listenerAddress, endpointURL string) (*Location, *Ho
 		Upstream: upstream,
 	}
 	return location, host
+}
+
+func GETResponse(c *C, url string, host string) string {
+	response, body, err := GET(url, host)
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	return string(body)
 }
 
 func GET(url string, host string) (*http.Response, []byte, error) {
@@ -314,6 +538,36 @@ func GET(url string, host string) (*http.Response, []byte, error) {
 		return response, bodyBytes, err
 	}
 	return response, nil, err
+}
+
+func makeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *Location) *MiddlewareInstance {
+	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
+	if err != nil {
+		panic(err)
+	}
+	return &MiddlewareInstance{
+		Type:       "ratelimit",
+		Id:         id,
+		Middleware: rl,
+	}
+}
+
+func assertSameEndpoints(c *C, a []*roundrobin.WeightedEndpoint, b []*Endpoint) {
+	x, y := map[string]bool{}, map[string]bool{}
+	for _, e := range a {
+		x[e.GetUrl().String()] = true
+	}
+
+	for _, e := range b {
+		y[e.Url] = true
+	}
+	c.Assert(x, DeepEquals, y)
+}
+
+func newTestServer(response string) *httptest.Server {
+	return NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(response))
+	})
 }
 
 // localhostCert is a PEM-encoded TLS cert with SAN IPs

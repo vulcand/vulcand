@@ -256,9 +256,9 @@ func processChange(s server.Server, ch interface{}) error {
 	case *backend.UpstreamDeleted:
 		return nil
 	case *backend.EndpointAdded:
-		return s.AddEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
+		return s.UpsertEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
 	case *backend.EndpointUpdated:
-		return s.AddEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
+		return s.UpsertEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
 	case *backend.EndpointDeleted:
 		return s.DeleteEndpoint(change.Upstream, change.EndpointId, change.AffectedLocations)
 	}

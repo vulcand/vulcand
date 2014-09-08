@@ -328,8 +328,8 @@ func (m *MuxServer) DeleteLocation(host *backend.Host, locationId string) error 
 	return m.deleteLocation(host, locationId)
 }
 
-func (m *MuxServer) AddEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
-	log.Infof("%s AddEdpoint %s %s", m, upstream, e)
+func (m *MuxServer) UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
+	log.Infof("%s UpsertEdpoint %s %s", m, upstream, e)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
