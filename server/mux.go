@@ -150,6 +150,11 @@ func (m *MuxServer) stopServers() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	if m.state == stateInit {
+		m.state = stateShuttingDown
+		return
+	}
+
 	if m.state == stateShuttingDown {
 		return
 	}

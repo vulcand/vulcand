@@ -60,6 +60,26 @@ func (s *ServerSuite) TestServerCRUD(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *ServerSuite) TestServerDefaultListener(c *C) {
+	e := newTestServer("Hi, I'm endpoint")
+	defer e.Close()
+
+	defaultListener := &Listener{Protocol: HTTP, Address: Address{"tcp", "localhost:41000"}}
+
+	m, err := NewMuxServerWithOptions(s.lastId, Options{DefaultListener: defaultListener})
+	defer m.Stop(true)
+	c.Assert(err, IsNil)
+	s.mux = m
+
+	l, h := makeLocation("localhost", "localhost:31000", e.URL)
+
+	h.Listeners = []*Listener{}
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+	c.Assert(GETResponse(c, makeURL(l, defaultListener), ""), Equals, "Hi, I'm endpoint")
+}
+
 // Test case when you have two hosts on the same domain
 func (s *ServerSuite) TestTwoHosts(c *C) {
 	e := newTestServer("Hi, I'm endpoint 1")
