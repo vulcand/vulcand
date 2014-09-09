@@ -13,6 +13,8 @@ type MemBackend struct {
 	Hosts     []*Host
 	Upstreams []*Upstream
 	Registry  *Registry
+	ChangesC  chan interface{}
+	ErrorsC   chan error
 }
 
 func NewMemBackend(r *Registry) *MemBackend {
@@ -20,7 +22,12 @@ func NewMemBackend(r *Registry) *MemBackend {
 		Hosts:     []*Host{},
 		Upstreams: []*Upstream{},
 		Registry:  r,
+		ChangesC:  make(chan interface{}, 1000),
+		ErrorsC:   make(chan error),
 	}
+}
+
+func (m *MemBackend) Close() {
 }
 
 func (m *MemBackend) autoId() string {
@@ -131,18 +138,18 @@ func (m *MemBackend) AddLocation(loc *Location) (*Location, error) {
 	if l, _ := m.GetLocation(loc.Hostname, loc.Id); l != nil {
 		return nil, &AlreadyExistsError{}
 	}
-
 	up, _ := m.GetUpstream(loc.Upstream.Id)
+
 	if up == nil {
 		return nil, &NotFoundError{}
 	}
-
 	loc.Upstream = up
 
 	if loc.Id == "" {
 		loc.Id = m.autoId()
 	}
 	host.Locations = append(host.Locations, loc)
+
 	return loc, nil
 }
 
@@ -314,6 +321,17 @@ func (m *MemBackend) DeleteEndpoint(upstreamId, id string) error {
 	return &NotFoundError{}
 }
 
-func (m *MemBackend) WatchChanges(changes chan interface{}, initialSetup bool) error {
-	return nil
+func (m *MemBackend) WatchChanges(changes chan interface{}) error {
+	for {
+		select {
+		case change := <-m.ChangesC:
+			select {
+			case changes <- change:
+			case err := <-m.ErrorsC:
+				return err
+			}
+		case err := <-m.ErrorsC:
+			return err
+		}
+	}
 }

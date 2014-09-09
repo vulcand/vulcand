@@ -41,18 +41,30 @@ type Supervisor struct {
 	restartC chan error
 	// closeC is a channel to tell everyone to stop working and exit at the earliest convenience.
 	closeC chan bool
+
+	options Options
+
+	started bool
 }
 
-func NewSupervisor(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error, timeProvider timetools.TimeProvider) (s *Supervisor) {
+type Options struct {
+	TimeProvider timetools.TimeProvider
+}
+
+func NewSupervisor(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error) (s *Supervisor) {
+	return NewSupervisorWithOptions(newSrv, newBackend, errorC, Options{})
+}
+
+func NewSupervisorWithOptions(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error, options Options) (s *Supervisor) {
 	return &Supervisor{
-		wg:           &sync.WaitGroup{},
-		mtx:          &sync.RWMutex{},
-		newSrv:       newSrv,
-		newBackend:   newBackend,
-		timeProvider: timeProvider,
-		errorC:       errorC,
-		restartC:     make(chan error),
-		closeC:       make(chan bool),
+		wg:         &sync.WaitGroup{},
+		mtx:        &sync.RWMutex{},
+		newSrv:     newSrv,
+		newBackend: newBackend,
+		options:    parseOptions(options),
+		errorC:     errorC,
+		restartC:   make(chan error),
+		closeC:     make(chan bool),
 	}
 }
 
@@ -66,6 +78,18 @@ func (s *Supervisor) setCurrentServer(srv server.Server) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	s.srv = srv
+}
+
+func (s *Supervisor) isStarted() bool {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	return s.started
+}
+
+func (s *Supervisor) setStarted() {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.started = true
 }
 
 func (s *Supervisor) GetConnWatcher() *connwatch.ConnectionWatcher {
@@ -129,7 +153,7 @@ func (s *Supervisor) init() error {
 			// Graceful shutdown without restart
 			backend.Close()
 			log.Infof("%s backend watcher got nil error, gracefully shutdown", srv)
-			close(s.restartC)
+			s.restartC <- nil
 		}
 	}()
 
@@ -165,6 +189,7 @@ func (s *Supervisor) stop() {
 func (s *Supervisor) supervise() {
 	for {
 		err := <-s.restartC
+
 		// This means graceful shutdown, do nothing and return
 		if err == nil {
 			log.Infof("watchErrors - graceful shutdown")
@@ -172,7 +197,7 @@ func (s *Supervisor) supervise() {
 			return
 		}
 		for {
-			s.timeProvider.Sleep(retryPeriod)
+			s.options.TimeProvider.Sleep(retryPeriod)
 			log.Infof("supervise() restarting %s on error: %s", s.srv, err)
 			// We failed to initialize server, this error can not be recovered, so send an error and exit
 			if err := s.init(); err != nil {
@@ -185,12 +210,16 @@ func (s *Supervisor) supervise() {
 }
 
 func (s *Supervisor) Start() error {
+	defer s.setStarted()
 	go s.supervise()
 	return s.init()
 }
 
 func (s *Supervisor) Stop(wait bool) {
 	close(s.restartC)
+	if !s.isStarted() {
+		return
+	}
 	if wait {
 		<-s.closeC
 		log.Infof("All operations stopped")
@@ -220,6 +249,13 @@ func initServer(backend backend.Backend, srv server.Server) error {
 		}
 	}
 	return nil
+}
+
+func parseOptions(o Options) Options {
+	if o.TimeProvider == nil {
+		o.TimeProvider = &timetools.RealTime{}
+	}
+	return o
 }
 
 // processChange takes the backend change notification emitted by the backend and applies it to the server

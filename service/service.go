@@ -11,7 +11,6 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	runtime "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-runtime"
-	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
@@ -64,8 +63,7 @@ func (s *Service) Start() error {
 		}
 	}
 
-	s.supervisor = supervisor.NewSupervisor(
-		s.newServer, s.newBackend, s.errorC, &timetools.RealTime{})
+	s.supervisor = supervisor.NewSupervisor(s.newServer, s.newBackend, s.errorC)
 
 	// Tells configurator to perform initial proxy configuration and start watching changes
 	if err := s.supervisor.Start(); err != nil {
