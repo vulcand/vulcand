@@ -218,6 +218,7 @@ func NewListener(id, protocol, network, address string) (*Listener, error) {
 	}
 
 	return &Listener{
+		Id:       id,
 		Address:  *a,
 		Protocol: protocol,
 	}, nil

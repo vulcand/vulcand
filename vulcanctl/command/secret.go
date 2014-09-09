@@ -82,7 +82,7 @@ func (cmd *Command) sealCertAction(c *cli.Context) {
 		return
 	}
 
-	bytes, err := sealCert(box, cert)
+	bytes, err := secret.SealCertToJSON(box, cert)
 	if err != nil {
 		cmd.printError(fmt.Errorf("Failed to seal certificate: %s", err))
 		return

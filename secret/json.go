@@ -3,6 +3,7 @@ package secret
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mailgun/vulcand/backend"
 )
 
 type sealedValue struct {
@@ -27,6 +28,20 @@ func SealedValueFromJSON(bytes []byte) (*SealedBytes, error) {
 		return nil, fmt.Errorf("unsupported encryption type: '%s'", v.Encryption)
 	}
 	return &v.Value, nil
+}
+
+func SealCertToJSON(box *Box, cert *backend.Certificate) ([]byte, error) {
+	bytes, err := json.Marshal(cert)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to JSON encode certificate: %s", bytes)
+	}
+
+	sealed, err := box.Seal(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return SealedValueToJSON(sealed)
 }
 
 const encryptionSecretBox = "secretbox.v1"

@@ -49,6 +49,7 @@ func (cmd *Command) Run(args []string) error {
 		NewUpstreamCommand(cmd),
 		NewLocationCommand(cmd),
 		NewEndpointCommand(cmd),
+		NewListenerCommand(cmd),
 	}
 	app.Commands = append(app.Commands, NewMiddlewareCommands(cmd)...)
 	return app.Run(args)
