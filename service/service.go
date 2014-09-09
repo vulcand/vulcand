@@ -15,6 +15,7 @@ import (
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/etcdbackend"
+	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/secret"
 	"github.com/mailgun/vulcand/server"
@@ -100,10 +101,10 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) newBox() (*secret.Box, error) {
-	if s.options.BoxKey == "" {
+	if s.options.SealKey == "" {
 		return nil, nil
 	}
-	key, err := secret.KeyFromString(s.options.BoxKey)
+	key, err := secret.KeyFromString(s.options.SealKey)
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +124,8 @@ func (s *Service) newBackend() (backend.Backend, error) {
 		})
 }
 
-func (s *Service) newServer(id int) (server.Server, error) {
-	return server.NewMuxServerWithOptions(id, server.Options{
+func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
+	return server.NewMuxServerWithOptions(id, cw, server.Options{
 		DialTimeout:    s.options.EndpointDialTimeout,
 		ReadTimeout:    s.options.ServerReadTimeout,
 		WriteTimeout:   s.options.ServerWriteTimeout,

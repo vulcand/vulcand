@@ -13,9 +13,10 @@ import (
 	"github.com/mailgun/vulcand/api"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
-	"github.com/mailgun/vulcand/configure"
+	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/server"
+	"github.com/mailgun/vulcand/supervisor"
 )
 
 func TestVulcanCommandLineTool(t *testing.T) { TestingT(t) }
@@ -36,14 +37,18 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.backend = membackend.NewMemBackend(registry.GetRegistry())
 
+	newServer := func(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
+		return server.NewMuxServerWithOptions(id, cw, server.Options{})
+	}
+
+	newBackend := func() (Backend, error) {
+		return s.backend, nil
+	}
+
+	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
 	muxRouter := mux.NewRouter()
-	srv, err := server.NewMuxServer()
-	c.Assert(err, IsNil)
 
-	configurator := configure.NewConfigurator(srv)
-	c.Assert(err, IsNil)
-
-	api.InitProxyController(s.backend, configurator, configurator.GetConnWatcher(), muxRouter)
+	api.InitProxyController(s.backend, sv, sv.GetConnWatcher(), muxRouter)
 	s.testServer = httptest.NewServer(muxRouter)
 
 	s.out = &bytes.Buffer{}

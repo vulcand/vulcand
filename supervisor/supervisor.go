@@ -42,6 +42,8 @@ type Supervisor struct {
 	// closeC is a channel to tell everyone to stop working and exit at the earliest convenience.
 	closeC chan bool
 
+	connWatcher *connwatch.ConnectionWatcher
+
 	options Options
 
 	started bool
@@ -57,14 +59,15 @@ func NewSupervisor(newSrv server.NewServerFn, newBackend backend.NewBackendFn, e
 
 func NewSupervisorWithOptions(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error, options Options) (s *Supervisor) {
 	return &Supervisor{
-		wg:         &sync.WaitGroup{},
-		mtx:        &sync.RWMutex{},
-		newSrv:     newSrv,
-		newBackend: newBackend,
-		options:    parseOptions(options),
-		errorC:     errorC,
-		restartC:   make(chan error),
-		closeC:     make(chan bool),
+		wg:          &sync.WaitGroup{},
+		mtx:         &sync.RWMutex{},
+		newSrv:      newSrv,
+		newBackend:  newBackend,
+		options:     parseOptions(options),
+		errorC:      errorC,
+		restartC:    make(chan error),
+		closeC:      make(chan bool),
+		connWatcher: connwatch.NewConnectionWatcher(),
 	}
 }
 
@@ -93,15 +96,19 @@ func (s *Supervisor) setStarted() {
 }
 
 func (s *Supervisor) GetConnWatcher() *connwatch.ConnectionWatcher {
-	return s.getCurrentServer().GetConnWatcher()
+	return s.connWatcher
 }
 
 func (s *Supervisor) GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats {
-	return s.getCurrentServer().GetStats(hostname, locationId, e)
+	srv := s.getCurrentServer()
+	if srv != nil {
+		return srv.GetStats(hostname, locationId, e)
+	}
+	return nil
 }
 
 func (s *Supervisor) init() error {
-	srv, err := s.newSrv(s.lastId)
+	srv, err := s.newSrv(s.lastId, s.connWatcher)
 	if err != nil {
 		return err
 	}

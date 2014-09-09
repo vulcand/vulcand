@@ -49,13 +49,13 @@ func (m *MuxServer) String() string {
 	return fmt.Sprintf("MuxServer(%d, %s)", m.id, stateDescription(m.state))
 }
 
-func NewMuxServerWithOptions(id int, o Options) (*MuxServer, error) {
+func NewMuxServerWithOptions(id int, connWatcher *connwatch.ConnectionWatcher, o Options) (*MuxServer, error) {
 	return &MuxServer{
 		id:          id,
 		hostRouters: make(map[string]*exproute.ExpRouter),
 		servers:     make(map[backend.Address]*server),
 		options:     o,
-		connWatcher: connwatch.NewConnectionWatcher(),
+		connWatcher: connWatcher,
 		wg:          &sync.WaitGroup{},
 		mtx:         &sync.RWMutex{},
 	}, nil

@@ -8,6 +8,7 @@ import (
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/testutils"
 	"testing"
 )
@@ -22,7 +23,7 @@ type ServerSuite struct {
 }
 
 func (s *ServerSuite) SetUpTest(c *C) {
-	m, err := NewMuxServerWithOptions(s.lastId, Options{})
+	m, err := NewMuxServerWithOptions(s.lastId, connwatch.NewConnectionWatcher(), Options{})
 	c.Assert(err, IsNil)
 	s.mux = m
 }
@@ -60,7 +61,7 @@ func (s *ServerSuite) TestServerDefaultListener(c *C) {
 
 	defaultListener := &Listener{Protocol: HTTP, Address: Address{"tcp", "localhost:41000"}}
 
-	m, err := NewMuxServerWithOptions(s.lastId, Options{DefaultListener: defaultListener})
+	m, err := NewMuxServerWithOptions(s.lastId, connwatch.NewConnectionWatcher(), Options{DefaultListener: defaultListener})
 	defer m.Stop(true)
 	c.Assert(err, IsNil)
 	s.mux = m
@@ -205,7 +206,7 @@ func (s *ServerSuite) TestHijacking(c *C) {
 
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint 1")
 
-	mux2, err := NewMuxServerWithOptions(s.lastId, Options{})
+	mux2, err := NewMuxServerWithOptions(s.lastId, connwatch.NewConnectionWatcher(), Options{})
 	c.Assert(err, IsNil)
 
 	e2 := NewTestServer("Hi, I'm endpoint 2")

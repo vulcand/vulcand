@@ -30,7 +30,6 @@ type Server interface {
 
 	HijackListenersFrom(Server) error
 
-	GetConnWatcher() *connwatch.ConnectionWatcher
 	GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats
 
 	Start() error
@@ -45,4 +44,4 @@ type Options struct {
 	DefaultListener *backend.Listener
 }
 
-type NewServerFn func(id int) (Server, error)
+type NewServerFn func(id int, cw *connwatch.ConnectionWatcher) (Server, error)

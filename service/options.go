@@ -27,7 +27,7 @@ type Options struct {
 	EndpointDialTimeout time.Duration
 	EndpointReadTimeout time.Duration
 
-	BoxKey string
+	SealKey string
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -54,6 +54,12 @@ func validateOptions(o Options) (Options, error) {
 		if f.Name == "writeTimeout" {
 			fmt.Printf("!!!!!! WARN: Using deprecated writeTimeout flag, use serverWriteTimeout instead\n\n")
 		}
+		if f.Name == "port" {
+			fmt.Printf("!!!!!! WARN: Using deprecated port flag, use Listeners instead\n\n")
+		}
+		if f.Name == "interface" {
+			fmt.Printf("!!!!!! WARN: Using deprecated interface flag, use Listeners instead\n\n")
+		}
 	})
 	return o, nil
 }
@@ -79,7 +85,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.DurationVar(&options.EndpointDialTimeout, "endpointDialTimeout", time.Duration(5)*time.Second, "Endpoint dial timeout")
 	flag.DurationVar(&options.EndpointReadTimeout, "endpointReadTimeout", time.Duration(50)*time.Second, "Endpoint read timeout")
 
-	flag.StringVar(&options.BoxKey, "boxKey", "", "Vulcand encrypton key")
+	flag.StringVar(&options.SealKey, "sealKey", "", "Seal key used to store encrypted data in the backend")
 
 	flag.Parse()
 	options, err = validateOptions(options)

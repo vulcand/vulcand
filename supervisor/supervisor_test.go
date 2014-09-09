@@ -9,6 +9,7 @@ import (
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
+	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/server"
 	. "github.com/mailgun/vulcand/testutils"
@@ -25,8 +26,8 @@ type SupervisorSuite struct {
 
 func (s *SupervisorSuite) SetUpTest(c *C) {
 
-	newServer := func(id int) (server.Server, error) {
-		return server.NewMuxServerWithOptions(id, server.Options{})
+	newServer := func(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
+		return server.NewMuxServerWithOptions(id, cw, server.Options{})
 	}
 
 	s.b = membackend.NewMemBackend(registry.GetRegistry())
