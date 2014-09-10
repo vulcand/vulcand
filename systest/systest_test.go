@@ -4,6 +4,7 @@
 package systest
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,6 +16,9 @@ import (
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/secret"
+	"github.com/mailgun/vulcand/testutils"
 )
 
 func TestVulcandWithEtcd(t *testing.T) { TestingT(t) }
@@ -26,6 +30,8 @@ type VESuite struct {
 	serviceUrl string
 	etcdNodes  string
 	etcdPrefix string
+	sealKey    string
+	box        *secret.Box
 	client     *etcd.Client
 }
 
@@ -62,6 +68,20 @@ func (s *VESuite) SetUpSuite(c *C) {
 		c.Skip("This test requires running vulcand daemon, provide API url via VULCAND_TEST_SERVICE_URL environment variable")
 		return
 	}
+
+	s.sealKey = os.Getenv("VULCAND_TEST_SEAL_KEY")
+	if s.sealKey == "" {
+		c.Skip("This test requires running vulcand daemon, provide API url via VULCAND_TEST_SEAL_KEY environment variable")
+		return
+	}
+
+	key, err := secret.KeyFromString(s.sealKey)
+	c.Assert(err, IsNil)
+
+	box, err := secret.NewBox(key)
+	c.Assert(err, IsNil)
+
+	s.box = box
 }
 
 func (s VESuite) path(keys ...string) string {
@@ -210,4 +230,95 @@ func (s *VESuite) TestUpdateUpstreamLocation(c *C) {
 	response, body = Get(c, url, nil, "")
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(string(body), Equals, "2")
+}
+
+// Set up a location with a path, hit this location and make sure everything worked fine
+func (s *VESuite) TestHTTPListenerCrud(c *C) {
+	called := false
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server.Close()
+
+	// Create upstream and endpoint
+	up, e, url := "up1", "e1", server.URL
+	_, err := s.client.Set(s.path("upstreams", up, "endpoints", e), url, 0)
+	c.Assert(err, IsNil)
+
+	// Add location
+	host, locId, path := "localhost", "loc1", "/path"
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "path"), path, 0)
+	c.Assert(err, IsNil)
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
+	c.Assert(err, IsNil)
+
+	// Add HTTP listener
+	l1 := "l1"
+	listener, err := backend.NewListener(l1, "http", "tcp", "localhost:31000")
+	c.Assert(err, IsNil)
+	bytes, err := json.Marshal(listener)
+	c.Assert(err, IsNil)
+	s.client.Set(s.path("hosts", host, "listeners", l1), string(bytes), 0)
+
+	time.Sleep(time.Second)
+	testutils.GETResponse(c, fmt.Sprintf("%s%s", "http://localhost:31000", path), "")
+	c.Assert(called, Equals, true)
+
+	_, err = s.client.Delete(s.path("hosts", host, "listeners", l1), true)
+	c.Assert(err, IsNil)
+
+	time.Sleep(time.Second)
+
+	_, _, err = testutils.GET(fmt.Sprintf("%s%s", "http://localhost:31000", path), "")
+	c.Assert(err, NotNil)
+}
+
+func (s *VESuite) TestHTTPSListenerCrud(c *C) {
+	called := false
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server.Close()
+
+	// Create upstream and endpoint
+	up, e, url := "up1", "e1", server.URL
+	_, err := s.client.Set(s.path("upstreams", up, "endpoints", e), url, 0)
+	c.Assert(err, IsNil)
+
+	// Add location
+	host, locId, path := "localhost", "loc1", "/path"
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "path"), path, 0)
+	c.Assert(err, IsNil)
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
+	c.Assert(err, IsNil)
+
+	cert := testutils.NewTestCert()
+
+	bytes, err := secret.SealCertToJSON(s.box, cert)
+	c.Assert(err, IsNil)
+
+	_, err = s.client.Set(s.path("hosts", host, "cert"), string(bytes), 0)
+	c.Assert(err, IsNil)
+
+	// Add HTTPS listener
+	l := "l2"
+	listener, err := backend.NewListener(l, "https", "tcp", "localhost:32000")
+	c.Assert(err, IsNil)
+	bytes, err = json.Marshal(listener)
+	c.Assert(err, IsNil)
+	s.client.Set(s.path("hosts", host, "listeners", l), string(bytes), 0)
+
+	time.Sleep(time.Second)
+	testutils.GETResponse(c, fmt.Sprintf("%s%s", "https://localhost:32000", path), "")
+	c.Assert(called, Equals, true)
+
+	_, err = s.client.Delete(s.path("hosts", host, "listeners", l), true)
+	c.Assert(err, IsNil)
+
+	time.Sleep(time.Second)
+
+	_, _, err = testutils.GET(fmt.Sprintf("%s%s", "https://localhost:32000", path), "")
+	c.Assert(err, NotNil)
 }

@@ -1,10 +1,25 @@
 {
 	"ImportPath": "github.com/mailgun/vulcand",
-	"GoVersion": "go1.3",
+	"GoVersion": "go1.3.1",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
+			"Comment": "null-218",
+			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+		},
+		{
+			"ImportPath": "code.google.com/p/go.crypto/poly1305",
+			"Comment": "null-218",
+			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+		},
+		{
+			"ImportPath": "code.google.com/p/go.crypto/salsa20/salsa",
+			"Comment": "null-218",
+			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
 			"Comment": "1.2.0-22-g687db20",
@@ -40,6 +55,11 @@
 			"Rev": "c493a7107b1c8760155d06d893741212eb4e2670"
 		},
 		{
+			"ImportPath": "github.com/mailgun/manners",
+			"Comment": "0.3.1-10-ga592baf",
+			"Rev": "a592baf3a7f0a8f905ea0bf8387ccdba73950489"
+		},
+		{
 			"ImportPath": "github.com/mailgun/minheap",
 			"Rev": "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
 		},
@@ -53,8 +73,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-184-gfa395db",
-			"Rev": "fa395db742733df8f39cc8a72ecf41cabb94119f"
+			"Comment": "v0.1-190-g6911c96",
+			"Rev": "6911c96f8c57c4a5c7fbb1920e14fc10e8b6394f"
 		},
 		{
 			"ImportPath": "github.com/wsxiaoys/terminal/color",
