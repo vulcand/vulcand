@@ -31,8 +31,8 @@ func NewHostCommand(cmd *Command) cli.Command {
 				Name: "set_cert",
 				Flags: []cli.Flag{
 					cli.StringFlag{Name: "name", Usage: "hostname"},
-					cli.StringFlag{Name: "private", Usage: "Path to a private key"},
-					cli.StringFlag{Name: "public", Usage: "Path to a public key"},
+					cli.StringFlag{Name: "privateKey", Usage: "Path to a private key"},
+					cli.StringFlag{Name: "cert", Usage: "Path to a certificate"},
 				},
 				Usage:  "Set host certificate",
 				Action: cmd.updateHostCertAction,
@@ -47,7 +47,7 @@ func (cmd *Command) addHostAction(c *cli.Context) {
 }
 
 func (cmd *Command) updateHostCertAction(c *cli.Context) {
-	cert, err := readCert(c.String("private"), c.String("public"))
+	cert, err := readCert(c.String("cert"), c.String("privateKey"))
 	if err != nil {
 		cmd.printError(fmt.Errorf("Failed to read certificate: %s", err))
 		return
