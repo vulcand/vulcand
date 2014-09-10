@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/mailgun/manners"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
