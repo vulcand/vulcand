@@ -34,6 +34,14 @@ type SealedBytes struct {
 	Nonce []byte
 }
 
+func NewBoxFromKeyString(keyS string) (*Box, error) {
+	key, err := KeyFromString(keyS)
+	if err != nil {
+		return nil, err
+	}
+	return NewBox(key)
+}
+
 func NewBox(bytes *[keyLength]byte) (*Box, error) {
 	return &Box{key: bytes}, nil
 }

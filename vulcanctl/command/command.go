@@ -1,7 +1,6 @@
 package command
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -114,18 +113,4 @@ func readBox(key string) (*secret.Box, error) {
 		return nil, fmt.Errorf("Failed to read encryption key: %s", err)
 	}
 	return secret.NewBox(keyB)
-}
-
-func sealCert(box *secret.Box, cert *backend.Certificate) ([]byte, error) {
-	bytes, err := json.Marshal(cert)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to JSON encode certificate: %s", bytes)
-	}
-
-	sealed, err := box.Seal(bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return secret.SealedValueToJSON(sealed)
 }

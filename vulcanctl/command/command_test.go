@@ -3,6 +3,7 @@ package command
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -15,8 +16,10 @@ import (
 	"github.com/mailgun/vulcand/backend/membackend"
 	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin/registry"
+	"github.com/mailgun/vulcand/secret"
 	"github.com/mailgun/vulcand/server"
 	"github.com/mailgun/vulcand/supervisor"
+	"github.com/mailgun/vulcand/testutils"
 )
 
 const OK = ".*OK.*"
@@ -204,4 +207,56 @@ func (s *CmdSuite) TestLocationUpdateOptions(c *C) {
 	l, err := s.backend.GetLocation(h, loc)
 	c.Assert(err, IsNil)
 	c.Assert(l.Options.Timeouts.Dial, Equals, "20s")
+}
+
+func (s *CmdSuite) TestReadCert(c *C) {
+	cert := testutils.NewTestCert()
+
+	key, err := secret.NewKeyString()
+	c.Assert(err, IsNil)
+
+	fKey, err := ioutil.TempFile("", "vulcand")
+	c.Assert(err, IsNil)
+	defer fKey.Close()
+	fKey.Write(cert.Key)
+
+	fCert, err := ioutil.TempFile("", "vulcand")
+	c.Assert(err, IsNil)
+	defer fCert.Close()
+	fCert.Write(cert.Cert)
+
+	fSealed, err := ioutil.TempFile("", "vulcand")
+	c.Assert(err, IsNil)
+	fSealed.Close()
+
+	s.run("secret", "seal_cert", "-privateKey", fKey.Name(), "-cert", fCert.Name(), "-sealKey", key, "-f", fSealed.Name())
+
+	bytes, err := ioutil.ReadFile(fSealed.Name())
+	c.Assert(err, IsNil)
+
+	box, err := secret.NewBoxFromKeyString(key)
+	c.Assert(err, IsNil)
+
+	sealed, err := secret.SealedValueFromJSON(bytes)
+	data, err := box.Open(sealed)
+	c.Assert(err, IsNil)
+
+	outCert, err := CertFromJson(data)
+	c.Assert(err, IsNil)
+
+	c.Assert(outCert, DeepEquals, cert)
+}
+
+func (s *CmdSuite) TestNewKey(c *C) {
+	fKey, err := ioutil.TempFile("", "vulcand")
+	c.Assert(err, IsNil)
+	fKey.Close()
+
+	s.run("secret", "new_key", "-f", fKey.Name())
+
+	bytes, err := ioutil.ReadFile(fKey.Name())
+	c.Assert(err, IsNil)
+
+	_, err = secret.NewBoxFromKeyString(string(bytes))
+	c.Assert(err, IsNil)
 }
