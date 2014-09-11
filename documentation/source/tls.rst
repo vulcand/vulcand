@@ -65,6 +65,7 @@ HTTPS listeners
 Once we have the certificate set, we can create HTTPS listeners for the host:
 
 .. code-block:: sh
+
  # Add https listener accepting requests on localhpost:8184
  etcdctl set /vulcand/hosts/example.com/listeners/l1 '{"Protocol":"https", "Address":{"Network":"tcp", "Address":"localhost:8184"}}'
 
