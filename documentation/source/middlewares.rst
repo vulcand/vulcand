@@ -1,7 +1,7 @@
 .. _middlewares:
 
-Vulcand - Middlewares
----------------------
+Middlewares
+-----------
 
 Vulcand allows you to compile in middlewares that can change, intercept or reject the request or even alter the response, 
 and provides ``vulcanbundle`` command line tool to make it easy.
