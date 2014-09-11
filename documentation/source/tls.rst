@@ -3,7 +3,7 @@
 TLS
 ---
 
-Vulcand support HTTPS via `SNI <http://en.wikipedia.org/wiki/Server_Name_Indication>`_, certificate management and multiple HTTPS instances. This guide contains all the steps required to enable TLS support in Vulcand
+Vulcand supports HTTPS via `SNI <http://en.wikipedia.org/wiki/Server_Name_Indication>`_, certificate management and multiple HTTPS instances. This guide contains all the steps required to enable TLS support in Vulcand
 
 
 Managing certificates
