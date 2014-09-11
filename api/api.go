@@ -244,7 +244,7 @@ func (c *ProxyController) DeleteEndpoint(w http.ResponseWriter, r *http.Request,
 
 	log.Infof("Delete Endpoint(url=%s) from Upstream(id=%s)", id, upstreamId)
 	if err := c.backend.DeleteEndpoint(upstreamId, id); err != nil {
-		return nil, api.GenericAPIError{Reason: fmt.Sprintf("%s", err)}
+		return nil, api.GenericAPIError{Reason: err.Error()}
 	}
 	return api.Response{"message": "Endpoint deleted"}, nil
 }
@@ -312,11 +312,11 @@ func (c *ProxyController) makeDeleteMiddleware(spec *plugin.MiddlewareSpec) http
 func formatError(e error) error {
 	switch err := e.(type) {
 	case *AlreadyExistsError:
-		return api.ConflictError{Description: fmt.Sprintf("%s", err)}
+		return api.ConflictError{Description: err.Error()}
 	case *NotFoundError:
-		return api.NotFoundError{Description: fmt.Sprintf("%s", err)}
+		return api.NotFoundError{Description: err.Error()}
 	}
-	return api.GenericAPIError{Reason: fmt.Sprintf("%s", e)}
+	return api.GenericAPIError{Reason: e.Error()}
 }
 
 func formatResult(in interface{}, err error) (interface{}, error) {
