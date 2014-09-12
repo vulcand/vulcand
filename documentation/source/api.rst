@@ -168,14 +168,12 @@ Delete host listener
 Delete a host listener
 
 
-Set host certificate
-++++++++++++++++++++
+Set host Certificates
++++++++++++++++++++++
 
 .. code-block:: url
 
-     POST 'application/json' /v1/hosts/<name>/cert
-
-Add a location to the host. Listener parameters
+     POST 'application/json' /v1/hosts/<name>/keypair
 
 .. code-block:: json
 

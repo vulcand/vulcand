@@ -63,6 +63,9 @@ Failover predicates are expressions that define when the request can be failed o
 * ``RequestMethodEq("GET")`` - allows failover for GET requests only
 * ``ResponseCodeEq(408)`` - allows failover on 408 HTTP response code
 
+.. warning::  if you omit `AttemptsLe`, failover will go into endless loop
+
+
 Etcd
 ----
 
