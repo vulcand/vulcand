@@ -30,10 +30,10 @@ func SealedValueFromJSON(bytes []byte) (*SealedBytes, error) {
 	return &v.Value, nil
 }
 
-func SealCertToJSON(box *Box, cert *backend.Certificate) ([]byte, error) {
-	bytes, err := json.Marshal(cert)
+func SealKeyPairToJSON(box *Box, keyPair *backend.KeyPair) ([]byte, error) {
+	bytes, err := json.Marshal(keyPair)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to JSON encode certificate: %s", bytes)
+		return nil, fmt.Errorf("failed to JSON encode certificate: %s", bytes)
 	}
 
 	sealed, err := box.Seal(bytes)

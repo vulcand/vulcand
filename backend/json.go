@@ -31,7 +31,7 @@ type rawMiddleware struct {
 	Middleware json.RawMessage
 }
 
-func HostsFromJson(in []byte, getter plugin.SpecGetter) ([]*Host, error) {
+func HostsFromJSON(in []byte, getter plugin.SpecGetter) ([]*Host, error) {
 	var hs *rawHosts
 	err := json.Unmarshal(in, &hs)
 	if err != nil {
@@ -40,7 +40,7 @@ func HostsFromJson(in []byte, getter plugin.SpecGetter) ([]*Host, error) {
 	out := []*Host{}
 	if hs.Hosts != nil {
 		for _, raw := range hs.Hosts {
-			h, err := HostFromJson(raw, getter)
+			h, err := HostFromJSON(raw, getter)
 			if err != nil {
 				return nil, err
 			}
@@ -50,7 +50,7 @@ func HostsFromJson(in []byte, getter plugin.SpecGetter) ([]*Host, error) {
 	return out, nil
 }
 
-func HostFromJson(in []byte, getter plugin.SpecGetter) (*Host, error) {
+func HostFromJSON(in []byte, getter plugin.SpecGetter) (*Host, error) {
 	var h *rawHost
 	err := json.Unmarshal(in, &h)
 	if err != nil {
@@ -62,7 +62,7 @@ func HostFromJson(in []byte, getter plugin.SpecGetter) (*Host, error) {
 	}
 	if h.Locations != nil {
 		for _, raw := range h.Locations {
-			l, err := LocationFromJson(raw, getter)
+			l, err := LocationFromJSON(raw, getter)
 			if err != nil {
 				return nil, err
 			}
@@ -72,7 +72,7 @@ func HostFromJson(in []byte, getter plugin.SpecGetter) (*Host, error) {
 	return out, nil
 }
 
-func ListenerFromJson(in []byte) (*Listener, error) {
+func ListenerFromJSON(in []byte) (*Listener, error) {
 	var l *Listener
 	err := json.Unmarshal(in, &l)
 	if err != nil {
@@ -81,16 +81,16 @@ func ListenerFromJson(in []byte) (*Listener, error) {
 	return NewListener(l.Id, l.Protocol, l.Address.Network, l.Address.Address)
 }
 
-func CertFromJson(in []byte) (*Certificate, error) {
-	var c *Certificate
+func KeyPairFromJSON(in []byte) (*KeyPair, error) {
+	var c *KeyPair
 	err := json.Unmarshal(in, &c)
 	if err != nil {
 		return nil, err
 	}
-	return NewCert(c.Cert, c.Key)
+	return NewKeyPair(c.Cert, c.Key)
 }
 
-func LocationFromJson(in []byte, getter plugin.SpecGetter) (*Location, error) {
+func LocationFromJSON(in []byte, getter plugin.SpecGetter) (*Location, error) {
 	var l *rawLocation
 	err := json.Unmarshal(in, &l)
 	if err != nil {
@@ -102,7 +102,7 @@ func LocationFromJson(in []byte, getter plugin.SpecGetter) (*Location, error) {
 	}
 	loc.Upstream = l.Upstream
 	for _, el := range l.Middlewares {
-		m, err := MiddlewareFromJson(el, getter)
+		m, err := MiddlewareFromJSON(el, getter)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +111,7 @@ func LocationFromJson(in []byte, getter plugin.SpecGetter) (*Location, error) {
 	return loc, nil
 }
 
-func LocationOptionsFromJson(in []byte) (*LocationOptions, error) {
+func LocationOptionsFromJSON(in []byte) (*LocationOptions, error) {
 	var o *LocationOptions
 	err := json.Unmarshal(in, &o)
 	if err != nil {
@@ -123,7 +123,7 @@ func LocationOptionsFromJson(in []byte) (*LocationOptions, error) {
 	return o, nil
 }
 
-func MiddlewareFromJson(in []byte, getter plugin.SpecGetter) (*MiddlewareInstance, error) {
+func MiddlewareFromJSON(in []byte, getter plugin.SpecGetter) (*MiddlewareInstance, error) {
 	var ms *rawMiddleware
 	err := json.Unmarshal(in, &ms)
 	if err != nil {
@@ -131,9 +131,9 @@ func MiddlewareFromJson(in []byte, getter plugin.SpecGetter) (*MiddlewareInstanc
 	}
 	spec := getter(ms.Type)
 	if spec == nil {
-		return nil, fmt.Errorf("Middleware of type %s is not supported", ms.Type)
+		return nil, fmt.Errorf("middleware of type %s is not supported", ms.Type)
 	}
-	m, err := spec.FromJson(ms.Middleware)
+	m, err := spec.FromJSON(ms.Middleware)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func MiddlewareFromJson(in []byte, getter plugin.SpecGetter) (*MiddlewareInstanc
 	}, nil
 }
 
-func UpstreamFromJson(in []byte) (*Upstream, error) {
+func UpstreamFromJSON(in []byte) (*Upstream, error) {
 	var u *Upstream
 	err := json.Unmarshal(in, &u)
 	if err != nil {
@@ -154,7 +154,7 @@ func UpstreamFromJson(in []byte) (*Upstream, error) {
 	return u, nil
 }
 
-func EndpointFromJson(in []byte) (*Endpoint, error) {
+func EndpointFromJSON(in []byte) (*Endpoint, error) {
 	var e *Endpoint
 	err := json.Unmarshal(in, &e)
 	if err != nil {

@@ -24,7 +24,7 @@ type server struct {
 	proxy       *vulcan.Proxy
 	listener    backend.Listener
 	listeners   map[string]backend.Listener
-	certs       map[string]*backend.Certificate
+	keyPairs    map[string]*backend.KeyPair
 	options     Options
 	state       int
 }
@@ -34,9 +34,9 @@ func (s *server) String() string {
 }
 
 func newServer(m *MuxServer, host *backend.Host, r route.Router, l *backend.Listener) (*server, error) {
-	certs := make(map[string]*backend.Certificate)
-	if host.Cert != nil {
-		certs[host.Name] = host.Cert
+	keyPairs := make(map[string]*backend.KeyPair)
+	if host.KeyPair != nil {
+		keyPairs[host.Name] = host.KeyPair
 	}
 
 	router := hostroute.NewHostRouter()
@@ -61,7 +61,7 @@ func newServer(m *MuxServer, host *backend.Host, r route.Router, l *backend.List
 		proxy:       proxy,
 		listener:    *l,
 		defaultHost: defaultHost,
-		certs:       certs,
+		keyPairs:    keyPairs,
 		state:       srvStateInit,
 	}, nil
 }
@@ -78,8 +78,8 @@ func (s *server) deleteHost(hostname string) (bool, error) {
 		return true, nil
 	}
 
-	if _, exists := s.certs[hostname]; exists {
-		delete(s.certs, hostname)
+	if _, exists := s.keyPairs[hostname]; exists {
+		delete(s.keyPairs, hostname)
 		if s.defaultHost == hostname {
 			s.defaultHost = ""
 		}
@@ -92,15 +92,15 @@ func (srv *server) isTLS() bool {
 	return srv.listener.Protocol == backend.HTTPS
 }
 
-func (s *server) updateHostCert(hostname string, cert *backend.Certificate) error {
-	old, exists := s.certs[hostname]
+func (s *server) updateHostKeyPair(hostname string, keyPair *backend.KeyPair) error {
+	old, exists := s.keyPairs[hostname]
 	if !exists {
-		return fmt.Errorf("host %s certificate not found")
+		return fmt.Errorf("host %s keyPairificate not found")
 	}
-	if old.Equals(cert) {
+	if old.Equals(keyPair) {
 		return nil
 	}
-	s.certs[hostname] = cert
+	s.keyPairs[hostname] = keyPair
 	return s.reload()
 }
 
@@ -124,8 +124,8 @@ func (s *server) addHost(host *backend.Host, router route.Router, listener *back
 	}
 
 	// We are serving TLS, reload server
-	if host.Cert != nil {
-		s.certs[host.Name] = host.Cert
+	if host.KeyPair != nil {
+		s.keyPairs[host.Name] = host.KeyPair
 		return s.reload()
 	}
 	return nil
@@ -145,7 +145,7 @@ func (s *server) hijackListenerFrom(so *server) error {
 	var config *tls.Config
 	if s.isTLS() {
 		var err error
-		config, err = newTLSConfig(s.certs, s.defaultHost)
+		config, err = newTLSConfig(s.keyPairs, s.defaultHost)
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func (s *server) reload() error {
 	}
 
 	// Otherwise, we need to generate new TLS config and spin up the new server on the same socket
-	config, err := newTLSConfig(s.certs, s.defaultHost)
+	config, err := newTLSConfig(s.keyPairs, s.defaultHost)
 	if err != nil {
 		return err
 	}
@@ -211,34 +211,34 @@ func (s *server) hasHost(hostname string) bool {
 	return exists
 }
 
-func newTLSConfig(certs map[string]*backend.Certificate, defaultHost string) (*tls.Config, error) {
+func newTLSConfig(keyPairs map[string]*backend.KeyPair, defaultHost string) (*tls.Config, error) {
 	config := &tls.Config{}
 
 	if config.NextProtos == nil {
 		config.NextProtos = []string{"http/1.1"}
 	}
 
-	pairs := make(map[string]tls.Certificate, len(certs))
-	for h, c := range certs {
-		cert, err := tls.X509KeyPair(c.Cert, c.Key)
+	pairs := make(map[string]tls.Certificate, len(keyPairs))
+	for h, c := range keyPairs {
+		keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
 		if err != nil {
 			return nil, err
 		}
-		pairs[h] = cert
+		pairs[h] = keyPair
 	}
 
-	config.Certificates = make([]tls.Certificate, 0, len(certs))
+	config.Certificates = make([]tls.Certificate, 0, len(keyPairs))
 	if defaultHost != "" {
-		cert, exists := pairs[defaultHost]
+		keyPair, exists := pairs[defaultHost]
 		if !exists {
 			return nil, fmt.Errorf("default host '%s' certificate is not passed", defaultHost)
 		}
-		config.Certificates = append(config.Certificates, cert)
+		config.Certificates = append(config.Certificates, keyPair)
 	}
 
-	for h, cert := range pairs {
+	for h, keyPair := range pairs {
 		if h != defaultHost {
-			config.Certificates = append(config.Certificates, cert)
+			config.Certificates = append(config.Certificates, keyPair)
 		}
 	}
 
@@ -256,7 +256,7 @@ func (s *server) start() error {
 		}
 
 		if s.isTLS() {
-			config, err := newTLSConfig(s.certs, s.defaultHost)
+			config, err := newTLSConfig(s.keyPairs, s.defaultHost)
 			if err != nil {
 				return err
 			}

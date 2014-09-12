@@ -108,8 +108,8 @@ func AssertSameEndpoints(c *C, a []*roundrobin.WeightedEndpoint, b []*Endpoint) 
 	c.Assert(x, DeepEquals, y)
 }
 
-func NewTestCert() *Certificate {
-	return &Certificate{
+func NewTestKeyPair() *KeyPair {
+	return &KeyPair{
 		Key:  LocalhostKey,
 		Cert: LocalhostCert,
 	}

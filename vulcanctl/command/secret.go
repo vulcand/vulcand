@@ -23,9 +23,9 @@ func NewKeyCommand(cmd *Command) cli.Command {
 				},
 			},
 			{
-				Name:   "seal_cert",
-				Usage:  "Seal certificate",
-				Action: cmd.sealCertAction,
+				Name:   "seal_keypair",
+				Usage:  "Seal key pair",
+				Action: cmd.sealKeyPairAction,
 				Flags: []cli.Flag{
 					cli.StringFlag{Name: "file, f", Usage: "File to write to"},
 					cli.StringFlag{Name: "sealKey", Usage: "Seal key - used to encrypt and seal certificate and private key"},
@@ -40,7 +40,7 @@ func NewKeyCommand(cmd *Command) cli.Command {
 func (cmd *Command) generateKeyAction(c *cli.Context) {
 	key, err := secret.NewKeyString()
 	if err != nil {
-		cmd.printError(fmt.Errorf("Unable to generate key: %v", err))
+		cmd.printError(fmt.Errorf("unable to generate key: %v", err))
 		return
 	}
 	stream, closer, err := getStream(c)
@@ -58,7 +58,7 @@ func (cmd *Command) generateKeyAction(c *cli.Context) {
 	}
 }
 
-func (cmd *Command) sealCertAction(c *cli.Context) {
+func (cmd *Command) sealKeyPairAction(c *cli.Context) {
 	// Read the key and get a box
 	box, err := readBox(c.String("sealKey"))
 	if err != nil {
@@ -66,7 +66,7 @@ func (cmd *Command) sealCertAction(c *cli.Context) {
 		return
 	}
 
-	// Read certificate
+	// Read keyPairificate
 	stream, closer, err := getStream(c)
 	if err != nil {
 		cmd.printError(err)
@@ -76,15 +76,15 @@ func (cmd *Command) sealCertAction(c *cli.Context) {
 		defer closer.Close()
 	}
 
-	cert, err := readCert(c.String("cert"), c.String("privateKey"))
+	keyPair, err := readKeyPair(c.String("cert"), c.String("privateKey"))
 	if err != nil {
-		cmd.printError(fmt.Errorf("Failed to read certificate: %s", err))
+		cmd.printError(fmt.Errorf("dailed to read key paire: %s", err))
 		return
 	}
 
-	bytes, err := secret.SealCertToJSON(box, cert)
+	bytes, err := secret.SealKeyPairToJSON(box, keyPair)
 	if err != nil {
-		cmd.printError(fmt.Errorf("Failed to seal certificate: %s", err))
+		cmd.printError(fmt.Errorf("failed to seal key pair: %s", err))
 		return
 	}
 

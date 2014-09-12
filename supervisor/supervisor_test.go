@@ -127,7 +127,7 @@ func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
 	s.sv.Start()
 
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
-	s.b.ErrorsC <- fmt.Errorf("Restart")
+	s.b.ErrorsC <- fmt.Errorf("restart")
 
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 }

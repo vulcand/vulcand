@@ -64,7 +64,7 @@ func findVulcanUrl(args []string) (string, []string, error) {
 		} else if strings.HasPrefix(arg, "-vulcan") || strings.HasPrefix(arg, "--vulcan") {
 			// This argument should not be the last one
 			if i > len(args)-2 {
-				return "", nil, fmt.Errorf("Provide a valid vulcan URL")
+				return "", nil, fmt.Errorf("provide a valid vulcan URL")
 			}
 			return args[i+1], cut(i, i+2, args), nil
 		}
@@ -84,7 +84,7 @@ func flags() []cli.Flag {
 	}
 }
 
-func readCert(certPath, keyPath string) (*backend.Certificate, error) {
+func readKeyPair(certPath, keyPath string) (*backend.KeyPair, error) {
 	fKey, err := os.Open(keyPath)
 	if err != nil {
 		return nil, err
@@ -104,13 +104,13 @@ func readCert(certPath, keyPath string) (*backend.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	return backend.NewCert(cert, key)
+	return backend.NewKeyPair(cert, key)
 }
 
 func readBox(key string) (*secret.Box, error) {
 	keyB, err := secret.KeyFromString(key)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read encryption key: %s", err)
+		return nil, fmt.Errorf("failed to read encryption key: %s", err)
 	}
 	return secret.NewBox(keyB)
 }

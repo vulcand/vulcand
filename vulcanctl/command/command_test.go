@@ -209,8 +209,8 @@ func (s *CmdSuite) TestLocationUpdateOptions(c *C) {
 	c.Assert(l.Options.Timeouts.Dial, Equals, "20s")
 }
 
-func (s *CmdSuite) TestReadCert(c *C) {
-	cert := testutils.NewTestCert()
+func (s *CmdSuite) TestReadKeyPair(c *C) {
+	keyPair := testutils.NewTestKeyPair()
 
 	key, err := secret.NewKeyString()
 	c.Assert(err, IsNil)
@@ -218,18 +218,18 @@ func (s *CmdSuite) TestReadCert(c *C) {
 	fKey, err := ioutil.TempFile("", "vulcand")
 	c.Assert(err, IsNil)
 	defer fKey.Close()
-	fKey.Write(cert.Key)
+	fKey.Write(keyPair.Key)
 
 	fCert, err := ioutil.TempFile("", "vulcand")
 	c.Assert(err, IsNil)
 	defer fCert.Close()
-	fCert.Write(cert.Cert)
+	fCert.Write(keyPair.Cert)
 
 	fSealed, err := ioutil.TempFile("", "vulcand")
 	c.Assert(err, IsNil)
 	fSealed.Close()
 
-	s.run("secret", "seal_cert", "-privateKey", fKey.Name(), "-cert", fCert.Name(), "-sealKey", key, "-f", fSealed.Name())
+	s.run("secret", "seal_keypair", "-privateKey", fKey.Name(), "-cert", fCert.Name(), "-sealKey", key, "-f", fSealed.Name())
 
 	bytes, err := ioutil.ReadFile(fSealed.Name())
 	c.Assert(err, IsNil)
@@ -241,10 +241,10 @@ func (s *CmdSuite) TestReadCert(c *C) {
 	data, err := box.Open(sealed)
 	c.Assert(err, IsNil)
 
-	outCert, err := CertFromJson(data)
+	outKeyPair, err := KeyPairFromJSON(data)
 	c.Assert(err, IsNil)
 
-	c.Assert(outCert, DeepEquals, cert)
+	c.Assert(outKeyPair, DeepEquals, keyPair)
 }
 
 func (s *CmdSuite) TestNewKey(c *C) {

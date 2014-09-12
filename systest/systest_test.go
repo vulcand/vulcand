@@ -294,12 +294,12 @@ func (s *VESuite) TestHTTPSListenerCrud(c *C) {
 	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
 	c.Assert(err, IsNil)
 
-	cert := testutils.NewTestCert()
+	keyPair := testutils.NewTestKeyPair()
 
-	bytes, err := secret.SealCertToJSON(s.box, cert)
+	bytes, err := secret.SealKeyPairToJSON(s.box, keyPair)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("hosts", host, "cert"), string(bytes), 0)
+	_, err = s.client.Set(s.path("hosts", host, "keypair"), string(bytes), 0)
 	c.Assert(err, IsNil)
 
 	// Add HTTPS listener

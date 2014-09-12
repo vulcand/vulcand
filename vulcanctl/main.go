@@ -16,6 +16,6 @@ func main() {
 	cmd := command.NewCommand(registry.GetRegistry())
 	err := cmd.Run(os.Args)
 	if err != nil {
-		log.Errorf("Error: %s\n", err)
+		log.Errorf("error: %s\n", err)
 	}
 }

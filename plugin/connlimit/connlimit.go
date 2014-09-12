@@ -40,7 +40,7 @@ func NewConnLimit(connections int64, variable string) (*ConnLimit, error) {
 		return nil, err
 	}
 	if connections < 0 {
-		return nil, fmt.Errorf("Connections should be > 0, got %d", connections)
+		return nil, fmt.Errorf("connections should be > 0, got %d", connections)
 	}
 	return &ConnLimit{
 		Connections: connections,

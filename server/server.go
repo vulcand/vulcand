@@ -10,7 +10,7 @@ import (
 type Server interface {
 	UpsertHost(host *backend.Host) error
 	DeleteHost(hostname string) error
-	UpdateHostCert(hostname string, cert *backend.Certificate) error
+	UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) error
 
 	AddHostListener(host *backend.Host, l *backend.Listener) error
 	DeleteHostListener(host *backend.Host, listenerId string) error

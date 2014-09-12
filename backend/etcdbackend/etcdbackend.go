@@ -80,15 +80,15 @@ func (s *EtcdBackend) GetHosts() ([]*backend.Host, error) {
 	return s.readHosts(true)
 }
 
-func (s *EtcdBackend) UpdateHostCertificate(hostname string, cert *backend.Certificate) (*backend.Host, error) {
+func (s *EtcdBackend) UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) (*backend.Host, error) {
 	host, err := s.GetHost(hostname)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.setHostCert(host.Name, cert); err != nil {
+	if err := s.setHostKeyPair(host.Name, keyPair); err != nil {
 		return nil, err
 	}
-	host.Cert = cert
+	host.KeyPair = keyPair
 	return host, nil
 }
 
@@ -104,8 +104,8 @@ func (s *EtcdBackend) AddHost(h *backend.Host) (*backend.Host, error) {
 	if err := s.setJSONVal(join(hostKey, "options"), h.Options); err != nil {
 		return nil, err
 	}
-	if h.Cert != nil {
-		if err := s.setHostCert(h.Name, h.Cert); err != nil {
+	if h.KeyPair != nil {
+		if err := s.setHostKeyPair(h.Name, h.KeyPair); err != nil {
 			return nil, err
 		}
 	}
@@ -154,27 +154,27 @@ func (s *EtcdBackend) GetHost(hostname string) (*backend.Host, error) {
 	return s.readHost(hostname, true)
 }
 
-func (s *EtcdBackend) setHostCert(hostname string, cert *backend.Certificate) error {
-	bytes, err := json.Marshal(cert)
+func (s *EtcdBackend) setHostKeyPair(hostname string, keyPair *backend.KeyPair) error {
+	bytes, err := json.Marshal(keyPair)
 	if err != nil {
 		return err
 	}
-	return s.setSealedVal(s.path("hosts", hostname, "cert"), bytes)
+	return s.setSealedVal(s.path("hosts", hostname, "keypair"), bytes)
 }
 
-func (s *EtcdBackend) readHostCert(hostname string) (*backend.Certificate, error) {
+func (s *EtcdBackend) readHostKeyPair(hostname string) (*backend.KeyPair, error) {
 	if s.options.Box == nil {
 		return nil, nil
 	}
-	bytes, err := s.getSealedVal(s.path("hosts", hostname, "cert"))
+	bytes, err := s.getSealedVal(s.path("hosts", hostname, "keypair"))
 	if err != nil {
 		return nil, err
 	}
-	var cert *backend.Certificate
-	if err := json.Unmarshal(bytes, &cert); err != nil {
+	var keyPair *backend.KeyPair
+	if err := json.Unmarshal(bytes, &keyPair); err != nil {
 		return nil, err
 	}
-	return cert, nil
+	return keyPair, nil
 }
 
 func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error) {
@@ -194,7 +194,7 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 		}
 	}
 
-	cert, err := s.readHostCert(hostname)
+	keyPair, err := s.readHostKeyPair(hostname)
 	if err != nil && !isNotFoundError(err) {
 
 		return nil, err
@@ -203,7 +203,7 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 	host := &backend.Host{
 		Name:      hostname,
 		Locations: []*backend.Location{},
-		Cert:      cert,
+		KeyPair:   keyPair,
 		Listeners: []*backend.Listener{},
 		Options:   *options,
 	}
@@ -214,7 +214,7 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 	}
 
 	for _, p := range listeners {
-		l, err := backend.ListenerFromJson([]byte(p.Val))
+		l, err := backend.ListenerFromJSON([]byte(p.Val))
 		if err != nil {
 			return nil, err
 		}
@@ -503,7 +503,7 @@ func (s *EtcdBackend) GetLocationMiddleware(hostname, locationId, mType, id stri
 	if err != nil {
 		return nil, err
 	}
-	out, err := backend.MiddlewareFromJson([]byte(bytes), s.registry.GetSpec)
+	out, err := backend.MiddlewareFromJSON([]byte(bytes), s.registry.GetSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -547,7 +547,7 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}) error {
 				log.Infof("Stop watching: graceful shutdown")
 				return nil
 			default:
-				log.Errorf("Unexpected error: %s, stop watching", err)
+				log.Errorf("unexpected error: %s, stop watching", err)
 				return err
 			}
 		}
@@ -581,7 +581,7 @@ type MatcherFn func(*etcd.Response) (interface{}, error)
 func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) {
 	matchers := []MatcherFn{
 		s.parseHostChange,
-		s.parseHostCertChange,
+		s.parseHostKeyPairChange,
 		s.parseHostListenerChange,
 		s.parseLocationChange,
 		s.parseLocationUpstreamChange,
@@ -625,21 +625,21 @@ func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, err
 	return nil, fmt.Errorf("unsupported action on the location: %s", response.Action)
 }
 
-func (s *EtcdBackend) parseHostCertChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/cert").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseHostKeyPairChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/keypair").FindStringSubmatch(response.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 
 	if response.Action != "create" && response.Action != "set" && response.Action != "delete" {
-		return nil, fmt.Errorf("unsupported action on the certificate: %s", response.Action)
+		return nil, fmt.Errorf("funsupported action on the certificate: %s", response.Action)
 	}
 	hostname := out[1]
 	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
-	return &backend.HostCertUpdated{
+	return &backend.HostKeyPairUpdated{
 		Host: host,
 	}, nil
 }

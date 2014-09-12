@@ -146,7 +146,7 @@ func (s *BackendSuite) TestNewEndpointBadParams(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *BackendSuite) TestHostsFromJson(c *C) {
+func (s *BackendSuite) TestHostsFromJSON(c *C) {
 	h, err := NewHost("localhost")
 	c.Assert(err, IsNil)
 
@@ -172,14 +172,14 @@ func (s *BackendSuite) TestHostsFromJson(c *C) {
 
 	bytes, err := json.Marshal(map[string]interface{}{"Hosts": hosts})
 
-	out, err := HostsFromJson(bytes, registry.GetRegistry().GetSpec)
+	out, err := HostsFromJSON(bytes, registry.GetRegistry().GetSpec)
 	c.Assert(err, IsNil)
 	c.Assert(out, NotNil)
 
 	c.Assert(out, DeepEquals, hosts)
 }
 
-func (s *BackendSuite) TestUpstreamFromJson(c *C) {
+func (s *BackendSuite) TestUpstreamFromJSON(c *C) {
 	up, err := NewUpstream("up1")
 	c.Assert(err, IsNil)
 
@@ -191,21 +191,21 @@ func (s *BackendSuite) TestUpstreamFromJson(c *C) {
 	bytes, err := json.Marshal(up)
 	c.Assert(err, IsNil)
 
-	out, err := UpstreamFromJson(bytes)
+	out, err := UpstreamFromJSON(bytes)
 	c.Assert(err, IsNil)
 	c.Assert(out, NotNil)
 
 	c.Assert(out, DeepEquals, up)
 }
 
-func (s *BackendSuite) TestEndpointFromJson(c *C) {
+func (s *BackendSuite) TestEndpointFromJSON(c *C) {
 	e, err := NewEndpoint("u1", "e1", "http://localhost")
 	c.Assert(err, IsNil)
 
 	bytes, err := json.Marshal(e)
 	c.Assert(err, IsNil)
 
-	out, err := EndpointFromJson(bytes)
+	out, err := EndpointFromJSON(bytes)
 	c.Assert(err, IsNil)
 	c.Assert(out, NotNil)
 

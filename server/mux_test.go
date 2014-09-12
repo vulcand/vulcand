@@ -124,7 +124,7 @@ func (s *ServerSuite) TestServerHTTPSCRUD(c *C) {
 	defer e.Close()
 
 	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
-	h.Cert = &Certificate{Key: localhostKey, Cert: localhostCert}
+	h.KeyPair = &KeyPair{Key: localhostKey, Cert: localhostCert}
 	h.Listeners[0].Protocol = HTTPS
 
 	c.Assert(s.mux.UpsertHost(h), IsNil)
@@ -140,13 +140,13 @@ func (s *ServerSuite) TestServerHTTPSCRUD(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *ServerSuite) TestLiveCertUpdate(c *C) {
+func (s *ServerSuite) TestLiveKeyPairUpdate(c *C) {
 	e := NewTestServer("Hi, I'm endpoint")
 	defer e.Close()
 	c.Assert(s.mux.Start(), IsNil)
 
 	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
-	h.Cert = &Certificate{Key: localhostKey, Cert: localhostCert}
+	h.KeyPair = &KeyPair{Key: localhostKey, Cert: localhostCert}
 	h.Listeners[0].Protocol = HTTPS
 
 	c.Assert(s.mux.UpsertHost(h), IsNil)
@@ -154,8 +154,8 @@ func (s *ServerSuite) TestLiveCertUpdate(c *C) {
 
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 
-	h.Cert = &Certificate{Key: localhostKey2, Cert: localhostCert2}
-	c.Assert(s.mux.UpdateHostCert(h.Name, h.Cert), IsNil)
+	h.KeyPair = &KeyPair{Key: localhostKey2, Cert: localhostCert2}
+	c.Assert(s.mux.UpdateHostKeyPair(h.Name, h.KeyPair), IsNil)
 
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
 }
@@ -169,11 +169,11 @@ func (s *ServerSuite) TestSNI(c *C) {
 
 	c.Assert(s.mux.Start(), IsNil)
 	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
-	h.Cert = &Certificate{Key: localhostKey, Cert: localhostCert}
+	h.KeyPair = &KeyPair{Key: localhostKey, Cert: localhostCert}
 	h.Listeners[0].Protocol = HTTPS
 
 	l2, h2 := MakeLocation("otherhost", "localhost:31000", e2.URL)
-	h2.Cert = &Certificate{Key: localhostKey2, Cert: localhostCert2}
+	h2.KeyPair = &KeyPair{Key: localhostKey2, Cert: localhostCert2}
 	h2.Listeners[0].Protocol = HTTPS
 	h2.Options.Default = true
 
@@ -199,7 +199,7 @@ func (s *ServerSuite) TestHijacking(c *C) {
 	c.Assert(s.mux.Start(), IsNil)
 
 	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
-	h.Cert = &Certificate{Key: localhostKey, Cert: localhostCert}
+	h.KeyPair = &KeyPair{Key: localhostKey, Cert: localhostCert}
 	h.Listeners[0].Protocol = HTTPS
 
 	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
@@ -213,7 +213,7 @@ func (s *ServerSuite) TestHijacking(c *C) {
 	defer e2.Close()
 
 	l2, h2 := MakeLocation("localhost", "localhost:31000", e2.URL)
-	h2.Cert = &Certificate{Key: localhostKey2, Cert: localhostCert2}
+	h2.KeyPair = &KeyPair{Key: localhostKey2, Cert: localhostCert2}
 	h2.Listeners[0].Protocol = HTTPS
 
 	c.Assert(mux2.UpsertLocation(h2, l2), IsNil)

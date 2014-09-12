@@ -74,7 +74,7 @@ func ParseCommandLine() (options Options, err error) {
 
 	flag.StringVar(&options.Interface, "interface", "", "Interface to bind to")
 	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
-	flag.StringVar(&options.CertPath, "certPath", "", "Certificate to use (enables TLS)")
+	flag.StringVar(&options.CertPath, "certPath", "", "KeyPair to use (enables TLS)")
 	flag.StringVar(&options.Log, "log", "console", "Logging to use (syslog or console)")
 
 	flag.IntVar(&options.ServerMaxHeaderBytes, "serverMaxHeaderBytes", 1<<20, "Maximum size of request headers")

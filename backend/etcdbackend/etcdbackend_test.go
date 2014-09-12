@@ -162,9 +162,9 @@ func (s *EtcdBackendSuite) TestAddHostWithOptions(c *C) {
 	})
 }
 
-func (s *EtcdBackendSuite) TestAddHostWithCert(c *C) {
+func (s *EtcdBackendSuite) TestAddHostWithKeyPair(c *C) {
 	host := s.makeHost("localhost")
-	host.Cert = &Certificate{
+	host.KeyPair = &KeyPair{
 		Key:  []byte("hello"),
 		Cert: []byte("world"),
 	}
@@ -173,10 +173,10 @@ func (s *EtcdBackendSuite) TestAddHostWithCert(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(h, Equals, host)
 
-	hostNoCert := *host
-	hostNoCert.Cert = nil
+	hostNoKeyPair := *host
+	hostNoKeyPair.KeyPair = nil
 
-	s.expectChanges(c, &HostAdded{Host: &hostNoCert}, &HostCertUpdated{Host: host})
+	s.expectChanges(c, &HostAdded{Host: &hostNoKeyPair}, &HostKeyPairUpdated{Host: host})
 }
 
 func (s *EtcdBackendSuite) TestAddHostWithListeners(c *C) {
@@ -235,23 +235,23 @@ func (s *EtcdBackendSuite) TestAddHostListener(c *C) {
 	s.expectChanges(c, &HostListenerDeleted{Host: &hostNoListeners, ListenerId: host.Listeners[0].Id})
 }
 
-func (s *EtcdBackendSuite) TestUpdateHostCert(c *C) {
+func (s *EtcdBackendSuite) TestUpdateHostKeyPair(c *C) {
 	host := s.makeHost("localhost")
 
 	h, err := s.backend.AddHost(host)
 	c.Assert(err, IsNil)
 	c.Assert(h, Equals, host)
 
-	hostNoCert := *host
-	hostNoCert.Cert = nil
+	hostNoKeyPair := *host
+	hostNoKeyPair.KeyPair = nil
 
-	host.Cert = &Certificate{
+	host.KeyPair = &KeyPair{
 		Key:  []byte("hello"),
 		Cert: []byte("world"),
 	}
-	s.backend.UpdateHostCertificate(host.Name, host.Cert)
+	s.backend.UpdateHostKeyPair(host.Name, host.KeyPair)
 
-	s.expectChanges(c, &HostAdded{Host: &hostNoCert}, &HostCertUpdated{Host: host})
+	s.expectChanges(c, &HostAdded{Host: &hostNoKeyPair}, &HostKeyPairUpdated{Host: host})
 }
 
 func (s *EtcdBackendSuite) TestGetUpstreams(c *C) {

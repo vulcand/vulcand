@@ -173,7 +173,7 @@ func (s *Supervisor) init() error {
 				return
 			}
 			if err := processChange(srv, change); err != nil {
-				log.Errorf("Failed to process change %#v, err: %s", change, err)
+				log.Errorf("failed to process change %#v, err: %s", change, err)
 			}
 		}
 	}()
@@ -272,8 +272,8 @@ func processChange(s server.Server, ch interface{}) error {
 		return s.UpsertHost(change.Host)
 	case *backend.HostDeleted:
 		return s.DeleteHost(change.Name)
-	case *backend.HostCertUpdated:
-		return s.UpdateHostCert(change.Host.Name, change.Host.Cert)
+	case *backend.HostKeyPairUpdated:
+		return s.UpdateHostKeyPair(change.Host.Name, change.Host.KeyPair)
 	case *backend.HostListenerAdded:
 		return s.AddHostListener(change.Host, change.Listener)
 	case *backend.HostListenerDeleted:

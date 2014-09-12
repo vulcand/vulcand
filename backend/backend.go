@@ -2,7 +2,7 @@
 package backend
 
 import (
-	"bytes"
+	"crypto/subtle"
 	"crypto/tls"
 	"fmt"
 	"regexp"
@@ -21,7 +21,7 @@ type Backend interface {
 	GetHosts() ([]*Host, error)
 	AddHost(*Host) (*Host, error)
 	DeleteHost(name string) error
-	UpdateHostCertificate(hostname string, cert *Certificate) (*Host, error)
+	UpdateHostKeyPair(hostname string, keyPair *KeyPair) (*Host, error)
 
 	GetHost(name string) (*Host, error)
 
@@ -63,23 +63,26 @@ type StatsGetter interface {
 	GetStats(hostname string, locationId string, e *Endpoint) *EndpointStats
 }
 
-type Certificate struct {
+type KeyPair struct {
 	Key  []byte
 	Cert []byte
 }
 
-func NewCert(cert, key []byte) (*Certificate, error) {
+func NewKeyPair(cert, key []byte) (*KeyPair, error) {
 	if len(cert) == 0 || len(key) == 0 {
 		return nil, fmt.Errorf("Provide non-empty certificate and a private key")
 	}
 	if _, err := tls.X509KeyPair(cert, key); err != nil {
 		return nil, err
 	}
-	return &Certificate{Cert: cert, Key: key}, nil
+	return &KeyPair{Cert: cert, Key: key}, nil
 }
 
-func (c *Certificate) Equals(o *Certificate) bool {
-	return bytes.Equal(c.Cert, o.Cert) && bytes.Equal(c.Key, o.Key)
+func (c *KeyPair) Equals(o *KeyPair) bool {
+	return (len(c.Cert) == len(o.Cert)) &&
+		(len(c.Key) == len(o.Key)) &&
+		subtle.ConstantTimeCompare(c.Cert, o.Cert) == 1 &&
+		subtle.ConstantTimeCompare(c.Key, o.Key) == 1
 }
 
 type Address struct {
@@ -113,7 +116,7 @@ type HostOptions struct {
 type Host struct {
 	Name      string
 	Locations []*Location
-	Cert      *Certificate
+	KeyPair   *KeyPair
 	Listeners []*Listener
 	Options   HostOptions
 }
@@ -341,10 +344,10 @@ type Endpoint struct {
 
 func NewEndpoint(upstreamId, id, url string) (*Endpoint, error) {
 	if upstreamId == "" {
-		return nil, fmt.Errorf("Upstream id '%s' can not be empty")
+		return nil, fmt.Errorf("upstream id '%s' can not be empty")
 	}
 	if _, err := netutils.ParseUrl(url); err != nil {
-		return nil, fmt.Errorf("Endpoint url '%s' is not valid", url)
+		return nil, fmt.Errorf("endpoint url '%s' is not valid", url)
 	}
 	return &Endpoint{
 		UpstreamId: upstreamId,

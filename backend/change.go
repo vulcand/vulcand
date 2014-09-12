@@ -8,7 +8,7 @@ type HostDeleted struct {
 	Name string
 }
 
-type HostCertUpdated struct {
+type HostKeyPairUpdated struct {
 	Host *Host
 }
 

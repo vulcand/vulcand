@@ -75,19 +75,31 @@ func (s *ApiSuite) TestHostCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(hosts[0].Name, Equals, "localhost")
 
-	_, err = s.client.UpdateHostCert(host.Name, testutils.NewTestCert())
+	_, err = s.client.UpdateHostKeyPair(host.Name, testutils.NewTestKeyPair())
 	c.Assert(err, IsNil)
 
-	_, err = s.client.AddHostListener(host.Name, &Listener{Id: "1", Protocol: HTTP, Address: Address{"tcp", "localhost:31000"}})
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(hosts[0].KeyPair, DeepEquals, testutils.NewTestKeyPair())
+
+	listener := &Listener{Id: "1", Protocol: HTTP, Address: Address{"tcp", "localhost:31000"}}
+	_, err = s.client.AddHostListener(host.Name, listener)
 	c.Assert(err, IsNil)
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(hosts[0].Listeners, DeepEquals, []*Listener{listener})
 
 	status, err := s.client.DeleteHostListener(host.Name, "1")
 	c.Assert(err, IsNil)
 	c.Assert(status, NotNil)
 
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(hosts[0].Listeners, DeepEquals, []*Listener{})
+
 	status, err = s.client.DeleteHost("localhost")
 	c.Assert(err, IsNil)
 	c.Assert(status, NotNil)
+
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(len(hosts), Equals, 0)
 
 	hosts, err = s.client.GetHosts()
 	c.Assert(len(hosts), Equals, 0)

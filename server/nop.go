@@ -24,7 +24,7 @@ func (m *NopServer) DeleteHostListeners(hostname string) error {
 	return nil
 }
 
-func (m *NopServer) UpdateHostCert(hostname string, cert *backend.Certificate) error {
+func (m *NopServer) UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) error {
 	return nil
 }
 

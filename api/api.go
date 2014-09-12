@@ -12,45 +12,45 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 
-	. "github.com/mailgun/vulcand/backend"
-	. "github.com/mailgun/vulcand/connwatch"
+	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin"
 )
 
 type ProxyController struct {
-	backend     Backend
-	connWatcher *ConnectionWatcher
-	statsGetter StatsGetter
+	backend     backend.Backend
+	connWatcher *connwatch.ConnectionWatcher
+	statsGetter backend.StatsGetter
 }
 
-func InitProxyController(backend Backend, statsGetter StatsGetter, connWatcher *ConnectionWatcher, router *mux.Router) {
+func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, connWatcher *connwatch.ConnectionWatcher, router *mux.Router) {
 	controller := &ProxyController{backend: backend, statsGetter: statsGetter, connWatcher: connWatcher}
 
-	router.NotFoundHandler = api.MakeRawHandler(controller.HandleError)
-	router.HandleFunc("/v1/status", api.MakeRawHandler(controller.GetStatus)).Methods("GET")
-	router.HandleFunc("/v1/hosts", api.MakeRawHandler(controller.GetHosts)).Methods("GET")
-	router.HandleFunc("/v1/hosts", api.MakeRawHandler(controller.AddHost)).Methods("POST")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.GetHostLocation)).Methods("GET")
-	router.HandleFunc("/v1/hosts/{hostname}", api.MakeHandler(controller.DeleteHost)).Methods("DELETE")
-	router.HandleFunc("/v1/hosts/{hostname}/cert", api.MakeRawHandler(controller.UpdateHostCert)).Methods("PUT")
-	router.HandleFunc("/v1/hosts/{hostname}/listeners", api.MakeRawHandler(controller.AddHostListener)).Methods("POST")
-	router.HandleFunc("/v1/hosts/{hostname}/listeners/{id}", api.MakeHandler(controller.DeleteHostListener)).Methods("DELETE")
+	router.NotFoundHandler = api.MakeRawHandler(controller.handleError)
+	router.HandleFunc("/v1/status", api.MakeRawHandler(controller.getStatus)).Methods("GET")
+	router.HandleFunc("/v1/hosts", api.MakeRawHandler(controller.getHosts)).Methods("GET")
+	router.HandleFunc("/v1/hosts", api.MakeRawHandler(controller.addHost)).Methods("POST")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.getHostLocation)).Methods("GET")
+	router.HandleFunc("/v1/hosts/{hostname}", api.MakeHandler(controller.deleteHost)).Methods("DELETE")
+	router.HandleFunc("/v1/hosts/{hostname}/keypair", api.MakeRawHandler(controller.updateHostKeyPair)).Methods("PUT")
+	router.HandleFunc("/v1/hosts/{hostname}/listeners", api.MakeRawHandler(controller.addHostListener)).Methods("POST")
+	router.HandleFunc("/v1/hosts/{hostname}/listeners/{id}", api.MakeHandler(controller.deleteHostListener)).Methods("DELETE")
 
-	router.HandleFunc("/v1/upstreams", api.MakeRawHandler(controller.AddUpstream)).Methods("POST")
-	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.GetUpstreams)).Methods("GET")
-	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.DeleteUpstream)).Methods("DELETE")
-	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.GetUpstream)).Methods("GET")
-	router.HandleFunc("/v1/upstreams/{id}/drain", api.MakeHandler(controller.DrainUpstreamConnections)).Methods("GET")
+	router.HandleFunc("/v1/upstreams", api.MakeRawHandler(controller.addUpstream)).Methods("POST")
+	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.getUpstreams)).Methods("GET")
+	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.deleteUpstream)).Methods("DELETE")
+	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.getUpstream)).Methods("GET")
+	router.HandleFunc("/v1/upstreams/{id}/drain", api.MakeHandler(controller.drainUpstreamConnections)).Methods("GET")
 
-	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeRawHandler(controller.AddLocation)).Methods("POST")
-	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeHandler(controller.GetHostLocations)).Methods("GET")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.UpdateLocationUpstream)).Methods("PUT")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}/options", api.MakeRawHandler(controller.UpdateLocationOptions)).Methods("PUT")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.DeleteLocation)).Methods("DELETE")
+	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeRawHandler(controller.addLocation)).Methods("POST")
+	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeHandler(controller.getHostLocations)).Methods("GET")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.updateLocationUpstream)).Methods("PUT")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}/options", api.MakeRawHandler(controller.updateLocationOptions)).Methods("PUT")
+	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.deleteLocation)).Methods("DELETE")
 
-	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeRawHandler(controller.AddEndpoint)).Methods("POST")
-	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeHandler(controller.GetUpstreamEndpoints)).Methods("GET")
-	router.HandleFunc("/v1/upstreams/{upstream}/endpoints/{endpoint}", api.MakeHandler(controller.DeleteEndpoint)).Methods("DELETE")
+	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeRawHandler(controller.addEndpoint)).Methods("POST")
+	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeHandler(controller.getUpstreamEndpoints)).Methods("GET")
+	router.HandleFunc("/v1/upstreams/{upstream}/endpoints/{endpoint}", api.MakeHandler(controller.deleteEndpoint)).Methods("DELETE")
 
 	// Register controllers for middlewares
 	if backend.GetRegistry() != nil {
@@ -60,17 +60,17 @@ func InitProxyController(backend Backend, statsGetter StatsGetter, connWatcher *
 	}
 }
 
-func (c *ProxyController) HandleError(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) handleError(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 	return nil, api.NotFoundError{Description: "Object not found"}
 }
 
-func (c *ProxyController) GetStatus(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) getStatus(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 	return api.Response{
 		"Status": "ok",
 	}, nil
 }
 
-func (c *ProxyController) GetHosts(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 	hosts, err := c.backend.GetHosts()
 
 	// This is to display the realtime stats, looks ugly.
@@ -88,7 +88,7 @@ func (c *ProxyController) GetHosts(w http.ResponseWriter, r *http.Request, param
 	}, err
 }
 
-func (c *ProxyController) GetHostLocations(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) getHostLocations(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	host, err := c.backend.GetHost(params["hostname"])
 	if err != nil {
 		return nil, formatError(err)
@@ -98,12 +98,12 @@ func (c *ProxyController) GetHostLocations(w http.ResponseWriter, r *http.Reques
 	}, nil
 }
 
-func (c *ProxyController) GetHostLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) getHostLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	return formatResult(c.backend.GetLocation(params["hostname"], params["id"]))
 }
 
-func (c *ProxyController) AddHost(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	host, err := HostFromJson(body, c.backend.GetRegistry().GetSpec)
+func (c *ProxyController) addHost(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	host, err := backend.HostFromJSON(body, c.backend.GetRegistry().GetSpec)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -111,8 +111,8 @@ func (c *ProxyController) AddHost(w http.ResponseWriter, r *http.Request, params
 	return formatResult(c.backend.AddHost(host))
 }
 
-func (c *ProxyController) AddHostListener(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	listener, err := ListenerFromJson(body)
+func (c *ProxyController) addHostListener(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	listener, err := backend.ListenerFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -120,7 +120,7 @@ func (c *ProxyController) AddHostListener(w http.ResponseWriter, r *http.Request
 	return formatResult(c.backend.AddHostListener(params["hostname"], listener))
 }
 
-func (c *ProxyController) DeleteHostListener(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) deleteHostListener(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	log.Infof("Delete Listener(id=%s) from Host(name=%s)", params["id"], params["hostname"])
 	if err := c.backend.DeleteHostListener(params["hostname"], params["id"]); err != nil {
 		return nil, formatError(err)
@@ -128,16 +128,16 @@ func (c *ProxyController) DeleteHostListener(w http.ResponseWriter, r *http.Requ
 	return api.Response{"message": "Listener deleted"}, nil
 }
 
-func (c *ProxyController) UpdateHostCert(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) updateHostKeyPair(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 	hostname := params["hostname"]
-	cert, err := CertFromJson(body)
+	keyPair, err := backend.KeyPairFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	return formatResult(c.backend.UpdateHostCertificate(hostname, cert))
+	return formatResult(c.backend.UpdateHostKeyPair(hostname, keyPair))
 }
 
-func (c *ProxyController) DeleteHost(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) deleteHost(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	hostname := params["hostname"]
 	log.Infof("Delete host: %s", hostname)
 	if err := c.backend.DeleteHost(hostname); err != nil {
@@ -146,8 +146,8 @@ func (c *ProxyController) DeleteHost(w http.ResponseWriter, r *http.Request, par
 	return api.Response{"message": fmt.Sprintf("Host '%s' deleted", hostname)}, nil
 }
 
-func (c *ProxyController) AddUpstream(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	upstream, err := UpstreamFromJson(body)
+func (c *ProxyController) addUpstream(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	upstream, err := backend.UpstreamFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -155,7 +155,7 @@ func (c *ProxyController) AddUpstream(w http.ResponseWriter, r *http.Request, pa
 	return formatResult(c.backend.AddUpstream(upstream))
 }
 
-func (c *ProxyController) DeleteUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) deleteUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	upstreamId := params["id"]
 	log.Infof("Delete Upstream(id=%s)", upstreamId)
 	if err := c.backend.DeleteUpstream(upstreamId); err != nil {
@@ -164,14 +164,14 @@ func (c *ProxyController) DeleteUpstream(w http.ResponseWriter, r *http.Request,
 	return api.Response{"message": "Upstream deleted"}, nil
 }
 
-func (c *ProxyController) GetUpstreams(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) getUpstreams(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	upstreams, err := c.backend.GetUpstreams()
 	return api.Response{
 		"Upstreams": upstreams,
 	}, err
 }
 
-func (c *ProxyController) GetUpstreamEndpoints(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) getUpstreamEndpoints(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	up, err := c.backend.GetUpstream(params["upstream"])
 	if err != nil {
 		return nil, formatError(err)
@@ -181,11 +181,11 @@ func (c *ProxyController) GetUpstreamEndpoints(w http.ResponseWriter, r *http.Re
 	}, nil
 }
 
-func (c *ProxyController) GetUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) getUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	return formatResult(c.backend.GetUpstream(params["id"]))
 }
 
-func (c *ProxyController) DrainUpstreamConnections(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) drainUpstreamConnections(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	upstream, err := c.backend.GetUpstream(params["id"])
 	if err != nil {
 		return nil, formatError(err)
@@ -213,8 +213,8 @@ func (c *ProxyController) DrainUpstreamConnections(w http.ResponseWriter, r *htt
 	}, err
 }
 
-func (c *ProxyController) AddLocation(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	location, err := LocationFromJson(body, c.backend.GetRegistry().GetSpec)
+func (c *ProxyController) addLocation(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	location, err := backend.LocationFromJSON(body, c.backend.GetRegistry().GetSpec)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -222,7 +222,7 @@ func (c *ProxyController) AddLocation(w http.ResponseWriter, r *http.Request, pa
 	return formatResult(c.backend.AddLocation(location))
 }
 
-func (c *ProxyController) UpdateLocationUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) updateLocationUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	hostname := params["hostname"]
 	locationId := params["id"]
 
@@ -238,18 +238,18 @@ func (c *ProxyController) UpdateLocationUpstream(w http.ResponseWriter, r *http.
 	return api.Response{"message": "Location upstream updated"}, nil
 }
 
-func (c *ProxyController) UpdateLocationOptions(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) updateLocationOptions(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 	hostname := params["hostname"]
 	locationId := params["id"]
 
-	options, err := LocationOptionsFromJson(body)
+	options, err := backend.LocationOptionsFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
 	return formatResult(c.backend.UpdateLocationOptions(hostname, locationId, *options))
 }
 
-func (c *ProxyController) DeleteLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) deleteLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	log.Infof("Delete Location(id=%s) from Host(name=%s)", params["id"], params["hostname"])
 	if err := c.backend.DeleteLocation(params["hostname"], params["id"]); err != nil {
 		return nil, formatError(err)
@@ -257,9 +257,9 @@ func (c *ProxyController) DeleteLocation(w http.ResponseWriter, r *http.Request,
 	return api.Response{"message": "Location deleted"}, nil
 }
 
-func (c *ProxyController) AddEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) addEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 	upstreamId := params["upstream"]
-	ep, err := EndpointFromJson(body)
+	ep, err := backend.EndpointFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -267,7 +267,7 @@ func (c *ProxyController) AddEndpoint(w http.ResponseWriter, r *http.Request, pa
 	return formatResult(c.backend.AddEndpoint(ep))
 }
 
-func (c *ProxyController) DeleteEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) deleteEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	upstreamId := params["upstream"]
 	id := params["endpoint"]
 
@@ -300,7 +300,7 @@ func (c *ProxyController) makeAddMiddleware(spec *plugin.MiddlewareSpec) http.Ha
 	return api.MakeRawHandler(func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 		hostname := params["hostname"]
 		location := params["location"]
-		m, err := MiddlewareFromJson(body, c.backend.GetRegistry().GetSpec)
+		m, err := backend.MiddlewareFromJSON(body, c.backend.GetRegistry().GetSpec)
 		if err != nil {
 			return nil, formatError(err)
 		}
@@ -312,7 +312,7 @@ func (c *ProxyController) makeUpdateMiddleware(spec *plugin.MiddlewareSpec) http
 	return api.MakeRawHandler(func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 		hostname := params["hostname"]
 		location := params["location"]
-		m, err := MiddlewareFromJson(body, c.backend.GetRegistry().GetSpec)
+		m, err := backend.MiddlewareFromJSON(body, c.backend.GetRegistry().GetSpec)
 		if err != nil {
 			return nil, formatError(err)
 		}
@@ -340,9 +340,9 @@ func (c *ProxyController) makeDeleteMiddleware(spec *plugin.MiddlewareSpec) http
 
 func formatError(e error) error {
 	switch err := e.(type) {
-	case *AlreadyExistsError:
+	case *backend.AlreadyExistsError:
 		return api.ConflictError{Description: err.Error()}
-	case *NotFoundError:
+	case *backend.NotFoundError:
 		return api.NotFoundError{Description: err.Error()}
 	}
 	return api.GenericAPIError{Reason: e.Error()}

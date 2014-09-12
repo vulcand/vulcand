@@ -178,15 +178,15 @@ func (m *MuxServer) UpsertHost(host *backend.Host) error {
 	return m.upsertHost(host)
 }
 
-func (m *MuxServer) UpdateHostCert(hostname string, cert *backend.Certificate) error {
-	log.Infof("%s UpdateHostCert(%s)", m, hostname)
+func (m *MuxServer) UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) error {
+	log.Infof("%s UpdateHostKeyPair(%s)", m, hostname)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
 	for _, s := range m.servers {
 		if s.hasHost(hostname) && s.isTLS() {
-			if err := s.updateHostCert(hostname, cert); err != nil {
+			if err := s.updateHostKeyPair(hostname, keyPair); err != nil {
 				return err
 			}
 		}
@@ -480,7 +480,7 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 	for _, e := range location.Upstream.Endpoints {
 		ep, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
 		if err != nil {
-			return fmt.Errorf("Failed to parse endpoint url: %s", e)
+			return fmt.Errorf("failed to parse endpoint url: %s", e)
 		}
 		newEndpoints[e.Url] = ep
 	}
@@ -506,7 +506,7 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 	for _, e := range existingEndpoints {
 		if _, exists := newEndpoints[e.GetUrl().String()]; !exists {
 			if err := rr.RemoveEndpoint(e); err != nil {
-				log.Errorf("Failed to remove %s, err: %s", e, err)
+				log.Errorf("failed to remove %s, err: %s", e, err)
 			} else {
 				log.Infof("Removed %s from %s", e, location)
 			}
@@ -518,11 +518,11 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 func (m *MuxServer) addEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
 	endpoint, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
 	if err != nil {
-		return fmt.Errorf("Failed to parse endpoint url: %s", endpoint)
+		return fmt.Errorf("failed to parse endpoint url: %s", endpoint)
 	}
 	for _, l := range affectedLocations {
 		if err := m.syncLocationEndpoints(l); err != nil {
-			log.Errorf("Failed to sync %s endpoints err: %s", l, err)
+			log.Errorf("failed to sync %s endpoints err: %s", l, err)
 		}
 	}
 	return nil
@@ -587,7 +587,7 @@ func (m *MuxServer) hasHostListener(hostname, listenerId string) bool {
 func (m *MuxServer) deleteLocation(host *backend.Host, locationId string) error {
 	router := m.getRouter(host.Name)
 	if router == nil {
-		return fmt.Errorf("Router for %s not found", host)
+		return fmt.Errorf("router for %s not found", host)
 	}
 
 	location := router.GetLocationById(locationId)

@@ -50,12 +50,12 @@ func (m *MemBackend) AddHost(h *Host) (*Host, error) {
 	return h, nil
 }
 
-func (m *MemBackend) UpdateHostCertificate(hostname string, cert *Certificate) (*Host, error) {
+func (m *MemBackend) UpdateHostKeyPair(hostname string, keyPair *KeyPair) (*Host, error) {
 	host, err := m.GetHost(hostname)
 	if err != nil {
 		return nil, err
 	}
-	host.Cert = cert
+	host.KeyPair = keyPair
 	return host, nil
 }
 
