@@ -1,7 +1,7 @@
 .. _library:
 
-Vulcan - Reverse proxy library
-==============================
+Reverse proxy library
+=====================
 
 Vulcan is a library for creating reverse http proxies written in Go.  If you are wondering, why would you need one, probably this doc is not for you, check out :ref:`proxy` docs instead.
 
@@ -167,8 +167,7 @@ Some implementation details:
 * WRR watches the failure rate using the in memory sliding window, 10 seconds by default with 1 second resolution.
 * In case if some requests are failing, WRR tries to split endpoints in two groups: 'good' and 'bad' looking at their failure rates.
 * If all the endpoints fail with similar error rates with insiginficant differences (e.g. 0.04 and 0.05) WRR does nothing.
-* If there are some endpoints that have higher error rates comparing to others (e.g. 0.4 vs 0 or 0.06 vs 0.01) WRR tries to reduce the load on the 'bad' endpoints
-by adjusting weights
+* If there are some endpoints that have higher error rates comparing to others (e.g. 0.4 vs 0 or 0.06 vs 0.01) WRR tries to reduce the load on the 'bad' endpoints by adjusting weights
 * If adjusted weights did not make the situation worse (WRR identifies this by watching if the failure rates on 'good' endpoints increased) WRR commits the weights.
 * This process continues till WRR reduces the load on 'bad' endpoints to a tiny portion of the overall traffic.
 

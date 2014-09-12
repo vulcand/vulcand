@@ -1,30 +1,24 @@
 .. _proxy:
 
-Vulcand - Installation and Config
-=================================
+User Manual
+===========
 
-.. warning::  Status: Hardening, testing, benchmarking. Not usable for production yet.
-
-* Vulcand is HTTP proxy that uses Etcd as a configuration backend. 
-* Changes to configuration take effect immediately without restarting the service.
-* Supports pluggable middlewares
-* Handy command line tool
-
-Mailing list: https://groups.google.com/d/forum/vulcan-proxy
-
-.. figure::  _static/img/coreos/vulcan-1-upstream.png
-   :align:   center
-
-   How Vulcand works
 
 Glossary
 --------
+
+Familiarizing with the glossary would help to understand the rest of this guide.
 
 Host
 ~~~~
 
 Incoming requests are matched by their hostname first. Hostname is defined by incoming ``Host`` header.
 E.g. ``curl http://example.com/alice`` will be matched by the host ``example.com`` first.
+
+Listener
+~~~~~~~~
+Listener is a dynamic socket that can be attached or detached to host without restart. Host can have multiple http and https listeners 
+attached to it, providing service on multiple interfaces and protocols.
 
 Location
 ~~~~~~~~
@@ -52,6 +46,23 @@ Middleware
 Vulcand supports pluggable middlewares. Middlewares can intercept or transform the request to any location. Examples of the supported middlewares are rate limits and connection limits.
 You can add or remove middlewares using command line, API or directly via backends.
 
+Secret storage
+~~~~~~~~~~~~~~
+
+Vulcand supports secret storage - running process acts like encryption/decryption service every time it reads and writes sensitive data, e.g. TLS certificates to the backend.
+To use this feature, users generate ``sealKey`` using command line utility and pass this key to the process for encryption and decryption of the data in the backends.
+
+Failover predicates
+~~~~~~~~~~~~~~~~~~~
+
+Sometimes it is handy to retry the request on error. The good question is what constitues an error? Sometimes it's a read/write timeout, and somethimes it's a specail error code. 
+Failover predicates are expressions that define when the request can be failed over, e.g.  ``IsNetworkError && AttemptsLe(1)``
+
+* ``IsNetworkError`` - failover on network error
+* ``AttemptsLe(1)`` - allows only 1 failover attempt. If you omit this, failover will go into endless loop
+* ``RequestMethodEq("GET")`` - allows failover for GET requests only
+* ``ResponseCodeEq(408)`` - allows failover on 408 HTTP response code
+
 Etcd
 ----
 
@@ -61,27 +72,107 @@ Vulcans watch etcd prefix that is supplied when running an instance and configur
 .. note::  All examples bellow assume that Vulcand is configured to listen on ``/vulcand`` prefix, which is a default prefix.
 
 
-Upstreams and endpoints
-~~~~~~~~~~~~~~~~~~~~~~~
+Quickstart
+~~~~~~~~~~
 
-Upserts upstream and adds an endpoint to it:
+This will get you up and running in a moment:
 
 .. code-block:: sh
 
+ # Upsert upstream and add an endpoint to it
  etcdctl set /vulcand/upstreams/up1/endpoints/e1 http://localhost:5000
+
+ # Upsert a host "localhost" and add a location to it that matches path "/home" and uses endpoints from upstream "up1"
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'TrieRoute("/home")'
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
+
+
+Upstreams and endpoints
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Upstream is a collection of endpoints serving a request. Adding and removing endpoints to the used upstream will change the traffic in real-time.
+
+.. code-block:: sh
+
+ # Upsert upstream and add an endpoint to it
+ etcdctl set /vulcand/upstreams/up1/endpoints/e1 http://localhost:5000
+
 
 Hosts and locations
 ~~~~~~~~~~~~~~~~~~~
 
-Adding locations and hosts:
+**Minimal setup**
+
+Minimal location setup needs a path and an existing upstream to start accepting requests. 
+You don't need to declare host explicitly, as it always a part of the location path, in this case it's ``localhost``
 
 .. code-block:: sh
 
  # Upsert a host "localhost" and add a location to it that matches path "/home" and uses endpoints from upstream "up1"
- etcdctl set /vulcand/hosts/localhost/locations/loc1/path "/home"
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'TrieRoute("/home")'
  etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
 
-The best part is that you can update upstream using the same command. Let's add another upstream and switch traffic to it:
+**Host Certificate**
+
+Certificates are stored as encrypted JSON dictionaries. Updating a certificate will gracefully reload it for all running HTTP servers.
+
+.. code-block:: sh
+
+ # Set host certificate
+ etcdctl set /vulcand/hosts/localhost/keypair '{...}'
+
+Learn how to generate JSON representation of the certificate by reading `Secrets`_ section of this document.
+
+**Location options**
+
+Location options are represented as JSON dictionary. 
+
+.. code-block:: javascript
+
+ {
+   "Timeouts": {
+      "Read":         "1s", // Socket read timeout (before we receive the first reply header)
+      "Dial":         "2s", // Socket connect timeout
+      "TlsHandshake": "3s", // TLS handshake timeout
+   },
+   "KeepAlive": {
+      "Period":              "4s",  // Keepalive period for idle connections
+      "MaxIdleConnsPerHost": 3,     // How many idle connections will be kept per host
+   },
+   "Limits": LocationLimits{
+     "MaxMemBodyBytes": 12,  // Maximum request body size to keep in memory before buffering to disk
+     "MaxBodyBytes": 400,    // Maximum request body size to allow for this location
+   },
+   "FailoverPredicate":  "IsNetworkError && AttemptsLe(1)", // Predicate that defines when requests are allowed to failover
+   "Hostname":           "host1", // Host to set in forwarding headers
+   "TrustForwardHeader": true, // Time provider (useful for testing purposes)
+ }
+
+
+.. code-block:: sh
+
+ # example of setting a failover predicate via options
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/options '{"FailoverPredicate":"(IsNetworkError || ResponseCodeEq(503)) && AttemptsLe(2)"}'
+
+**Listeners**
+
+Listeners allow attaching and detaching sockets on various interfaces and networks without restarts:
+
+.. code-block:: sh
+
+ # Add http listener accepting requests on localhpost:8183
+ etcdctl set /vulcand/hosts/mailgun.com/listeners/l1 '{"Protocol":"http", "Address":{"Network":"tcp", "Address":"localhost:8183"}}'
+
+ # Add https listener accepting requests on localhpost:8184
+ etcdctl set /vulcand/hosts/mailgun.com/listeners/l1 '{"Protocol":"https", "Address":{"Network":"tcp", "Address":"localhost:8184"}}'
+
+ # Add http listener accepting requests on a unix socket
+ etcdctl set /vulcand/hosts/mailgun.com/listeners/l1 '{"Protocol":"http", "Address":{"Network":"unix", "Address": "/tmp/vd.sock"}}'
+
+
+**Switching upstreams**
+
+Updating upstream gracefully re-routes the traffic to the new endpoints assigned to this upstream:
 
 .. code-block:: sh
 
@@ -92,7 +183,7 @@ The best part is that you can update upstream using the same command. Let's add 
  etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up2
 
 
-Note that you can add and remove endpoints to the existing upstream, and vulcan will start redirecting the traffic to them automatically:
+.. note::  you can add and remove endpoints to the existing upstream, and vulcan will start redirecting the traffic to them automatically:
 
 .. code-block:: sh
 
@@ -120,10 +211,50 @@ Vulcan supports setting rate and connection limits.
  etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/connlimit/rl1 '{"Type": "connlimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
 
 
+
+
 Vulcanctl
 ---------
 
 Vulcanctl is a command line tool that provides a convenient way to confugure Vulcand processes.
+
+Secrets
+~~~~~~~
+
+Secret storage is required to work with TLS certificates, as they are encrypted when stored in the backends.
+
+**Seal Key**
+
+Seal key is a secret key used to read and write encrypted data. 
+
+.. code-block:: sh
+
+ # generates a new secret key
+ $ vulcanctl secret new_key
+
+This key can be passed to encrypt the certificates via CLI and to the running vulcand instance to access the storage.
+
+.. note::  Only keys generated by vulcanctl will work!
+
+**Sealing TLS Certs**
+
+This tool will read the cert and key and output the json version with the encrypted data
+
+.. code-block:: sh
+
+ # reads the private key and certificate and returns back the encrypted version that can be passed to etcd
+ $ vulcanctl secret seal_keypair -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+
+.. note:: Add space before command to avoid leaking seal key in bash history, or use ``HISTIGNORE``
+
+
+**Setting certificates**
+
+This command will read the cert and key and update the certificate
+
+.. code-block:: sh
+
+ $ vulcanctl host set_keypair -host <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 Status
 ~~~~~~
@@ -148,7 +279,7 @@ Displays the configuration and stats about the daemon
 Host
 ~~~~
 
-Adding or removing host
+Host operations
 
 .. code-block:: sh
 
@@ -157,6 +288,9 @@ Adding or removing host
 
  # Remove host with name 'example.com'
  $ vulcanctl host rm --name example.com
+
+ # Connect to Vulcand Update the TLS certificate.
+ $ vulcanctl host cet_cert -host 'example.com' -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 
 Upstream
@@ -177,7 +311,7 @@ Add or remove upstreams
 
  # "Drain" - wait till there are no more active connections from the endpoints of the upstream 'u1'
  # or timeout after 10 seconds if there are remaining connections
- vulcanctl upstream drain -id u1 -timeout 10
+ $ vulcanctl upstream drain -id u1 -timeout 10
 
 
 Endpoint
@@ -218,6 +352,19 @@ Add or remove location to the host
  # to endpoints of the upstream 'u2', see drain for connection draining
  $ vulcanctl location set_upstream --host example.com --id loc1 --up u2
 
+ # update location 'loc1' options
+ $ vulcanctl location set_options -id 'loc1' -host 'example.com' \
+   -readTimeout 1s \
+   -dialTimeout 2s \
+   -handshakeTimeout 3s \
+   -keepAlivePeriod 30s \
+   -maxIdleConns 10 \
+   -maxMemBodyKB 30 \
+   -maxBodyKB 12345 \
+   -failoverPredicate 'IsNetworkError && AttemptsLe(1)' \
+   -forwardHost 'host.com' \
+   -trustForwardHeader 'no'
+
 Rate limit
 ~~~~~~~~~~
 
@@ -255,632 +402,22 @@ Control simultaneous connections for a location.
  $ vulcanctl connlimit rm --id c1  --host example.com --loc 'loc1'
 
 
-HTTP API Reference
-------------------
-
-Vulcan's HTTP API is the best way to configure one or several instances of Vulcan at the same time.  
-Essentially it's a tiny wrapper around the Etcd backend, that writes to the Etcd.
-Multiple Vulcand instances listening to the same prefix would detect changes simultaneously and reload configuration.
-
-Status
-~~~~~~
-
-Check status
-++++++++++++
-
-.. code-block:: url
-
-     GET /v1/status
-
-Returns: ``200 OK``
-
-.. code-block:: json
-
- {
-    "Status": "ok"
- }
-
-
-Host
-~~~~
-
-Get hosts
-+++++++++
-
-.. code-block:: url
-
-     GET /v1/hosts
-
-Example response:
-
-.. code-block:: json
-
- {
-   "Hosts": [
-     {
-       "Name": "localhost",
-       "Locations": [
-         {
-           "Hostname": "localhost",
-           "Path": "/home",
-           "Id": "loc1",
-           "Upstream": {
-             "Id": "up1",
-             "Endpoints": [
-               {
-                 "Id": "e1",
-                 "Url": "http://localhost:5000",
-                 "UpstreamId": "up1",
-                 "Stats": {
-                   "Successes": 0,
-                   "Failures": 0,
-                   "FailRate": 0,
-                   "PeriodSeconds": 10
-                 }
-               }
-             ]
-           },
-           "Middlewares": [
-             {
-               "Id": "rl1",
-               "Priority": 0,
-               "Type": "ratelimit",
-               "Middleware": {
-                 "PeriodSeconds": 1,
-                 "Burst": 3,
-                 "Variable": "client.ip",
-                 "Requests": 1
-               }
-             }
-           ]
-         }
-       ]
-     }
-   ]
- }
-
-
-Add host
-++++++++
-
-.. code-block:: url
-
-    POST 'application/json' /v1/hosts
-
-Add a host to the proxy.
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- name              Hostname      
- ================= ==========================================================
-
-Example responses:
-
-.. code-block:: json
-
- {
-   "Name": "localhost"
- }
-
-
-Delete host
-++++++++++++
-
-.. code-block:: url
-
-    DELETE /v1/hosts/<name>
-
-Delete a host.
-
-Upstream
-~~~~~~~~
-
-Get upstreams
-+++++++++++++
-
-.. code-block:: url
-
-    GET /v1/upstreams
-
-Retrieve the existing upstreams. Example response:
-
-.. code-block:: json
-
- {
-   "Upstreams": [
-     {
-       "Id": "up1",
-       "Endpoints": [
-         {
-           "Id": "e1",
-           "Url": "http://localhost:5000",
-           "UpstreamId": "up1",
-           "Stats": null
-         },
-         {
-           "Id": "e2",
-           "Url": "http://localhost:5001",
-           "UpstreamId": "up1",
-           "Stats": null
-         }
-       ]
-     }
-   ]
- }
-
-
-Add upstream
-++++++++++++
-
-.. code-block:: url
-
-    POST 'application/json' /v1/upstreams
-
-Add upstream to the proxy.
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- id                Optional upstream id, will be generated if omitted.
- ================= ==========================================================
-
-Example response:
-
-.. code-block:: json
-
- {"Id": "up1"}
-
-
-Delete upstream
-+++++++++++++++
-
-.. code-block:: url
-
-    DELETE /v1/upstreams/<id>
-
-
-Drain connections
-+++++++++++++++++
-
-.. code-block:: url
-
-    GET /v1/upstreams/drain?timeout=3
-
-Wait till there are no more connections to any endpoints to the upstream.
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- timeout           Timeout in form `1s` for the amount of seconds to wait before time out.
- ================= ==========================================================
-
-Example response:
-
-.. code-block:: json
-
- {
-   "Connections": 0
- }
-
-
-Endpoint
-~~~~~~~~
-
-Get endpoints
-+++++++++++++
-
-.. code-block:: url
-
-    GET /v1/upstreams/<id>/endpoints
-
-Retrieve the endpoints of the upstream. Example response:
-
-.. code-block:: json
-
- {
-   "Endpoints": [
-     {
-       "Id": "e1",
-       "Url": "http://localhost:5000",
-       "UpstreamId": "up1"
-     }
-   ]
- }
-
-Get endpoint
-++++++++++++
-
-.. code-block:: url
-
-    GET /v1/upstreams/<id>/endpoints/<endpoint-id>
-
-Retrieve the particular endpoint with id ``endpoint-id``
-
-Add endpoint
-++++++++++++
-
-.. code-block:: url
-
-    POST /v1/upstreams/<id>/endpoints
-
-Add endpoint to the upstream. 
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- id                Optional endppint id, will be generated if omitted
- url               Required valid endpoint url
- ================= ==========================================================
-
-Example response:
-
-.. code-block:: json
-
- {
-   "Id": "e4",
-   "Url": "http://localhost:5004",
-   "UpstreamId": "up1",
-   "Stats": null
- }
-
-
-Delete endpoint
-+++++++++++++++
-
-.. code-block:: url
-
-    DELETE /v1/upstreams/<id>/endpoints/<endpoint-id>
-
-Delete an endpoint.
-
-
-Location
-~~~~~~~~
-
-Get locations
-+++++++++++++
-
-.. code-block:: url
-
-    GET /v1/hosts/<hostname>/locations
-
-Retrieve the locations of the host. Example response:
-
-.. code-block:: json
-
- {
-   "Locations": [
-     {
-       "Hostname": "localhost",
-       "Path": "/home",
-       "Id": "loc1",
-       "Upstream": {
-         "Id": "up1",
-         "Endpoints": [
-           {
-             "Id": "e1",
-             "Url": "http://localhost:5000",
-             "UpstreamId": "up1",
-             "Stats": null
-           }
-         ]
-       },
-       "Middlewares": []
-     }
-   ]
- }
-
-
-Get location
-++++++++++++
-
-.. code-block:: url
-
-    GET /v1/hosts/<hostname>/locations/<location-id>
-
-Retrieve the particular location in the host ``hostname`` with id ``location-id``
-
-.. code-block:: json
-
- {
-   "Hostname": "localhost",
-   "Path": "/home",
-   "Id": "loc1",
-   "Upstream": {
-     "Id": "up1",
-     "Endpoints": [
-       {
-         "Id": "e1",
-         "Url": "http://localhost:5000",
-         "UpstreamId": "up1",
-         "Stats": null
-       }
-     ]
-   },
-   "Middlewares": [
-     {
-       "Id": "rl1",
-       "Priority": 0,
-       "Type": "ratelimit",
-       "Middleware": {
-         "PeriodSeconds": 1,
-         "Burst": 3,
-         "Variable": "client.ip",
-         "Requests": 1
-       }
-     },
-     {
-       "Id": "cl1",
-       "Priority": 0,
-       "Type": "connlimit",
-       "Middleware": {
-         "Connections": 3,
-         "Variable": "client.ip"
-       }
-     }
-   ]
- }
-
-
-Add location
-++++++++++++
-
-.. code-block:: url
-
-    POST 'application/json' /v1/hosts/<hostname>/locations
-
-Add a location to the host. Params:
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- Id                Optional location id, will be generated if omitted.
- Path              Required regular expression for path matchng
- Upstream.Id       Required id of the existing upstream
- Hostname          Required hostname
- ================= ==========================================================
-
-Example response:
-
-.. code-block:: json
-
- {
-   "Id": "loc2",
-   "Hostname": "localhost",
-   "Path": "/home",
-   "Upstream": {
-     "Id": "up1"
-   }
- }
-
-
-Delete location
-++++++++++++++++
-
-.. code-block:: url
-
-    DELETE /v1/hosts/<hostname>/locations/<location-id>
-
-Delete a location.
-
-
-Update location upstream
-++++++++++++++++++++++++
-
-.. code-block:: url
-
-    PUT /v1/hosts/<hostname>/locations/<location-id>
-
-Update location's upstream. Gracefully Redirects all the traffic to the endpoints of the new upstream.
-
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- upstream          Required id of the existing upstream
- ================= ==========================================================
-
-
-Rate limit
-~~~~~~~~~~
-
-Get rate limits
-+++++++++++++++
-
-.. code-block:: url
-
-    GET /v1/hosts/<hostname>/locations/<location-id>/middlewares/ratelimit/<rate-id>
-
-Retrieve the particular rate of location in the host ``hostname`` with id ``location-id`` and rate id ``rate-id``
-Example response:
-
-.. code-block:: json
-
- {
-   "Id": "rl1",
-   "Priority": 0,
-   "Type": "ratelimit",
-   "Middleware": {
-     "PeriodSeconds": 1,
-     "Burst": 3,
-     "Variable": "client.ip",
-     "Requests": 1
-   }
- }
-
-
-Add rate limit
-++++++++++++++
-
-.. code-block:: url
-
-    POST 'application/json' /v1/hosts/<hostname>/locations/limits/rates
-
-Add a rate limit to the location, will take effect immediately.
-
-.. code-block:: json
-
- {
-   "Id": "rl1",
-   "Priority": 0,
-   "Type": "ratelimit",
-   "Middleware": {
-     "PeriodSeconds": 1,
-     "Burst": 3,
-     "Variable": "client.ip",
-     "Requests": 1
-   }
- }
-
-Json parameters explained:
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- Id                Optional rate id, will be generated if omitted
- Requests          Required amount of allowed requests
- PeriodSeconds     Required period in seconds for counting the requests
- Burst             Required allowed burst of the requests (additional requests exceeding the rate)
- Variable          Variable for rate limiting e.g. `client.ip` or `request.header.My-Header`
- ================= ==========================================================
-
-
-Delete a rate limit
-+++++++++++++++++++
-
-.. code-block:: url
-
-    DELETE /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>
-
-Deletes rate limit from the location.
-
-
-Update a rate limit
-+++++++++++++++++++
-
-.. code-block:: url
-
-    PUT /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>
-
-Update location's rate limit. Takes effect immdediatelly. Example response
-
-.. code-block:: json
-
- {
-   "Id": "rl1",
-   "Priority": 0,
-   "Type": "ratelimit",
-   "Middleware": {
-     "PeriodSeconds": 1,
-     "Burst": 3,
-     "Variable": "client.ip",
-     "Requests": 1
-   }
- }
-
-
-Connection limit
-~~~~~~~~~~~~~~~~
-
-Get connection limits
-+++++++++++++++++++++
-
-.. code-block:: url
-
-    GET /v1/hosts/<hostname>/locations/<location-id>/middlewares/connlimit/<conn-id>
-
-Retrieve the particular connection limit of location in the host ``hostname`` with id ``location-id`` and connection limit id ``conn-id``. Example response:
-
-.. code-block:: json
-
- {
-   "Id": "cl1",
-   "Priority": 0,
-   "Type": "connlimit",
-   "Middleware": {
-     "Connections": 3,
-     "Variable": "client.ip"
-   }
- }
-
-Add connection limit
-++++++++++++++++++++
-
-.. code-block:: url
-
-    POST 'application/json' /v1/hosts/<hostname>/locations/limits/connections
-
-Add a connection limit to the location, will take effect immediately. Example response:
-
-.. code-block:: json
-
- {
-   "Id": "cl1",
-   "Priority": 0,
-   "Type": "connlimit",
-   "Middleware": {
-     "Connections": 3,
-     "Variable": "client.ip"
-   }
- }
-
-JSON parameters explained
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- Id                Optional limit id, will be generated if omitted.|
- Connections       Required maximum amount of allowed simultaneous connections|
- Variable          Variable for limiting e.g. ``client.ip`` or ``request.header.My-Header``
- ================= ==========================================================
-
-
-Delete connection limit
-+++++++++++++++++++++++ 
-
-.. code-block:: url
-
-    DELETE /v1/hosts/<hostname>/locations/<location-id>/middlewares/connlimit/<conn-id>
-
-Delete a connection limit from the location.
-
-Update connection limit
-+++++++++++++++++++++++
-
-.. code-block:: url
-
-    PUT /v1/hosts/<hostname>/locations/<location-id>/limits/connections/<conn-id>
-
-Update location's connection limit. Takes effect immdediatelly.
-
-.. code-block:: json
-
- {
-   "Id": "cl1",
-   "Priority": 0,
-   "Type": "connlimit",
-   "Middleware": {
-     "Connections": 3,
-     "Variable": "client.ip"
-   }
- }
+Startup
+-------
+
+Usage of vulcand
+
+.. code-block:: sh
+
+ vulcand
+  -apiInterface="":              # Interface to for API to bind to
+  -apiPort=8182:                 # Port to provide api on
+  -etcd=[]:                      # Etcd discovery service API endpoints
+  -etcdKey="vulcand"             # Etcd prefix for reading configuration
+  -log="console"                 # Logging to use (syslog or console)
+  -pidPath=""                    # Path to write PID file to
+  -sealKey=""                    # Seal key used to store encrypted data in the backend. Use 'vulcanctl secret new_key' to create a new key
+  -serverMaxHeaderBytes=1048576: # Maximum size of request headers in server
 
 
 Installation
@@ -893,14 +430,14 @@ Here's how you build vulcan in Docker:
 
 .. code-block:: sh
 
- docker build -t mailgun/vulcan .
+ docker build -t mailgun/vulcand .
 
 
 Starting the daemon:
 
 .. code-block:: sh
 
- docker run -p 8182:8182 -p 8181:8181 mailgun/vulcan /opt/vulcan/vulcand -apiInterface="0.0.0.0" -interface="0.0.0.0" --etcd=http://10.0.3.1:4001
+ docker run -p 8182:8182 -p 8181:8181 mailgun/vulcand /opt/vulcan/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
 
 
 Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.
@@ -909,7 +446,7 @@ Using the vulcanctl from container:
 
 .. code-block:: sh
 
- docker run mailgun/vulcan /opt/vulcan/vulcanctl status  --vulcan 'http://10.0.3.1:8182'
+ docker run mailgun/vulcand /opt/vulcan/vulcanctl status  --vulcan 'http://172.17.42.1:8182'
 
 
 Make sure you've specified ``--vulcan`` flag to tell vulcanctl where the running vulcand is. We've used lxc bridge interface in the example above.
@@ -924,7 +461,7 @@ There's a trusted ``mailgun/vulcand`` build you can use, it's updated automagica
 Manual installation
 ~~~~~~~~~~~~~~~~~~~
 
-.. note:: You have to install go>=1.2 and Etcd before installing vulcand:
+.. note:: You have to install go>=1.3 and Etcd before installing vulcand:
 
 Install: 
 
