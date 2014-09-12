@@ -457,3 +457,27 @@ func (s *LocSuite) TestFailoverHeaders(c *C) {
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(finalHeaders, DeepEquals, []string{"call"})
 }
+
+func (s *LocSuite) TestRewritesURLsWithEncodedPath(c *C) {
+	var actualURL string
+
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		actualURL = r.RequestURI
+	})
+	defer server.Close()
+
+	_, proxy := s.newProxy(s.newRoundRobin(server.URL))
+	defer proxy.Close()
+
+	path := "/log/http%3A%2F%2Fwww.site.com%2Fsomething?a=b"
+	url := netutils.MustParseUrl(proxy.URL)
+	url.Opaque = path
+
+	request, err := http.NewRequest("GET", url.String(), nil)
+	request.URL = url
+
+	http.DefaultClient.Do(request)
+
+	c.Assert(err, IsNil)
+	c.Assert(actualURL, Equals, path)
+}
