@@ -69,7 +69,7 @@ func (r *RoundRobin) NextEndpoint(req Request) (Endpoint, error) {
 	lastAttempt := req.GetLastAttempt()
 	// This is the first try, so just return the selected endpoint
 	if lastAttempt == nil {
-		return e, err
+		return e, nil
 	}
 	// Try to prevent failover to the same endpoint that we've seen before,
 	// that reduces the probability of the scenario when failover hits same endpoint
@@ -84,7 +84,7 @@ func (r *RoundRobin) NextEndpoint(req Request) (Endpoint, error) {
 			return endpoint, nil
 		}
 	}
-	return endpoint, err
+	return endpoint, nil
 }
 
 func (r *RoundRobin) nextEndpoint(req Request) (Endpoint, error) {

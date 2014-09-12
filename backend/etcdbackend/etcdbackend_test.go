@@ -16,6 +16,7 @@ import (
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
 	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/vulcand/secret"
 
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
@@ -32,6 +33,7 @@ type EtcdBackendSuite struct {
 	client       *etcd.Client
 	changesC     chan interface{}
 	timeProvider *timetools.FreezedTime
+	key          string
 }
 
 var _ = Suite(&EtcdBackendSuite{
@@ -45,6 +47,12 @@ var _ = Suite(&EtcdBackendSuite{
 func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
 
+	key, err := secret.NewKeyString()
+	if err != nil {
+		panic(err)
+	}
+	s.key = key
+
 	nodes_string := os.Getenv("VULCAND_TEST_ETCD_NODES")
 	if nodes_string == "" {
 		// Skips the entire suite
@@ -57,7 +65,21 @@ func (s *EtcdBackendSuite) SetUpSuite(c *C) {
 
 func (s *EtcdBackendSuite) SetUpTest(c *C) {
 	// Initiate a backend with a registry
-	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency, s.timeProvider)
+
+	key, err := secret.KeyFromString(s.key)
+	c.Assert(err, IsNil)
+
+	box, err := secret.NewBox(key)
+	c.Assert(err, IsNil)
+
+	backend, err := NewEtcdBackendWithOptions(
+		GetRegistry(),
+		s.nodes,
+		s.etcdPrefix,
+		Options{
+			EtcdConsistency: s.consistency,
+			Box:             box,
+		})
 	c.Assert(err, IsNil)
 	s.backend = backend
 	s.client = s.backend.client
@@ -76,12 +98,13 @@ func (s *EtcdBackendSuite) SetUpTest(c *C) {
 	}
 
 	s.changesC = make(chan interface{})
-	go s.backend.WatchChanges(s.changesC, false)
+	go s.backend.WatchChanges(s.changesC)
 }
 
 func (s *EtcdBackendSuite) TearDownTest(c *C) {
 	// Make sure we've recognized the change
 	s.backend.StopWatching()
+	s.backend.Close()
 }
 
 func (s *EtcdBackendSuite) collectChanges(c *C, expected int) []interface{} {
@@ -121,14 +144,128 @@ func (s *EtcdBackendSuite) TestAddDeleteHost(c *C) {
 	})
 }
 
-func (s *EtcdBackendSuite) TestGetters(c *C) {
-	hosts, err := s.backend.GetHosts()
+func (s *EtcdBackendSuite) TestAddHostWithOptions(c *C) {
+	host := s.makeHost("localhost")
+	host.Options.Default = true
+
+	h, err := s.backend.AddHost(host)
 	c.Assert(err, IsNil)
-	c.Assert(len(hosts), Equals, 0)
+	c.Assert(h, Equals, host)
+
+	s.expectChanges(c, &HostAdded{Host: host})
+
+	err = s.backend.DeleteHost("localhost")
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &HostDeleted{
+		Name: "localhost",
+	})
+}
+
+func (s *EtcdBackendSuite) TestAddHostWithKeyPair(c *C) {
+	host := s.makeHost("localhost")
+	host.KeyPair = &KeyPair{
+		Key:  []byte("hello"),
+		Cert: []byte("world"),
+	}
+
+	h, err := s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	c.Assert(h, Equals, host)
+
+	hostNoKeyPair := *host
+	hostNoKeyPair.KeyPair = nil
+
+	s.expectChanges(c, &HostAdded{Host: &hostNoKeyPair}, &HostKeyPairUpdated{Host: host})
+}
+
+func (s *EtcdBackendSuite) TestAddHostWithListeners(c *C) {
+	host := s.makeHost("localhost")
+	host.Listeners = []*Listener{
+		&Listener{
+			Protocol: "http",
+			Address: Address{
+				Network: "tcp",
+				Address: "127.0.0.1:9000",
+			},
+		},
+	}
+
+	h, err := s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	c.Assert(h, Equals, host)
+
+	hostNoListeners := *host
+	hostNoListeners.Listeners = []*Listener{}
+
+	s.expectChanges(c, &HostAdded{Host: &hostNoListeners}, &HostListenerAdded{Host: host, Listener: host.Listeners[0]})
+}
+
+func (s *EtcdBackendSuite) TestAddHostListener(c *C) {
+	host := s.makeHost("localhost")
+
+	h, err := s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	c.Assert(h, Equals, host)
+
+	host.Listeners = []*Listener{
+		&Listener{
+			Id:       "ls1",
+			Protocol: "http",
+			Address: Address{
+				Network: "tcp",
+				Address: "127.0.0.1:9000",
+			},
+		},
+	}
+
+	_, err = s.backend.AddHostListener(host.Name, host.Listeners[0])
+	c.Assert(err, IsNil)
+
+	hostNoListeners := *host
+	hostNoListeners.Listeners = []*Listener{}
+
+	s.expectChanges(c, &HostAdded{Host: &hostNoListeners}, &HostListenerAdded{Host: host, Listener: host.Listeners[0]})
+
+	// Adding same address second time fails
+	_, err = s.backend.AddHostListener(host.Name, host.Listeners[0])
+	c.Assert(err, NotNil)
+
+	c.Assert(s.backend.DeleteHostListener(host.Name, host.Listeners[0].Id), IsNil)
+	s.expectChanges(c, &HostListenerDeleted{Host: &hostNoListeners, ListenerId: host.Listeners[0].Id})
+}
+
+func (s *EtcdBackendSuite) TestUpdateHostKeyPair(c *C) {
+	host := s.makeHost("localhost")
+
+	h, err := s.backend.AddHost(host)
+	c.Assert(err, IsNil)
+	c.Assert(h, Equals, host)
+
+	hostNoKeyPair := *host
+	hostNoKeyPair.KeyPair = nil
+
+	host.KeyPair = &KeyPair{
+		Key:  []byte("hello"),
+		Cert: []byte("world"),
+	}
+	s.backend.UpdateHostKeyPair(host.Name, host.KeyPair)
+
+	s.expectChanges(c, &HostAdded{Host: &hostNoKeyPair}, &HostKeyPairUpdated{Host: host})
+}
+
+func (s *EtcdBackendSuite) TestGetUpstreams(c *C) {
+	up := s.makeUpstream("u1", 1)
+	_, err := s.backend.AddUpstream(up)
+	c.Assert(err, IsNil)
+
+	_, err = s.backend.AddEndpoint(up.Endpoints[0])
+	c.Assert(err, IsNil)
 
 	upstreams, err := s.backend.GetUpstreams()
 	c.Assert(err, IsNil)
-	c.Assert(len(upstreams), Equals, 0)
+	c.Assert(len(upstreams), Equals, 1)
+	c.Assert(upstreams[0], DeepEquals, up)
 }
 
 // Add the host twice fails
@@ -196,7 +333,7 @@ func (s *EtcdBackendSuite) TestEndpointAddReadDelete(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(eO, DeepEquals, e)
 
-	s.expectChanges(c, &EndpointAdded{
+	s.expectChanges(c, &EndpointUpdated{
 		Upstream:          up,
 		Endpoint:          e,
 		AffectedLocations: []*Location{},
@@ -456,7 +593,7 @@ func (s *EtcdBackendSuite) TestLocationRateLimitCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	loc.Middlewares = []*MiddlewareInstance{m}
-	s.expectChanges(c, &LocationMiddlewareAdded{
+	s.expectChanges(c, &LocationMiddlewareUpdated{
 		Host:       host,
 		Location:   loc,
 		Middleware: m,
@@ -549,41 +686,6 @@ func (s *EtcdBackendSuite) TestLocationMiddlewaresAutoId(c *C) {
 	c.Assert(mR.Id, Not(Equals), "")
 }
 
-func (s *EtcdBackendSuite) TestGenerateChanges(c *C) {
-	up := s.makeUpstream("u1", 1)
-	host := s.makeHost("localhost")
-	e := up.Endpoints[0]
-	loc := s.makeLocation("loc1", "/hello", host, up)
-	host.Locations = []*Location{loc}
-	rl := s.makeRateLimit("rl1", 10, "client.ip", 20, 1, loc)
-	loc.Middlewares = []*MiddlewareInstance{rl}
-
-	_, err := s.backend.AddUpstream(up)
-	c.Assert(err, IsNil)
-	_, err = s.backend.AddEndpoint(e)
-	c.Assert(err, IsNil)
-	_, err = s.backend.AddHost(host)
-	c.Assert(err, IsNil)
-	_, err = s.backend.AddLocation(loc)
-	c.Assert(err, IsNil)
-
-	m := s.makeRateLimit("rl1", 10, "client.ip", 20, 1, loc)
-	_, err = s.backend.AddLocationMiddleware(loc.Hostname, loc.Id, m)
-
-	backend, err := NewEtcdBackend(GetRegistry(), s.nodes, s.etcdPrefix, s.consistency, s.timeProvider)
-	c.Assert(err, IsNil)
-	defer backend.StopWatching()
-
-	s.changesC = make(chan interface{})
-	go s.backend.WatchChanges(s.changesC, true)
-	s.expectChanges(c,
-		&UpstreamAdded{Upstream: up},
-		&EndpointAdded{Upstream: up, Endpoint: e},
-		&HostAdded{Host: host},
-		&LocationAdded{Host: host, Location: loc},
-	)
-}
-
 func (s *EtcdBackendSuite) TestDeleteUpstreamUsedByLocation(c *C) {
 	up := s.makeUpstream("u1", 1)
 	host := s.makeHost("localhost")
@@ -626,7 +728,10 @@ func (s *EtcdBackendSuite) makeUpstream(id string, endpoints int) *Upstream {
 func (s *EtcdBackendSuite) makeHost(name string) *Host {
 	return &Host{
 		Name:      name,
-		Locations: []*Location{}}
+		Locations: []*Location{},
+		Listeners: []*Listener{},
+		Options:   HostOptions{},
+	}
 }
 
 func (s *EtcdBackendSuite) makeLocationWithOptions(id string, path string, host *Host, up *Upstream, options LocationOptions) *Location {

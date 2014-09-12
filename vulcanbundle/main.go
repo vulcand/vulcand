@@ -120,7 +120,7 @@ func getPackagePath(dir string) (string, error) {
 	}
 	out := strings.Split(path, "src/")
 	if len(out) != 2 {
-		return "", fmt.Errorf("Failed to locate package path (missing top level src folder)")
+		return "", fmt.Errorf("failed to locate package path (missing top level src folder)")
 	}
 	return out[1], nil
 }

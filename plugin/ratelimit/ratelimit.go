@@ -46,13 +46,13 @@ func NewRateLimit(requests int, variable string, burst int64, periodSeconds int)
 		return nil, err
 	}
 	if requests <= 0 {
-		return nil, fmt.Errorf("Requests should be > 0, got %d", requests)
+		return nil, fmt.Errorf("requests should be > 0, got %d", requests)
 	}
 	if burst < 0 {
-		return nil, fmt.Errorf("Burst should be >= 0, got %d", burst)
+		return nil, fmt.Errorf("burst should be >= 0, got %d", burst)
 	}
 	if periodSeconds <= 0 {
-		return nil, fmt.Errorf("Period seconds should be > 0, got %d", periodSeconds)
+		return nil, fmt.Errorf("period seconds should be > 0, got %d", periodSeconds)
 	}
 	return &RateLimit{
 		Requests:      requests,

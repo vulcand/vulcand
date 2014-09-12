@@ -2,12 +2,16 @@ package command
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/api"
-	"github.com/mailgun/vulcand/plugin"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/api"
+	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/secret"
 )
 
 type Command struct {
@@ -38,11 +42,13 @@ func (cmd *Command) Run(args []string) error {
 	app.Flags = flags()
 
 	app.Commands = []cli.Command{
+		NewKeyCommand(cmd),
 		NewStatusCommand(cmd),
 		NewHostCommand(cmd),
 		NewUpstreamCommand(cmd),
 		NewLocationCommand(cmd),
 		NewEndpointCommand(cmd),
+		NewListenerCommand(cmd),
 	}
 	app.Commands = append(app.Commands, NewMiddlewareCommands(cmd)...)
 	return app.Run(args)
@@ -58,7 +64,7 @@ func findVulcanUrl(args []string) (string, []string, error) {
 		} else if strings.HasPrefix(arg, "-vulcan") || strings.HasPrefix(arg, "--vulcan") {
 			// This argument should not be the last one
 			if i > len(args)-2 {
-				return "", nil, fmt.Errorf("Provide a valid vulcan URL")
+				return "", nil, fmt.Errorf("provide a valid vulcan URL")
 			}
 			return args[i+1], cut(i, i+2, args), nil
 		}
@@ -76,4 +82,35 @@ func flags() []cli.Flag {
 	return []cli.Flag{
 		cli.StringFlag{Name: "vulcan", Value: "http://localhost:8182", Usage: "Url for vulcan server"},
 	}
+}
+
+func readKeyPair(certPath, keyPath string) (*backend.KeyPair, error) {
+	fKey, err := os.Open(keyPath)
+	if err != nil {
+		return nil, err
+	}
+	defer fKey.Close()
+	key, err := ioutil.ReadAll(fKey)
+	if err != nil {
+		return nil, err
+	}
+
+	fCert, err := os.Open(certPath)
+	if err != nil {
+		return nil, err
+	}
+	defer fCert.Close()
+	cert, err := ioutil.ReadAll(fCert)
+	if err != nil {
+		return nil, err
+	}
+	return backend.NewKeyPair(cert, key)
+}
+
+func readBox(key string) (*secret.Box, error) {
+	keyB, err := secret.KeyFromString(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read encryption key: %s", err)
+	}
+	return secret.NewBox(keyB)
 }

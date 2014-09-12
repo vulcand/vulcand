@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/service"
 	"os"
+
+	"github.com/mailgun/vulcand/service"
 )
 
 func main() {

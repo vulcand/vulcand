@@ -6,15 +6,16 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"github.com/mailgun/vulcand/adapter"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
-	"github.com/mailgun/vulcand/configure"
+	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
+	"github.com/mailgun/vulcand/server"
+	"github.com/mailgun/vulcand/supervisor"
+	"github.com/mailgun/vulcand/testutils"
 )
 
 func TestApi(t *testing.T) { TestingT(t) }
@@ -32,15 +33,21 @@ func (s *ApiSuite) SetUpSuite(c *C) {
 }
 
 func (s *ApiSuite) SetUpTest(c *C) {
+	newServer := func(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
+		return server.NewMuxServerWithOptions(id, cw, server.Options{})
+	}
+
 	s.backend = membackend.NewMemBackend(registry.GetRegistry())
 
-	muxRouter := mux.NewRouter()
-	hostRouter := hostroute.NewHostRouter()
-	proxy, err := vulcan.NewProxy(hostRouter)
-	configurator := configure.NewConfigurator(proxy)
-	c.Assert(err, IsNil)
+	newBackend := func() (Backend, error) {
+		return s.backend, nil
+	}
 
-	InitProxyController(s.backend, adapter.NewAdapter(proxy), configurator.GetConnWatcher(), muxRouter)
+	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
+
+	muxRouter := mux.NewRouter()
+
+	InitProxyController(s.backend, sv, sv.GetConnWatcher(), muxRouter)
 	s.testServer = httptest.NewServer(muxRouter)
 	s.client = NewClient(s.testServer.URL, registry.GetRegistry())
 }
@@ -68,9 +75,31 @@ func (s *ApiSuite) TestHostCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(hosts[0].Name, Equals, "localhost")
 
-	status, err := s.client.DeleteHost("localhost")
+	_, err = s.client.UpdateHostKeyPair(host.Name, testutils.NewTestKeyPair())
+	c.Assert(err, IsNil)
+
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(hosts[0].KeyPair, DeepEquals, testutils.NewTestKeyPair())
+
+	listener := &Listener{Id: "1", Protocol: HTTP, Address: Address{"tcp", "localhost:31000"}}
+	_, err = s.client.AddHostListener(host.Name, listener)
+	c.Assert(err, IsNil)
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(hosts[0].Listeners, DeepEquals, []*Listener{listener})
+
+	status, err := s.client.DeleteHostListener(host.Name, "1")
 	c.Assert(err, IsNil)
 	c.Assert(status, NotNil)
+
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(hosts[0].Listeners, DeepEquals, []*Listener{})
+
+	status, err = s.client.DeleteHost("localhost")
+	c.Assert(err, IsNil)
+	c.Assert(status, NotNil)
+
+	hosts, _ = s.backend.GetHosts()
+	c.Assert(len(hosts), Equals, 0)
 
 	hosts, err = s.client.GetHosts()
 	c.Assert(len(hosts), Equals, 0)

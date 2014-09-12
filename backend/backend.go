@@ -2,8 +2,11 @@
 package backend
 
 import (
+	"crypto/subtle"
+	"crypto/tls"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/failover"
@@ -12,11 +15,18 @@ import (
 	"github.com/mailgun/vulcand/plugin"
 )
 
+type NewBackendFn func() (Backend, error)
+
 type Backend interface {
 	GetHosts() ([]*Host, error)
 	AddHost(*Host) (*Host, error)
-	GetHost(name string) (*Host, error)
 	DeleteHost(name string) error
+	UpdateHostKeyPair(hostname string, keyPair *KeyPair) (*Host, error)
+
+	GetHost(name string) (*Host, error)
+
+	AddHostListener(hostname string, listener *Listener) (*Listener, error)
+	DeleteHostListener(hostname string, listenerId string) error
 
 	AddLocation(*Location) (*Location, error)
 	GetLocation(hostname, id string) (*Location, error)
@@ -39,15 +49,13 @@ type Backend interface {
 	DeleteEndpoint(upstreamId, id string) error
 
 	// WatchChanges is an entry point for getting the configuration changes as well as the initial configuration.
-	// It should behave in the following way:
-	//
-	// * This should be a blocking function generating events from change.go to the changes channel
-	// * If the initalSetup is true, it should read the existing configuration and generate the events to the channel
-	//   just as someone was creating the elements one by one.
-	WatchChanges(changes chan interface{}, initialSetup bool) error
+	// It should be a blocking function generating events from change.go to the changes channel.
+	WatchChanges(changes chan interface{}) error
 
 	// GetRegistry returns registry with the supported plugins.
 	GetRegistry() *plugin.Registry
+
+	Close()
 }
 
 // StatsGetter provides realtime stats about endpoint specific to a particular location.
@@ -55,11 +63,62 @@ type StatsGetter interface {
 	GetStats(hostname string, locationId string, e *Endpoint) *EndpointStats
 }
 
+type KeyPair struct {
+	Key  []byte
+	Cert []byte
+}
+
+func NewKeyPair(cert, key []byte) (*KeyPair, error) {
+	if len(cert) == 0 || len(key) == 0 {
+		return nil, fmt.Errorf("Provide non-empty certificate and a private key")
+	}
+	if _, err := tls.X509KeyPair(cert, key); err != nil {
+		return nil, err
+	}
+	return &KeyPair{Cert: cert, Key: key}, nil
+}
+
+func (c *KeyPair) Equals(o *KeyPair) bool {
+	return (len(c.Cert) == len(o.Cert)) &&
+		(len(c.Key) == len(o.Key)) &&
+		subtle.ConstantTimeCompare(c.Cert, o.Cert) == 1 &&
+		subtle.ConstantTimeCompare(c.Key, o.Key) == 1
+}
+
+type Address struct {
+	Network string
+	Address string
+}
+
+// Listener specifies the listening point - the network and interface for each host. Host can have multiple interfaces.
+type Listener struct {
+	Id string
+	// HTTP or HTTPS
+	Protocol string
+	// Adddress specifies network (tcp or unix) and address (ip:port or path to unix socket)
+	Address Address
+}
+
+func (l *Listener) String() string {
+	return fmt.Sprintf("Listener(%s, %s://%s)", l.Protocol, l.Address.Network, l.Address.Address)
+}
+
+func (a *Address) Equals(o Address) bool {
+	return a.Network == o.Network && a.Address == o.Address
+}
+
+type HostOptions struct {
+	Default bool
+}
+
 // Incoming requests are matched by their hostname first. Hostname is defined by incoming 'Host' header.
 // E.g. curl http://example.com/alice will be matched by the host example.com first.
 type Host struct {
 	Name      string
 	Locations []*Location
+	KeyPair   *KeyPair
+	Listeners []*Listener
+	Options   HostOptions
 }
 
 func NewHost(name string) (*Host, error) {
@@ -135,6 +194,37 @@ type MiddlewareInstance struct {
 	Priority   int
 	Type       string
 	Middleware plugin.Middleware
+}
+
+func NewAddress(network, address string) (*Address, error) {
+	if len(address) == 0 {
+		return nil, fmt.Errorf("supply a non empty address")
+	}
+
+	network = strings.ToLower(network)
+	if network != TCP && network != UNIX {
+		return nil, fmt.Errorf("unsupported network '%s', supported networks are tcp and unix", network)
+	}
+
+	return &Address{Network: network, Address: address}, nil
+}
+
+func NewListener(id, protocol, network, address string) (*Listener, error) {
+	protocol = strings.ToLower(protocol)
+	if protocol != HTTP && protocol != HTTPS {
+		return nil, fmt.Errorf("unsupported protocol '%s', supported protocols are http and https", protocol)
+	}
+
+	a, err := NewAddress(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Listener{
+		Id:       id,
+		Address:  *a,
+		Protocol: protocol,
+	}, nil
 }
 
 func NewLocation(hostname, id, path, upstreamId string) (*Location, error) {
@@ -254,10 +344,10 @@ type Endpoint struct {
 
 func NewEndpoint(upstreamId, id, url string) (*Endpoint, error) {
 	if upstreamId == "" {
-		return nil, fmt.Errorf("Upstream id '%s' can not be empty")
+		return nil, fmt.Errorf("upstream id '%s' can not be empty")
 	}
 	if _, err := netutils.ParseUrl(url); err != nil {
-		return nil, fmt.Errorf("Endpoint url '%s' is not valid", url)
+		return nil, fmt.Errorf("endpoint url '%s' is not valid", url)
 	}
 	return &Endpoint{
 		UpstreamId: upstreamId,
@@ -310,3 +400,10 @@ type AlreadyExistsError struct {
 func (n *AlreadyExistsError) Error() string {
 	return "Object already exists"
 }
+
+const (
+	HTTP  = "http"
+	HTTPS = "https"
+	TCP   = "tcp"
+	UNIX  = "unix"
+)

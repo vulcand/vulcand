@@ -19,7 +19,7 @@ type MiddlewareSpec struct {
 	FromCli CliReader
 }
 
-func (ms *MiddlewareSpec) FromJson(data []byte) (Middleware, error) {
+func (ms *MiddlewareSpec) FromJSON(data []byte) (Middleware, error) {
 	// Get a function's type
 	fnType := reflect.TypeOf(ms.FromOther)
 
@@ -27,7 +27,7 @@ func (ms *MiddlewareSpec) FromJson(data []byte) (Middleware, error) {
 	ptr := reflect.New(fnType.In(0)).Interface()
 	err := json.Unmarshal(data, &ptr)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to decode %T from JSON, error: %s", ptr, err)
+		return nil, fmt.Errorf("failed to decode %T from JSON, error: %s", ptr, err)
 	}
 	// Now let's call the function to produce a middleware
 	fnVal := reflect.ValueOf(ms.FromOther)
@@ -64,10 +64,10 @@ func NewRegistry() *Registry {
 
 func (r *Registry) AddSpec(s *MiddlewareSpec) error {
 	if s == nil {
-		return fmt.Errorf("Spec can not be nil")
+		return fmt.Errorf("spec can not be nil")
 	}
 	if r.GetSpec(s.Type) != nil {
-		return fmt.Errorf("Middleware of type %s already registered")
+		return fmt.Errorf("middleware of type %s already registered")
 	}
 	if err := verifySignature(s.FromOther); err != nil {
 		return err
@@ -92,22 +92,22 @@ func (r *Registry) GetSpecs() []*MiddlewareSpec {
 func verifySignature(fn interface{}) error {
 	t := reflect.TypeOf(fn)
 	if t == nil || t.Kind() != reflect.Func {
-		return fmt.Errorf("Expected function, got %s", t)
+		return fmt.Errorf("expected function, got %s", t)
 	}
 	if t.NumIn() != 1 {
-		return fmt.Errorf("Expected function with one input argument, got %d", t.NumIn())
+		return fmt.Errorf("expected function with one input argument, got %d", t.NumIn())
 	}
 	if t.In(0).Kind() != reflect.Struct {
-		return fmt.Errorf("Function argument should be struct, got %s", t.In(0).Kind())
+		return fmt.Errorf("function argument should be struct, got %s", t.In(0).Kind())
 	}
 	if t.NumOut() != 2 {
-		return fmt.Errorf("Function should return 2 values, got %s", t.NumOut())
+		return fmt.Errorf("function should return 2 values, got %s", t.NumOut())
 	}
 	if !t.Out(0).AssignableTo(reflect.TypeOf((*Middleware)(nil)).Elem()) {
-		return fmt.Errorf("Function first return value should be Middleware got, %s", t.Out(0))
+		return fmt.Errorf("function first return value should be Middleware got, %s", t.Out(0))
 	}
 	if !t.Out(1).AssignableTo(reflect.TypeOf((*error)(nil)).Elem()) {
-		return fmt.Errorf("Function second return value should be error got, %s", t.Out(1))
+		return fmt.Errorf("function second return value should be error got, %s", t.Out(1))
 	}
 	return nil
 }

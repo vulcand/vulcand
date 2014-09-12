@@ -7,39 +7,48 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/secret"
 )
 
-const reconnectTimeout = 3 * time.Second
-
 type EtcdBackend struct {
-	nodes        []string
-	registry     *plugin.Registry
-	etcdKey      string
-	consistency  string
-	client       *etcd.Client
-	cancelC      chan bool
-	stopC        chan bool
-	timeProvider timetools.TimeProvider
+	nodes    []string
+	registry *plugin.Registry
+	etcdKey  string
+	client   *etcd.Client
+	cancelC  chan bool
+	stopC    chan bool
+
+	options Options
 }
 
-func NewEtcdBackend(registry *plugin.Registry, nodes []string, etcdKey, consistency string, timeProvider timetools.TimeProvider) (*EtcdBackend, error) {
+type Options struct {
+	EtcdConsistency string
+	Box             *secret.Box
+}
+
+func NewEtcdBackend(registry *plugin.Registry, nodes []string, etcdKey string) (*EtcdBackend, error) {
+	return NewEtcdBackendWithOptions(registry, nodes, etcdKey, Options{})
+}
+
+func NewEtcdBackendWithOptions(registry *plugin.Registry, nodes []string, etcdKey string, options Options) (*EtcdBackend, error) {
+	o, err := parseOptions(options)
+	if err != nil {
+		return nil, err
+	}
 	b := &EtcdBackend{
-		nodes:        nodes,
-		registry:     registry,
-		etcdKey:      etcdKey,
-		consistency:  consistency,
-		cancelC:      make(chan bool, 1),
-		stopC:        make(chan bool, 1),
-		timeProvider: timeProvider,
+		nodes:    nodes,
+		registry: registry,
+		etcdKey:  etcdKey,
+		cancelC:  make(chan bool, 1),
+		stopC:    make(chan bool, 1),
+		options:  o,
 	}
 	if err := b.reconnect(); err != nil {
 		return nil, err
@@ -47,12 +56,16 @@ func NewEtcdBackend(registry *plugin.Registry, nodes []string, etcdKey, consiste
 	return b, nil
 }
 
-func (s *EtcdBackend) reconnect() error {
+func (s *EtcdBackend) Close() {
 	if s.client != nil {
 		s.client.Close()
 	}
+}
+
+func (s *EtcdBackend) reconnect() error {
+	s.Close()
 	client := etcd.NewClient(s.nodes)
-	if err := client.SetConsistency(s.consistency); err != nil {
+	if err := client.SetConsistency(s.options.EtcdConsistency); err != nil {
 		return err
 	}
 	s.client = client
@@ -67,37 +80,157 @@ func (s *EtcdBackend) GetHosts() ([]*backend.Host, error) {
 	return s.readHosts(true)
 }
 
+func (s *EtcdBackend) UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) (*backend.Host, error) {
+	host, err := s.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.setHostKeyPair(host.Name, keyPair); err != nil {
+		return nil, err
+	}
+	host.KeyPair = keyPair
+	return host, nil
+}
+
 func (s *EtcdBackend) AddHost(h *backend.Host) (*backend.Host, error) {
-	if _, err := s.client.CreateDir(s.path("hosts", h.Name), 0); err != nil {
-		return nil, convertErr(err)
+	hostKey := s.path("hosts", h.Name)
+
+	if err := s.checkKeyExists(hostKey); err == nil {
+		return nil, &backend.AlreadyExistsError{
+			Message: fmt.Sprintf("%s already exists", h),
+		}
+	}
+
+	if err := s.setJSONVal(join(hostKey, "options"), h.Options); err != nil {
+		return nil, err
+	}
+	if h.KeyPair != nil {
+		if err := s.setHostKeyPair(h.Name, h.KeyPair); err != nil {
+			return nil, err
+		}
+	}
+	if len(h.Listeners) != 0 {
+		for _, l := range h.Listeners {
+			if _, err := s.AddHostListener(h.Name, l); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return h, nil
+}
+
+func (s *EtcdBackend) AddHostListener(hostname string, listener *backend.Listener) (*backend.Listener, error) {
+	host, err := s.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range host.Listeners {
+		if l.Address.Equals(listener.Address) {
+			return nil, &backend.AlreadyExistsError{
+				Message: fmt.Sprintf("listener using the same address %s already exists: %s ", l.Address, l),
+			}
+		}
+	}
+
+	if listener.Id == "" {
+		id, err := s.addChildJSONVal(s.path("hosts", hostname, "listeners"), listener)
+		if err != nil {
+			return nil, err
+		}
+		listener.Id = id
+	} else {
+		if err := s.setJSONVal(s.path("hosts", hostname, "listeners", listener.Id), listener); err != nil {
+			return nil, err
+		}
+	}
+	return listener, nil
+}
+
+func (s *EtcdBackend) DeleteHostListener(hostname string, listenerId string) error {
+	return s.deleteKey(s.path("hosts", hostname, "listeners", listenerId))
 }
 
 func (s *EtcdBackend) GetHost(hostname string) (*backend.Host, error) {
 	return s.readHost(hostname, true)
 }
 
-func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error) {
-	hostKey := s.path("hosts", hostname)
-	_, err := s.client.Get(hostKey, false, false)
+func (s *EtcdBackend) setHostKeyPair(hostname string, keyPair *backend.KeyPair) error {
+	bytes, err := json.Marshal(keyPair)
 	if err != nil {
-		if etcdErr, ok := err.(*etcd.EtcdError); ok {
-			etcdErr.Message = fmt.Sprintf("Host '%s' not found", hostKey)
-		}
-		return nil, convertErr(err)
+		return err
 	}
+	return s.setSealedVal(s.path("hosts", hostname, "keypair"), bytes)
+}
+
+func (s *EtcdBackend) readHostKeyPair(hostname string) (*backend.KeyPair, error) {
+	if s.options.Box == nil {
+		return nil, nil
+	}
+	bytes, err := s.getSealedVal(s.path("hosts", hostname, "keypair"))
+	if err != nil {
+		return nil, err
+	}
+	var keyPair *backend.KeyPair
+	if err := json.Unmarshal(bytes, &keyPair); err != nil {
+		return nil, err
+	}
+	return keyPair, nil
+}
+
+func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error) {
+
+	hostKey := s.path("hosts", hostname)
+	if err := s.checkKeyExists(hostKey); err != nil {
+		return nil, err
+	}
+
+	var options *backend.HostOptions
+	err := s.getJSONVal(join(hostKey, "options"), &options)
+	if err != nil {
+		if isNotFoundError(err) {
+			options = &backend.HostOptions{}
+		} else {
+			return nil, err
+		}
+	}
+
+	keyPair, err := s.readHostKeyPair(hostname)
+	if err != nil && !isNotFoundError(err) {
+
+		return nil, err
+	}
+
 	host := &backend.Host{
 		Name:      hostname,
 		Locations: []*backend.Location{},
+		KeyPair:   keyPair,
+		Listeners: []*backend.Listener{},
+		Options:   *options,
+	}
+
+	listeners, err := s.getVals(hostKey, "listeners")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range listeners {
+		l, err := backend.ListenerFromJSON([]byte(p.Val))
+		if err != nil {
+			return nil, err
+		}
+		l.Id = suffix(p.Key)
+		host.Listeners = append(host.Listeners, l)
 	}
 
 	if !deep {
 		return host, nil
 	}
-
-	for _, locationKey := range s.getDirs(hostKey, "locations") {
-		location, err := s.GetLocation(hostname, suffix(locationKey))
+	locations, err := s.getDirs(hostKey, "locations")
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range locations {
+		location, err := s.GetLocation(hostname, suffix(key))
 		if err != nil {
 			return nil, err
 		}
@@ -107,8 +240,7 @@ func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error
 }
 
 func (s *EtcdBackend) DeleteHost(name string) error {
-	_, err := s.client.Delete(s.path("hosts", name), true)
-	return convertErr(err)
+	return s.deleteKey(s.path("hosts", name))
 }
 
 func (s *EtcdBackend) AddLocation(l *backend.Location) (*backend.Location, error) {
@@ -118,72 +250,63 @@ func (s *EtcdBackend) AddLocation(l *backend.Location) (*backend.Location, error
 
 	// Check if the host of the location exists
 	if _, err := s.readHost(l.Hostname, false); err != nil {
-		return nil, convertErr(err)
-	}
-
-	// Serialize options to JSON
-	optionsBytes, err := json.Marshal(l.Options)
-	if err != nil {
 		return nil, err
 	}
 
 	// Auto generate id if not set by user, very handy feature
 	if l.Id == "" {
-		response, err := s.client.AddChildDir(s.path("hosts", l.Hostname, "locations"), 0)
+		id, err := s.addChildDir(s.path("hosts", l.Hostname, "locations"))
 		if err != nil {
-			return nil, convertErr(err)
+			return nil, err
 		}
-		l.Id = suffix(response.Node.Key)
+		l.Id = id
 	} else {
-		if _, err := s.client.CreateDir(s.path("hosts", l.Hostname, "locations", l.Id), 0); err != nil {
-			return nil, convertErr(err)
+		if err := s.createDir(s.path("hosts", l.Hostname, "locations", l.Id)); err != nil {
+			return nil, err
 		}
 	}
 	locationKey := s.path("hosts", l.Hostname, "locations", l.Id)
-	if _, err := s.client.Create(join(locationKey, "options"), string(optionsBytes), 0); err != nil {
+	if err := s.setJSONVal(join(locationKey, "options"), l.Options); err != nil {
 		return nil, err
 	}
-	if _, err := s.client.Create(join(locationKey, "path"), l.Path, 0); err != nil {
+	if err := s.setStringVal(join(locationKey, "path"), l.Path); err != nil {
 		return nil, err
 	}
-	if _, err := s.client.Create(join(locationKey, "upstream"), l.Upstream.Id, 0); err != nil {
+	if err := s.setStringVal(join(locationKey, "upstream"), l.Upstream.Id); err != nil {
 		return nil, err
 	}
-
 	return l, nil
 }
 
 func (s *EtcdBackend) ExpectLocation(hostname, locationId string) error {
-	locationKey := s.path("hosts", hostname, "locations", locationId)
-	_, err := s.client.Get(locationKey, false, false)
-	if err != nil {
-		return convertErr(err)
-	}
-	return nil
+	return s.checkKeyExists(s.path("hosts", hostname, "locations", locationId))
 }
 
 func (s *EtcdBackend) GetLocation(hostname, locationId string) (*backend.Location, error) {
 	locationKey := s.path("hosts", hostname, "locations", locationId)
-	_, err := s.client.Get(locationKey, false, false)
+
+	if err := s.checkKeyExists(locationKey); err != nil {
+		return nil, err
+	}
+
+	path, err := s.getVal(join(locationKey, "path"))
 	if err != nil {
-		return nil, convertErr(err)
+		return nil, err
 	}
-	path, ok := s.getVal(locationKey, "path")
-	if !ok {
-		return nil, fmt.Errorf("missing location path: %s", locationKey)
+
+	upstreamKey, err := s.getVal(join(locationKey, "upstream"))
+	if err != nil {
+		return nil, err
 	}
-	upstreamKey, ok := s.getVal(locationKey, "upstream")
-	if !ok {
-		return nil, fmt.Errorf("missing location upstream: %s", locationKey)
-	}
-	optionsKey, ok := s.getVal(locationKey, "options")
-	options := backend.LocationOptions{}
-	if ok {
-		o, err := backend.LocationOptionsFromJson([]byte(optionsKey))
-		if err != nil {
+
+	var options *backend.LocationOptions
+	err = s.getJSONVal(join(locationKey, "options"), &options)
+	if err != nil {
+		if isNotFoundError(err) {
+			options = &backend.LocationOptions{}
+		} else {
 			return nil, err
 		}
-		options = *o
 	}
 
 	location := &backend.Location{
@@ -191,7 +314,7 @@ func (s *EtcdBackend) GetLocation(hostname, locationId string) (*backend.Locatio
 		Id:          locationId,
 		Path:        path,
 		Middlewares: []*backend.MiddlewareInstance{},
-		Options:     options,
+		Options:     *options,
 	}
 	upstream, err := s.GetUpstream(upstreamKey)
 	if err != nil {
@@ -217,50 +340,39 @@ func (s *EtcdBackend) GetLocation(hostname, locationId string) (*backend.Locatio
 }
 
 func (s *EtcdBackend) UpdateLocationUpstream(hostname, id, upstreamId string) (*backend.Location, error) {
-	log.Infof("Update Location(id=%s, hostname=%s) set upstream %s", id, hostname, upstreamId)
-
 	// Make sure upstream exists
 	if _, err := s.GetUpstream(upstreamId); err != nil {
 		return nil, err
 	}
 
-	if _, err := s.client.Set(join(s.path("hosts", hostname, "locations", id), "upstream"), upstreamId, 0); err != nil {
-		return nil, convertErr(err)
+	if err := s.setStringVal(s.path("hosts", hostname, "locations", id, "upstream"), upstreamId); err != nil {
+		return nil, err
 	}
 
 	return s.GetLocation(hostname, id)
 }
 
 func (s *EtcdBackend) UpdateLocationOptions(hostname, id string, o backend.LocationOptions) (*backend.Location, error) {
-	bytes, err := json.Marshal(o)
-	if err != nil {
+	if err := s.setJSONVal(s.path("hosts", hostname, "locations", id, "options"), o); err != nil {
 		return nil, err
-	}
-	if _, err := s.client.Set(join(s.path("hosts", hostname, "locations", id), "options"), string(bytes), 0); err != nil {
-		return nil, convertErr(err)
 	}
 	return s.GetLocation(hostname, id)
 }
 
 func (s *EtcdBackend) DeleteLocation(hostname, id string) error {
-	locationKey := s.path("hosts", hostname, "locations", id)
-	_, err := s.client.Delete(locationKey, true)
-	if err != nil {
-		return convertErr(err)
-	}
-	return nil
+	return s.deleteKey(s.path("hosts", hostname, "locations", id))
 }
 
 func (s *EtcdBackend) AddUpstream(u *backend.Upstream) (*backend.Upstream, error) {
 	if u.Id == "" {
-		response, err := s.client.AddChildDir(s.path("upstreams"), 0)
+		id, err := s.addChildDir(s.path("upstreams"))
 		if err != nil {
-			return nil, convertErr(err)
+			return nil, err
 		}
-		u.Id = suffix(response.Node.Key)
+		u.Id = id
 	} else {
-		if _, err := s.client.CreateDir(s.path("upstreams", u.Id), 0); err != nil {
-			return nil, convertErr(err)
+		if err := s.createDir(s.path("upstreams", u.Id)); err != nil {
+			return nil, err
 		}
 	}
 	return u, nil
@@ -269,13 +381,10 @@ func (s *EtcdBackend) AddUpstream(u *backend.Upstream) (*backend.Upstream, error
 func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) {
 	upstreamKey := s.path("upstreams", upstreamId)
 
-	_, err := s.client.Get(upstreamKey, false, false)
-	if err != nil {
-		if etcdErr, ok := err.(*etcd.EtcdError); ok {
-			etcdErr.Message = fmt.Sprintf("Upstream '%s' not found", upstreamKey)
-		}
-		return nil, convertErr(err)
+	if err := s.checkKeyExists(upstreamKey); err != nil {
+		return nil, err
 	}
+
 	upstream := &backend.Upstream{
 		Id:        suffix(upstreamKey),
 		Endpoints: []*backend.Endpoint{},
@@ -288,7 +397,6 @@ func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) 
 	for _, e := range endpointPairs {
 		_, err := endpoint.ParseUrl(e.Val)
 		if err != nil {
-			fmt.Printf("Ignoring endpoint: failed to parse url: %s", e.Val)
 			continue
 		}
 		e := &backend.Endpoint{
@@ -303,7 +411,11 @@ func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) 
 
 func (s *EtcdBackend) GetUpstreams() ([]*backend.Upstream, error) {
 	upstreams := []*backend.Upstream{}
-	for _, upstreamKey := range s.getDirs(s.etcdKey, "upstreams") {
+	ups, err := s.getDirs(s.etcdKey, "upstreams")
+	if err != nil {
+		return nil, err
+	}
+	for _, upstreamKey := range ups {
 		upstream, err := s.GetUpstream(suffix(upstreamKey))
 		if err != nil {
 			return nil, err
@@ -319,7 +431,7 @@ func (s *EtcdBackend) DeleteUpstream(upstreamId string) error {
 		return err
 	}
 	if len(locations) != 0 {
-		return fmt.Errorf("can't delete upstream '%s', it's in use by %s", locations)
+		return fmt.Errorf("can not delete upstream '%s', it is in use by %s", locations)
 	}
 	_, err = s.client.Delete(s.path("upstreams", upstreamId), true)
 	return convertErr(err)
@@ -327,14 +439,14 @@ func (s *EtcdBackend) DeleteUpstream(upstreamId string) error {
 
 func (s *EtcdBackend) AddEndpoint(e *backend.Endpoint) (*backend.Endpoint, error) {
 	if e.Id == "" {
-		response, err := s.client.AddChild(s.path("upstreams", e.UpstreamId, "endpoints"), e.Url, 0)
+		id, err := s.addChildStringVal(s.path("upstreams", e.UpstreamId, "endpoints"), e.Url)
 		if err != nil {
-			return nil, convertErr(err)
+			return nil, err
 		}
-		e.Id = suffix(response.Node.Key)
+		e.Id = id
 	} else {
-		if _, err := s.client.Create(s.path("upstreams", e.UpstreamId, "endpoints", e.Id), e.Url, 0); err != nil {
-			return nil, convertErr(err)
+		if err := s.setStringVal(s.path("upstreams", e.UpstreamId, "endpoints", e.Id), e.Url); err != nil {
+			return nil, err
 		}
 	}
 	return e, nil
@@ -345,14 +457,14 @@ func (s *EtcdBackend) GetEndpoint(upstreamId, id string) (*backend.Endpoint, err
 		return nil, err
 	}
 
-	response, err := s.client.Get(s.path("upstreams", upstreamId, "endpoints", id), false, false)
+	url, err := s.getVal(s.path("upstreams", upstreamId, "endpoints", id))
 	if err != nil {
-		return nil, convertErr(err)
+		return nil, err
 	}
 
 	return &backend.Endpoint{
-		Url:        response.Node.Value,
-		Id:         suffix(response.Node.Key),
+		Url:        url,
+		Id:         id,
 		UpstreamId: upstreamId,
 	}, nil
 }
@@ -361,29 +473,22 @@ func (s *EtcdBackend) DeleteEndpoint(upstreamId, id string) error {
 	if _, err := s.GetUpstream(upstreamId); err != nil {
 		return err
 	}
-	if _, err := s.client.Delete(s.path("upstreams", upstreamId, "endpoints", id), true); err != nil {
-		return convertErr(err)
-	}
-	return nil
+	return s.deleteKey(s.path("upstreams", upstreamId, "endpoints", id))
 }
 
 func (s *EtcdBackend) AddLocationMiddleware(hostname, locationId string, m *backend.MiddlewareInstance) (*backend.MiddlewareInstance, error) {
 	if err := s.ExpectLocation(hostname, locationId); err != nil {
 		return nil, err
 	}
-	bytes, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
 	if m.Id == "" {
-		response, err := s.client.AddChild(s.path("hosts", hostname, "locations", locationId, "middlewares", m.Type), string(bytes), 0)
+		id, err := s.addChildJSONVal(s.path("hosts", hostname, "locations", locationId, "middlewares", m.Type), m)
 		if err != nil {
 			return nil, err
 		}
-		m.Id = suffix(response.Node.Key)
+		m.Id = id
 	} else {
-		if _, err := s.client.Create(s.path("hosts", hostname, "locations", locationId, "middlewares", m.Type, m.Id), string(bytes), 0); err != nil {
-			return nil, convertErr(err)
+		if err := s.setJSONVal(s.path("hosts", hostname, "locations", locationId, "middlewares", m.Type, m.Id), m); err != nil {
+			return nil, err
 		}
 	}
 	return m, nil
@@ -394,11 +499,11 @@ func (s *EtcdBackend) GetLocationMiddleware(hostname, locationId, mType, id stri
 		return nil, err
 	}
 	backendKey := s.path("hosts", hostname, "locations", locationId, "middlewares", mType, id)
-	bytes, ok := s.getVal(backendKey)
-	if !ok {
-		return nil, fmt.Errorf("middleware %s(%s) not found", mType, id)
+	bytes, err := s.getVal(backendKey)
+	if err != nil {
+		return nil, err
 	}
-	out, err := backend.MiddlewareFromJson([]byte(bytes), s.registry.GetSpec)
+	out, err := backend.MiddlewareFromJSON([]byte(bytes), s.registry.GetSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -417,12 +522,8 @@ func (s *EtcdBackend) UpdateLocationMiddleware(hostname, locationId string, m *b
 	if err := s.ExpectLocation(hostname, locationId); err != nil {
 		return nil, err
 	}
-	bytes, err := json.Marshal(m)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := s.client.Set(s.path("hosts", hostname, "locations", locationId, "middlewares", m.Type, m.Id), string(bytes), 0); err != nil {
-		return m, convertErr(err)
+	if err := s.setJSONVal(s.path("hosts", hostname, "locations", locationId, "middlewares", m.Type, m.Id), m); err != nil {
+		return m, err
 	}
 	return m, nil
 }
@@ -431,24 +532,11 @@ func (s *EtcdBackend) DeleteLocationMiddleware(hostname, locationId, mType, id s
 	if err := s.ExpectLocation(hostname, locationId); err != nil {
 		return err
 	}
-	if _, err := s.client.Delete(s.path("hosts", hostname, "locations", locationId, "middlewares", mType, id), true); err != nil {
-		if notFound(err) {
-			return fmt.Errorf("middleware %s('%s') not found", mType, id)
-		}
-	}
-	return nil
+	return s.deleteKey(s.path("hosts", hostname, "locations", locationId, "middlewares", mType, id))
 }
 
 // Watches etcd changes and generates structured events telling vulcand to add or delete locations, hosts etc.
-// if initialSetup is true, reads the existing configuration and generates events for inital configuration of the proxy.
-func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) error {
-	if initialSetup == true {
-		log.Infof("Etcd backend reading initial configuration, etcd nodes: %s", s.nodes)
-		if err := s.generateChanges(changes); err != nil {
-			log.Errorf("Failed to generate changes: %s, stopping watch.", err)
-			return err
-		}
-	}
+func (s *EtcdBackend) WatchChanges(changes chan interface{}) error {
 	// This index helps us to get changes in sequence, as they were performed by clients.
 	waitIndex := uint64(0)
 	for {
@@ -459,17 +547,15 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, initialSetup bool) 
 				log.Infof("Stop watching: graceful shutdown")
 				return nil
 			default:
-				log.Errorf("Unexpected error: %s, reconnecting", err)
-				s.timeProvider.Sleep(reconnectTimeout)
-				s.reconnect()
-				continue
+				log.Errorf("unexpected error: %s, stop watching", err)
+				return err
 			}
 		}
 		waitIndex = response.Node.ModifiedIndex + 1
-		log.Infof("%s %s %d %v", response.Action, response.Node.Key, response.EtcdIndex, err)
+		log.Infof("%s", responseToString(response))
 		change, err := s.parseChange(response)
 		if err != nil {
-			log.Errorf("Failed to process: %s", err)
+			log.Warningf("Ignore '%s', error: %s", responseToString(response), err)
 			continue
 		}
 		if change != nil {
@@ -489,59 +575,14 @@ func (s *EtcdBackend) StopWatching() {
 	s.stopC <- true
 }
 
-// Reads the configuration of the vulcand and generates a sequence of events
-// just like as someone was creating locations and hosts in sequence.
-func (s *EtcdBackend) generateChanges(changes chan interface{}) error {
-	upstreams, err := s.GetUpstreams()
-	if err != nil {
-		return err
-	}
-
-	if len(upstreams) == 0 {
-		log.Warningf("No upstreams found")
-	}
-
-	for _, u := range upstreams {
-		changes <- &backend.UpstreamAdded{
-			Upstream: u,
-		}
-		for _, e := range u.Endpoints {
-			changes <- &backend.EndpointAdded{
-				Upstream: u,
-				Endpoint: e,
-			}
-		}
-	}
-
-	hosts, err := s.readHosts(true)
-	if err != nil {
-		return err
-	}
-
-	if len(hosts) == 0 {
-		log.Warningf("No hosts found")
-	}
-
-	for _, h := range hosts {
-		changes <- &backend.HostAdded{
-			Host: h,
-		}
-		for _, l := range h.Locations {
-			changes <- &backend.LocationAdded{
-				Host:     h,
-				Location: l,
-			}
-		}
-	}
-	return nil
-}
-
 type MatcherFn func(*etcd.Response) (interface{}, error)
 
 // Dispatches etcd key changes changes to the etcd to the matching functions
 func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) {
 	matchers := []MatcherFn{
 		s.parseHostChange,
+		s.parseHostKeyPairChange,
+		s.parseHostListenerChange,
 		s.parseLocationChange,
 		s.parseLocationUpstreamChange,
 		s.parseLocationOptionsChange,
@@ -561,14 +602,14 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 }
 
 func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)$").FindStringSubmatch(response.Node.Key)
+	out := regexp.MustCompile("/hosts/([^/]+)(?:/options)?$").FindStringSubmatch(response.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 
 	hostname := out[1]
 
-	if response.Action == "create" {
+	if response.Action == "create" || response.Action == "set" {
 		host, err := s.readHost(hostname, false)
 		if err != nil {
 			return nil, err
@@ -582,6 +623,25 @@ func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, err
 		}, nil
 	}
 	return nil, fmt.Errorf("unsupported action on the location: %s", response.Action)
+}
+
+func (s *EtcdBackend) parseHostKeyPairChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/keypair").FindStringSubmatch(response.Node.Key)
+	if len(out) != 2 {
+		return nil, nil
+	}
+
+	if response.Action != "create" && response.Action != "set" && response.Action != "delete" {
+		return nil, fmt.Errorf("funsupported action on the certificate: %s", response.Action)
+	}
+	hostname := out[1]
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.HostKeyPairUpdated{
+		Host: host,
+	}, nil
 }
 
 func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{}, error) {
@@ -689,6 +749,36 @@ func (s *EtcdBackend) parseLocationPathChange(response *etcd.Response) (interfac
 	}, nil
 }
 
+func (s *EtcdBackend) parseHostListenerChange(response *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/listeners/([^/]+)").FindStringSubmatch(response.Node.Key)
+	if len(out) != 3 {
+		return nil, nil
+	}
+	hostname, listenerId := out[1], out[2]
+
+	host, err := s.readHost(hostname, false)
+	if err != nil {
+		return nil, err
+	}
+	if response.Action == "create" || response.Action == "set" {
+		for _, l := range host.Listeners {
+			if l.Id == listenerId {
+				return &backend.HostListenerAdded{
+					Host:     host,
+					Listener: l,
+				}, nil
+			}
+		}
+		return nil, fmt.Errorf("listener %s not found", listenerId)
+	} else if response.Action == "delete" {
+		return &backend.HostListenerDeleted{
+			Host:       host,
+			ListenerId: listenerId,
+		}, nil
+	}
+	return nil, fmt.Errorf("unsupported action on the listener: %s", response.Action)
+}
+
 func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{}, error) {
 	out := regexp.MustCompile("/upstreams/([^/]+)$").FindStringSubmatch(response.Node.Key)
 	if len(out) != 2 {
@@ -727,18 +817,7 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(response *etcd.Response) (inte
 		return nil, err
 	}
 
-	if response.Action == "create" {
-		for _, e := range upstream.Endpoints {
-			if e.Id == endpointId {
-				return &backend.EndpointAdded{
-					Upstream:          upstream,
-					Endpoint:          e,
-					AffectedLocations: affectedLocations,
-				}, nil
-			}
-		}
-		return nil, fmt.Errorf("endpoint %s not found", endpointId)
-	} else if response.Action == "set" {
+	if response.Action == "set" || response.Action == "create" {
 		for _, e := range upstream.Endpoints {
 			if e.Id == endpointId {
 				return &backend.EndpointUpdated{
@@ -812,7 +891,12 @@ func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{
 
 func (s *EtcdBackend) readHosts(deep bool) ([]*backend.Host, error) {
 	hosts := []*backend.Host{}
-	for _, hostKey := range s.getDirs(s.etcdKey, "hosts") {
+	vals, err := s.getDirs(s.etcdKey, "hosts")
+	if err != nil {
+
+		return nil, err
+	}
+	for _, hostKey := range vals {
 		host, err := s.readHost(suffix(hostKey), deep)
 		if err != nil {
 			return nil, err
@@ -842,27 +926,85 @@ func (s EtcdBackend) path(keys ...string) string {
 	return strings.Join(append([]string{s.etcdKey}, keys...), "/")
 }
 
-func (s *EtcdBackend) getVal(keys ...string) (string, bool) {
-	response, err := s.client.Get(strings.Join(keys, "/"), false, false)
+func (s *EtcdBackend) setSealedVal(key string, val []byte) error {
+	if s.options.Box == nil {
+		return fmt.Errorf("this backend does not support encryption")
+	}
+	v, err := s.options.Box.Seal([]byte(val))
 	if err != nil {
-		return "", false
+		return err
+	}
+	bytes, err := secret.SealedValueToJSON(v)
+	if err != nil {
+		return err
+	}
+	return s.setVal(key, bytes)
+}
+
+func (s *EtcdBackend) setJSONVal(key string, v interface{}) error {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return s.setVal(key, bytes)
+}
+
+func (s *EtcdBackend) setVal(key string, val []byte) error {
+	_, err := s.client.Set(key, string(val), 0)
+	return convertErr(err)
+}
+
+func (s *EtcdBackend) setStringVal(key string, val string) error {
+	return s.setVal(key, []byte(val))
+}
+
+func (s *EtcdBackend) getSealedVal(key string) ([]byte, error) {
+	if s.options.Box == nil {
+		return nil, fmt.Errorf("this backend does not support encryption")
+	}
+	bytes, err := s.getVal(key)
+	if err != nil {
+		return nil, err
+	}
+	sv, err := secret.SealedValueFromJSON([]byte(bytes))
+	if err != nil {
+		return nil, err
+	}
+	return s.options.Box.Open(sv)
+}
+
+func (s *EtcdBackend) getJSONVal(key string, in interface{}) error {
+	val, err := s.getVal(key)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(val), in)
+}
+
+func (s *EtcdBackend) getVal(key string) (string, error) {
+	response, err := s.client.Get(key, false, false)
+	if err != nil {
+		return "", convertErr(err)
 	}
 
 	if isDir(response.Node) {
-		return "", false
+		return "", &backend.NotFoundError{Message: fmt.Sprintf("missing key: %s", key)}
 	}
-	return response.Node.Value, true
+	return response.Node.Value, nil
 }
 
-func (s *EtcdBackend) getDirs(keys ...string) []string {
+func (s *EtcdBackend) getDirs(keys ...string) ([]string, error) {
 	var out []string
 	response, err := s.client.Get(strings.Join(keys, "/"), true, true)
-	if notFound(err) {
-		return out
+	if err != nil {
+		if notFound(err) {
+			return out, nil
+		}
+		return nil, err
 	}
 
 	if response == nil || !isDir(response.Node) {
-		return out
+		return out, nil
 	}
 
 	for _, srvNode := range response.Node.Nodes {
@@ -870,7 +1012,7 @@ func (s *EtcdBackend) getDirs(keys ...string) []string {
 			out = append(out, srvNode.Key)
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (s *EtcdBackend) getVals(keys ...string) ([]Pair, error) {
@@ -893,6 +1035,49 @@ func (s *EtcdBackend) getVals(keys ...string) ([]Pair, error) {
 		}
 	}
 	return out, nil
+}
+
+func (s *EtcdBackend) createDir(key string) error {
+	_, err := s.client.CreateDir(key, 0)
+	return convertErr(err)
+}
+
+func (s *EtcdBackend) addChildDir(key string) (string, error) {
+	response, err := s.client.AddChildDir(key, 0)
+	if err != nil {
+		return "", convertErr(err)
+	}
+	return suffix(response.Node.Key), nil
+}
+
+func (s *EtcdBackend) addChildVal(key string, val []byte) (string, error) {
+	response, err := s.client.AddChild(key, string(val), 0)
+	if err != nil {
+		return "", convertErr(err)
+	}
+	return suffix(response.Node.Key), nil
+}
+
+func (s *EtcdBackend) addChildJSONVal(key string, v interface{}) (string, error) {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return s.addChildVal(key, bytes)
+}
+
+func (s *EtcdBackend) addChildStringVal(key string, val string) (string, error) {
+	return s.addChildVal(key, []byte(val))
+}
+
+func (s *EtcdBackend) checkKeyExists(key string) error {
+	_, err := s.client.Get(key, false, false)
+	return convertErr(err)
+}
+
+func (s *EtcdBackend) deleteKey(key string) error {
+	_, err := s.client.Delete(key, true)
+	return convertErr(err)
 }
 
 type Pair struct {
@@ -932,4 +1117,22 @@ func convertErr(e error) error {
 
 func isDir(n *etcd.Node) bool {
 	return n != nil && n.Dir == true
+}
+
+func parseOptions(o Options) (Options, error) {
+	if o.EtcdConsistency == "" {
+		o.EtcdConsistency = etcd.STRONG_CONSISTENCY
+	}
+	return o, nil
+}
+
+func isNotFoundError(err error) bool {
+	_, ok := err.(*backend.NotFoundError)
+	return ok
+}
+
+const encryptionSecretBox = "secretbox.v1"
+
+func responseToString(r *etcd.Response) string {
+	return fmt.Sprintf("%s %s %d", r.Action, r.Node.Key, r.EtcdIndex)
 }

@@ -46,29 +46,29 @@ func (s *MiddlewareSuite) TestVerifySignatureIncompatibleFunctions(c *C) {
 
 }
 
-func (s *MiddlewareSuite) TestFromJsonOk(c *C) {
+func (s *MiddlewareSuite) TestFromJSONOk(c *C) {
 
 	correct := TestMiddleware{Field: "hi"}
 	bytes, err := json.Marshal(correct)
 	c.Assert(err, IsNil)
 
-	out, err := GetSpec().FromJson(bytes)
+	out, err := GetSpec().FromJSON(bytes)
 	c.Assert(err, IsNil)
 	c.Assert(out, DeepEquals, out)
 }
 
-func (s *MiddlewareSuite) TestFromJsonBadInstance(c *C) {
+func (s *MiddlewareSuite) TestFromJSONBadInstance(c *C) {
 	incorrect := TestMiddleware{}
 	bytes, err := json.Marshal(incorrect)
 	c.Assert(err, IsNil)
 
-	out, err := GetSpec().FromJson(bytes)
+	out, err := GetSpec().FromJSON(bytes)
 	c.Assert(err, NotNil)
 	c.Assert(out, IsNil)
 }
 
-func (s *MiddlewareSuite) TestFromJsonBadJson(c *C) {
-	out, err := GetSpec().FromJson([]byte(" what?"))
+func (s *MiddlewareSuite) TestFromJSONBadJSON(c *C) {
+	out, err := GetSpec().FromJSON([]byte(" what?"))
 	c.Assert(err, NotNil)
 	c.Assert(out, IsNil)
 }
@@ -109,7 +109,7 @@ func GetSpec() *MiddlewareSpec {
 		Type: "test",
 		FromOther: func(b TestMiddleware) (Middleware, error) {
 			if b.Field == "" {
-				return nil, fmt.Errorf("Can not be empty")
+				return nil, fmt.Errorf("can not be empty")
 			}
 			return &TestMiddleware{Field: b.Field}, nil
 		},

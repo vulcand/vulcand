@@ -33,7 +33,7 @@ func (c *Client) GetHosts() ([]*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	return HostsFromJson(data, c.Registry.GetSpec)
+	return HostsFromJSON(data, c.Registry.GetSpec)
 }
 
 func (c *Client) AddHost(name string) (*Host, error) {
@@ -45,7 +45,27 @@ func (c *Client) AddHost(name string) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	return HostFromJson(response, c.Registry.GetSpec)
+	return HostFromJSON(response, c.Registry.GetSpec)
+}
+
+func (c *Client) AddHostListener(hostname string, l *Listener) (*Listener, error) {
+	response, err := c.Post(c.endpoint("hosts", hostname, "listeners"), l)
+	if err != nil {
+		return nil, err
+	}
+	return ListenerFromJSON(response)
+}
+
+func (c *Client) DeleteHostListener(name, listenerId string) (*StatusResponse, error) {
+	return c.Delete(c.endpoint("hosts", name, "listeners", listenerId))
+}
+
+func (c *Client) UpdateHostKeyPair(hostname string, keyPair *KeyPair) (*Host, error) {
+	response, err := c.Put(c.endpoint("hosts", hostname, "keypair"), keyPair)
+	if err != nil {
+		return nil, err
+	}
+	return HostFromJSON(response, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteHost(name string) (*StatusResponse, error) {
@@ -65,7 +85,7 @@ func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, opt
 	if err != nil {
 		return nil, err
 	}
-	return LocationFromJson(response, c.Registry.GetSpec)
+	return LocationFromJSON(response, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteLocation(hostname, id string) (*StatusResponse, error) {
@@ -81,7 +101,7 @@ func (c *Client) UpdateLocationOptions(hostname, location string, options Locati
 	if err != nil {
 		return nil, err
 	}
-	return LocationFromJson(response, c.Registry.GetSpec)
+	return LocationFromJSON(response, c.Registry.GetSpec)
 }
 
 func (c *Client) AddUpstream(id string) (*Upstream, error) {
@@ -93,7 +113,7 @@ func (c *Client) AddUpstream(id string) (*Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return UpstreamFromJson(response)
+	return UpstreamFromJSON(response)
 }
 
 func (c *Client) DeleteUpstream(id string) (*StatusResponse, error) {
@@ -105,7 +125,7 @@ func (c *Client) GetUpstream(id string) (*Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return UpstreamFromJson(response)
+	return UpstreamFromJSON(response)
 }
 
 func (c *Client) DrainUpstreamConnections(upstreamId, timeout string) (int, error) {
@@ -141,7 +161,7 @@ func (c *Client) AddEndpoint(upstreamId, id, u string) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EndpointFromJson(data)
+	return EndpointFromJSON(data)
 }
 
 func (c *Client) DeleteEndpoint(upstreamId, id string) (*StatusResponse, error) {
@@ -154,7 +174,7 @@ func (c *Client) AddMiddleware(spec *MiddlewareSpec, hostname, locationId string
 	if err != nil {
 		return nil, err
 	}
-	return MiddlewareFromJson(data, c.Registry.GetSpec)
+	return MiddlewareFromJSON(data, c.Registry.GetSpec)
 }
 
 func (c *Client) UpdateMiddleware(spec *MiddlewareSpec, hostname, locationId string, m *MiddlewareInstance) (*MiddlewareInstance, error) {
@@ -163,7 +183,7 @@ func (c *Client) UpdateMiddleware(spec *MiddlewareSpec, hostname, locationId str
 	if err != nil {
 		return nil, err
 	}
-	return MiddlewareFromJson(data, c.Registry.GetSpec)
+	return MiddlewareFromJSON(data, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteMiddleware(spec *MiddlewareSpec, hostname, locationId, mId string) (*StatusResponse, error) {
@@ -261,7 +281,7 @@ func (c *Client) RoundTrip(fn RoundTripFn) ([]byte, error) {
 	if response.StatusCode != http.StatusOK {
 		var status *StatusResponse
 		if err := json.Unmarshal(responseBody, &status); err != nil {
-			return nil, fmt.Errorf("Failed to decode response '%s', error: %", responseBody, err)
+			return nil, fmt.Errorf("failed to decode response '%s', error: %", responseBody, err)
 		}
 		if response.StatusCode == http.StatusNotFound {
 			return nil, &NotFoundError{Message: status.Message}

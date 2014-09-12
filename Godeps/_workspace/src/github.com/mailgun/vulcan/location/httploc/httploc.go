@@ -271,9 +271,12 @@ func (l *HttpLocation) copyRequest(req *http.Request, body netutils.MultiReader,
 	// Set the body to the enhanced body that can be re-read multiple times and buffered to disk
 	outReq.Body = body
 
-	outReq.URL.Scheme = endpoint.GetUrl().Scheme
-	outReq.URL.Host = endpoint.GetUrl().Host
-	outReq.URL.RawQuery = req.URL.RawQuery
+	endpointURL := endpoint.GetUrl()
+	outReq.URL.Scheme = endpointURL.Scheme
+	outReq.URL.Host = endpointURL.Host
+	outReq.URL.Opaque = req.RequestURI
+	// raw query is already included in RequestURI, so ignore it to avoid dupes
+	outReq.URL.RawQuery = ""
 
 	outReq.Proto = "HTTP/1.1"
 	outReq.ProtoMajor = 1
