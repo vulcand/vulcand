@@ -34,15 +34,16 @@ First we need to seal the certificate and format it:
 .. code-block:: sh
 
  # reads the private key and certificate and returns back the encrypted version that can be passed to etcd
- $ vulcanctl secret seal_cert -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ $ vulcanctl secret seal_keypair -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
+.. note:: Add space before command to avoid leaking seal key in bash history, or use ``HISTIGNORE``
 
 Once we got the certificate sealed, we can pass it to the ETCD:
 
 .. code-block:: sh
 
  # Set host certificate
- etcdctl set /vulcand/hosts/mailgun.com/cert '{...}'
+ etcdctl set /vulcand/hosts/mailgun.com/keypair '{...}'
 
 .. note::  to update the certificate in the live mode just repeat the steps with the new certificate, vulcand will gracefully reload the config.
 
@@ -54,7 +55,7 @@ Set certificate via command line tool:
 .. code-block:: sh
 
  # Connect to Vulcand Update the TLS certificate.
- % vulcanctl host cet_cert -host 'example.com' -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ $ vulcanctl host set_keypair -host <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 .. note::  in this case we don't need to supply seal key, as in this case the CLI talks to the Vulcand directly and Vulcand encrypts the cert for us
 

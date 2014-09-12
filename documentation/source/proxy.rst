@@ -1,7 +1,7 @@
 .. _proxy:
 
-User Guide
-==========
+User Manual
+===========
 
 
 Glossary
@@ -119,7 +119,7 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 .. code-block:: sh
 
  # Set host certificate
- etcdctl set /vulcand/hosts/mailgun.com/cert '{...}'
+ etcdctl set /vulcand/hosts/localhost/keypair '{...}'
 
 Learn how to generate JSON representation of the certificate by reading `Secrets`_ section of this document.
 
@@ -243,8 +243,18 @@ This tool will read the cert and key and output the json version with the encryp
 .. code-block:: sh
 
  # reads the private key and certificate and returns back the encrypted version that can be passed to etcd
- $ vulcanctl secret seal_cert -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ $ vulcanctl secret seal_keypair -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
+.. note:: Add space before command to avoid leaking seal key in bash history, or use ``HISTIGNORE``
+
+
+**Setting certificates**
+
+This command will read the cert and key and update the certificate
+
+.. code-block:: sh
+
+ $ vulcanctl host set_keypair -host <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 Status
 ~~~~~~
@@ -400,13 +410,13 @@ Usage of vulcand
 .. code-block:: sh
 
  vulcand
-  -apiInterface="":  # Interface to for API to bind to
-  -apiPort=8182:     # Port to provide api on
-  -etcd=[]:          # Etcd discovery service API endpoints
-  -etcdKey="vulcand" # Etcd prefix for reading configuration
-  -log="console"     # Logging to use (syslog or console)
-  -pidPath=""        # Path to write PID file to
-  -sealKey=""       # Seal key used to store encrypted data in the backend. Use 'vulcanctl secret new_key' to create a new key
+  -apiInterface="":              # Interface to for API to bind to
+  -apiPort=8182:                 # Port to provide api on
+  -etcd=[]:                      # Etcd discovery service API endpoints
+  -etcdKey="vulcand"             # Etcd prefix for reading configuration
+  -log="console"                 # Logging to use (syslog or console)
+  -pidPath=""                    # Path to write PID file to
+  -sealKey=""                    # Seal key used to store encrypted data in the backend. Use 'vulcanctl secret new_key' to create a new key
   -serverMaxHeaderBytes=1048576: # Maximum size of request headers in server
 
 
@@ -420,14 +430,14 @@ Here's how you build vulcan in Docker:
 
 .. code-block:: sh
 
- docker build -t mailgun/vulcan .
+ docker build -t mailgun/vulcand .
 
 
 Starting the daemon:
 
 .. code-block:: sh
 
- docker run -p 8182:8182 -p 8181:8181 mailgun/vulcand /opt/vulcan/vulcand -apiInterface="0.0.0.0" --etcd=http://10.0.3.1:4001
+ docker run -p 8182:8182 -p 8181:8181 mailgun/vulcand /opt/vulcan/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
 
 
 Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.
@@ -436,7 +446,7 @@ Using the vulcanctl from container:
 
 .. code-block:: sh
 
- docker run mailgun/vulcand /opt/vulcan/vulcanctl status  --vulcan 'http://10.0.3.1:8182'
+ docker run mailgun/vulcand /opt/vulcan/vulcanctl status  --vulcan 'http://172.17.42.1:8182'
 
 
 Make sure you've specified ``--vulcan`` flag to tell vulcanctl where the running vulcand is. We've used lxc bridge interface in the example above.
