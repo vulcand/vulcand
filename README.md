@@ -12,4 +12,5 @@ Project info
 | documentation | https://www.vulcanproxy.com                                      |
 | :------------- |:-----------------------------------------------------------------|
 | status        | Hardening, testing, benchmarking. Not usable for production yet |
+| blog          | http://blog.vulcanproxy.com                                     |
 | discussions   | https://groups.google.com/d/forum/vulcan-proxy                  |
