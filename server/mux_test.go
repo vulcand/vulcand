@@ -119,6 +119,18 @@ func (s *ServerSuite) TestServerListenerCRUD(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *ServerSuite) TestDeleteHostListener(c *C) {
+	e := NewTestServer("Hi, I'm endpoint")
+	defer e.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	_, h := MakeLocation("localhost", e.URL, e.URL)
+	c.Assert(s.mux.UpsertHost(h), NotNil)
+
+	c.Assert(s.mux.DeleteHostListener(h, h.Listeners[0].Id), IsNil)
+}
+
 func (s *ServerSuite) TestServerHTTPSCRUD(c *C) {
 	e := NewTestServer("Hi, I'm endpoint")
 	defer e.Close()

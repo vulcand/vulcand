@@ -6,8 +6,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
 	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
@@ -74,7 +74,7 @@ func (s *server) deleteHost(hostname string) (bool, error) {
 	delete(s.listeners, hostname)
 
 	if len(s.listeners) == 0 {
-		s.srv.Close()
+		s.shutdown()
 		return true, nil
 	}
 
