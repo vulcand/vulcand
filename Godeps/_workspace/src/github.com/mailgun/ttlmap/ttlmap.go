@@ -11,7 +11,7 @@ type TtlMap struct {
 	capacity     int
 	elements     map[string]*mapElement
 	expiryTimes  *minheap.MinHeap
-	timeProvider timetools.TimeProvider
+	TimeProvider timetools.TimeProvider
 }
 
 type mapElement struct {
@@ -26,7 +26,7 @@ func NewMap(capacity int) (*TtlMap, error) {
 
 func NewMapWithProvider(capacity int, timeProvider timetools.TimeProvider) (*TtlMap, error) {
 	if capacity <= 0 {
-		return nil, fmt.Errorf("Capacity should be >= 0")
+		return nil, fmt.Errorf("Capacity should be > 0")
 	}
 	if timeProvider == nil {
 		return nil, fmt.Errorf("Please pass timeProvider")
@@ -36,7 +36,7 @@ func NewMapWithProvider(capacity int, timeProvider timetools.TimeProvider) (*Ttl
 		capacity:     capacity,
 		elements:     make(map[string]*mapElement),
 		expiryTimes:  minheap.NewMinHeap(),
-		timeProvider: timeProvider,
+		TimeProvider: timeProvider,
 	}, nil
 }
 
@@ -73,7 +73,7 @@ func (m *TtlMap) toEpochSeconds(ttlSeconds int) (int, error) {
 	if ttlSeconds <= 0 {
 		return 0, fmt.Errorf("ttlSeconds should be >= 0, got %d", ttlSeconds)
 	}
-	return int(m.timeProvider.UtcNow().Add(time.Second * time.Duration(ttlSeconds)).Unix()), nil
+	return int(m.TimeProvider.UtcNow().Add(time.Second * time.Duration(ttlSeconds)).Unix()), nil
 }
 
 func (m *TtlMap) Len() int {
@@ -130,7 +130,7 @@ func (m *TtlMap) GetInt(key string) (int, bool, error) {
 }
 
 func (m *TtlMap) expireElement(mapEl *mapElement) bool {
-	now := int(m.timeProvider.UtcNow().Unix())
+	now := int(m.TimeProvider.UtcNow().Unix())
 	if mapEl.heapEl.Priority > now {
 		return false
 	}
@@ -149,7 +149,7 @@ func (m *TtlMap) freeSpace(count int) {
 
 func (m *TtlMap) removeExpired(iterations int) int {
 	removed := 0
-	now := int(m.timeProvider.UtcNow().Unix())
+	now := int(m.TimeProvider.UtcNow().Unix())
 	for i := 0; i < iterations; i += 1 {
 		if len(m.elements) == 0 {
 			break

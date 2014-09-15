@@ -1,7 +1,7 @@
 package tokenbucket
 
 import (
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"

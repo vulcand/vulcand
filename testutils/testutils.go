@@ -4,21 +4,20 @@ import (
 	"fmt"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	. "github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 )
 
-func MakeLocation(hostname, listenerAddress, endpointURL string) (*Location, *Host) {
-	host := &Host{
+func MakeLocation(hostname, listenerAddress, endpointURL string) (*backend.Location, *backend.Host) {
+	host := &backend.Host{
 		Name: hostname,
-		Listeners: []*Listener{
-			&Listener{Protocol: HTTP, Address: Address{"tcp", listenerAddress}}},
+		Listeners: []*backend.Listener{
+			&backend.Listener{Protocol: backend.HTTP, Address: backend.Address{"tcp", listenerAddress}}},
 	}
 
-	upstream := &Upstream{
+	upstream := &backend.Upstream{
 		Id: "up1",
-		Endpoints: []*Endpoint{
+		Endpoints: []*backend.Endpoint{
 			{
 				UpstreamId: "up1",
 				Id:         endpointURL,
@@ -26,7 +25,7 @@ func MakeLocation(hostname, listenerAddress, endpointURL string) (*Location, *Ho
 			},
 		},
 	}
-	location := &Location{
+	location := &backend.Location{
 		Hostname: host.Name,
 		Path:     "/loc1",
 		Id:       "loc1",
@@ -35,23 +34,23 @@ func MakeLocation(hostname, listenerAddress, endpointURL string) (*Location, *Ho
 	return location, host
 }
 
-func MakeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *Location) *MiddlewareInstance {
+func MakeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *backend.Location) *backend.MiddlewareInstance {
 	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
 	if err != nil {
 		panic(err)
 	}
-	return &MiddlewareInstance{
+	return &backend.MiddlewareInstance{
 		Type:       "ratelimit",
 		Id:         id,
 		Middleware: rl,
 	}
 }
 
-func MakeURL(loc *Location, l *Listener) string {
+func MakeURL(loc *backend.Location, l *backend.Listener) string {
 	return fmt.Sprintf("%s://%s%s", l.Protocol, l.Address.Address, loc.Path)
 }
 
-func AssertSameEndpoints(c *C, a []*roundrobin.WeightedEndpoint, b []*Endpoint) {
+func EndpointsEq(a []*roundrobin.WeightedEndpoint, b []*backend.Endpoint) bool {
 	x, y := map[string]bool{}, map[string]bool{}
 	for _, e := range a {
 		x[e.GetUrl().String()] = true
@@ -60,11 +59,22 @@ func AssertSameEndpoints(c *C, a []*roundrobin.WeightedEndpoint, b []*Endpoint) 
 	for _, e := range b {
 		y[e.Url] = true
 	}
-	c.Assert(x, DeepEquals, y)
+
+	if len(x) != len(y) {
+		return false
+	}
+
+	for k, _ := range x {
+		_, ok := y[k]
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
-func NewTestKeyPair() *KeyPair {
-	return &KeyPair{
+func NewTestKeyPair() *backend.KeyPair {
+	return &backend.KeyPair{
 		Key:  LocalhostKey,
 		Cert: LocalhostCert,
 	}

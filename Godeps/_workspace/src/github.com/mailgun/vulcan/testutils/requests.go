@@ -3,11 +3,9 @@ package testutils
 import (
 	"crypto/tls"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	//	"net/url"
 	"strings"
 )
 
@@ -51,13 +49,6 @@ func MakeRequest(url string, opts Opts) (*http.Response, []byte, error) {
 		return response, bodyBytes, err
 	}
 	return response, nil, err
-}
-
-func GETResponse(c *check.C, url string, opts Opts) string {
-	response, body, err := GET(url, opts)
-	c.Assert(err, check.IsNil)
-	c.Assert(response.StatusCode, check.Equals, http.StatusOK)
-	return string(body)
 }
 
 func GET(url string, o Opts) (*http.Response, []byte, error) {

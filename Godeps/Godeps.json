@@ -43,10 +43,6 @@
 			"Rev": "ac2a472de8720ab2cf16a0b2220e6a1e01c4ebec"
 		},
 		{
-			"ImportPath": "github.com/mailgun/gotools-time",
-			"Rev": "c493a7107b1c8760155d06d893741212eb4e2670"
-		},
-		{
 			"ImportPath": "github.com/mailgun/log",
 			"Rev": "14cad4945ae23306f0fb62ab0de5714103126f11"
 		},
@@ -73,12 +69,12 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
-			"Rev": "f0d152bfd08693df7ddf34eb3471460565d633db"
+			"Rev": "51994f8e1aad271eb214e725379dde8bd4c90acf"
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-193-g3b5d83c",
-			"Rev": "3b5d83cd66a49641c1f87002f9a69d507b17d9e7"
+			"Comment": "v0.1-195-g291c114",
+			"Rev": "291c1147f12470a0ddc5809ba993cb4af7d10096"
 		},
 		{
 			"ImportPath": "github.com/wsxiaoys/terminal/color",

@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -131,4 +132,11 @@ func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
 	s.b.ErrorsC <- fmt.Errorf("restart")
 
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+}
+
+func GETResponse(c *C, url string, opts Opts) string {
+	response, body, err := GET(url, opts)
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	return string(body)
 }

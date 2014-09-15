@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -606,6 +607,19 @@ func (s *ServerSuite) TestConvertPath(c *C) {
 	c.Assert(convertPath(`TrieRoute("hello")`), Equals, `TrieRoute("hello")`)
 	c.Assert(convertPath(`RegexpRoute("hello")`), Equals, `RegexpRoute("hello")`)
 	c.Assert(convertPath(`/hello`), Equals, `RegexpRoute("/hello")`)
+}
+
+func AssertSameEndpoints(c *C, we []*roundrobin.WeightedEndpoint, e []*Endpoint) {
+	if !EndpointsEq(we, e) {
+		c.Fatalf("Expected endpoints sets to be the same %v and %v", we, e)
+	}
+}
+
+func GETResponse(c *C, url string, opts Opts) string {
+	response, body, err := GET(url, opts)
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	return string(body)
 }
 
 // localhostCert is a PEM-encoded TLS cert with SAN IPs

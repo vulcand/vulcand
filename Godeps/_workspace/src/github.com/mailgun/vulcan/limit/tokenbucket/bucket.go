@@ -2,7 +2,7 @@ package tokenbucket
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"time"
 )
 
