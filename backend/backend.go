@@ -398,7 +398,7 @@ type AlreadyExistsError struct {
 }
 
 func (n *AlreadyExistsError) Error() string {
-	return "Object already exists"
+	return n.Message
 }
 
 const (
