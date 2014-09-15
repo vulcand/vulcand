@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
@@ -57,10 +58,10 @@ func (s *SupervisorSuite) TestStartStopEmpty(c *C) {
 }
 
 func (s *SupervisorSuite) TestInitFromExistingConfig(c *C) {
-	e := NewTestServer("Hi, I'm endpoint")
+	e := NewTestResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
+	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
 
 	_, err := s.b.AddUpstream(l.Upstream)
 	c.Assert(err, IsNil)
@@ -73,47 +74,47 @@ func (s *SupervisorSuite) TestInitFromExistingConfig(c *C) {
 
 	s.sv.Start()
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
 }
 
 func (s *SupervisorSuite) TestInitOnTheFly(c *C) {
-	e := NewTestServer("Hi, I'm endpoint")
+	e := NewTestResponder("Hi, I'm endpoint")
 	defer e.Close()
 
 	s.sv.Start()
 
-	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
+	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
 
 	s.b.ChangesC <- &LocationAdded{
 		Host:     h,
 		Location: l,
 	}
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
 }
 
 func (s *SupervisorSuite) TestGracefulShutdown(c *C) {
-	e := NewTestServer("Hi, I'm endpoint")
+	e := NewTestResponder("Hi, I'm endpoint")
 	defer e.Close()
 
 	s.sv.Start()
 
-	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
+	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
 
 	s.b.ChangesC <- &LocationAdded{
 		Host:     h,
 		Location: l,
 	}
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
 	close(s.b.ErrorsC)
 }
 
 func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
-	e := NewTestServer("Hi, I'm endpoint")
+	e := NewTestResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
+	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
 
 	_, err := s.b.AddUpstream(l.Upstream)
 	c.Assert(err, IsNil)
@@ -126,8 +127,8 @@ func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
 
 	s.sv.Start()
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
 	s.b.ErrorsC <- fmt.Errorf("restart")
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), ""), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
 }

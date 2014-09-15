@@ -1,11 +1,11 @@
-package api
+package scroll
 
 import (
 	"net/http"
 	"strconv"
 	"time"
 
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
 // Retrieve a POST request field as a string.
@@ -15,6 +15,15 @@ func GetStringField(r *http.Request, fieldName string) (string, error) {
 		return "", MissingFieldError{fieldName}
 	}
 	return r.FormValue(fieldName), nil
+}
+
+// Retrieve a POST request field as a string.
+// If the requested field is missing, returns provided default value.
+func GetStringFieldWithDefault(r *http.Request, fieldName, defaultValue string) string {
+	if fieldValue, err := GetStringField(r, fieldName); err == nil {
+		return fieldValue
+	}
+	return defaultValue
 }
 
 // Retrieve fields with the same name as an array of strings.

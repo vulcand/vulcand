@@ -2,15 +2,15 @@ package service
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
-	runtime "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-runtime"
 
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
@@ -40,7 +40,7 @@ type Service struct {
 	client     *etcd.Client
 	options    Options
 	registry   *plugin.Registry
-	apiRouter  *mux.Router
+	apiApp     *scroll.App
 	errorC     chan error
 	sigC       chan os.Signal
 	supervisor *supervisor.Supervisor
@@ -59,9 +59,7 @@ func (s *Service) Start() error {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
 
 	if s.options.PidPath != "" {
-		if err := runtime.WritePid(s.options.PidPath); err != nil {
-			return fmt.Errorf("failed to write PID file: %v\n", err)
-		}
+		ioutil.WriteFile(s.options.PidPath, []byte(fmt.Sprint(os.Getpid())), 0644)
 	}
 
 	s.supervisor = supervisor.NewSupervisor(s.newServer, s.newBackend, s.errorC)
@@ -142,12 +140,12 @@ func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Ser
 }
 
 func (s *Service) initApi() error {
-	s.apiRouter = mux.NewRouter()
+	s.apiApp = scroll.NewApp(&scroll.AppConfig{})
 	b, err := s.newBackend()
 	if err != nil {
 		return err
 	}
-	api.InitProxyController(b, s.supervisor, s.supervisor.GetConnWatcher(), s.apiRouter)
+	api.InitProxyController(b, s.supervisor, s.supervisor.GetConnWatcher(), s.apiApp)
 	return nil
 }
 
@@ -156,7 +154,7 @@ func (s *Service) startApi() error {
 
 	server := &http.Server{
 		Addr:           addr,
-		Handler:        s.apiRouter,
+		Handler:        s.apiApp.GetHandler(),
 		ReadTimeout:    s.options.ServerReadTimeout,
 		WriteTimeout:   s.options.ServerWriteTimeout,
 		MaxHeaderBytes: 1 << 20,

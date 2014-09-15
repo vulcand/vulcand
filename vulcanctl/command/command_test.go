@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/api"
 	. "github.com/mailgun/vulcand/backend"
@@ -51,10 +51,10 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	}
 
 	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
-	muxRouter := mux.NewRouter()
 
-	api.InitProxyController(s.backend, sv, sv.GetConnWatcher(), muxRouter)
-	s.testServer = httptest.NewServer(muxRouter)
+	app := scroll.NewApp(&scroll.AppConfig{})
+	api.InitProxyController(s.backend, sv, sv.GetConnWatcher(), app)
+	s.testServer = httptest.NewServer(app.GetHandler())
 
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{registry: registry.GetRegistry(), out: s.out, vulcanUrl: s.testServer.URL}

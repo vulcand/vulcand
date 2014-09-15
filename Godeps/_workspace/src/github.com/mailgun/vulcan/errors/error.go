@@ -3,7 +3,7 @@ package errors
 
 import (
 	"encoding/json"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"net/http"
 )
 

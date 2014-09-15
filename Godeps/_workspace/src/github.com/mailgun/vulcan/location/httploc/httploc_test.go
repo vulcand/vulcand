@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	timetools "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-time"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/headers"
@@ -32,9 +32,6 @@ type LocSuite struct {
 func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&LocSuite{
-	authHeaders: http.Header{
-		"Authorization": []string{"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="},
-	},
 	tm: &timetools.FreezedTime{
 		CurrentTime: time.Date(2012, 3, 4, 5, 6, 7, 0, time.UTC),
 	},
@@ -86,7 +83,7 @@ func (s *LocSuite) TestNoEndpoints(c *C) {
 	_, proxy := s.newProxy(s.newRoundRobin())
 	defer proxy.Close()
 
-	response, _ := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, _, _ := MakeRequest(proxy.URL, Opts{})
 	c.Assert(response.StatusCode, Equals, http.StatusBadGateway)
 }
 
@@ -95,7 +92,8 @@ func (s *LocSuite) TestAllEndpointsAreDown(c *C) {
 	_, proxy := s.newProxy(s.newRoundRobin("http://localhost:63999"))
 	defer proxy.Close()
 
-	response, _ := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, _, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusBadGateway)
 }
 
@@ -109,7 +107,8 @@ func (s *LocSuite) TestSuccess(c *C) {
 	_, proxy := s.newProxy(s.newRoundRobin(server.URL))
 	defer proxy.Close()
 
-	response, bodyBytes := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, bodyBytes, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
 }
@@ -124,7 +123,8 @@ func (s *LocSuite) TestSuccessLimitNotReached(c *C) {
 	_, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 4096)
 	defer proxy.Close()
 
-	response, bodyBytes := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, bodyBytes, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
 }
@@ -163,7 +163,8 @@ func (s *LocSuite) TestLimitReached(c *C) {
 	_, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 8)
 	defer proxy.Close()
 
-	response, _ := Get(c, proxy.URL, s.authHeaders, "Hello, this request is longer than 8 bytes")
+	response, _, err := MakeRequest(proxy.URL, Opts{Body: "Hello, this request is longer than 8 bytes"})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusRequestEntityTooLarge)
 }
 
@@ -193,15 +194,17 @@ func (s *LocSuite) TestUpdateLimit(c *C) {
 	location, proxy := s.newProxyWithParams(s.newRoundRobin(server.URL), 0, 0, 4, 1024)
 	defer proxy.Close()
 
-	response, _ := Get(c, proxy.URL, s.authHeaders, "Hello, this request is longer than 8 bytes")
+	response, _, err := MakeRequest(proxy.URL, Opts{Body: "Hello, this request is longer than 8 bytes"})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 
 	options := location.GetOptions()
 	options.Limits.MaxBodyBytes = 8
-	err := location.SetOptions(options)
+	err = location.SetOptions(options)
 	c.Assert(err, IsNil)
 
-	response, _ = Get(c, proxy.URL, s.authHeaders, "Hello, this request is longer than 8 bytes")
+	response, _, err = MakeRequest(proxy.URL, Opts{Body: "Hello, this request is longer than 8 bytes"})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusRequestEntityTooLarge)
 }
 
@@ -220,16 +223,17 @@ func (s *LocSuite) TestUpdateForwardHeader(c *C) {
 	options.Hostname = "host1"
 	location.SetOptions(options)
 
-	response, _ := Get(c, proxy.URL, s.authHeaders, "Hello")
+	response, _, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(header, Equals, "host1")
 
 	options = location.GetOptions()
 	options.Hostname = "host2"
-	err := location.SetOptions(options)
+	err = location.SetOptions(options)
 	c.Assert(err, IsNil)
 
-	response, _ = Get(c, proxy.URL, s.authHeaders, "Hello")
+	response, _, err = MakeRequest(proxy.URL, Opts{})
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(header, Equals, "host2")
 }
@@ -243,7 +247,8 @@ func (s *LocSuite) TestFailover(c *C) {
 	_, proxy := s.newProxy(s.newRoundRobin("http://localhost:63999", server.URL))
 	defer proxy.Close()
 
-	response, bodyBytes := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, bodyBytes, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
 }
@@ -275,7 +280,8 @@ func (s *LocSuite) TestMiddlewareInterceptsRequest(c *C) {
 
 	location.GetMiddlewareChain().Add("auth", 0, auth)
 
-	response, bodyBytes := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, bodyBytes, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusForbidden)
 	c.Assert(string(bodyBytes), Equals, "Intercepted Request")
 
@@ -332,7 +338,8 @@ func (s *LocSuite) TestMultipleMiddlewaresRequestIntercepted(c *C) {
 	location.GetMiddlewareChain().Add("cb", 1, cb)
 	location.GetObserverChain().Add("ob", observer)
 
-	response, bodyBytes := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, bodyBytes, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusForbidden)
 	c.Assert(string(bodyBytes), Equals, "Intercepted Request")
 
@@ -364,7 +371,36 @@ func (s *LocSuite) TestForwardedHeaders(c *C) {
 	hdr.Set(headers.XForwardedProto, "httpx")
 	hdr.Set(headers.XForwardedFor, "192.168.1.1")
 
-	Get(c, proxy.URL, hdr, "hello!")
+	_, _, err := MakeRequest(proxy.URL, Opts{Headers: hdr})
+	c.Assert(err, IsNil)
+}
+
+// Test that X-Forwarded-For and X-Forwarded-Proto are passed through
+func (s *LocSuite) TestForwardedProtoHTTPS(c *C) {
+	called := false
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		c.Assert(r.Header.Get(headers.XForwardedProto), Equals, "https")
+	})
+	defer server.Close()
+
+	lb := s.newRoundRobin(server.URL)
+
+	location, err := NewLocation("dummy", lb)
+	c.Assert(err, IsNil)
+
+	proxy, err := vulcan.NewProxy(&ConstRouter{
+		Location: location,
+	})
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewUnstartedServer(proxy)
+	srv.StartTLS()
+	defer srv.Close()
+
+	_, _, err = MakeRequest(srv.URL, Opts{})
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, true)
 }
 
 // Test scenario when middleware intercepts the request
@@ -390,7 +426,8 @@ func (s *LocSuite) TestMiddlewareAddsHeader(c *C) {
 
 	location.GetMiddlewareChain().Add("m", 0, m)
 
-	response, bodyBytes := Get(c, proxy.URL, nil, "hello!")
+	response, bodyBytes, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(capturedHeader, DeepEquals, []string{"hello"})
 	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
@@ -423,7 +460,8 @@ func (s *LocSuite) TestMiddlewareAddsHeaderOnFailover(c *C) {
 
 	location.GetMiddlewareChain().Add("m", 0, m)
 
-	response, bodyBytes := Get(c, proxy.URL, nil, "hello!")
+	response, bodyBytes, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(capturedHeader, DeepEquals, []string{"hello 1"})
 	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint")
@@ -453,7 +491,8 @@ func (s *LocSuite) TestFailoverHeaders(c *C) {
 	}
 	location.GetMiddlewareChain().Add("m", 0, m)
 
-	response, _ := Get(c, proxy.URL, s.authHeaders, "hello!")
+	response, _, err := MakeRequest(proxy.URL, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(finalHeaders, DeepEquals, []string{"call"})
 }

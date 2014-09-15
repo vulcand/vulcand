@@ -6,10 +6,9 @@ import (
 	"net/url"
 	"time"
 
-	api "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-api"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 
 	"github.com/mailgun/vulcand/backend"
@@ -21,51 +20,59 @@ type ProxyController struct {
 	backend     backend.Backend
 	connWatcher *connwatch.ConnectionWatcher
 	statsGetter backend.StatsGetter
+	app         *scroll.App
 }
 
-func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, connWatcher *connwatch.ConnectionWatcher, router *mux.Router) {
-	controller := &ProxyController{backend: backend, statsGetter: statsGetter, connWatcher: connWatcher}
+func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, connWatcher *connwatch.ConnectionWatcher, app *scroll.App) {
+	c := &ProxyController{backend: backend, statsGetter: statsGetter, connWatcher: connWatcher, app: app}
 
-	router.NotFoundHandler = api.MakeRawHandler(controller.handleError)
-	router.HandleFunc("/v1/status", api.MakeRawHandler(controller.getStatus)).Methods("GET")
-	router.HandleFunc("/v1/hosts", api.MakeRawHandler(controller.getHosts)).Methods("GET")
-	router.HandleFunc("/v1/hosts", api.MakeRawHandler(controller.addHost)).Methods("POST")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.getHostLocation)).Methods("GET")
-	router.HandleFunc("/v1/hosts/{hostname}", api.MakeHandler(controller.deleteHost)).Methods("DELETE")
-	router.HandleFunc("/v1/hosts/{hostname}/keypair", api.MakeRawHandler(controller.updateHostKeyPair)).Methods("PUT")
-	router.HandleFunc("/v1/hosts/{hostname}/listeners", api.MakeRawHandler(controller.addHostListener)).Methods("POST")
-	router.HandleFunc("/v1/hosts/{hostname}/listeners/{id}", api.MakeHandler(controller.deleteHostListener)).Methods("DELETE")
+	app.SetNotFoundHandler(c.handleError)
 
-	router.HandleFunc("/v1/upstreams", api.MakeRawHandler(controller.addUpstream)).Methods("POST")
-	router.HandleFunc("/v1/upstreams", api.MakeHandler(controller.getUpstreams)).Methods("GET")
-	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.deleteUpstream)).Methods("DELETE")
-	router.HandleFunc("/v1/upstreams/{id}", api.MakeHandler(controller.getUpstream)).Methods("GET")
-	router.HandleFunc("/v1/upstreams/{id}/drain", api.MakeHandler(controller.drainUpstreamConnections)).Methods("GET")
+	app.AddHandlerWithBody(c.getStatus, &scroll.HandlerConfig{Path: "/v1/status", Methods: []string{"GET"}})
+	app.AddHandlerWithBody(c.getHosts, &scroll.HandlerConfig{Path: "/v1/hosts", Methods: []string{"GET"}})
+	app.AddHandlerWithBody(c.addHost, &scroll.HandlerConfig{Path: "/v1/hosts", Methods: []string{"POST"}})
 
-	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeRawHandler(controller.addLocation)).Methods("POST")
-	router.HandleFunc("/v1/hosts/{hostname}/locations", api.MakeHandler(controller.getHostLocations)).Methods("GET")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.updateLocationUpstream)).Methods("PUT")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}/options", api.MakeRawHandler(controller.updateLocationOptions)).Methods("PUT")
-	router.HandleFunc("/v1/hosts/{hostname}/locations/{id}", api.MakeHandler(controller.deleteLocation)).Methods("DELETE")
+	app.AddHandler(c.getHostLocation, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"GET"}})
+	app.AddHandler(c.deleteHost, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}})
 
-	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeRawHandler(controller.addEndpoint)).Methods("POST")
-	router.HandleFunc("/v1/upstreams/{upstream}/endpoints", api.MakeHandler(controller.getUpstreamEndpoints)).Methods("GET")
-	router.HandleFunc("/v1/upstreams/{upstream}/endpoints/{endpoint}", api.MakeHandler(controller.deleteEndpoint)).Methods("DELETE")
+	app.AddHandler(c.deleteHost, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}})
+	app.AddHandlerWithBody(c.updateHostKeyPair, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/keypair", Methods: []string{"PUT"}})
+	app.AddHandlerWithBody(c.addHostListener, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/listeners", Methods: []string{"POST"}})
+	app.AddHandler(c.deleteHostListener, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/listeners/{id}", Methods: []string{"DELETE"}})
+
+	///
+	app.AddHandlerWithBody(c.addUpstream, &scroll.HandlerConfig{Path: "/v1/upstreams", Methods: []string{"POST"}})
+	app.AddHandler(c.getUpstreams, &scroll.HandlerConfig{Path: "/v1/upstreams", Methods: []string{"GET"}})
+
+	app.AddHandler(c.deleteUpstream, &scroll.HandlerConfig{Path: "/v1/upstreams/{id}", Methods: []string{"DELETE"}})
+	app.AddHandler(c.getUpstream, &scroll.HandlerConfig{Path: "/v1/upstreams/{id}", Methods: []string{"GET"}})
+	app.AddHandler(c.drainUpstreamConnections, &scroll.HandlerConfig{Path: "/v1/upstreams/{id}/drain", Methods: []string{"GET"}})
+
+	app.AddHandlerWithBody(c.addLocation, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"POST"}})
+	app.AddHandler(c.getHostLocations, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"GET"}})
+	app.AddHandler(c.updateLocationUpstream, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"PUT"}})
+
+	app.AddHandlerWithBody(c.updateLocationOptions, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}/options", Methods: []string{"PUT"}})
+	app.AddHandler(c.deleteLocation, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"DELETE"}})
+
+	app.AddHandlerWithBody(c.addEndpoint, &scroll.HandlerConfig{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"POST"}})
+	app.AddHandler(c.getUpstreamEndpoints, &scroll.HandlerConfig{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"GET"}})
+	app.AddHandler(c.deleteEndpoint, &scroll.HandlerConfig{Path: "/v1/upstreams/{upstream}/endpoints/{endpoint}", Methods: []string{"DELETE"}})
 
 	// Register controllers for middlewares
 	if backend.GetRegistry() != nil {
 		for _, middlewareSpec := range backend.GetRegistry().GetSpecs() {
-			controller.registerMiddlewareHandlers(router, middlewareSpec)
+			c.registerMiddlewareHandlers(middlewareSpec)
 		}
 	}
 }
 
-func (c *ProxyController) handleError(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	return nil, api.NotFoundError{Description: "Object not found"}
+func (c *ProxyController) handleError(w http.ResponseWriter, r *http.Request) {
+	scroll.ReplyError(w, scroll.NotFoundError{Description: "Object not found"})
 }
 
 func (c *ProxyController) getStatus(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	return api.Response{
+	return scroll.Response{
 		"Status": "ok",
 	}, nil
 }
@@ -83,7 +90,7 @@ func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, param
 			}
 		}
 	}
-	return api.Response{
+	return scroll.Response{
 		"Hosts": hosts,
 	}, err
 }
@@ -93,7 +100,7 @@ func (c *ProxyController) getHostLocations(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return nil, formatError(err)
 	}
-	return api.Response{
+	return scroll.Response{
 		"Locations": host.Locations,
 	}, nil
 }
@@ -125,7 +132,7 @@ func (c *ProxyController) deleteHostListener(w http.ResponseWriter, r *http.Requ
 	if err := c.backend.DeleteHostListener(params["hostname"], params["id"]); err != nil {
 		return nil, formatError(err)
 	}
-	return api.Response{"message": "Listener deleted"}, nil
+	return scroll.Response{"message": "Listener deleted"}, nil
 }
 
 func (c *ProxyController) updateHostKeyPair(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
@@ -143,7 +150,7 @@ func (c *ProxyController) deleteHost(w http.ResponseWriter, r *http.Request, par
 	if err := c.backend.DeleteHost(hostname); err != nil {
 		return nil, formatError(err)
 	}
-	return api.Response{"message": fmt.Sprintf("Host '%s' deleted", hostname)}, nil
+	return scroll.Response{"message": fmt.Sprintf("Host '%s' deleted", hostname)}, nil
 }
 
 func (c *ProxyController) addUpstream(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
@@ -161,12 +168,12 @@ func (c *ProxyController) deleteUpstream(w http.ResponseWriter, r *http.Request,
 	if err := c.backend.DeleteUpstream(upstreamId); err != nil {
 		return nil, formatError(err)
 	}
-	return api.Response{"message": "Upstream deleted"}, nil
+	return scroll.Response{"message": "Upstream deleted"}, nil
 }
 
 func (c *ProxyController) getUpstreams(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	upstreams, err := c.backend.GetUpstreams()
-	return api.Response{
+	return scroll.Response{
 		"Upstreams": upstreams,
 	}, err
 }
@@ -176,7 +183,7 @@ func (c *ProxyController) getUpstreamEndpoints(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return nil, formatError(err)
 	}
-	return api.Response{
+	return scroll.Response{
 		"Endpoints": up.Endpoints,
 	}, nil
 }
@@ -190,7 +197,7 @@ func (c *ProxyController) drainUpstreamConnections(w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, formatError(err)
 	}
-	timeout, err := api.GetIntField(r, "timeout")
+	timeout, err := scroll.GetIntField(r, "timeout")
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -208,7 +215,7 @@ func (c *ProxyController) drainUpstreamConnections(w http.ResponseWriter, r *htt
 	if err != nil {
 		return nil, err
 	}
-	return api.Response{
+	return scroll.Response{
 		"Connections": connections,
 	}, err
 }
@@ -226,7 +233,7 @@ func (c *ProxyController) updateLocationUpstream(w http.ResponseWriter, r *http.
 	hostname := params["hostname"]
 	locationId := params["id"]
 
-	upstream, err := api.GetStringField(r, "upstream")
+	upstream, err := scroll.GetStringField(r, "upstream")
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +242,7 @@ func (c *ProxyController) updateLocationUpstream(w http.ResponseWriter, r *http.
 	if _, err := c.backend.UpdateLocationUpstream(hostname, locationId, upstream); err != nil {
 		return nil, formatError(err)
 	}
-	return api.Response{"message": "Location upstream updated"}, nil
+	return scroll.Response{"message": "Location upstream updated"}, nil
 }
 
 func (c *ProxyController) updateLocationOptions(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
@@ -254,7 +261,7 @@ func (c *ProxyController) deleteLocation(w http.ResponseWriter, r *http.Request,
 	if err := c.backend.DeleteLocation(params["hostname"], params["id"]); err != nil {
 		return nil, formatError(err)
 	}
-	return api.Response{"message": "Location deleted"}, nil
+	return scroll.Response{"message": "Location deleted"}, nil
 }
 
 func (c *ProxyController) addEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
@@ -273,31 +280,43 @@ func (c *ProxyController) deleteEndpoint(w http.ResponseWriter, r *http.Request,
 
 	log.Infof("Delete Endpoint(url=%s) from Upstream(id=%s)", id, upstreamId)
 	if err := c.backend.DeleteEndpoint(upstreamId, id); err != nil {
-		return nil, api.GenericAPIError{Reason: err.Error()}
+		return nil, scroll.GenericAPIError{Reason: err.Error()}
 	}
-	return api.Response{"message": "Endpoint deleted"}, nil
+	return scroll.Response{"message": "Endpoint deleted"}, nil
 }
 
-func (c *ProxyController) registerMiddlewareHandlers(router *mux.Router, spec *plugin.MiddlewareSpec) {
-	router.HandleFunc(
-		fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s", spec.Type),
-		c.makeAddMiddleware(spec)).Methods("POST")
+func (c *ProxyController) registerMiddlewareHandlers(spec *plugin.MiddlewareSpec) {
+	c.app.AddHandlerWithBody(
+		c.makeAddMiddleware(spec),
+		&scroll.HandlerConfig{
+			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s", spec.Type),
+			Methods: []string{"POST"},
+		})
 
-	router.HandleFunc(
-		fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
-		c.makeGetMiddleware(spec)).Methods("GET")
+	c.app.AddHandler(
+		c.makeGetMiddleware(spec),
+		&scroll.HandlerConfig{
+			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
+			Methods: []string{"GET"},
+		})
 
-	router.HandleFunc(
-		fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
-		c.makeUpdateMiddleware(spec)).Methods("PUT")
+	c.app.AddHandlerWithBody(
+		c.makeUpdateMiddleware(spec),
+		&scroll.HandlerConfig{
+			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
+			Methods: []string{"PUT"},
+		})
 
-	router.HandleFunc(
-		fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
-		c.makeDeleteMiddleware(spec)).Methods("DELETE")
+	c.app.AddHandler(
+		c.makeDeleteMiddleware(spec),
+		&scroll.HandlerConfig{
+			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
+			Methods: []string{"DELETE"},
+		})
 }
 
-func (c *ProxyController) makeAddMiddleware(spec *plugin.MiddlewareSpec) http.HandlerFunc {
-	return api.MakeRawHandler(func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) makeAddMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerWithBodyFunc {
+	return func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 		hostname := params["hostname"]
 		location := params["location"]
 		m, err := backend.MiddlewareFromJSON(body, c.backend.GetRegistry().GetSpec)
@@ -305,11 +324,11 @@ func (c *ProxyController) makeAddMiddleware(spec *plugin.MiddlewareSpec) http.Ha
 			return nil, formatError(err)
 		}
 		return formatResult(c.backend.AddLocationMiddleware(hostname, location, m))
-	})
+	}
 }
 
-func (c *ProxyController) makeUpdateMiddleware(spec *plugin.MiddlewareSpec) http.HandlerFunc {
-	return api.MakeRawHandler(func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) makeUpdateMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerWithBodyFunc {
+	return func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
 		hostname := params["hostname"]
 		location := params["location"]
 		m, err := backend.MiddlewareFromJSON(body, c.backend.GetRegistry().GetSpec)
@@ -317,35 +336,35 @@ func (c *ProxyController) makeUpdateMiddleware(spec *plugin.MiddlewareSpec) http
 			return nil, formatError(err)
 		}
 		return formatResult(c.backend.UpdateLocationMiddleware(hostname, location, m))
-	})
+	}
 }
 
-func (c *ProxyController) makeGetMiddleware(spec *plugin.MiddlewareSpec) http.HandlerFunc {
-	return api.MakeRawHandler(func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+func (c *ProxyController) makeGetMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 		return formatResult(c.backend.GetLocationMiddleware(params["hostname"], params["location"], spec.Type, params["id"]))
-	})
+	}
 }
 
-func (c *ProxyController) makeDeleteMiddleware(spec *plugin.MiddlewareSpec) http.HandlerFunc {
-	return api.MakeHandler(func(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) makeDeleteMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 		hostname := params["hostname"]
 		location := params["location"]
 		mId := params["id"]
 		if err := c.backend.DeleteLocationMiddleware(hostname, location, spec.Type, mId); err != nil {
 			return nil, formatError(err)
 		}
-		return api.Response{"message": "Middleware deleted"}, nil
-	})
+		return scroll.Response{"message": "Middleware deleted"}, nil
+	}
 }
 
 func formatError(e error) error {
 	switch err := e.(type) {
 	case *backend.AlreadyExistsError:
-		return api.ConflictError{Description: err.Error()}
+		return scroll.ConflictError{Description: err.Error()}
 	case *backend.NotFoundError:
-		return api.NotFoundError{Description: err.Error()}
+		return scroll.NotFoundError{Description: err.Error()}
 	}
-	return api.GenericAPIError{Reason: e.Error()}
+	return scroll.GenericAPIError{Reason: e.Error()}
 }
 
 func formatResult(in interface{}, err error) (interface{}, error) {

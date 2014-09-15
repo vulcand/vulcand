@@ -1,7 +1,7 @@
 package membackend
 
 import (
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"

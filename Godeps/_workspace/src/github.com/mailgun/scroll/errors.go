@@ -1,6 +1,9 @@
-package api
+package scroll
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+)
 
 type GenericAPIError struct {
 	Reason string
@@ -50,4 +53,17 @@ type ConflictError struct {
 
 func (e ConflictError) Error() string {
 	return e.Description
+}
+
+func responseAndStatusFor(err error) (Response, int) {
+	switch err.(type) {
+	case GenericAPIError, MissingFieldError, InvalidFormatError, InvalidParameterError:
+		return Response{"message": err.Error()}, http.StatusBadRequest
+	case NotFoundError:
+		return Response{"message": err.Error()}, http.StatusNotFound
+	case ConflictError:
+		return Response{"message": err.Error()}, http.StatusConflict
+	default:
+		return Response{"message": "Internal Server Error"}, http.StatusInternalServerError
+	}
 }

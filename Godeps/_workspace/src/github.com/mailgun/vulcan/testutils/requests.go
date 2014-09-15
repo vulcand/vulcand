@@ -1,55 +1,78 @@
 package testutils
 
 import (
+	"crypto/tls"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	//	"net/url"
 	"strings"
 )
 
-func Get(c *check.C, requestUrl string, header http.Header, body string) (*http.Response, []byte) {
-	request, _ := http.NewRequest("GET", requestUrl, strings.NewReader(body))
-	netutils.CopyHeaders(request.Header, header)
-	request.Close = true
-	// the HTTP lib treats Host as a special header.  it only respects the value on req.Host, and ignores
-	// values in req.Headers
-	if header.Get("Host") != "" {
-		request.Host = header.Get("Host")
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		c.Fatalf("Get: %v", err)
-	}
-
-	bodyBytes, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		c.Fatalf("Get body failed: %v", err)
-	}
-	return response, bodyBytes
+type Opts struct {
+	Host    string
+	Method  string
+	Body    string
+	Headers http.Header
 }
 
-func Post(c *check.C, requestUrl string, header http.Header, body url.Values) (*http.Response, []byte) {
-	request, _ := http.NewRequest("POST", requestUrl, strings.NewReader(body.Encode()))
-	netutils.CopyHeaders(request.Header, header)
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.Close = true
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		c.Fatalf("Post: %v", err)
+func MakeRequest(url string, opts Opts) (*http.Response, []byte, error) {
+	method := "GET"
+	if opts.Method != "" {
+		opts.Method = opts.Method
+	}
+	request, _ := http.NewRequest(method, url, strings.NewReader(opts.Body))
+	if opts.Headers != nil {
+		netutils.CopyHeaders(request.Header, opts.Headers)
 	}
 
-	bodyBytes, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		c.Fatalf("Post body failed: %v", err)
+	if len(opts.Host) != 0 {
+		request.Host = opts.Host
 	}
-	return response, bodyBytes
+
+	var tr *http.Transport
+	if strings.HasPrefix(url, "https") {
+		tr = &http.Transport{
+			DisableKeepAlives: true,
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+		}
+	} else {
+		tr = &http.Transport{
+			DisableKeepAlives: true,
+		}
+	}
+
+	client := &http.Client{Transport: tr}
+	response, err := client.Do(request)
+	if err == nil {
+		bodyBytes, err := ioutil.ReadAll(response.Body)
+		return response, bodyBytes, err
+	}
+	return response, nil, err
+}
+
+func GETResponse(c *check.C, url string, opts Opts) string {
+	response, body, err := GET(url, opts)
+	c.Assert(err, check.IsNil)
+	c.Assert(response.StatusCode, check.Equals, http.StatusOK)
+	return string(body)
+}
+
+func GET(url string, o Opts) (*http.Response, []byte, error) {
+	o.Method = "GET"
+	return MakeRequest(url, o)
 }
 
 type WebHandler func(http.ResponseWriter, *http.Request)
 
 func NewTestServer(handler WebHandler) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(handler))
+}
+
+func NewTestResponder(response string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(response))
+	}))
 }

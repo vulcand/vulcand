@@ -39,20 +39,16 @@
 			"Rev": "264551f7c5b4453c949dde015d1012ad7efe967d"
 		},
 		{
-			"ImportPath": "github.com/mailgun/gotools-api",
-			"Rev": "87768e358c130b8f94627e00f303ecd0863307de"
-		},
-		{
-			"ImportPath": "github.com/mailgun/gotools-log",
-			"Rev": "da2af22c05c9bd65fe86def9dda80c1a2110e06c"
-		},
-		{
-			"ImportPath": "github.com/mailgun/gotools-runtime",
-			"Rev": "f79a61c068bedc1fa710c9b52304b55aa24f5bd6"
+			"ImportPath": "github.com/mailgun/go-statsd-client/statsd",
+			"Rev": "ac2a472de8720ab2cf16a0b2220e6a1e01c4ebec"
 		},
 		{
 			"ImportPath": "github.com/mailgun/gotools-time",
 			"Rev": "c493a7107b1c8760155d06d893741212eb4e2670"
+		},
+		{
+			"ImportPath": "github.com/mailgun/log",
+			"Rev": "14cad4945ae23306f0fb62ab0de5714103126f11"
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",
@@ -60,12 +56,20 @@
 			"Rev": "a592baf3a7f0a8f905ea0bf8387ccdba73950489"
 		},
 		{
+			"ImportPath": "github.com/mailgun/metrics",
+			"Rev": "0075f236a4437a9acf94faf4efbb353853e35852"
+		},
+		{
 			"ImportPath": "github.com/mailgun/minheap",
 			"Rev": "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
 		},
 		{
+			"ImportPath": "github.com/mailgun/scroll",
+			"Rev": "bd81a358f878c5c98be9f41a5b33c221367ff75a"
+		},
+		{
 			"ImportPath": "github.com/mailgun/timetools",
-			"Rev": "8aaa539a55a0dbab6abd713146bc2c96fb891640"
+			"Rev": "b58360a5e3baf228ddec99b0f5c37953c0b60542"
 		},
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
@@ -73,8 +77,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-191-gabb64bc",
-			"Rev": "abb64bc36bbba9e30658abd45a1e1ef350845fea"
+			"Comment": "v0.1-193-g3b5d83c",
+			"Rev": "3b5d83cd66a49641c1f87002f9a69d507b17d9e7"
 		},
 		{
 			"ImportPath": "github.com/wsxiaoys/terminal/color",

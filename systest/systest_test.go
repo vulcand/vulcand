@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	log "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/gotools-log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/secret"
-	"github.com/mailgun/vulcand/testutils"
+	. "github.com/mailgun/vulcand/testutils"
 )
 
 func TestVulcandWithEtcd(t *testing.T) { TestingT(t) }
@@ -125,7 +125,8 @@ func (s *VESuite) TestLocationCrud(c *C) {
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
-	response, _ := Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "")
+	response, _, err := GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(called, Equals, true)
 }
@@ -151,7 +152,8 @@ func (s *VESuite) TestLocationCreateUpstreamFirst(c *C) {
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
-	response, _ := Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "")
+	response, _, err := GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(called, Equals, true)
 }
@@ -177,7 +179,9 @@ func (s *VESuite) TestLocationUpdateLimits(c *C) {
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
-	response, _ := Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "")
+	response, _, err := GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{})
+	c.Assert(err, IsNil)
+
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(response.Header.Get("X-Forwarded-For"), Not(Equals), "hello")
 
@@ -185,7 +189,8 @@ func (s *VESuite) TestLocationUpdateLimits(c *C) {
 	c.Assert(err, IsNil)
 	time.Sleep(time.Second)
 
-	response, _ = Get(c, fmt.Sprintf("%s%s", s.serviceUrl, path), nil, "This is longer than allowed 4 bytes")
+	response, _, err = GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{Body: "This is longer than allowed 4 bytes"})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusRequestEntityTooLarge)
 }
 
@@ -218,7 +223,8 @@ func (s *VESuite) TestUpdateUpstreamLocation(c *C) {
 
 	time.Sleep(time.Second)
 	url := fmt.Sprintf("%s%s", s.serviceUrl, path)
-	response, body := Get(c, url, nil, "")
+	response, body, err := GET(url, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(string(body), Equals, "1")
 
@@ -227,7 +233,8 @@ func (s *VESuite) TestUpdateUpstreamLocation(c *C) {
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
-	response, body = Get(c, url, nil, "")
+	response, body, err = GET(url, Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(string(body), Equals, "2")
 }
@@ -262,7 +269,8 @@ func (s *VESuite) TestHTTPListenerCrud(c *C) {
 	s.client.Set(s.path("hosts", host, "listeners", l1), string(bytes), 0)
 
 	time.Sleep(time.Second)
-	testutils.GETResponse(c, fmt.Sprintf("%s%s", "http://localhost:31000", path), "")
+	_, _, err = GET(fmt.Sprintf("%s%s", "http://localhost:31000", path), Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 
 	_, err = s.client.Delete(s.path("hosts", host, "listeners", l1), true)
@@ -270,7 +278,7 @@ func (s *VESuite) TestHTTPListenerCrud(c *C) {
 
 	time.Sleep(time.Second)
 
-	_, _, err = testutils.GET(fmt.Sprintf("%s%s", "http://localhost:31000", path), "")
+	_, _, err = GET(fmt.Sprintf("%s%s", "http://localhost:31000", path), Opts{})
 	c.Assert(err, NotNil)
 }
 
@@ -294,7 +302,7 @@ func (s *VESuite) TestHTTPSListenerCrud(c *C) {
 	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
 	c.Assert(err, IsNil)
 
-	keyPair := testutils.NewTestKeyPair()
+	keyPair := NewTestKeyPair()
 
 	bytes, err := secret.SealKeyPairToJSON(s.box, keyPair)
 	c.Assert(err, IsNil)
@@ -311,7 +319,8 @@ func (s *VESuite) TestHTTPSListenerCrud(c *C) {
 	s.client.Set(s.path("hosts", host, "listeners", l), string(bytes), 0)
 
 	time.Sleep(time.Second)
-	testutils.GETResponse(c, fmt.Sprintf("%s%s", "https://localhost:32000", path), "")
+	_, _, err = GET(fmt.Sprintf("%s%s", "https://localhost:32000", path), Opts{})
+	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 
 	_, err = s.client.Delete(s.path("hosts", host, "listeners", l), true)
@@ -319,6 +328,6 @@ func (s *VESuite) TestHTTPSListenerCrud(c *C) {
 
 	time.Sleep(time.Second)
 
-	_, _, err = testutils.GET(fmt.Sprintf("%s%s", "https://localhost:32000", path), "")
+	_, _, err = GET(fmt.Sprintf("%s%s", "https://localhost:32000", path), Opts{})
 	c.Assert(err, NotNil)
 }

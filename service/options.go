@@ -54,12 +54,6 @@ func validateOptions(o Options) (Options, error) {
 		if f.Name == "writeTimeout" {
 			fmt.Printf("!!!!!! WARN: Using deprecated writeTimeout flag, use serverWriteTimeout instead\n\n")
 		}
-		if f.Name == "port" {
-			fmt.Printf("!!!!!! WARN: Using deprecated port flag, use Listeners instead\n\n")
-		}
-		if f.Name == "interface" {
-			fmt.Printf("!!!!!! WARN: Using deprecated interface flag, use Listeners instead\n\n")
-		}
 	})
 	return o, nil
 }
