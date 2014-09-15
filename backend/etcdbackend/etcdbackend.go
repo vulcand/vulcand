@@ -632,7 +632,7 @@ func (s *EtcdBackend) parseHostKeyPairChange(r *etcd.Response) (interface{}, err
 	}
 
 	if !oneOf(r, createA, setA, deleteA, expireA) {
-		return nil, fmt.Errorf("funsupported action on the certificate: %s", r.Action)
+		return nil, fmt.Errorf("unsupported action on the certificate: %s", r.Action)
 	}
 	hostname := out[1]
 	host, err := s.readHost(hostname, false)
