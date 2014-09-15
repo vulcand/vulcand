@@ -617,7 +617,7 @@ func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, err
 		return &backend.HostAdded{
 			Host: host,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if response.Action == "delete" || response.Action == "expire" {
 		return &backend.HostDeleted{
 			Name: hostname,
 		}, nil
@@ -663,7 +663,7 @@ func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{},
 			Host:     host,
 			Location: location,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if response.Action == "delete" || response.Action == "expire" {
 		return &backend.LocationDeleted{
 			Host:       host,
 			LocationId: locationId,
@@ -793,7 +793,7 @@ func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{},
 		return &backend.UpstreamAdded{
 			Upstream: upstream,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if response.Action == "delete" || response.Action == "expire" {
 		return &backend.UpstreamDeleted{
 			UpstreamId: upstreamId,
 		}, nil
@@ -828,7 +828,7 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(response *etcd.Response) (inte
 			}
 		}
 		return nil, fmt.Errorf("endpoint %s not found", endpointId)
-	} else if response.Action == "delete" {
+	} else if response.Action == "delete" || response.Action == "expire" {
 		return &backend.EndpointDeleted{
 			Upstream:          upstream,
 			EndpointId:        endpointId,
@@ -878,7 +878,7 @@ func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{
 			Location:   location,
 			Middleware: m,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if response.Action == "delete" || response.Action == "expire" {
 		return &backend.LocationMiddlewareDeleted{
 			Host:           host,
 			Location:       location,
