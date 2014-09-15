@@ -78,7 +78,7 @@ func (cmd *Command) sealKeyPairAction(c *cli.Context) {
 
 	keyPair, err := readKeyPair(c.String("cert"), c.String("privateKey"))
 	if err != nil {
-		cmd.printError(fmt.Errorf("dailed to read key paire: %s", err))
+		cmd.printError(fmt.Errorf("failed to read key pair: %s", err))
 		return
 	}
 
