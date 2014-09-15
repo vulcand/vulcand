@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/secret"
 
@@ -112,8 +112,8 @@ func (s *EtcdBackendSuite) collectChanges(c *C, expected int) []interface{} {
 	for i, _ := range changes {
 		select {
 		case changes[i] = <-s.changesC:
-			//
-		case <-time.After(time.Second):
+			// successfully collected changes
+		case <-time.After(2 * time.Second):
 			c.Fatalf("Timeout occured")
 		}
 	}
@@ -142,6 +142,15 @@ func (s *EtcdBackendSuite) TestAddDeleteHost(c *C) {
 	s.expectChanges(c, &HostDeleted{
 		Name: "localhost",
 	})
+}
+
+func (s *EtcdBackendSuite) TestAddExpireHost(c *C) {
+	host := s.makeHost("localhost")
+
+	_, err := s.client.SetDir(s.backend.path("hosts", host.Name), 1)
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &HostAdded{Host: host}, &HostDeleted{Name: host.Name})
 }
 
 func (s *EtcdBackendSuite) TestAddHostWithOptions(c *C) {
@@ -359,6 +368,24 @@ func (s *EtcdBackendSuite) TestAddEndpointUsingSet(c *C) {
 	s.expectChanges(c, &EndpointUpdated{
 		Upstream:          up,
 		Endpoint:          up.Endpoints[0],
+		AffectedLocations: []*Location{},
+	})
+}
+
+func (s *EtcdBackendSuite) TestExpireEndpoint(c *C) {
+	up := s.makeUpstream("u1", 1)
+	e := up.Endpoints[0]
+
+	_, err := s.client.Set(s.backend.path("upstreams", up.Id, "endpoints", e.Id), e.Url, 1)
+	c.Assert(err, IsNil)
+
+	s.expectChanges(c, &EndpointUpdated{
+		Upstream:          up,
+		Endpoint:          up.Endpoints[0],
+		AffectedLocations: []*Location{},
+	}, &EndpointDeleted{
+		Upstream:          s.makeUpstream(up.Id, 0),
+		EndpointId:        e.Id,
 		AffectedLocations: []*Location{},
 	})
 }

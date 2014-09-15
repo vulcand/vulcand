@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/secret"
@@ -330,4 +330,53 @@ func (s *VESuite) TestHTTPSListenerCrud(c *C) {
 
 	_, _, err = GET(fmt.Sprintf("%s%s", "https://localhost:32000", path), Opts{})
 	c.Assert(err, NotNil)
+}
+
+// Set up a location with a path, hit this location and make sure everything worked fine
+func (s *VESuite) TestExpiringEndpoint(c *C) {
+	server := NewTestResponder("e1")
+	defer server.Close()
+
+	server2 := NewTestResponder("e2")
+	defer server2.Close()
+
+	// Create upstream and endpoints
+	up, url, url2 := "up1", server.URL, server2.URL
+
+	// This one will stay
+	_, err := s.client.Set(s.path("upstreams", up, "endpoints", "e1"), url, 0)
+	c.Assert(err, IsNil)
+
+	// This one will expire
+	_, err = s.client.Set(s.path("upstreams", up, "endpoints", "e2"), url2, 2)
+	c.Assert(err, IsNil)
+
+	// Add location
+	host, locId, path := "localhost", "loc1", "/path"
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "path"), path, 0)
+	c.Assert(err, IsNil)
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
+	c.Assert(err, IsNil)
+
+	time.Sleep(time.Second)
+	responses1 := make(map[string]bool)
+	for i := 0; i < 3; i += 1 {
+		response, body, err := GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{})
+		c.Assert(err, IsNil)
+		c.Assert(response.StatusCode, Equals, http.StatusOK)
+		responses1[string(body)] = true
+	}
+	c.Assert(responses1, DeepEquals, map[string]bool{"e1": true, "e2": true})
+
+	// Now the second endpoint should expire
+	time.Sleep(time.Second * 2)
+
+	responses2 := make(map[string]bool)
+	for i := 0; i < 3; i += 1 {
+		response, body, err := GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{})
+		c.Assert(err, IsNil)
+		c.Assert(response.StatusCode, Equals, http.StatusOK)
+		responses2[string(body)] = true
+	}
+	c.Assert(responses2, DeepEquals, map[string]bool{"e1": true})
 }

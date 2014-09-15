@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/backend"
@@ -601,15 +601,15 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 	return nil, nil
 }
 
-func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)(?:/options)?$").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseHostChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)(?:/options)?$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 
 	hostname := out[1]
 
-	if response.Action == "create" || response.Action == "set" {
+	if oneOf(r, createA, setA) {
 		host, err := s.readHost(hostname, false)
 		if err != nil {
 			return nil, err
@@ -617,22 +617,22 @@ func (s *EtcdBackend) parseHostChange(response *etcd.Response) (interface{}, err
 		return &backend.HostAdded{
 			Host: host,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if oneOf(r, deleteA, expireA) {
 		return &backend.HostDeleted{
 			Name: hostname,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the location: %s", response.Action)
+	return nil, fmt.Errorf("unsupported action on the location: %s", r.Action)
 }
 
-func (s *EtcdBackend) parseHostKeyPairChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/keypair").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseHostKeyPairChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/keypair").FindStringSubmatch(r.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 
-	if response.Action != "create" && response.Action != "set" && response.Action != "delete" {
-		return nil, fmt.Errorf("funsupported action on the certificate: %s", response.Action)
+	if !oneOf(r, createA, setA, deleteA, expireA) {
+		return nil, fmt.Errorf("funsupported action on the certificate: %s", r.Action)
 	}
 	hostname := out[1]
 	host, err := s.readHost(hostname, false)
@@ -644,8 +644,8 @@ func (s *EtcdBackend) parseHostKeyPairChange(response *etcd.Response) (interface
 	}, nil
 }
 
-func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)$").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseLocationChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
@@ -654,7 +654,7 @@ func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{},
 	if err != nil {
 		return nil, err
 	}
-	if response.Action == "create" {
+	if oneOf(r, createA, expireA) {
 		location, err := s.GetLocation(hostname, locationId)
 		if err != nil {
 			return nil, err
@@ -663,23 +663,23 @@ func (s *EtcdBackend) parseLocationChange(response *etcd.Response) (interface{},
 			Host:     host,
 			Location: location,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if oneOf(r, deleteA, expireA) {
 		return &backend.LocationDeleted{
 			Host:       host,
 			LocationId: locationId,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the location: %s", response.Action)
+	return nil, fmt.Errorf("unsupported action on the location: %s", r.Action)
 }
 
-func (s *EtcdBackend) parseLocationUpstreamChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/upstream").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseLocationUpstreamChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/upstream").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
 
-	if response.Action != "create" && response.Action != "set" {
-		return nil, fmt.Errorf("unsupported action on the location upstream: %s", response.Action)
+	if !oneOf(r, createA, setA) {
+		return nil, fmt.Errorf("unsupported action on the location upstream: %s", r.Action)
 	}
 
 	hostname, locationId := out[1], out[2]
@@ -697,14 +697,14 @@ func (s *EtcdBackend) parseLocationUpstreamChange(response *etcd.Response) (inte
 	}, nil
 }
 
-func (s *EtcdBackend) parseLocationOptionsChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/options").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseLocationOptionsChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/options").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
 
-	if response.Action != "create" && response.Action != "set" {
-		return nil, fmt.Errorf("unsupported action on the location options: %s", response.Action)
+	if !oneOf(r, createA, setA) {
+		return nil, fmt.Errorf("unsupported action on the location options: %s", r.Action)
 	}
 
 	hostname, locationId := out[1], out[2]
@@ -722,14 +722,14 @@ func (s *EtcdBackend) parseLocationOptionsChange(response *etcd.Response) (inter
 	}, nil
 }
 
-func (s *EtcdBackend) parseLocationPathChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/path").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseLocationPathChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/path").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
 
-	if response.Action != "create" && response.Action != "set" {
-		return nil, fmt.Errorf("unsupported action on the location path: %s", response.Action)
+	if !oneOf(r, createA, setA) {
+		return nil, fmt.Errorf("unsupported action on the location path: %s", r.Action)
 	}
 
 	hostname, locationId := out[1], out[2]
@@ -745,12 +745,12 @@ func (s *EtcdBackend) parseLocationPathChange(response *etcd.Response) (interfac
 	return &backend.LocationPathUpdated{
 		Host:     host,
 		Location: location,
-		Path:     response.Node.Value,
+		Path:     r.Node.Value,
 	}, nil
 }
 
-func (s *EtcdBackend) parseHostListenerChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/listeners/([^/]+)").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseHostListenerChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/listeners/([^/]+)").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
@@ -760,7 +760,7 @@ func (s *EtcdBackend) parseHostListenerChange(response *etcd.Response) (interfac
 	if err != nil {
 		return nil, err
 	}
-	if response.Action == "create" || response.Action == "set" {
+	if oneOf(r, createA, setA) {
 		for _, l := range host.Listeners {
 			if l.Id == listenerId {
 				return &backend.HostListenerAdded{
@@ -770,22 +770,22 @@ func (s *EtcdBackend) parseHostListenerChange(response *etcd.Response) (interfac
 			}
 		}
 		return nil, fmt.Errorf("listener %s not found", listenerId)
-	} else if response.Action == "delete" {
+	} else if oneOf(r, deleteA, expireA) {
 		return &backend.HostListenerDeleted{
 			Host:       host,
 			ListenerId: listenerId,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the listener: %s", response.Action)
+	return nil, fmt.Errorf("unsupported action on the listener: %s", r.Action)
 }
 
-func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/upstreams/([^/]+)$").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseUpstreamChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/upstreams/([^/]+)$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 	upstreamId := out[1]
-	if response.Action == "create" {
+	if oneOf(r, createA, expireA) {
 		upstream, err := s.GetUpstream(upstreamId)
 		if err != nil {
 			return nil, err
@@ -793,16 +793,16 @@ func (s *EtcdBackend) parseUpstreamChange(response *etcd.Response) (interface{},
 		return &backend.UpstreamAdded{
 			Upstream: upstream,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if oneOf(r, deleteA, expireA) {
 		return &backend.UpstreamDeleted{
 			UpstreamId: upstreamId,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported node action: %s", response)
+	return nil, fmt.Errorf("unsupported node action: %s", r)
 }
 
-func (s *EtcdBackend) parseUpstreamEndpointChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/upstreams/([^/]+)/endpoints/([^/]+)").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseUpstreamEndpointChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/upstreams/([^/]+)/endpoints/([^/]+)").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
@@ -817,7 +817,7 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(response *etcd.Response) (inte
 		return nil, err
 	}
 
-	if response.Action == "set" || response.Action == "create" {
+	if oneOf(r, setA, createA) {
 		for _, e := range upstream.Endpoints {
 			if e.Id == endpointId {
 				return &backend.EndpointUpdated{
@@ -828,23 +828,23 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(response *etcd.Response) (inte
 			}
 		}
 		return nil, fmt.Errorf("endpoint %s not found", endpointId)
-	} else if response.Action == "delete" {
+	} else if oneOf(r, deleteA, expireA) {
 		return &backend.EndpointDeleted{
 			Upstream:          upstream,
 			EndpointId:        endpointId,
 			AffectedLocations: affectedLocations,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the endpoint: %s", response.Action)
+	return nil, fmt.Errorf("unsupported action on the endpoint: %s", r.Action)
 }
 
-func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/middlewares/([^/]+)").FindStringSubmatch(response.Node.Key)
+func (s *EtcdBackend) parseMiddlewareChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)/locations/([^/]+)/middlewares/([^/]+)").FindStringSubmatch(r.Node.Key)
 	if len(out) != 4 {
 		return nil, nil
 	}
 	hostname, locationId, mType := out[1], out[2], out[3]
-	mId := suffix(response.Node.Key)
+	mId := suffix(r.Node.Key)
 
 	spec := s.registry.GetSpec(mType)
 	if spec == nil {
@@ -858,7 +858,7 @@ func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{
 	if err != nil {
 		return nil, err
 	}
-	if response.Action == "create" {
+	if r.Action == createA {
 		m, err := s.GetLocationMiddleware(hostname, locationId, mType, mId)
 		if err != nil {
 			return nil, err
@@ -868,7 +868,7 @@ func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{
 			Location:   location,
 			Middleware: m,
 		}, nil
-	} else if response.Action == "set" {
+	} else if r.Action == setA {
 		m, err := s.GetLocationMiddleware(hostname, locationId, mType, mId)
 		if err != nil {
 			return nil, err
@@ -878,7 +878,7 @@ func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{
 			Location:   location,
 			Middleware: m,
 		}, nil
-	} else if response.Action == "delete" {
+	} else if oneOf(r, deleteA, expireA) {
 		return &backend.LocationMiddlewareDeleted{
 			Host:           host,
 			Location:       location,
@@ -886,7 +886,7 @@ func (s *EtcdBackend) parseMiddlewareChange(response *etcd.Response) (interface{
 			MiddlewareType: mType,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the rate: %s", response.Action)
+	return nil, fmt.Errorf("unsupported action on the rate: %s", r.Action)
 }
 
 func (s *EtcdBackend) readHosts(deep bool) ([]*backend.Host, error) {
@@ -1106,10 +1106,10 @@ func convertErr(e error) error {
 	switch err := e.(type) {
 	case *etcd.EtcdError:
 		if err.ErrorCode == 100 {
-			return &backend.NotFoundError{Message: err.Message}
+			return &backend.NotFoundError{Message: err.Error()}
 		}
 		if err.ErrorCode == 105 {
-			return &backend.AlreadyExistsError{Message: err.Message}
+			return &backend.AlreadyExistsError{Message: err.Error()}
 		}
 	}
 	return e
@@ -1135,4 +1135,20 @@ const encryptionSecretBox = "secretbox.v1"
 
 func responseToString(r *etcd.Response) string {
 	return fmt.Sprintf("%s %s %d", r.Action, r.Node.Key, r.EtcdIndex)
+}
+
+const (
+	createA = "create"
+	setA    = "set"
+	deleteA = "delete"
+	expireA = "expire"
+)
+
+func oneOf(r *etcd.Response, actions ...string) bool {
+	for _, a := range actions {
+		if r.Action == a {
+			return true
+		}
+	}
+	return false
 }
