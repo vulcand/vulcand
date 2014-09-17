@@ -35,7 +35,7 @@ func (rp *Reporter) ObserveResponse(r request.Request, a request.Attempt) {
 
 func (rp *Reporter) emitMetrics(p string, r request.Request, a request.Attempt) {
 	// Report ttempt roundtrip time
-	rp.c.TimingMs(p, a.GetDuration(), 1)
+	rp.c.TimingMs(metric(p, "roundtrip"), a.GetDuration(), 1)
 
 	// Report request throughput
 	if body := r.GetBody(); body != nil {
@@ -47,6 +47,7 @@ func (rp *Reporter) emitMetrics(p string, r request.Request, a request.Attempt) 
 	// Response code-related metrics
 	if re := a.GetResponse(); re != nil {
 		rp.c.Inc(metric(p, "code", fmt.Sprintf("%v", re.StatusCode)), 1, 1)
+		rp.c.Inc(metric(p, "request"), 1, 1)
 
 		if 200 <= re.StatusCode && re.StatusCode < 300 {
 			rp.c.Inc(metric(p, "success"), 1, 1)

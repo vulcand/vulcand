@@ -53,7 +53,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
-			"Rev": "0e542ffd10646a74b5aae257fb24bb34d161a0b2"
+			"Rev": "f590a41f280c7023e93d3604fe1e0e5d92f6d7ee"
 		},
 		{
 			"ImportPath": "github.com/mailgun/minheap",

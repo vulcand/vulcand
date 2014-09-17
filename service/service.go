@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
@@ -87,6 +88,9 @@ func (s *Service) Start() error {
 		s.errorC <- s.startApi()
 	}()
 
+	if s.metricsClient != nil {
+		go s.reportSystemMetrics()
+	}
 	signal.Notify(s.sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	// Block until a signal is received or we got an error
@@ -130,6 +134,15 @@ func (s *Service) newBackend() (backend.Backend, error) {
 			EtcdConsistency: s.options.EtcdConsistency,
 			Box:             box,
 		})
+}
+
+func (s *Service) reportSystemMetrics() {
+	for {
+		s.metricsClient.ReportRuntimeMetrics("sys", 1.0)
+		// we have 256 time buckets for gc stats, GC is being executed every 4ms on average
+		// so we have 256 * 4 = 1024 around one second to report it. To play safe, let's report every 300ms
+		time.Sleep(300 * time.Millisecond)
+	}
 }
 
 func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {

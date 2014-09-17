@@ -64,6 +64,22 @@ func TestClient(t *testing.T) {
 	}
 }
 
+func TestReportSystemMetrics(t *testing.T) {
+	l, err := newUDPListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	c, err := NewStatsd(l.LocalAddr().String(), "runtime")
+	for i := 0; i < 1000; i += 1 {
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		c.ReportRuntimeMetrics("runtime.metrics", 1)
+	}
+}
+
 func newUDPListener(addr string) (*net.UDPConn, error) {
 	l, err := net.ListenPacket("udp", addr)
 	if err != nil {
