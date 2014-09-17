@@ -137,6 +137,11 @@ func (s *Service) newBackend() (backend.Backend, error) {
 }
 
 func (s *Service) reportSystemMetrics() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Infof("Recovered in reportSystemMetrics", r)
+		}
+	}()
 	for {
 		s.metricsClient.ReportRuntimeMetrics("sys", 1.0)
 		// we have 256 time buckets for gc stats, GC is being executed every 4ms on average
