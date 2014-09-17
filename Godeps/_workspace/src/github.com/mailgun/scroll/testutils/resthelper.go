@@ -8,11 +8,13 @@ import (
 	"strings"
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 )
 
 type RestHelper struct{}
 
-func (h *RestHelper) Get(c *C, url string) Response {
+func (h *RestHelper) Get(c *C, url string) scroll.Response {
 	response, err := http.Get(url)
 	if err != nil {
 		c.Fatal(err)
@@ -20,7 +22,7 @@ func (h *RestHelper) Get(c *C, url string) Response {
 	return h.parseResponse(c, response)
 }
 
-func (h *RestHelper) Post(c *C, url string, data url.Values) Response {
+func (h *RestHelper) Post(c *C, url string, data url.Values) scroll.Response {
 	response, err := http.PostForm(url, data)
 	if err != nil {
 		c.Fatal(err)
@@ -28,7 +30,7 @@ func (h *RestHelper) Post(c *C, url string, data url.Values) Response {
 	return h.parseResponse(c, response)
 }
 
-func (h *RestHelper) PostJSON(c *C, url, data string) Response {
+func (h *RestHelper) PostJSON(c *C, url, data string) scroll.Response {
 	request, err := http.NewRequest("POST", url, strings.NewReader(data))
 	if err != nil {
 		c.Fatal(err)
@@ -42,7 +44,7 @@ func (h *RestHelper) PostJSON(c *C, url, data string) Response {
 	return h.parseResponse(c, response)
 }
 
-func (h *RestHelper) Delete(c *C, url string) Response {
+func (h *RestHelper) Delete(c *C, url string) scroll.Response {
 	request, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		c.Fatal(err)
@@ -55,13 +57,13 @@ func (h *RestHelper) Delete(c *C, url string) Response {
 	return h.parseResponse(c, response)
 }
 
-func (h *RestHelper) parseResponse(c *C, response *http.Response) Response {
+func (h *RestHelper) parseResponse(c *C, response *http.Response) scroll.Response {
 	responseBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		c.Fatal(err)
 	}
 
-	parsedResponse := Response{}
+	parsedResponse := scroll.Response{}
 	err = json.Unmarshal(responseBytes, &parsedResponse)
 	if err != nil {
 		c.Fatal(err)

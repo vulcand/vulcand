@@ -19,8 +19,8 @@ import (
 //  Response{"message": "OK"}
 type Response map[string]interface{}
 
-// Represents handler's config.
-type HandlerConfig struct {
+// Represents handler's specification.
+type Spec struct {
 	// List of HTTP methods the handler should match.
 	Methods []string
 
@@ -29,6 +29,11 @@ type HandlerConfig struct {
 
 	// Key/value pairs of specific HTTP headers the handler should match (e.g. Content-Type).
 	Headers []string
+
+	// A handler function to use. Just one of these should be provided.
+	RawHandler      http.HandlerFunc
+	Handler         HandlerFunc
+	HandlerWithBody HandlerWithBodyFunc
 
 	// Unique identifier used when emitting performance metrics for the handler.
 	MetricName string
@@ -52,7 +57,7 @@ type HandlerFunc func(http.ResponseWriter, *http.Request, map[string]string) (in
 // Wraps the provided handler function encapsulating boilerplate code so handlers do not have to
 // implement it themselves: parsing a request's form, formatting a proper JSON response, emitting
 // the request stats, etc.
-func MakeHandler(app *App, fn HandlerFunc, config *HandlerConfig) http.HandlerFunc {
+func MakeHandler(app *App, fn HandlerFunc, spec Spec) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := parseForm(r); err != nil {
 			ReplyInternalError(w, fmt.Sprintf("Failed to parse request form: %v", err))
@@ -73,7 +78,7 @@ func MakeHandler(app *App, fn HandlerFunc, config *HandlerConfig) http.HandlerFu
 		log.Infof("Request completed: status [%v] method [%v] path [%v] form [%v] time [%v] error [%v]",
 			status, r.Method, r.URL, r.Form, elapsedTime, err)
 
-		app.stats.TrackRequest(config.MetricName, status, elapsedTime)
+		app.stats.TrackRequest(spec.MetricName, status, elapsedTime)
 
 		Reply(w, response, status)
 	}
@@ -85,7 +90,7 @@ func MakeHandler(app *App, fn HandlerFunc, config *HandlerConfig) http.HandlerFu
 type HandlerWithBodyFunc func(http.ResponseWriter, *http.Request, map[string]string, []byte) (interface{}, error)
 
 // Make a handler out of HandlerWithBodyFunc, just like regular MakeHandler function.
-func MakeHandlerWithBody(app *App, fn HandlerWithBodyFunc, config *HandlerConfig) http.HandlerFunc {
+func MakeHandlerWithBody(app *App, fn HandlerWithBodyFunc, spec Spec) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := parseForm(r); err != nil {
 			ReplyInternalError(w, fmt.Sprintf("Failed to parse request form: %v", err))
@@ -112,7 +117,7 @@ func MakeHandlerWithBody(app *App, fn HandlerWithBodyFunc, config *HandlerConfig
 		log.Infof("Request completed: status [%v] method [%v] path [%v] form [%v] time [%v] error [%v]",
 			status, r.Method, r.URL, r.Form, elapsedTime, err)
 
-		app.stats.TrackRequest(config.MetricName, status, elapsedTime)
+		app.stats.TrackRequest(spec.MetricName, status, elapsedTime)
 
 		Reply(w, response, status)
 	}
@@ -136,7 +141,7 @@ func Reply(w http.ResponseWriter, response interface{}, status int) {
 	w.Write(marshalledResponse)
 }
 
-// ReplyError converts registered error into HTTP response code and writes it back
+// ReplyError converts registered error into HTTP response code and writes it back.
 func ReplyError(w http.ResponseWriter, err error) {
 	response, status := responseAndStatusFor(err)
 	Reply(w, response, status)

@@ -45,7 +45,7 @@ func (s *ApiSuite) SetUpTest(c *C) {
 
 	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
 
-	app := scroll.NewApp(&scroll.AppConfig{})
+	app := scroll.NewApp()
 	InitProxyController(s.backend, sv, sv.GetConnWatcher(), app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 	s.client = NewClient(s.testServer.URL, registry.GetRegistry())

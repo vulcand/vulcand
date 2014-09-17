@@ -8,10 +8,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/etcdbackend"
@@ -37,13 +38,14 @@ func Run(registry *plugin.Registry) error {
 }
 
 type Service struct {
-	client     *etcd.Client
-	options    Options
-	registry   *plugin.Registry
-	apiApp     *scroll.App
-	errorC     chan error
-	sigC       chan os.Signal
-	supervisor *supervisor.Supervisor
+	client        *etcd.Client
+	options       Options
+	registry      *plugin.Registry
+	apiApp        *scroll.App
+	errorC        chan error
+	sigC          chan os.Signal
+	supervisor    *supervisor.Supervisor
+	metricsClient metrics.Client
 }
 
 func NewService(options Options, registry *plugin.Registry) *Service {
@@ -60,6 +62,14 @@ func (s *Service) Start() error {
 
 	if s.options.PidPath != "" {
 		ioutil.WriteFile(s.options.PidPath, []byte(fmt.Sprint(os.Getpid())), 0644)
+	}
+
+	if s.options.StatsdAddr != "" {
+		var err error
+		s.metricsClient, err = metrics.NewStatsd(s.options.StatsdAddr, s.options.StatsdPrefix)
+		if err != nil {
+			return err
+		}
 	}
 
 	s.supervisor = supervisor.NewSupervisor(s.newServer, s.newBackend, s.errorC)
@@ -124,6 +134,7 @@ func (s *Service) newBackend() (backend.Backend, error) {
 
 func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
 	return server.NewMuxServerWithOptions(id, cw, server.Options{
+		MetricsClient:  s.metricsClient,
 		DialTimeout:    s.options.EndpointDialTimeout,
 		ReadTimeout:    s.options.ServerReadTimeout,
 		WriteTimeout:   s.options.ServerWriteTimeout,
@@ -140,7 +151,7 @@ func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Ser
 }
 
 func (s *Service) initApi() error {
-	s.apiApp = scroll.NewApp(&scroll.AppConfig{})
+	s.apiApp = scroll.NewApp()
 	b, err := s.newBackend()
 	if err != nil {
 		return err

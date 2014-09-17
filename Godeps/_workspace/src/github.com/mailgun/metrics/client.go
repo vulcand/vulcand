@@ -1,10 +1,11 @@
-package statsd
+package metrics
 
 import (
 	"errors"
 	"fmt"
 	"math/rand"
 	"net"
+	"time"
 )
 
 type Client interface {
@@ -40,6 +41,9 @@ type Client interface {
 	// value is the integer value.
 	// rate is the sample rate (0.0 to 1.0).
 	Timing(stat string, delta int64, rate float32) error
+
+	// Emit duration in milliseconds
+	TimingMs(stat string, tm time.Duration, rate float32) error
 
 	// Submits a stats set type, where value is the unique string
 	// rate is the sample rate (0.0 to 1.0).
@@ -89,6 +93,10 @@ func (s *client) GaugeDelta(stat string, value int64, rate float32) error {
 func (s *client) Timing(stat string, delta int64, rate float32) error {
 	dap := fmt.Sprintf("%d|ms", delta)
 	return s.submit(stat, dap, rate)
+}
+
+func (s *client) TimingMs(stat string, d time.Duration, rate float32) error {
+	return s.Timing(stat, int64(d/time.Millisecond), rate)
 }
 
 // Submits a stats set type, where value is the unique string
@@ -152,7 +160,7 @@ func (s *client) send(data []byte) (int, error) {
 // addr is a string of the format "hostname:port", and must be parsable by
 // net.ResolveUDPAddr.
 // prefix is the statsd client prefix. Can be "" if no prefix is desired.
-func New(addr, prefix string) (Client, error) {
+func NewStatsd(addr, prefix string) (Client, error) {
 	c, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return nil, err
@@ -171,6 +179,3 @@ func New(addr, prefix string) (Client, error) {
 
 	return client, nil
 }
-
-// Compat
-var Dial = New

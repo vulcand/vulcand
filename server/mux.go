@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	vmetrics "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 
@@ -54,7 +55,7 @@ func NewMuxServerWithOptions(id int, connWatcher *connwatch.ConnectionWatcher, o
 		id:          id,
 		hostRouters: make(map[string]*exproute.ExpRouter),
 		servers:     make(map[backend.Address]*server),
-		options:     o,
+		options:     parseOptions(o),
 		connWatcher: connWatcher,
 		wg:          &sync.WaitGroup{},
 		mtx:         &sync.RWMutex{},
@@ -78,7 +79,7 @@ func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *
 	if meterI == nil {
 		return nil
 	}
-	meter := meterI.(*metrics.RollingMeter)
+	meter := meterI.(*vmetrics.RollingMeter)
 
 	return &backend.EndpointStats{
 		Successes:     meter.SuccessCount(),
@@ -426,8 +427,9 @@ func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) er
 		return err
 	}
 
-	// Always register a global connection watcher
+	// Register watchers and metric reporters
 	location.GetObserverChain().Upsert(ConnWatch, m.connWatcher)
+	location.GetObserverChain().Upsert(Metrics, NewReporter(m.options.MetricsClient, loc.Id))
 
 	// Add the location to the router
 	if err := router.AddLocation(convertPath(loc.Path), location); err != nil {
@@ -622,7 +624,10 @@ func stateDescription(state int) string {
 	return "undefined"
 }
 
-const ConnWatch = "_vulcanConnWatch"
+const (
+	ConnWatch = "_vulcanConnWatch"
+	Metrics   = "_metrics"
+)
 
 // convertPath changes strings to structured format /hello -> RegexpRoute("/hello") and leaves structured strings unchanged.
 func convertPath(in string) string {
@@ -630,4 +635,11 @@ func convertPath(in string) string {
 		return fmt.Sprintf(`%s(%#v)`, exproute.RegexpRouteFn, in)
 	}
 	return in
+}
+
+func parseOptions(o Options) Options {
+	if o.MetricsClient == nil {
+		o.MetricsClient = metrics.NewNop()
+	}
+	return o
 }

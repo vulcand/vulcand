@@ -28,6 +28,9 @@ type Options struct {
 	EndpointReadTimeout time.Duration
 
 	SealKey string
+
+	StatsdAddr   string
+	StatsdPrefix string
 }
 
 // Helper to parse options that can occur several times, e.g. cassandra nodes
@@ -80,6 +83,9 @@ func ParseCommandLine() (options Options, err error) {
 	flag.DurationVar(&options.EndpointReadTimeout, "endpointReadTimeout", time.Duration(50)*time.Second, "Endpoint read timeout")
 
 	flag.StringVar(&options.SealKey, "sealKey", "", "Seal key used to store encrypted data in the backend")
+
+	flag.StringVar(&options.StatsdPrefix, "statsdPrefix", "", "Statsd prefix will be appended to the metrics emitted by this instance")
+	flag.StringVar(&options.StatsdAddr, "statsdAddr", "", "Statsd address in form of 'host:port'")
 
 	flag.Parse()
 	options, err = validateOptions(options)

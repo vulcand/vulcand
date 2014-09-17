@@ -40,7 +40,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/go-statsd-client/statsd",
-			"Rev": "ac2a472de8720ab2cf16a0b2220e6a1e01c4ebec"
+			"Rev": "3fb0a0f3daec83814e71a13c91a43daab6164770"
 		},
 		{
 			"ImportPath": "github.com/mailgun/log",
@@ -53,7 +53,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
-			"Rev": "0075f236a4437a9acf94faf4efbb353853e35852"
+			"Rev": "0e542ffd10646a74b5aae257fb24bb34d161a0b2"
 		},
 		{
 			"ImportPath": "github.com/mailgun/minheap",
@@ -61,7 +61,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/scroll",
-			"Rev": "bd81a358f878c5c98be9f41a5b33c221367ff75a"
+			"Rev": "d4523b134d810b718cb0676af469a44b487bc3fe"
 		},
 		{
 			"ImportPath": "github.com/mailgun/timetools",

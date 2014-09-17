@@ -3,6 +3,7 @@ package server
 import (
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/connwatch"
 )
@@ -37,6 +38,7 @@ type Server interface {
 }
 
 type Options struct {
+	MetricsClient   metrics.Client
 	DialTimeout     time.Duration
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration

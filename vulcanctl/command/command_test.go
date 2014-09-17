@@ -52,7 +52,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 
 	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
 
-	app := scroll.NewApp(&scroll.AppConfig{})
+	app := scroll.NewApp()
 	api.InitProxyController(s.backend, sv, sv.GetConnWatcher(), app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 
