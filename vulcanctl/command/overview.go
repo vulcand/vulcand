@@ -67,10 +67,10 @@ func (s *locSorter) Swap(i, j int) {
 func (s *locSorter) Less(i, j int) bool {
 	s1, f1, _ := locStats(s.locs[i])
 	s2, f2, _ := locStats(s.locs[j])
-	if f1 < f2 {
+	if f1 > f2 {
 		return true
 	}
-	return s1 < s2
+	return s1 > s2
 }
 
 func locStats(loc *backend.Location) (successes, failures, periodSeconds int64) {
