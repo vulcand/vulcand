@@ -29,11 +29,14 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 	app.SetNotFoundHandler(c.handleError)
 
 	app.AddHandler(scroll.Spec{Path: "/v1/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
+
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"POST"}, HandlerWithBody: c.addHost})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"GET"}, Handler: c.getHost})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
+
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"GET"}, Handler: c.getHostLocation})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
+
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/keypair", Methods: []string{"PUT"}, HandlerWithBody: c.updateHostKeyPair})
 
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/listeners", Methods: []string{"POST"}, HandlerWithBody: c.addHostListener})
@@ -82,15 +85,26 @@ func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, param
 	for _, h := range hosts {
 		for _, l := range h.Locations {
 			for _, e := range l.Upstream.Endpoints {
-				fmt.Printf("Endpoint Stats: %s\n", l)
 				e.Stats = c.statsGetter.GetStats(h.Name, l.Id, e)
-				fmt.Printf("Endpoint Stats: %s stats: %s\n", e, e.Stats)
 			}
 		}
 	}
 	return scroll.Response{
 		"Hosts": hosts,
 	}, err
+}
+
+func (c *ProxyController) getHost(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	h, err := c.backend.GetHost(params["hostname"])
+	if err != nil {
+		return nil, formatError(err)
+	}
+	for _, l := range h.Locations {
+		for _, e := range l.Upstream.Endpoints {
+			e.Stats = c.statsGetter.GetStats(h.Name, l.Id, e)
+		}
+	}
+	return formatResult(h, err)
 }
 
 func (c *ProxyController) getHostLocations(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {

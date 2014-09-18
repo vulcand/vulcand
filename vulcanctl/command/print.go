@@ -11,7 +11,7 @@ func (cmd *Command) printResult(format string, in interface{}, err error) {
 	if err != nil {
 		cmd.printError(err)
 	} else {
-		cmd.printOk(format, formatInstance(in))
+		cmd.printOk(format, fmt.Sprintf("%v", in))
 	}
 }
 
@@ -37,31 +37,30 @@ func (cmd *Command) printInfo(message string, params ...interface{}) {
 
 func (cmd *Command) printHosts(hosts []*backend.Host) {
 	fmt.Fprintf(cmd.out, "\n")
-	printTree(cmd.out, &VulcanTree{root: hosts}, 0, true, "")
+	printTree(cmd.out, hostsView(hosts), 0, true, "")
+}
+
+func (cmd *Command) printHost(host *backend.Host) {
+	fmt.Fprintf(cmd.out, "\n")
+	printTree(cmd.out, hostView(host), 0, true, "")
+}
+
+func (cmd *Command) printOverview(hosts []*backend.Host) {
+	fmt.Fprintf(cmd.out, "\n")
+	printTree(cmd.out, hostsOverview(hosts), 0, true, "")
 }
 
 func (cmd *Command) printUpstreams(upstreams []*backend.Upstream) {
 	fmt.Fprintf(cmd.out, "\n")
-	printTree(cmd.out, &VulcanTree{root: upstreams}, 0, true, "")
+	printTree(cmd.out, upstreamsView(upstreams), 0, true, "")
 }
 
-func formatInstance(in interface{}) string {
-	switch r := in.(type) {
-	case *backend.Host:
-		return fmt.Sprintf("host[name=%s]", r.Name)
-	case *backend.Upstream:
-		return fmt.Sprintf("upstream[id=%s]", r.Id)
-	case *backend.Endpoint:
-		if r.Stats != nil {
-			s := r.Stats
-			reqsSec := (s.Failures + s.Successes) / int64(s.PeriodSeconds)
-			return fmt.Sprintf("endpoint[id=%s, url=%s, %d requests/sec, %.2f failures/sec]", r.Id, r.Url, reqsSec, s.FailRate)
-		}
-		return fmt.Sprintf("endpoint[id=%s, url=%s]", r.Id, r.Url)
-	case *backend.Location:
-		return fmt.Sprintf("location[id=%s, path=%s]", r.Id, r.Path)
-	case *backend.MiddlewareInstance:
-		return fmt.Sprintf("%s[id=%s, priority=%d, %s]", r.Type, r.Id, r.Priority, r.Middleware)
-	}
-	return fmt.Sprintf("%s", in)
+func (cmd *Command) printUpstream(upstream *backend.Upstream) {
+	fmt.Fprintf(cmd.out, "\n")
+	printTree(cmd.out, upstreamView(upstream), 0, true, "")
+}
+
+func (cmd *Command) printLocation(l *backend.Location) {
+	fmt.Fprintf(cmd.out, "\n")
+	printTree(cmd.out, locationView(l), 0, true, "")
 }

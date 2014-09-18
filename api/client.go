@@ -36,6 +36,14 @@ func (c *Client) GetHosts() ([]*Host, error) {
 	return HostsFromJSON(data, c.Registry.GetSpec)
 }
 
+func (c *Client) GetHost(name string) (*Host, error) {
+	response, err := c.Get(c.endpoint("hosts", name), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	return HostFromJSON(response, c.Registry.GetSpec)
+}
+
 func (c *Client) AddHost(name string) (*Host, error) {
 	host, err := NewHost(name)
 	if err != nil {
@@ -74,6 +82,14 @@ func (c *Client) DeleteHost(name string) (*StatusResponse, error) {
 
 func (c *Client) AddLocation(hostname, id, path, upstream string) (*Location, error) {
 	return c.AddLocationWithOptions(hostname, id, path, upstream, LocationOptions{})
+}
+
+func (c *Client) GetLocation(name, id string) (*Location, error) {
+	response, err := c.Get(c.endpoint("hosts", name, "locations", id), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+	return LocationFromJSON(response, c.Registry.GetSpec)
 }
 
 func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, options LocationOptions) (*Location, error) {
@@ -205,12 +221,6 @@ func (c *Client) PutForm(endpoint string, values url.Values) (*StatusResponse, e
 	var re *StatusResponse
 	err = json.Unmarshal(data, &re)
 	return re, err
-}
-
-func (c *Client) PostForm(endpoint string, values url.Values) ([]byte, error) {
-	return c.RoundTrip(func() (*http.Response, error) {
-		return http.PostForm(endpoint, values)
-	})
 }
 
 func (c *Client) Post(endpoint string, in interface{}) ([]byte, error) {

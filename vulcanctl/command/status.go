@@ -18,6 +18,6 @@ func (cmd *Command) statusAction(c *cli.Context) {
 	if err != nil {
 		cmd.printError(err)
 	} else {
-		cmd.printHosts(out)
+		cmd.printOverview(out)
 	}
 }
