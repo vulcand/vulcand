@@ -45,7 +45,7 @@ func (s *ApiSuite) SetUpTest(c *C) {
 
 	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
 
-	app := scroll.NewApp(&scroll.AppConfig{})
+	app := scroll.NewApp()
 	InitProxyController(s.backend, sv, sv.GetConnWatcher(), app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 	s.client = NewClient(s.testServer.URL, registry.GetRegistry())
@@ -73,6 +73,10 @@ func (s *ApiSuite) TestHostCRUD(c *C) {
 	c.Assert(hosts, NotNil)
 	c.Assert(err, IsNil)
 	c.Assert(hosts[0].Name, Equals, "localhost")
+
+	h, err := s.client.GetHost(host.Name)
+	c.Assert(err, IsNil)
+	c.Assert(h.Name, Equals, host.Name)
 
 	_, err = s.client.UpdateHostKeyPair(host.Name, testutils.NewTestKeyPair())
 	c.Assert(err, IsNil)
@@ -204,18 +208,18 @@ func (s *ApiSuite) TestLocationCRUD(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure changes have taken effect
-	hosts, err := s.client.GetHosts()
+	h, err := s.client.GetHost("localhost")
 	c.Assert(err, IsNil)
-	c.Assert(hosts[0].Locations[0].Upstream.Id, Equals, "up2")
+	c.Assert(h.Locations[0].Upstream.Id, Equals, "up2")
 
 	// Delete a location
 	_, err = s.client.DeleteLocation("localhost", "la")
 	c.Assert(err, IsNil)
 
 	// Check the result
-	hosts, err = s.client.GetHosts()
+	h, err = s.client.GetHost("localhost")
 	c.Assert(err, IsNil)
-	c.Assert(len(hosts[0].Locations), Equals, 0)
+	c.Assert(len(h.Locations), Equals, 0)
 }
 
 func (s *ApiSuite) TestLocationUpdateOptions(c *C) {
@@ -240,9 +244,9 @@ func (s *ApiSuite) TestLocationUpdateOptions(c *C) {
 	c.Assert(err, IsNil)
 
 	// Make sure changes have taken effect
-	hosts, err := s.client.GetHosts()
+	l, err := s.client.GetLocation("localhost", "la")
 	c.Assert(err, IsNil)
-	c.Assert(hosts[0].Locations[0].Options.Hostname, Equals, "somehost2")
+	c.Assert(l.Options.Hostname, Equals, "somehost2")
 }
 
 func (s *ApiSuite) TestAddLocationTwice(c *C) {

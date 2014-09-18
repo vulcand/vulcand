@@ -7,11 +7,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/etcdbackend"
@@ -37,13 +39,14 @@ func Run(registry *plugin.Registry) error {
 }
 
 type Service struct {
-	client     *etcd.Client
-	options    Options
-	registry   *plugin.Registry
-	apiApp     *scroll.App
-	errorC     chan error
-	sigC       chan os.Signal
-	supervisor *supervisor.Supervisor
+	client        *etcd.Client
+	options       Options
+	registry      *plugin.Registry
+	apiApp        *scroll.App
+	errorC        chan error
+	sigC          chan os.Signal
+	supervisor    *supervisor.Supervisor
+	metricsClient metrics.Client
 }
 
 func NewService(options Options, registry *plugin.Registry) *Service {
@@ -62,6 +65,14 @@ func (s *Service) Start() error {
 		ioutil.WriteFile(s.options.PidPath, []byte(fmt.Sprint(os.Getpid())), 0644)
 	}
 
+	if s.options.StatsdAddr != "" {
+		var err error
+		s.metricsClient, err = metrics.NewStatsd(s.options.StatsdAddr, s.options.StatsdPrefix)
+		if err != nil {
+			return err
+		}
+	}
+
 	s.supervisor = supervisor.NewSupervisor(s.newServer, s.newBackend, s.errorC)
 
 	// Tells configurator to perform initial proxy configuration and start watching changes
@@ -77,6 +88,9 @@ func (s *Service) Start() error {
 		s.errorC <- s.startApi()
 	}()
 
+	if s.metricsClient != nil {
+		go s.reportSystemMetrics()
+	}
 	signal.Notify(s.sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	// Block until a signal is received or we got an error
@@ -122,8 +136,23 @@ func (s *Service) newBackend() (backend.Backend, error) {
 		})
 }
 
+func (s *Service) reportSystemMetrics() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Infof("Recovered in reportSystemMetrics", r)
+		}
+	}()
+	for {
+		s.metricsClient.ReportRuntimeMetrics("sys", 1.0)
+		// we have 256 time buckets for gc stats, GC is being executed every 4ms on average
+		// so we have 256 * 4 = 1024 around one second to report it. To play safe, let's report every 300ms
+		time.Sleep(300 * time.Millisecond)
+	}
+}
+
 func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
 	return server.NewMuxServerWithOptions(id, cw, server.Options{
+		MetricsClient:  s.metricsClient,
 		DialTimeout:    s.options.EndpointDialTimeout,
 		ReadTimeout:    s.options.ServerReadTimeout,
 		WriteTimeout:   s.options.ServerWriteTimeout,
@@ -140,7 +169,7 @@ func (s *Service) newServer(id int, cw *connwatch.ConnectionWatcher) (server.Ser
 }
 
 func (s *Service) initApi() error {
-	s.apiApp = scroll.NewApp(&scroll.AppConfig{})
+	s.apiApp = scroll.NewApp()
 	b, err := s.newBackend()
 	if err != nil {
 		return err

@@ -12,6 +12,20 @@ func NewHostCommand(cmd *Command) cli.Command {
 		Usage: "Operations with vulcan hosts",
 		Subcommands: []cli.Command{
 			{
+				Name:   "ls",
+				Usage:  "List all hosts",
+				Flags:  []cli.Flag{},
+				Action: cmd.printHostsAction,
+			},
+			{
+				Name:  "show",
+				Usage: "Show host details",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "name", Usage: "hostname"},
+				},
+				Action: cmd.printHostAction,
+			},
+			{
 				Name: "add",
 				Flags: []cli.Flag{
 					cli.StringFlag{Name: "name", Usage: "hostname"},
@@ -39,6 +53,24 @@ func NewHostCommand(cmd *Command) cli.Command {
 			},
 		},
 	}
+}
+
+func (cmd *Command) printHostsAction(c *cli.Context) {
+	hosts, err := cmd.client.GetHosts()
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printHosts(hosts)
+}
+
+func (cmd *Command) printHostAction(c *cli.Context) {
+	host, err := cmd.client.GetHost(c.String("name"))
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printHost(host)
 }
 
 func (cmd *Command) addHostAction(c *cli.Context) {

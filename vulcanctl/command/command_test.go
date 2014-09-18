@@ -52,7 +52,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 
 	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
 
-	app := scroll.NewApp(&scroll.AppConfig{})
+	app := scroll.NewApp()
 	api.InitProxyController(s.backend, sv, sv.GetConnWatcher(), app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 
@@ -79,8 +79,9 @@ func (s *CmdSuite) TestStatus(c *C) {
 }
 
 func (s *CmdSuite) TestHostCRUD(c *C) {
-	host := "host"
+	host := "localhost"
 	c.Assert(s.run("host", "add", "-name", host), Matches, OK)
+	c.Assert(s.run("host", "show", "-name", host), Matches, ".*"+host+".*")
 	c.Assert(s.run("host", "rm", "-name", host), Matches, OK)
 }
 
@@ -259,4 +260,25 @@ func (s *CmdSuite) TestNewKey(c *C) {
 
 	_, err = secret.NewBoxFromKeyString(string(bytes))
 	c.Assert(err, IsNil)
+}
+
+func (s *CmdSuite) TestPrinting(c *C) {
+	up := "up"
+	c.Assert(s.run("upstream", "add", "-id", up), Matches, OK)
+
+	h := "localhost"
+	c.Assert(s.run("host", "add", "-name", h), Matches, OK)
+
+	loc := "loc"
+	path := "/path"
+	c.Assert(s.run("location", "add", "-host", h, "-id", loc, "-up", up, "-path", path), Matches, OK)
+
+	loc2 := "loc2"
+	path2 := "/path2"
+	c.Assert(s.run("location", "add", "-host", h, "-id", loc2, "-up", up, "-path", path2), Matches, OK)
+
+	// List hosts and show host
+	c.Assert(s.run("status"), Matches, ".*"+h+".*")
+	c.Assert(s.run("host", "ls"), Matches, ".*"+h+".*")
+	c.Assert(s.run("host", "show", "-name", h), Matches, ".*"+h+".*")
 }

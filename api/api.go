@@ -28,36 +28,37 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 
 	app.SetNotFoundHandler(c.handleError)
 
-	app.AddHandlerWithBody(c.getStatus, &scroll.HandlerConfig{Path: "/v1/status", Methods: []string{"GET"}})
-	app.AddHandlerWithBody(c.getHosts, &scroll.HandlerConfig{Path: "/v1/hosts", Methods: []string{"GET"}})
-	app.AddHandlerWithBody(c.addHost, &scroll.HandlerConfig{Path: "/v1/hosts", Methods: []string{"POST"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
 
-	app.AddHandler(c.getHostLocation, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"GET"}})
-	app.AddHandler(c.deleteHost, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"POST"}, HandlerWithBody: c.addHost})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"GET"}, Handler: c.getHost})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
 
-	app.AddHandler(c.deleteHost, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}})
-	app.AddHandlerWithBody(c.updateHostKeyPair, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/keypair", Methods: []string{"PUT"}})
-	app.AddHandlerWithBody(c.addHostListener, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/listeners", Methods: []string{"POST"}})
-	app.AddHandler(c.deleteHostListener, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/listeners/{id}", Methods: []string{"DELETE"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"GET"}, Handler: c.getHostLocation})
 
-	///
-	app.AddHandlerWithBody(c.addUpstream, &scroll.HandlerConfig{Path: "/v1/upstreams", Methods: []string{"POST"}})
-	app.AddHandler(c.getUpstreams, &scroll.HandlerConfig{Path: "/v1/upstreams", Methods: []string{"GET"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/keypair", Methods: []string{"PUT"}, HandlerWithBody: c.updateHostKeyPair})
 
-	app.AddHandler(c.deleteUpstream, &scroll.HandlerConfig{Path: "/v1/upstreams/{id}", Methods: []string{"DELETE"}})
-	app.AddHandler(c.getUpstream, &scroll.HandlerConfig{Path: "/v1/upstreams/{id}", Methods: []string{"GET"}})
-	app.AddHandler(c.drainUpstreamConnections, &scroll.HandlerConfig{Path: "/v1/upstreams/{id}/drain", Methods: []string{"GET"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/listeners", Methods: []string{"POST"}, HandlerWithBody: c.addHostListener})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/listeners/{id}", Methods: []string{"DELETE"}, Handler: c.deleteHostListener})
 
-	app.AddHandlerWithBody(c.addLocation, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"POST"}})
-	app.AddHandler(c.getHostLocations, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"GET"}})
-	app.AddHandler(c.updateLocationUpstream, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"PUT"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams", Methods: []string{"POST"}, HandlerWithBody: c.addUpstream})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams", Methods: []string{"GET"}, Handler: c.getUpstreams})
 
-	app.AddHandlerWithBody(c.updateLocationOptions, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}/options", Methods: []string{"PUT"}})
-	app.AddHandler(c.deleteLocation, &scroll.HandlerConfig{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"DELETE"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"DELETE"}, Handler: c.deleteUpstream})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"GET"}, Handler: c.getUpstream})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}/drain", Methods: []string{"GET"}, Handler: c.drainUpstreamConnections})
 
-	app.AddHandlerWithBody(c.addEndpoint, &scroll.HandlerConfig{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"POST"}})
-	app.AddHandler(c.getUpstreamEndpoints, &scroll.HandlerConfig{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"GET"}})
-	app.AddHandler(c.deleteEndpoint, &scroll.HandlerConfig{Path: "/v1/upstreams/{upstream}/endpoints/{endpoint}", Methods: []string{"DELETE"}})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"POST"}, HandlerWithBody: c.addLocation})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"GET"}, Handler: c.getHostLocations})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"PUT"}, Handler: c.updateLocationUpstream})
+
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}/options", Methods: []string{"PUT"}, HandlerWithBody: c.updateLocationOptions})
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"DELETE"}, Handler: c.deleteLocation})
+
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"POST"}, HandlerWithBody: c.addEndpoint})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"GET"}, Handler: c.getUpstreamEndpoints})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints/{endpoint}", Methods: []string{"DELETE"}, Handler: c.deleteEndpoint})
 
 	// Register controllers for middlewares
 	if backend.GetRegistry() != nil {
@@ -84,15 +85,26 @@ func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, param
 	for _, h := range hosts {
 		for _, l := range h.Locations {
 			for _, e := range l.Upstream.Endpoints {
-				fmt.Printf("Endpoint Stats: %s\n", l)
 				e.Stats = c.statsGetter.GetStats(h.Name, l.Id, e)
-				fmt.Printf("Endpoint Stats: %s stats: %s\n", e, e.Stats)
 			}
 		}
 	}
 	return scroll.Response{
 		"Hosts": hosts,
 	}, err
+}
+
+func (c *ProxyController) getHost(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	h, err := c.backend.GetHost(params["hostname"])
+	if err != nil {
+		return nil, formatError(err)
+	}
+	for _, l := range h.Locations {
+		for _, e := range l.Upstream.Endpoints {
+			e.Stats = c.statsGetter.GetStats(h.Name, l.Id, e)
+		}
+	}
+	return formatResult(h, err)
 }
 
 func (c *ProxyController) getHostLocations(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
@@ -286,32 +298,32 @@ func (c *ProxyController) deleteEndpoint(w http.ResponseWriter, r *http.Request,
 }
 
 func (c *ProxyController) registerMiddlewareHandlers(spec *plugin.MiddlewareSpec) {
-	c.app.AddHandlerWithBody(
-		c.makeAddMiddleware(spec),
-		&scroll.HandlerConfig{
-			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s", spec.Type),
-			Methods: []string{"POST"},
+	c.app.AddHandler(
+		scroll.Spec{
+			Path:            fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s", spec.Type),
+			Methods:         []string{"POST"},
+			HandlerWithBody: c.makeAddMiddleware(spec),
 		})
 
 	c.app.AddHandler(
-		c.makeGetMiddleware(spec),
-		&scroll.HandlerConfig{
+		scroll.Spec{
 			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
 			Methods: []string{"GET"},
-		})
-
-	c.app.AddHandlerWithBody(
-		c.makeUpdateMiddleware(spec),
-		&scroll.HandlerConfig{
-			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
-			Methods: []string{"PUT"},
+			Handler: c.makeGetMiddleware(spec),
 		})
 
 	c.app.AddHandler(
-		c.makeDeleteMiddleware(spec),
-		&scroll.HandlerConfig{
+		scroll.Spec{
+			Path:            fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
+			Methods:         []string{"PUT"},
+			HandlerWithBody: c.makeUpdateMiddleware(spec),
+		})
+
+	c.app.AddHandler(
+		scroll.Spec{
 			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
 			Methods: []string{"DELETE"},
+			Handler: c.makeDeleteMiddleware(spec),
 		})
 }
 

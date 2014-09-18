@@ -1,10 +1,14 @@
-package statsd
+package metrics
 
 import (
 	"errors"
 	"fmt"
 	"math/rand"
 	"net"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
 )
 
 type Client interface {
@@ -41,6 +45,9 @@ type Client interface {
 	// rate is the sample rate (0.0 to 1.0).
 	Timing(stat string, delta int64, rate float32) error
 
+	// Emit duration in milliseconds
+	TimingMs(stat string, tm time.Duration, rate float32) error
+
 	// Submits a stats set type, where value is the unique string
 	// rate is the sample rate (0.0 to 1.0).
 	UniqueString(stat string, value string, rate float32) error
@@ -49,8 +56,19 @@ type Client interface {
 	// rate is the sample rate (0.0 to 1.0).
 	UniqueInt64(stat string, value int64, rate float32) error
 
+	// Reports runtime metrics
+	ReportRuntimeMetrics(prefix string, rate float32) error
+
 	// Sets/Updates the statsd client prefix
 	SetPrefix(prefix string)
+}
+
+func Metric(p ...string) string {
+	return strings.Join(p, ".")
+}
+
+func Escape(in string) string {
+	return strings.Replace(in, ".", "_", -1)
 }
 
 type client struct {
@@ -60,6 +78,14 @@ type client struct {
 	ra *net.UDPAddr
 	// prefix for statsd name
 	prefix string
+
+	// To report memory stats correctly
+	mtx *sync.Mutex
+
+	// Previosly reported garbage collection number
+	prevNumGC int32
+	// Last garbage collection time
+	lastGC uint64
 }
 
 func (s *client) Close() error {
@@ -91,21 +117,76 @@ func (s *client) Timing(stat string, delta int64, rate float32) error {
 	return s.submit(stat, dap, rate)
 }
 
-// Submits a stats set type, where value is the unique string
-// rate is the sample rate (0.0 to 1.0).
+func (s *client) TimingMs(stat string, d time.Duration, rate float32) error {
+	return s.Timing(stat, int64(d/time.Millisecond), rate)
+}
+
 func (s *client) UniqueString(stat string, value string, rate float32) error {
 	dap := fmt.Sprintf("%s|s", value)
 	return s.submit(stat, dap, rate)
 }
 
-// Submits a stats set type
-// rate is the sample rate (0.0 to 1.0).
 func (s *client) UniqueInt64(stat string, value int64, rate float32) error {
 	dap := fmt.Sprintf("%d|s", value)
 	return s.submit(stat, dap, rate)
 }
 
-// Sets/Updates the statsd client prefix
+func (s *client) ReportRuntimeMetrics(prefix string, rate float32) error {
+	stats := &runtime.MemStats{}
+	runtime.ReadMemStats(stats)
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.Gauge(Metric(prefix, "runtime", "goroutines"), int64(runtime.NumGoroutine()), rate)
+
+	s.Gauge(Metric(prefix, "runtime", "mem", "alloc"), int64(stats.Alloc), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "sys"), int64(stats.Sys), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "lookups"), int64(stats.Lookups), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "mallocs"), int64(stats.Mallocs), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "frees"), int64(stats.Frees), rate)
+
+	s.Gauge(Metric(prefix, "runtime", "mem", "heap", "alloc"), int64(stats.HeapAlloc), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "heap", "sys"), int64(stats.HeapSys), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "heap", "idle"), int64(stats.HeapIdle), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "heap", "inuse"), int64(stats.HeapInuse), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "heap", "released"), int64(stats.HeapReleased), rate)
+	s.Gauge(Metric(prefix, "runtime", "mem", "heap", "objects"), int64(stats.HeapObjects), rate)
+
+	prevNumGC := s.prevNumGC
+	lastGC := s.lastGC
+
+	s.prevNumGC = int32(stats.NumGC)
+	s.lastGC = stats.LastGC
+	if prevNumGC == -1 {
+		return nil
+	}
+
+	countGC := int32(stats.NumGC) - prevNumGC
+	if countGC < 0 {
+		return fmt.Errorf("Invalid number of garbage collections: %d", countGC)
+	}
+
+	// Nothing changed since last call, nothing to report
+	if countGC == 0 {
+		return nil
+	}
+
+	// We have missed some reportings and overwrote the data
+	if countGC > 256 {
+		countGC = 256
+	}
+
+	s.Timing(Metric(prefix, "runtime", "gc", "periodns"), int64(stats.LastGC-lastGC), rate)
+
+	for i := int32(0); i < countGC; i += 1 {
+		idx := int((stats.NumGC-uint32(i))+255) % 256
+		s.Timing(Metric(prefix, "runtime", "gc", "pausens"), int64(stats.PauseNs[idx]), rate)
+	}
+
+	return nil
+}
+
 func (s *client) SetPrefix(prefix string) {
 	s.prefix = prefix
 }
@@ -152,7 +233,7 @@ func (s *client) send(data []byte) (int, error) {
 // addr is a string of the format "hostname:port", and must be parsable by
 // net.ResolveUDPAddr.
 // prefix is the statsd client prefix. Can be "" if no prefix is desired.
-func New(addr, prefix string) (Client, error) {
+func NewStatsd(addr, prefix string) (Client, error) {
 	c, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return nil, err
@@ -164,13 +245,12 @@ func New(addr, prefix string) (Client, error) {
 	}
 
 	client := &client{
-		c:      c,
-		ra:     ra,
-		prefix: prefix,
+		c:         c,
+		ra:        ra,
+		prefix:    prefix,
+		mtx:       &sync.Mutex{},
+		prevNumGC: -1,
 	}
 
 	return client, nil
 }
-
-// Compat
-var Dial = New

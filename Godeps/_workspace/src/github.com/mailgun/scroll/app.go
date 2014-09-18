@@ -26,7 +26,7 @@ const (
 
 // Represents an app.
 type App struct {
-	config   *AppConfig
+	config   AppConfig
 	router   *mux.Router
 	registry *registry
 	stats    *appStats
@@ -43,6 +43,9 @@ type AppConfig struct {
 	// port the app is going to listen on
 	Port int
 
+	// optional router to use
+	Router *mux.Router
+
 	// hostname of the public API entrypoint used for vulcand registration
 	APIHost string
 
@@ -50,66 +53,74 @@ type AppConfig struct {
 	Register bool
 
 	// metrics service used for emitting the app's real-time metrics
-	Metrics metrics.Metrics
+	Client metrics.Client
 }
 
 // Create a new app.
-func NewApp(config *AppConfig) *App {
+func NewApp() *App {
+	return NewAppWithConfig(AppConfig{})
+}
+
+// Create a new app with the provided configuration.
+func NewAppWithConfig(config AppConfig) *App {
 	var registry *registry
 	if config.Register != false {
 		registry = newRegistry()
 	}
 
+	router := config.Router
+	if router == nil {
+		router = mux.NewRouter()
+	}
+
 	return &App{
 		config:   config,
-		router:   mux.NewRouter(),
+		router:   router,
 		registry: registry,
-		stats:    newAppStats(config.Metrics),
+		stats:    newAppStats(config.Client),
 	}
 }
 
-// GetHandler returns http compatible Handler interface
-func (a *App) GetHandler() http.Handler {
-	return a.router
+// Register a handler function.
+//
+// If vulcand registration is enabled in the both app config and handler spec,
+// the handler will be registered in the local etcd instance.
+func (app *App) AddHandler(spec Spec) error {
+	var handler http.HandlerFunc
+
+	// make a handler depending on the function provided in the spec
+	if spec.RawHandler != nil {
+		handler = spec.RawHandler
+	} else if spec.Handler != nil {
+		handler = MakeHandler(app, spec.Handler, spec)
+	} else if spec.HandlerWithBody != nil {
+		handler = MakeHandlerWithBody(app, spec.HandlerWithBody, spec)
+	} else {
+		return fmt.Errorf("the spec does not provide a handler function: %v", spec)
+	}
+
+	// register the handler in the router
+	route := app.router.HandleFunc(spec.Path, handler).Methods(spec.Methods...)
+	if len(spec.Headers) != 0 {
+		route.Headers(spec.Headers...)
+	}
+
+	// vulcand registration
+	if app.registry != nil && spec.Register != false {
+		app.registerLocation(spec.Methods, spec.Path)
+	}
+
+	return nil
 }
 
-// SetNotFoundHandler sets the handler for the case when URL can not be matched by the router
+// GetHandler returns HTTP compatible Handler interface.
+func (app *App) GetHandler() http.Handler {
+	return app.router
+}
+
+// SetNotFoundHandler sets the handler for the case when URL can not be matched by the router.
 func (app *App) SetNotFoundHandler(fn http.HandlerFunc) {
 	app.router.NotFoundHandler = fn
-}
-
-// Register a handler.
-//
-// If vulcand registration is enabled in the both app config and handler config,
-// the handler will be registered in the local etcd instance.
-func (app *App) AddHandler(fn HandlerFunc, config *HandlerConfig) {
-	handler := MakeHandler(app, fn, config)
-
-	route := app.router.HandleFunc(config.Path, handler).Methods(config.Methods...)
-	if len(config.Headers) != 0 {
-		route.Headers(config.Headers...)
-	}
-
-	if app.registry != nil && config.Register != false {
-		app.registerLocation(config.Methods, config.Path)
-	}
-}
-
-// Register a handler that will have a request body passed as an additional argument.
-//
-// If vulcand registration is enabled in the both app config and handler config,
-// the handler will be registered in the local etcd instance.
-func (app *App) AddHandlerWithBody(fn HandlerWithBodyFunc, config *HandlerConfig) {
-	handler := MakeHandlerWithBody(app, fn, config)
-
-	route := app.router.HandleFunc(config.Path, handler).Methods(config.Methods...)
-	if len(config.Headers) != 0 {
-		route.Headers(config.Headers...)
-	}
-
-	if app.registry != nil && config.Register != false {
-		app.registerLocation(config.Methods, config.Path)
-	}
 }
 
 // Start the app on the configured host/port.

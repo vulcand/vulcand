@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	. "github.com/mailgun/vulcand/backend"
 	"io"
 	"strings"
 )
@@ -15,7 +14,7 @@ const (
 
 type Tree interface {
 	Self() string
-	Children() []Tree
+	GetChildren() []Tree
 }
 
 func printTree(w io.Writer, root Tree, depth int, last bool, offset string) {
@@ -23,7 +22,7 @@ func printTree(w io.Writer, root Tree, depth int, last bool, offset string) {
 	tprint(w, fmt.Sprintf("%s%s%s", offset, getConnector(depth, last), root.Self()))
 
 	// No children, we are done
-	children := root.Children()
+	children := root.GetChildren()
 	if len(children) == 0 {
 		return
 	}
@@ -68,87 +67,30 @@ func getOffset(offset string, last bool) string {
 	return fmt.Sprintf("%s| |", offset)
 }
 
-type VulcanTree struct {
-	root interface{}
-}
-
-func (vt *VulcanTree) Self() string {
-	switch (vt.root).(type) {
-	case []*Host:
-		return "[hosts]"
-	case []*Upstream:
-		return "[upstreams]"
-	case []*MiddlewareInstance:
-		return "[middlewares]"
-	}
-	return formatInstance(vt.root)
-}
-
-func (vt *VulcanTree) Children() []Tree {
-	switch r := (vt.root).(type) {
-	case []*Host:
-		return hostsToTrees(r)
-	case []*Upstream:
-		return upstreamsToTrees(r)
-	case []*MiddlewareInstance:
-		return middlewaresToTrees(r)
-	case *Host:
-		return locationsToTrees(r.Locations)
-	case *Upstream:
-		return endpointsToTrees(r.Endpoints)
-	case *Location:
-		children := []Tree{}
-		if len(r.Middlewares) > 0 {
-			children = append(children, &VulcanTree{root: r.Middlewares})
-		}
-		return append(children, upstreamsToTrees([]*Upstream{r.Upstream})...)
-	}
-	return nil
-}
-
-func hostsToTrees(in []*Host) []Tree {
-	out := make([]Tree, len(in))
-	for i, _ := range out {
-		out[i] = &VulcanTree{root: in[i]}
-	}
-	return out
-}
-
-func locationsToTrees(in []*Location) []Tree {
-	out := make([]Tree, len(in))
-	for i, _ := range out {
-		out[i] = &VulcanTree{root: in[i]}
-	}
-	return out
-}
-
-func upstreamsToTrees(in []*Upstream) []Tree {
-	out := make([]Tree, len(in))
-	for i, _ := range out {
-		out[i] = &VulcanTree{root: in[i]}
-	}
-	return out
-}
-
-func endpointsToTrees(in []*Endpoint) []Tree {
-	out := make([]Tree, len(in))
-	for i, _ := range out {
-		out[i] = &VulcanTree{root: in[i]}
-	}
-	return out
-}
-
-func middlewaresToTrees(in []*MiddlewareInstance) []Tree {
-	out := make([]Tree, len(in))
-	for i, _ := range out {
-		out[i] = &VulcanTree{root: in[i]}
-	}
-	return out
-}
-
 func tprint(w io.Writer, out string, params ...interface{}) {
 	s := fmt.Sprintf(out, params...)
 	s = strings.Replace(s, "+-", rCross, -1)
 	s = strings.Replace(s, "|", vLine, -1)
 	fmt.Fprintf(w, "%s\n", s)
+}
+
+type StringTree struct {
+	Node     string
+	Children []*StringTree
+}
+
+func (s *StringTree) AddChild(c *StringTree) {
+	s.Children = append(s.Children, c)
+}
+
+func (s *StringTree) Self() string {
+	return s.Node
+}
+
+func (s *StringTree) GetChildren() []Tree {
+	out := make([]Tree, len(s.Children))
+	for i, _ := range out {
+		out[i] = s.Children[i]
+	}
+	return out
 }

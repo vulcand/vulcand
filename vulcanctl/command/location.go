@@ -11,6 +11,15 @@ func NewLocationCommand(cmd *Command) cli.Command {
 		Usage: "Operations with vulcan locations",
 		Subcommands: []cli.Command{
 			{
+				Name:  "show",
+				Usage: "Show location details",
+				Flags: []cli.Flag{
+					cli.StringFlag{Name: "id", Usage: "id"},
+					cli.StringFlag{Name: "host", Usage: "parent host"},
+				},
+				Action: cmd.printLocationAction,
+			},
+			{
 				Name:  "add",
 				Usage: "Add a new location to host",
 				Flags: append([]cli.Flag{
@@ -51,6 +60,15 @@ func NewLocationCommand(cmd *Command) cli.Command {
 			},
 		},
 	}
+}
+
+func (cmd *Command) printLocationAction(c *cli.Context) {
+	location, err := cmd.client.GetLocation(c.String("host"), c.String("id"))
+	if err != nil {
+		cmd.printError(err)
+		return
+	}
+	cmd.printLocation(location)
 }
 
 func (cmd *Command) addLocationAction(c *cli.Context) {
