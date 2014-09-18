@@ -127,7 +127,7 @@ func middlewaresView(ms []*backend.MiddlewareInstance) *StringTree {
 
 func middlewareView(m *backend.MiddlewareInstance) *StringTree {
 	return &StringTree{
-		Node: fmt.Sprintf("%s[%d, %s, %s]", m.Type, m.Id, m.Priority, m.Middleware),
+		Node: fmt.Sprintf("%s[%d, %s, %s]", m.Type, m.Priority, m.Id, m.Middleware),
 	}
 }
 
