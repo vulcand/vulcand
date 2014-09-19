@@ -480,7 +480,7 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 	// First, collect and parse endpoints to add
 	newEndpoints := map[string]endpoint.Endpoint{}
 	for _, e := range location.Upstream.Endpoints {
-		ep, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
+		ep, err := EndpointFromUrl(location.Upstream.Id, e.GetUniqueId(), e.Url)
 		if err != nil {
 			return fmt.Errorf("failed to parse endpoint url: %s", e)
 		}
@@ -518,7 +518,7 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 }
 
 func (m *MuxServer) addEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
-	endpoint, err := EndpointFromUrl(e.GetUniqueId(), e.Url)
+	endpoint, err := EndpointFromUrl(upstream.Id, e.GetUniqueId(), e.Url)
 	if err != nil {
 		return fmt.Errorf("failed to parse endpoint url: %s", endpoint)
 	}
