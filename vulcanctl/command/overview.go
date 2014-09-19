@@ -55,8 +55,8 @@ func locOverview(l *backend.Location) *StringTree {
 		failRate = (float64(f) / float64(s+f)) * 100
 	}
 	r := &StringTree{
-		Node: fmt.Sprintf("loc[%s, %s, %0.1f requests/sec, %0.2f%%%% failures]",
-			l.Id, l.Hostname, float64(s+f)/float64(periodSeconds), failRate),
+		Node: fmt.Sprintf("loc[%s, %s, %s, %0.1f requests/sec, %0.2f%%%% failures]",
+			l.Id, l.Hostname, l.Path, float64(s+f)/float64(periodSeconds), failRate),
 	}
 	if failRate != 0 {
 		r.Node = fmt.Sprintf("@r%s@w", r.Node)
