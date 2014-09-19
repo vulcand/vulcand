@@ -7,16 +7,17 @@ import (
 )
 
 type VulcanEndpoint struct {
-	Url *url.URL
-	Id  string
+	Url        *url.URL
+	Id         string
+	UpstreamId string
 }
 
-func EndpointFromUrl(id string, u string) (*VulcanEndpoint, error) {
+func EndpointFromUrl(upId, id, u string) (*VulcanEndpoint, error) {
 	url, err := netutils.ParseUrl(u)
 	if err != nil {
 		return nil, err
 	}
-	return &VulcanEndpoint{Url: url, Id: id}, nil
+	return &VulcanEndpoint{Url: url, Id: id, UpstreamId: upId}, nil
 }
 
 func (e *VulcanEndpoint) String() string {
