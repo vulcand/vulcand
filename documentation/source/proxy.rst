@@ -262,21 +262,21 @@ This command will read the cert and key and update the certificate
 Status
 ~~~~~~
 
-Displays the configuration and stats about the daemon
+Displays the realtime stats about this Vulcand instance.
 
 .. code-block:: sh
 
  $ vulcanctl status
 
- [hosts]
+ [locations]
    │
-   └host(name=localhost)
-     │
-     └location(id=loc1, path=/hello)
-       │
-       └upstream(id=u1)
-         │
-         └endpoint(id=e1, url=http://localhost:5001)
+   └loc[loc1, localhost, 22.8 requests/sec, 100.00% failures]
+
+When added ``-w=1`` flag, ``status`` will act like a ``top`` command, displaying top active locations every second.
+
+.. code-block:: sh
+ 
+ $ vulcanctl status -w 1
 
 
 Host
@@ -286,8 +286,14 @@ Host operations
 
 .. code-block:: sh
 
+ # Show all hosts configuration
+ $ vulcanctl host ls
+
  # Add host with name 'example.com'
  $ vulcanctl host add --name example.com
+
+ # Show host configuration
+ $ vulcanctl host show --name example.com
 
  # Remove host with name 'example.com'
  $ vulcanctl host rm --name example.com
@@ -302,6 +308,9 @@ Upstream
 Add or remove upstreams
 
 .. code-block:: sh
+
+ # Show all upstreams
+ $ vulcanctl upstream ls
 
  # Add upstream  with id 'u1'
  $ vulcanctl upstream add --id u1
@@ -340,6 +349,9 @@ Location
 Add or remove location to the host
 
 .. code-block:: sh
+
+ # show location config
+ $ vulcanctl location show --host example.com --id loc1
 
  # add location with id 'id1' to host 'example.com', use path '/hello' and upstream 'u1'
  $ vulcanctl location add --host example.com --id loc1 --path /hello --up u1 
@@ -413,14 +425,43 @@ Usage of vulcand
 .. code-block:: sh
 
  vulcand
-  -apiInterface="":              # Interface to for API to bind to
-  -apiPort=8182:                 # Port to provide api on
-  -etcd=[]:                      # Etcd discovery service API endpoints
-  -etcdKey="vulcand"             # Etcd prefix for reading configuration
-  -log="console"                 # Logging to use (syslog or console)
-  -pidPath=""                    # Path to write PID file to
-  -sealKey=""                    # Seal key used to store encrypted data in the backend. Use 'vulcanctl secret new_key' to create a new key
-  -serverMaxHeaderBytes=1048576: # Maximum size of request headers in server
+  
+  -apiInterface="":              # apiInterface - interface for API
+  -apiPort=8182                  # apiPort - port for API
+
+  -etcd=[]                       # etcd - list of etcd discovery service API endpoints
+  -etcdKey="vulcand"             # etceKey - etcd key for reading configuration
+
+  -log="console"                 # log - syslog or console
+  -pidPath=""                    # path to write PID
+  
+  
+  -sealKey=""                    # sealKey is used to store encrypted data in the backend,
+                                 # use 'vulcanctl secret new_key' to create a new key.
+
+  -statsdAddr=localhost:8185     # statsdAddr - address where Vulcand will emit statsd metrics
+  -statsdPrefix=vulcand          # statsdPrefix is a prefix prepended to every metric
+
+  -serverMaxHeaderBytes=1048576  # Maximum size of request headers in server
+
+
+Metrics
+-------
+
+Vulcand can emit metrics to statsd via UDP. To turn this feature on, supply ``statsdAddr`` and ``statsdPrefix`` parameters to vulcand executable.
+
+The service emits the following metrics for each location and endpoint:
+
++------------+-----------------------------------------------+
+| Metric type| Metric Name                                   |
++============+===============================================+
+| counter    | each distinct response code                   |
++------------+-----------------------------------------------+
+| counter    | failure and success occurence                 |
++------------+-----------------------------------------------+
+| gauge      | runtime stats (number of goroutines, memory)  |
++------------+-----------------------------------------------+
+
 
 
 Installation
