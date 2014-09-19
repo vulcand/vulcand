@@ -7,14 +7,34 @@ import (
 	"github.com/mailgun/vulcand/backend"
 )
 
-// High level overview of hosts with basic stats
-func hostsOverview(hosts []*backend.Host) Tree {
+// High level overview of all locations sorted by activity (a.k.a top)
+func hostsOverview(hosts []*backend.Host, limit int) Tree {
 	r := &StringTree{
-		Node: "[hosts]",
+		Node: "[locations]",
 	}
 
+	if len(hosts) == 0 {
+		return r
+	}
+
+	// Shuffle all locations
+	locs := []*backend.Location{}
 	for _, h := range hosts {
-		r.AddChild(hostOverview(h))
+		for _, l := range h.Locations {
+			locs = append(locs, l)
+		}
+	}
+
+	// Sort locations by usage
+	sort.Sort(&locSorter{locs: locs})
+
+	count := 0
+	for _, l := range locs {
+		if limit > 0 && count >= limit {
+			break
+		}
+		r.AddChild(locOverview(l))
+		count += 1
 	}
 
 	return r
@@ -23,17 +43,6 @@ func hostsOverview(hosts []*backend.Host) Tree {
 func hostOverview(h *backend.Host) *StringTree {
 	r := &StringTree{
 		Node: fmt.Sprintf("host[%s]", h.Name),
-	}
-
-	if len(h.Locations) == 0 {
-		return r
-	}
-
-	// Sort locations by usage
-	sort.Sort(&locSorter{locs: h.Locations})
-
-	for _, l := range h.Locations {
-		r.AddChild(locOverview(l))
 	}
 
 	return r
@@ -45,10 +54,16 @@ func locOverview(l *backend.Location) *StringTree {
 	if s+f != 0 {
 		failRate = (float64(f) / float64(s+f)) * 100
 	}
-	return &StringTree{
-		Node: fmt.Sprintf("loc[%s, %s, upstream=%s, %0.1f requests/sec, %0.2f%%%% failures]",
-			l.Id, l.Path, l.Upstream.Id, float64(s+f)/float64(periodSeconds), failRate),
+	r := &StringTree{
+		Node: fmt.Sprintf("loc[%s, %s/%s, upstream=%s, %0.1f requests/sec, %0.2f%%%% failures]",
+			l.Id, l.Hostname, l.Path, l.Upstream.Id, float64(s+f)/float64(periodSeconds), failRate),
 	}
+	if failRate != 0 {
+		r.Node = fmt.Sprintf("@r%s@w", r.Node)
+	} else {
+		r.Node = fmt.Sprintf("@g%s@w", r.Node)
+	}
+	return r
 }
 
 // Sorts locations by failures first, successes next

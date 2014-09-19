@@ -1,6 +1,7 @@
 package command
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/wsxiaoys/terminal/color"
@@ -45,9 +46,11 @@ func (cmd *Command) printHost(host *backend.Host) {
 	printTree(cmd.out, hostView(host), 0, true, "")
 }
 
-func (cmd *Command) printOverview(hosts []*backend.Host) {
-	fmt.Fprintf(cmd.out, "\n")
-	printTree(cmd.out, hostsOverview(hosts), 0, true, "")
+func (cmd *Command) printOverview(hosts []*backend.Host, limit int) {
+	out := &bytes.Buffer{}
+	fmt.Fprintf(out, "\n")
+	printTree(out, hostsOverview(hosts, limit), 0, true, "")
+	color.Fprint(cmd.out, out.String())
 }
 
 func (cmd *Command) printUpstreams(upstreams []*backend.Upstream) {
