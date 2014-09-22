@@ -14,7 +14,6 @@ import (
 	"github.com/mailgun/vulcand/api"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
-	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/secret"
 	"github.com/mailgun/vulcand/server"
@@ -42,8 +41,8 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.backend = membackend.NewMemBackend(registry.GetRegistry())
 
-	newServer := func(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
-		return server.NewMuxServerWithOptions(id, cw, server.Options{})
+	newServer := func(id int) (server.Server, error) {
+		return server.NewMuxServerWithOptions(id, server.Options{})
 	}
 
 	newBackend := func() (Backend, error) {
@@ -53,7 +52,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
 
 	app := scroll.NewApp()
-	api.InitProxyController(s.backend, sv, sv.GetConnWatcher(), app)
+	api.InitProxyController(s.backend, sv, app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 
 	s.out = &bytes.Buffer{}
@@ -140,12 +139,6 @@ func (s *CmdSuite) TestLimitsCRUD(c *C) {
 	c.Assert(s.run("location", "rm", "-host", h, "-id", loc), Matches, OK)
 	c.Assert(s.run("host", "rm", "-name", h), Matches, OK)
 	c.Assert(s.run("upstream", "rm", "-id", up), Matches, OK)
-}
-
-func (s *CmdSuite) TestUpstreamDrainConnections(c *C) {
-	up := "up"
-	c.Assert(s.run("upstream", "add", "-id", up), Matches, OK)
-	c.Assert(s.run("upstream", "drain", "--id", up, "--timeout", "0"), Matches, ".*Connections: 0.*")
 }
 
 func (s *CmdSuite) TestLocationOptions(c *C) {

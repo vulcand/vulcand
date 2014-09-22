@@ -45,6 +45,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 )
@@ -55,6 +56,16 @@ type waitgroup interface {
 	Add(delta int)
 	Done()
 	Wait()
+}
+
+// StateHandler can be called by the server if the state of the connection changes.
+// Notice that it passed previous state and the new state as parameters.
+type StateHandler func(net.Conn, http.ConnState, http.ConnState)
+
+type Options struct {
+	Server       *http.Server
+	StateHandler StateHandler
+	Listener     net.Listener
 }
 
 // NewServer creates a new GracefulServer. The server will begin shutting down when
@@ -73,16 +84,24 @@ func NewWithServer(s *http.Server) *GracefulServer {
 	}
 }
 
-func NewWithListener(s *http.Server, l net.Listener) *GracefulServer {
-	gracefulListener, ok := l.(*GracefulListener)
-	if !ok {
-		gracefulListener = NewListener(l)
+func NewWithOptions(o Options) *GracefulServer {
+	// Set up listener
+	var listener *GracefulListener
+	if o.Listener != nil {
+		g, ok := o.Listener.(*GracefulListener)
+		if !ok {
+			listener = NewListener(o.Listener)
+		} else {
+			listener = g
+		}
 	}
+
 	return &GracefulServer{
-		Server:   s,
-		shutdown: make(chan struct{}),
-		wg:       new(sync.WaitGroup),
-		listener: gracefulListener,
+		listener:     listener,
+		Server:       o.Server,
+		stateHandler: o.StateHandler,
+		shutdown:     make(chan struct{}),
+		wg:           new(sync.WaitGroup),
 	}
 }
 
@@ -103,6 +122,8 @@ type GracefulServer struct {
 
 	// used by test code
 	up chan net.Listener
+
+	stateHandler StateHandler
 }
 
 // Close stops the server from accepting new requets and beings shutting down.
@@ -163,6 +184,10 @@ func (s *GracefulServer) ListenAndServeTLSWithConfig(config *tls.Config) error {
 		s.listener = NewListener(tlsListener)
 	}
 	return s.Serve(s.listener)
+}
+
+func (gs *GracefulServer) GetFile() (*os.File, error) {
+	return gs.listener.GetFile()
 }
 
 func (gs *GracefulServer) HijackListener(s *http.Server, config *tls.Config) (*GracefulServer, error) {
@@ -233,6 +258,9 @@ func (s *GracefulServer) Serve(listener net.Listener) error {
 				// if it was idle it's already been decremented
 				s.FinishRoutine()
 			}
+		}
+		if s.stateHandler != nil {
+			s.stateHandler(conn, gconn.lastHTTPState, newState)
 		}
 		gconn.lastHTTPState = newState
 		if orgConnState != nil {

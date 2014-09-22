@@ -368,7 +368,7 @@ func (e *Endpoint) GetUniqueId() string {
 	return fmt.Sprintf("%s.%s", e.UpstreamId, e.Id)
 }
 
-// Endpoint's realtime stats about endpoint
+// Endpoint's realtime stats
 type EndpointStats struct {
 	Successes     int64
 	Failures      int64

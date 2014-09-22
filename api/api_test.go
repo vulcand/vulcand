@@ -10,7 +10,6 @@ import (
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
-	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/server"
@@ -33,8 +32,8 @@ func (s *ApiSuite) SetUpSuite(c *C) {
 }
 
 func (s *ApiSuite) SetUpTest(c *C) {
-	newServer := func(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
-		return server.NewMuxServerWithOptions(id, cw, server.Options{})
+	newServer := func(id int) (server.Server, error) {
+		return server.NewMuxServerWithOptions(id, server.Options{})
 	}
 
 	s.backend = membackend.NewMemBackend(registry.GetRegistry())
@@ -46,7 +45,7 @@ func (s *ApiSuite) SetUpTest(c *C) {
 	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
 
 	app := scroll.NewApp()
-	InitProxyController(s.backend, sv, sv.GetConnWatcher(), app)
+	InitProxyController(s.backend, sv, app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 	s.client = NewClient(s.testServer.URL, registry.GetRegistry())
 }
@@ -167,18 +166,6 @@ func (s *ApiSuite) TestDeleteUpstreamNotFound(c *C) {
 func (s *ApiSuite) TestGetUpstreamNotFound(c *C) {
 	_, err := s.client.GetUpstream("where")
 	c.Assert(err, FitsTypeOf, &NotFoundError{})
-}
-
-func (s *ApiSuite) TestUpstreamDrainConnections(c *C) {
-	up, err := s.client.AddUpstream("up1")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddEndpoint("up1", "e1", "http://localhost:5000")
-	c.Assert(err, IsNil)
-
-	conns, err := s.client.DrainUpstreamConnections(up.Id, "1")
-	c.Assert(err, IsNil)
-	c.Assert(conns, Equals, 0)
 }
 
 func (s *ApiSuite) TestLocationCRUD(c *C) {

@@ -30,15 +30,6 @@ func NewUpstreamCommand(cmd *Command) cli.Command {
 				Usage:  "List upstreams",
 				Action: cmd.listUpstreamsAction,
 			},
-			{
-				Name:  "drain",
-				Usage: "Wait till there are no more connections for endpoints in the upstream",
-				Flags: []cli.Flag{
-					cli.StringFlag{Name: "id", Usage: "upstream id"},
-					cli.IntFlag{Name: "timeout", Value: 5, Usage: "timeout in seconds"},
-				},
-				Action: cmd.upstreamDrainConnections,
-			},
 		},
 	}
 }

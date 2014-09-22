@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -379,4 +382,74 @@ func (s *VESuite) TestExpiringEndpoint(c *C) {
 		responses2[string(body)] = true
 	}
 	c.Assert(responses2, DeepEquals, map[string]bool{"e1": true})
+}
+
+func (s *VESuite) TestLiveBinaryUpgrade(c *C) {
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello 1"))
+	})
+	defer server.Close()
+
+	// Create upstream and endpoint
+	up, e, url := "up1", "e1", server.URL
+	_, err := s.client.Set(s.path("upstreams", up, "endpoints", e), url, 0)
+	c.Assert(err, IsNil)
+
+	// Add location
+	host, locId, path := "localhost", "loc1", "/path"
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "path"), path, 0)
+	c.Assert(err, IsNil)
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
+	c.Assert(err, IsNil)
+
+	keyPair := NewTestKeyPair()
+
+	bytes, err := secret.SealKeyPairToJSON(s.box, keyPair)
+	c.Assert(err, IsNil)
+
+	_, err = s.client.Set(s.path("hosts", host, "keypair"), string(bytes), 0)
+	c.Assert(err, IsNil)
+
+	// Add HTTPS listener
+	l := "l2"
+	listener, err := backend.NewListener(l, "https", "tcp", "localhost:32000")
+	c.Assert(err, IsNil)
+	bytes, err = json.Marshal(listener)
+	c.Assert(err, IsNil)
+	s.client.Set(s.path("hosts", host, "listeners", l), string(bytes), 0)
+
+	time.Sleep(time.Second)
+	_, body, err := GET(fmt.Sprintf("%s%s", "https://localhost:32000", path), Opts{})
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, "Hello 1")
+
+	pidS, err := exec.Command("pidof", "vulcand").Output()
+	c.Assert(err, IsNil)
+
+	// Find a running vulcand
+	pid, err := strconv.Atoi(strings.TrimSpace(string(pidS)))
+	c.Assert(err, IsNil)
+
+	vulcand, err := os.FindProcess(pid)
+	c.Assert(err, IsNil)
+
+	// Ask vulcand to fork a child
+	vulcand.Signal(syscall.SIGUSR2)
+	time.Sleep(time.Second)
+
+	// Ask parent process to stop
+	vulcand.Signal(syscall.SIGTERM)
+
+	// Make sure the child is running
+	pid2S, err := exec.Command("pidof", "vulcand").Output()
+	c.Assert(err, IsNil)
+	c.Assert(string(pid2S), Not(Equals), "")
+	c.Assert(string(pid2S), Not(Equals), string(pidS))
+
+	time.Sleep(time.Second)
+
+	// Make sure we are still running and responding
+	_, body, err = GET(fmt.Sprintf("%s%s", "https://localhost:32000", path), Opts{})
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, "Hello 1")
 }
