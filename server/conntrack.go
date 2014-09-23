@@ -1,10 +1,11 @@
 package server
 
 import (
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 )
 
 type connTracker struct {

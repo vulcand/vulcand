@@ -44,7 +44,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/log",
-			"Rev": "14cad4945ae23306f0fb62ab0de5714103126f11"
+			"Rev": "b2f25357aec271f07fef6ff89913aaa93cf8c012"
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",

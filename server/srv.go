@@ -14,8 +14,8 @@ import (
 	"github.com/mailgun/vulcand/backend"
 )
 
-// server contains all what's necessary to run the HTTP(s) server. server does not work on it's own,
-// it heavilly depends on MuxServer and acts as is it's internal data structure.
+// server contains all that is necessary to run the HTTP(s) server. server does not work on its own,
+// it heavily depends on MuxServer and acts as its internal data structure.
 type server struct {
 	defaultHost string
 	mux         *MuxServer
@@ -164,7 +164,8 @@ func (s *server) takeFile(f *FileDescriptor) error {
 	if s.isTLS() {
 		tcpListener, ok := listener.(*net.TCPListener)
 		if !ok {
-			return fmt.Errorf("%s can not take file for TLS listener when asked to take type %T from %s", s, listener, f)
+			return fmt.Errorf(`%s failed to take file descriptor - it is running in TLS mode so I need a TCP listener, 
+but the file descriptor that was given corresponded to a listener of type %T. More about file descriptor: %s`, listener, s, f)
 		}
 		config, err := newTLSConfig(s.keyPairs, s.defaultHost)
 		if err != nil {
@@ -301,7 +302,7 @@ func (s *server) start() error {
 		go s.serve(s.srv)
 		return nil
 	}
-	return fmt.Errorf("%v Calling start in unsupported state: %d", s.state)
+	return fmt.Errorf("%v Calling start in unsupported state", s)
 }
 
 func (s *server) serve(srv *manners.GracefulServer) {

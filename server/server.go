@@ -33,7 +33,13 @@ type Server interface {
 
 	GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats
 
+	// TakeFiles takes file descriptors representing sockets in listening state to start serving on them
+	// instead of binding. This is nessesary if the child process needs to inherit sockets from the parent
+	// (e.g. for graceful restarts)
 	TakeFiles([]*FileDescriptor) error
+
+	// GetFiles exports listening socket's underlying dupped file descriptors, so they can later
+	// be passed to child process or to another Server
 	GetFiles() ([]*FileDescriptor, error)
 
 	Start() error
