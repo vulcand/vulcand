@@ -51,16 +51,3 @@ func (cmd *Command) listUpstreamsAction(c *cli.Context) {
 		cmd.printUpstreams(out)
 	}
 }
-
-func (cmd *Command) upstreamDrainConnections(c *cli.Context) {
-	connections, err := cmd.client.DrainUpstreamConnections(c.String("id"), c.String("timeout"))
-	if err != nil {
-		cmd.printError(err)
-		return
-	}
-	if connections == 0 {
-		cmd.printOk("Connections: %d", connections)
-	} else {
-		cmd.printInfo("Connections: %d", connections)
-	}
-}

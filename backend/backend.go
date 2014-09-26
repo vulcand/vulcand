@@ -50,7 +50,7 @@ type Backend interface {
 
 	// WatchChanges is an entry point for getting the configuration changes as well as the initial configuration.
 	// It should be a blocking function generating events from change.go to the changes channel.
-	WatchChanges(changes chan interface{}) error
+	WatchChanges(changes chan interface{}, cancel chan bool) error
 
 	// GetRegistry returns registry with the supported plugins.
 	GetRegistry() *plugin.Registry

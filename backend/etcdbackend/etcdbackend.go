@@ -536,11 +536,11 @@ func (s *EtcdBackend) DeleteLocationMiddleware(hostname, locationId, mType, id s
 }
 
 // Watches etcd changes and generates structured events telling vulcand to add or delete locations, hosts etc.
-func (s *EtcdBackend) WatchChanges(changes chan interface{}) error {
+func (s *EtcdBackend) WatchChanges(changes chan interface{}, cancelC chan bool) error {
 	// This index helps us to get changes in sequence, as they were performed by clients.
 	waitIndex := uint64(0)
 	for {
-		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, s.cancelC)
+		response, err := s.client.Watch(s.etcdKey, waitIndex, true, nil, cancelC)
 		if err != nil {
 			switch err {
 			case etcd.ErrWatchStoppedByUser:
@@ -562,17 +562,12 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}) error {
 			log.Infof("%s", change)
 			select {
 			case changes <- change:
-			case <-s.stopC:
+			case <-cancelC:
 				return nil
 			}
 		}
 	}
 	return nil
-}
-
-func (s *EtcdBackend) StopWatching() {
-	s.cancelC <- true
-	s.stopC <- true
 }
 
 type MatcherFn func(*etcd.Response) (interface{}, error)
@@ -1008,7 +1003,7 @@ func (s *EtcdBackend) getDirs(keys ...string) ([]string, error) {
 	}
 
 	for _, srvNode := range response.Node.Nodes {
-		if isDir(&srvNode) {
+		if isDir(srvNode) {
 			out = append(out, srvNode.Key)
 		}
 	}
@@ -1030,7 +1025,7 @@ func (s *EtcdBackend) getVals(keys ...string) ([]Pair, error) {
 	}
 
 	for _, srvNode := range response.Node.Nodes {
-		if !isDir(&srvNode) {
+		if !isDir(srvNode) {
 			out = append(out, Pair{srvNode.Key, srvNode.Value})
 		}
 	}

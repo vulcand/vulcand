@@ -34,6 +34,7 @@ type EtcdBackendSuite struct {
 	changesC     chan interface{}
 	timeProvider *timetools.FreezedTime
 	key          string
+	stopC        chan bool
 }
 
 var _ = Suite(&EtcdBackendSuite{
@@ -98,12 +99,12 @@ func (s *EtcdBackendSuite) SetUpTest(c *C) {
 	}
 
 	s.changesC = make(chan interface{})
-	go s.backend.WatchChanges(s.changesC)
+	s.stopC = make(chan bool)
+	go s.backend.WatchChanges(s.changesC, s.stopC)
 }
 
 func (s *EtcdBackendSuite) TearDownTest(c *C) {
-	// Make sure we've recognized the change
-	s.backend.StopWatching()
+	close(s.stopC)
 	s.backend.Close()
 }
 

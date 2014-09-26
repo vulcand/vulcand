@@ -45,11 +45,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 		return server.NewMuxServerWithOptions(id, server.Options{})
 	}
 
-	newBackend := func() (Backend, error) {
-		return s.backend, nil
-	}
-
-	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
+	sv := supervisor.NewSupervisor(newServer, s.backend, make(chan error))
 
 	app := scroll.NewApp()
 	api.InitProxyController(s.backend, sv, app)
@@ -82,6 +78,13 @@ func (s *CmdSuite) TestHostCRUD(c *C) {
 	c.Assert(s.run("host", "add", "-name", host), Matches, OK)
 	c.Assert(s.run("host", "show", "-name", host), Matches, ".*"+host+".*")
 	c.Assert(s.run("host", "rm", "-name", host), Matches, OK)
+}
+
+func (s *CmdSuite) TestLogSeverity(c *C) {
+	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarn, log.SeverityError} {
+		c.Assert(s.run("log", "set_severity", "-s", sev.String()), Matches, fmt.Sprintf(".*%v.*", sev))
+		c.Assert(s.run("log", "get_severity"), Matches, fmt.Sprintf(".*%v.*", sev))
+	}
 }
 
 func (s *CmdSuite) TestHostListenerCRUD(c *C) {

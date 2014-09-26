@@ -42,6 +42,7 @@ func (cmd *Command) Run(args []string) error {
 	app.Flags = flags()
 
 	app.Commands = []cli.Command{
+		NewLogCommand(cmd),
 		NewKeyCommand(cmd),
 		NewStatusCommand(cmd),
 		NewHostCommand(cmd),

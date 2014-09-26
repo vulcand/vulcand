@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"strings"
 )
 
 var logger *etcdLogger
@@ -21,20 +22,31 @@ type etcdLogger struct {
 }
 
 func (p *etcdLogger) Debug(args ...interface{}) {
-	p.log.Println(fmt.Sprintf("DEBUG: %s", args))
+	msg := "DEBUG: " + fmt.Sprint(args...)
+	p.log.Println(msg)
 }
 
 func (p *etcdLogger) Debugf(f string, args ...interface{}) {
-	p.log.Printf(fmt.Sprintf("DEBUG: %s", fmt.Sprintf(f, args)))
+	msg := "DEBUG: " + fmt.Sprintf(f, args...)
+	// Append newline if necessary
+	if !strings.HasSuffix(msg, "\n") {
+		msg = msg + "\n"
+	}
+	p.log.Print(msg)
 }
 
 func (p *etcdLogger) Warning(args ...interface{}) {
-	args[0] = "WARNING: " + args[0].(string)
-	p.log.Println(fmt.Sprintf("WARNING: %s", args))
+	msg := "WARNING: " + fmt.Sprint(args...)
+	p.log.Println(msg)
 }
 
 func (p *etcdLogger) Warningf(f string, args ...interface{}) {
-	p.log.Printf(fmt.Sprintf("DEBUG: %s", fmt.Sprintf(f, args)))
+	msg := "WARNING: " + fmt.Sprintf(f, args...)
+	// Append newline if necessary
+	if !strings.HasSuffix(msg, "\n") {
+		msg = msg + "\n"
+	}
+	p.log.Print(msg)
 }
 
 func init() {

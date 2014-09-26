@@ -29,17 +29,13 @@ func (s *SupervisorSuite) SetUpTest(c *C) {
 
 	s.b = membackend.NewMemBackend(registry.GetRegistry())
 
-	newBackend := func() (Backend, error) {
-		return s.b, nil
-	}
-
 	s.errorC = make(chan error)
 
 	s.tm = &timetools.FreezedTime{
 		CurrentTime: time.Date(2012, 3, 4, 5, 6, 7, 0, time.UTC),
 	}
 
-	s.sv = NewSupervisorWithOptions(newServer, newBackend, s.errorC, Options{TimeProvider: s.tm})
+	s.sv = NewSupervisorWithOptions(newServer, s.b, s.errorC, Options{TimeProvider: s.tm})
 }
 
 func (s *SupervisorSuite) TearDownTest(c *C) {
@@ -151,13 +147,9 @@ func (s *SupervisorSuite) TestTransferFiles(c *C) {
 	files, err := s.sv.GetFiles()
 	c.Assert(err, IsNil)
 
-	// Create new supervisor using same backend
-	newBackend := func() (Backend, error) {
-		return s.b, nil
-	}
 	errorC := make(chan error)
 
-	sv2 := NewSupervisorWithOptions(newServer, newBackend, errorC, Options{TimeProvider: s.tm, Files: files})
+	sv2 := NewSupervisorWithOptions(newServer, s.b, errorC, Options{TimeProvider: s.tm, Files: files})
 	sv2.Start()
 	s.sv.Stop(true)
 

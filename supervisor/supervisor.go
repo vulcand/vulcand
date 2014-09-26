@@ -25,14 +25,15 @@ type Supervisor struct {
 
 	// srv is the current active server
 	srv server.Server
-	// newBackend function creates backend clients when called
-	newBackend backend.NewBackendFn
 
 	// newSrv returns new server instance every time is called.
 	newSrv server.NewServerFn
 
 	// timeProvider is used to mock time in tests
 	timeProvider timetools.TimeProvider
+
+	// backend is used for reading initial configuration
+	backend backend.Backend
 
 	// errorC is a channel will be used to notify the calling party of the errors.
 	errorC chan error
@@ -51,20 +52,20 @@ type Options struct {
 	Files        []*server.FileDescriptor
 }
 
-func NewSupervisor(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error) (s *Supervisor) {
-	return NewSupervisorWithOptions(newSrv, newBackend, errorC, Options{})
+func NewSupervisor(newSrv server.NewServerFn, backend backend.Backend, errorC chan error) (s *Supervisor) {
+	return NewSupervisorWithOptions(newSrv, backend, errorC, Options{})
 }
 
-func NewSupervisorWithOptions(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error, options Options) (s *Supervisor) {
+func NewSupervisorWithOptions(newSrv server.NewServerFn, backend backend.Backend, errorC chan error, options Options) (s *Supervisor) {
 	return &Supervisor{
-		wg:         &sync.WaitGroup{},
-		mtx:        &sync.RWMutex{},
-		newSrv:     newSrv,
-		newBackend: newBackend,
-		options:    parseOptions(options),
-		errorC:     errorC,
-		restartC:   make(chan error),
-		closeC:     make(chan bool),
+		wg:       &sync.WaitGroup{},
+		mtx:      &sync.RWMutex{},
+		newSrv:   newSrv,
+		backend:  backend,
+		options:  parseOptions(options),
+		errorC:   errorC,
+		restartC: make(chan error),
+		closeC:   make(chan bool),
 	}
 }
 
@@ -114,12 +115,7 @@ func (s *Supervisor) init() error {
 	}
 	s.lastId += 1
 
-	backend, err := s.newBackend()
-	if err != nil {
-		return err
-	}
-
-	if err := initServer(backend, srv); err != nil {
+	if err := initServer(s.backend, srv); err != nil {
 		return err
 	}
 
@@ -164,14 +160,15 @@ func (s *Supervisor) init() error {
 	// This goroutine will connect to the backend and emit the changes to the changesC channel.
 	// In case of any error it notifies supervisor of the error by sending an error to the channel triggering reload.
 	go func() {
-		if err := backend.WatchChanges(changesC); err != nil {
+		cancelC := make(chan bool)
+		if err := s.backend.WatchChanges(changesC, cancelC); err != nil {
 			log.Infof("%s backend watcher got error: '%s' will restart", srv, err)
-			backend.Close()
+			close(cancelC)
 			close(changesC)
 			s.restartC <- err
 		} else {
+			close(cancelC)
 			// Graceful shutdown without restart
-			backend.Close()
 			log.Infof("%s backend watcher got nil error, gracefully shutdown", srv)
 			s.restartC <- nil
 		}

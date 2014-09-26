@@ -49,5 +49,4 @@ func (cmd *Command) statusAction(c *cli.Context) {
 		cmd.printOverview(out, c.Int("limit"))
 		time.Sleep(time.Second * time.Duration(watch))
 	}
-
 }
