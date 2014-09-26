@@ -44,12 +44,12 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/log",
-			"Rev": "14cad4945ae23306f0fb62ab0de5714103126f11"
+			"Rev": "b2f25357aec271f07fef6ff89913aaa93cf8c012"
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",
-			"Comment": "0.3.1-10-ga592baf",
-			"Rev": "a592baf3a7f0a8f905ea0bf8387ccdba73950489"
+			"Comment": "0.3.1-12-g69a4adc",
+			"Rev": "69a4adcf8fc04e8aef0ed5f9e43982739220ed8f"
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",

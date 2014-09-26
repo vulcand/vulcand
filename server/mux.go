@@ -16,7 +16,6 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 
 	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/endpoint"
 )
 
@@ -40,30 +39,45 @@ type MuxServer struct {
 	hostRouters map[string]*exproute.ExpRouter
 
 	// Current server stats
-	state int
+	state muxState
 
 	// Connection watcher
-	connWatcher *connwatch.ConnectionWatcher
+	connTracker *connTracker
 }
 
 func (m *MuxServer) String() string {
-	return fmt.Sprintf("MuxServer(%d, %s)", m.id, stateDescription(m.state))
+	return fmt.Sprintf("MuxServer(%d, %v)", m.id, m.state)
 }
 
-func NewMuxServerWithOptions(id int, connWatcher *connwatch.ConnectionWatcher, o Options) (*MuxServer, error) {
+func NewMuxServerWithOptions(id int, o Options) (*MuxServer, error) {
+	o = parseOptions(o)
 	return &MuxServer{
 		id:          id,
 		hostRouters: make(map[string]*exproute.ExpRouter),
 		servers:     make(map[backend.Address]*server),
-		options:     parseOptions(o),
-		connWatcher: connWatcher,
+		options:     o,
+		connTracker: newConnTracker(o.MetricsClient),
 		wg:          &sync.WaitGroup{},
 		mtx:         &sync.RWMutex{},
 	}, nil
 }
 
-func (m *MuxServer) GetConnWatcher() *connwatch.ConnectionWatcher {
-	return m.connWatcher
+func (m *MuxServer) GetFiles() ([]*FileDescriptor, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	fds := []*FileDescriptor{}
+
+	for _, srv := range m.servers {
+		fd, err := srv.GetFile()
+		if err != nil {
+			return nil, err
+		}
+		if fd != nil {
+			fds = append(fds, fd)
+		}
+	}
+	return fds, nil
 }
 
 func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats {
@@ -89,24 +103,24 @@ func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *
 	}
 }
 
-func (m *MuxServer) HijackListenersFrom(o Server) error {
-	log.Infof("%s HijackListenersFrom %s", m, o)
+func (m *MuxServer) TakeFiles(files []*FileDescriptor) error {
+	log.Infof("%s TakeFiles %s", m, files)
+
+	fMap := make(map[backend.Address]*FileDescriptor, len(files))
+	for _, f := range files {
+		fMap[f.Address] = f
+	}
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	other, ok := o.(*MuxServer)
-	if !ok {
-		return fmt.Errorf("can hijack listeners only from other MuxServer")
-	}
-
 	for addr, srv := range m.servers {
-		osrv, exists := other.servers[addr]
-		if !exists || !osrv.hasListeners() {
-			log.Infof("Skipping hijack for address %s, has no active listeners", addr)
+		file, exists := fMap[addr]
+		if !exists {
+			log.Infof("%s skipping take of files from address %s, has no passed files", m, addr)
 			continue
 		}
-		if err := srv.hijackListenerFrom(osrv); err != nil {
+		if err := srv.takeFile(file); err != nil {
 			return err
 		}
 	}
@@ -171,10 +185,6 @@ func (m *MuxServer) UpsertHost(host *backend.Host) error {
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-
-	if err := m.checkShuttingDown(); err != nil {
-		return err
-	}
 
 	return m.upsertHost(host)
 }
@@ -428,7 +438,6 @@ func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) er
 	}
 
 	// Register watchers and metric reporters
-	location.GetObserverChain().Upsert(ConnWatch, m.connWatcher)
 	location.GetObserverChain().Upsert(Metrics, NewReporter(m.options.MetricsClient, loc.Id))
 
 	// Add the location to the router
@@ -599,12 +608,7 @@ func (m *MuxServer) deleteLocation(host *backend.Host, locationId string) error 
 	return router.RemoveLocationById(location.GetId())
 }
 
-func (m *MuxServer) checkShuttingDown() error {
-	if m.state == stateShuttingDown {
-		return fmt.Errorf("MuxServer is shutting down, ignore all operations")
-	}
-	return nil
-}
+type muxState int
 
 const (
 	stateInit         = iota // Server has been created, but does not accept connections yet
@@ -612,8 +616,8 @@ const (
 	stateShuttingDown        // Server is active, but is draining existing connections and does not accept new connections.
 )
 
-func stateDescription(state int) string {
-	switch state {
+func (s muxState) String() string {
+	switch s {
 	case stateInit:
 		return "init"
 	case stateActive:
@@ -625,8 +629,7 @@ func stateDescription(state int) string {
 }
 
 const (
-	ConnWatch = "_vulcanConnWatch"
-	Metrics   = "_metrics"
+	Metrics = "_metrics"
 )
 
 // convertPath changes strings to structured format /hello -> RegexpRoute("/hello") and leaves structured strings unchanged.

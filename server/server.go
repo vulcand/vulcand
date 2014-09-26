@@ -1,11 +1,13 @@
 package server
 
 import (
+	"fmt"
+	"net"
+	"os"
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/connwatch"
 )
 
 type Server interface {
@@ -29,9 +31,16 @@ type Server interface {
 	UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error
 	DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error
 
-	HijackListenersFrom(Server) error
-
 	GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats
+
+	// TakeFiles takes file descriptors representing sockets in listening state to start serving on them
+	// instead of binding. This is nessesary if the child process needs to inherit sockets from the parent
+	// (e.g. for graceful restarts)
+	TakeFiles([]*FileDescriptor) error
+
+	// GetFiles exports listening socket's underlying dupped file descriptors, so they can later
+	// be passed to child process or to another Server
+	GetFiles() ([]*FileDescriptor, error)
 
 	Start() error
 	Stop(wait bool)
@@ -44,6 +53,25 @@ type Options struct {
 	WriteTimeout    time.Duration
 	MaxHeaderBytes  int
 	DefaultListener *backend.Listener
+	Files           []*FileDescriptor
 }
 
-type NewServerFn func(id int, cw *connwatch.ConnectionWatcher) (Server, error)
+type NewServerFn func(id int) (Server, error)
+
+type FileDescriptor struct {
+	Address backend.Address
+	File    *os.File
+}
+
+func (fd *FileDescriptor) ToListener() (net.Listener, error) {
+	listener, err := net.FileListener(fd.File)
+	if err != nil {
+		return nil, err
+	}
+	fd.File.Close()
+	return listener, nil
+}
+
+func (fd *FileDescriptor) String() string {
+	return fmt.Sprintf("FileDescriptor(%s, %d)", fd.Address, fd.File.Fd())
+}

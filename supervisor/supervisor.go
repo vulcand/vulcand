@@ -7,7 +7,6 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/connwatch"
 
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/server"
@@ -42,15 +41,14 @@ type Supervisor struct {
 	// closeC is a channel to tell everyone to stop working and exit at the earliest convenience.
 	closeC chan bool
 
-	connWatcher *connwatch.ConnectionWatcher
-
 	options Options
 
-	started bool
+	state supervisorState
 }
 
 type Options struct {
 	TimeProvider timetools.TimeProvider
+	Files        []*server.FileDescriptor
 }
 
 func NewSupervisor(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error) (s *Supervisor) {
@@ -59,16 +57,19 @@ func NewSupervisor(newSrv server.NewServerFn, newBackend backend.NewBackendFn, e
 
 func NewSupervisorWithOptions(newSrv server.NewServerFn, newBackend backend.NewBackendFn, errorC chan error, options Options) (s *Supervisor) {
 	return &Supervisor{
-		wg:          &sync.WaitGroup{},
-		mtx:         &sync.RWMutex{},
-		newSrv:      newSrv,
-		newBackend:  newBackend,
-		options:     parseOptions(options),
-		errorC:      errorC,
-		restartC:    make(chan error),
-		closeC:      make(chan bool),
-		connWatcher: connwatch.NewConnectionWatcher(),
+		wg:         &sync.WaitGroup{},
+		mtx:        &sync.RWMutex{},
+		newSrv:     newSrv,
+		newBackend: newBackend,
+		options:    parseOptions(options),
+		errorC:     errorC,
+		restartC:   make(chan error),
+		closeC:     make(chan bool),
 	}
+}
+
+func (s *Supervisor) String() string {
+	return fmt.Sprintf("Supervisor(%v)", s.state)
 }
 
 func (s *Supervisor) getCurrentServer() server.Server {
@@ -83,20 +84,19 @@ func (s *Supervisor) setCurrentServer(srv server.Server) {
 	s.srv = srv
 }
 
-func (s *Supervisor) isStarted() bool {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-	return s.started
-}
-
-func (s *Supervisor) setStarted() {
+func (s *Supervisor) GetFiles() ([]*server.FileDescriptor, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
-	s.started = true
+	if s.srv != nil {
+		return s.srv.GetFiles()
+	}
+	return []*server.FileDescriptor{}, nil
 }
 
-func (s *Supervisor) GetConnWatcher() *connwatch.ConnectionWatcher {
-	return s.connWatcher
+func (s *Supervisor) setState(state supervisorState) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.state = state
 }
 
 func (s *Supervisor) GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats {
@@ -108,7 +108,7 @@ func (s *Supervisor) GetStats(hostname, locationId string, e *backend.Endpoint) 
 }
 
 func (s *Supervisor) init() error {
-	srv, err := s.newSrv(s.lastId, s.connWatcher)
+	srv, err := s.newSrv(s.lastId)
 	if err != nil {
 		return err
 	}
@@ -123,11 +123,24 @@ func (s *Supervisor) init() error {
 		return err
 	}
 
+	// This is the first start, pass the files that could have been passed
+	// to us by the parent process
+	if s.lastId == 1 && len(s.options.Files) != 0 {
+		log.Infof("Passing files %s to %s", s.options.Files, srv)
+		if err := srv.TakeFiles(s.options.Files); err != nil {
+			return err
+		}
+	}
+
 	log.Infof("%s init() initial setup done", srv)
 
 	oldSrv := s.getCurrentServer()
 	if oldSrv != nil {
-		if err := srv.HijackListenersFrom(oldSrv); err != nil {
+		files, err := oldSrv.GetFiles()
+		if err != nil {
+			return err
+		}
+		if err := srv.TakeFiles(files); err != nil {
 			return err
 		}
 	}
@@ -217,16 +230,34 @@ func (s *Supervisor) supervise() {
 }
 
 func (s *Supervisor) Start() error {
-	defer s.setStarted()
+	if s.checkAndSetState(supervisorStateActive) {
+		return fmt.Errorf("%v already started", s)
+	}
+	defer s.setState(supervisorStateActive)
 	go s.supervise()
 	return s.init()
 }
 
+func (s *Supervisor) checkAndSetState(state supervisorState) bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.state == state {
+		return true
+	}
+
+	s.state = state
+	return false
+}
+
 func (s *Supervisor) Stop(wait bool) {
-	close(s.restartC)
-	if !s.isStarted() {
+
+	// It was already stopped
+	if s.checkAndSetState(supervisorStateStopped) {
 		return
 	}
+
+	close(s.restartC)
 	if wait {
 		<-s.closeC
 		log.Infof("All operations stopped")
@@ -309,3 +340,24 @@ func processChange(s server.Server, ch interface{}) error {
 }
 
 const retryPeriod = 5 * time.Second
+
+type supervisorState int
+
+const (
+	supervisorStateCreated = iota
+	supervisorStateActive
+	supervisorStateStopped
+)
+
+func (s supervisorState) String() string {
+	switch s {
+	case supervisorStateCreated:
+		return "created"
+	case supervisorStateActive:
+		return "active"
+	case supervisorStateStopped:
+		return "stopped"
+	default:
+		return "unkown"
+	}
+}

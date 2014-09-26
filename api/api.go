@@ -3,28 +3,22 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"net/url"
-	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-
 	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin"
 )
 
 type ProxyController struct {
 	backend     backend.Backend
-	connWatcher *connwatch.ConnectionWatcher
 	statsGetter backend.StatsGetter
 	app         *scroll.App
 }
 
-func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, connWatcher *connwatch.ConnectionWatcher, app *scroll.App) {
-	c := &ProxyController{backend: backend, statsGetter: statsGetter, connWatcher: connWatcher, app: app}
+func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, app *scroll.App) {
+	c := &ProxyController{backend: backend, statsGetter: statsGetter, app: app}
 
 	app.SetNotFoundHandler(c.handleError)
 
@@ -47,7 +41,6 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 
 	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"DELETE"}, Handler: c.deleteUpstream})
 	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"GET"}, Handler: c.getUpstream})
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}/drain", Methods: []string{"GET"}, Handler: c.drainUpstreamConnections})
 
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"POST"}, HandlerWithBody: c.addLocation})
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"GET"}, Handler: c.getHostLocations})
@@ -202,34 +195,6 @@ func (c *ProxyController) getUpstreamEndpoints(w http.ResponseWriter, r *http.Re
 
 func (c *ProxyController) getUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	return formatResult(c.backend.GetUpstream(params["id"]))
-}
-
-func (c *ProxyController) drainUpstreamConnections(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	upstream, err := c.backend.GetUpstream(params["id"])
-	if err != nil {
-		return nil, formatError(err)
-	}
-	timeout, err := scroll.GetIntField(r, "timeout")
-	if err != nil {
-		return nil, formatError(err)
-	}
-
-	endpoints := make([]*url.URL, len(upstream.Endpoints))
-	for i, e := range upstream.Endpoints {
-		u, err := netutils.ParseUrl(e.Url)
-		if err != nil {
-			return nil, err
-		}
-		endpoints[i] = u
-	}
-
-	connections, err := c.connWatcher.DrainConnections(time.Duration(timeout)*time.Second, endpoints...)
-	if err != nil {
-		return nil, err
-	}
-	return scroll.Response{
-		"Connections": connections,
-	}, err
 }
 
 func (c *ProxyController) addLocation(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {

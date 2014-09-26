@@ -10,10 +10,12 @@ import (
 type Options struct {
 	ApiPort      int
 	ApiInterface string
-	PidPath      string
-	Port         int
-	Interface    string
-	CertPath     string
+
+	PidPath string
+	Port    int
+
+	Interface string
+	CertPath  string
 
 	EtcdNodes       listOptions
 	EtcdKey         string

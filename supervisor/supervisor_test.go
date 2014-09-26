@@ -11,7 +11,6 @@ import (
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
-	"github.com/mailgun/vulcand/connwatch"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/server"
 	. "github.com/mailgun/vulcand/testutils"
@@ -27,10 +26,6 @@ type SupervisorSuite struct {
 }
 
 func (s *SupervisorSuite) SetUpTest(c *C) {
-
-	newServer := func(id int, cw *connwatch.ConnectionWatcher) (server.Server, error) {
-		return server.NewMuxServerWithOptions(id, cw, server.Options{})
-	}
 
 	s.b = membackend.NewMemBackend(registry.GetRegistry())
 
@@ -134,9 +129,48 @@ func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
 }
 
+func (s *SupervisorSuite) TestTransferFiles(c *C) {
+	e := NewTestResponder("Hi, I'm endpoint")
+	defer e.Close()
+
+	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
+
+	_, err := s.b.AddUpstream(l.Upstream)
+	c.Assert(err, IsNil)
+
+	_, err = s.b.AddHost(h)
+	c.Assert(err, IsNil)
+
+	_, err = s.b.AddLocation(l)
+	c.Assert(err, IsNil)
+
+	s.sv.Start()
+
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+
+	files, err := s.sv.GetFiles()
+	c.Assert(err, IsNil)
+
+	// Create new supervisor using same backend
+	newBackend := func() (Backend, error) {
+		return s.b, nil
+	}
+	errorC := make(chan error)
+
+	sv2 := NewSupervisorWithOptions(newServer, newBackend, errorC, Options{TimeProvider: s.tm, Files: files})
+	sv2.Start()
+	s.sv.Stop(true)
+
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+}
+
 func GETResponse(c *C, url string, opts Opts) string {
 	response, body, err := GET(url, opts)
 	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	return string(body)
+}
+
+func newServer(id int) (server.Server, error) {
+	return server.NewMuxServerWithOptions(id, server.Options{})
 }

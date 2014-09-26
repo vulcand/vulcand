@@ -49,14 +49,19 @@ func hostOverview(h *backend.Host) *StringTree {
 }
 
 func locOverview(l *backend.Location) *StringTree {
-	s, f, periodSeconds := locStats(l)
+	s := locStats(l)
 	failRate := float64(0)
-	if s+f != 0 {
-		failRate = (float64(f) / float64(s+f)) * 100
+	if s.Successes+s.Failures != 0 {
+		failRate = (float64(s.Failures) / float64(s.Failures+s.Successes)) * 100
 	}
 	r := &StringTree{
 		Node: fmt.Sprintf("loc[%s, %s, %s, %0.1f requests/sec, %0.2f%%%% failures]",
-			l.Id, l.Hostname, l.Path, float64(s+f)/float64(periodSeconds), failRate),
+			l.Id,
+			l.Hostname,
+			l.Path,
+			float64(s.Successes+s.Failures)/float64(s.PeriodSeconds),
+			failRate,
+		),
 	}
 	if failRate != 0 {
 		r.Node = fmt.Sprintf("@r%s@w", r.Node)
@@ -80,21 +85,20 @@ func (s *locSorter) Swap(i, j int) {
 }
 
 func (s *locSorter) Less(i, j int) bool {
-	s1, f1, _ := locStats(s.locs[i])
-	s2, f2, _ := locStats(s.locs[j])
-	if f1 > f2 {
-		return true
-	}
-	return s1 > s2
+	s1 := locStats(s.locs[i])
+	s2 := locStats(s.locs[j])
+
+	return s1.Failures > s2.Failures || s1.Successes > s2.Successes
 }
 
-func locStats(loc *backend.Location) (successes, failures, periodSeconds int64) {
+func locStats(loc *backend.Location) *backend.EndpointStats {
+	stats := &backend.EndpointStats{}
 	for _, e := range loc.Upstream.Endpoints {
 		if e.Stats != nil {
-			successes += e.Stats.Successes
-			failures += e.Stats.Failures
-			periodSeconds = int64(e.Stats.PeriodSeconds)
+			stats.Successes += e.Stats.Successes
+			stats.Failures += e.Stats.Failures
+			stats.PeriodSeconds = e.Stats.PeriodSeconds
 		}
 	}
-	return successes, failures, periodSeconds
+	return stats
 }

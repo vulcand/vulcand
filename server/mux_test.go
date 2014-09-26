@@ -10,7 +10,6 @@ import (
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/connwatch"
 	. "github.com/mailgun/vulcand/testutils"
 	"testing"
 )
@@ -25,7 +24,7 @@ type ServerSuite struct {
 }
 
 func (s *ServerSuite) SetUpTest(c *C) {
-	m, err := NewMuxServerWithOptions(s.lastId, connwatch.NewConnectionWatcher(), Options{})
+	m, err := NewMuxServerWithOptions(s.lastId, Options{})
 	c.Assert(err, IsNil)
 	s.mux = m
 }
@@ -63,7 +62,7 @@ func (s *ServerSuite) TestServerDefaultListener(c *C) {
 
 	defaultListener := &Listener{Protocol: HTTP, Address: Address{"tcp", "localhost:41000"}}
 
-	m, err := NewMuxServerWithOptions(s.lastId, connwatch.NewConnectionWatcher(), Options{DefaultListener: defaultListener})
+	m, err := NewMuxServerWithOptions(s.lastId, Options{DefaultListener: defaultListener})
 	defer m.Stop(true)
 	c.Assert(err, IsNil)
 	s.mux = m
@@ -204,40 +203,6 @@ func (s *ServerSuite) TestSNI(c *C) {
 	response, _, err := GET(MakeURL(l, h2.Listeners[0]), Opts{Host: "otherhost"})
 	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Not(Equals), http.StatusOK)
-}
-
-func (s *ServerSuite) TestHijacking(c *C) {
-	e := NewTestResponder("Hi, I'm endpoint 1")
-	defer e.Close()
-
-	c.Assert(s.mux.Start(), IsNil)
-
-	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
-	h.KeyPair = &KeyPair{Key: localhostKey, Cert: localhostCert}
-	h.Listeners[0].Protocol = HTTPS
-
-	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
-
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint 1")
-
-	mux2, err := NewMuxServerWithOptions(s.lastId, connwatch.NewConnectionWatcher(), Options{})
-	c.Assert(err, IsNil)
-
-	e2 := NewTestResponder("Hi, I'm endpoint 2")
-	defer e2.Close()
-
-	l2, h2 := MakeLocation("localhost", "localhost:31000", e2.URL)
-	h2.KeyPair = &KeyPair{Key: localhostKey2, Cert: localhostCert2}
-	h2.Listeners[0].Protocol = HTTPS
-
-	c.Assert(mux2.UpsertLocation(h2, l2), IsNil)
-	c.Assert(mux2.HijackListenersFrom(s.mux), IsNil)
-
-	c.Assert(mux2.Start(), IsNil)
-	s.mux.Stop(true)
-	defer mux2.Stop(true)
-
-	c.Assert(GETResponse(c, MakeURL(l2, h2.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint 2")
 }
 
 func (s *ServerSuite) TestLocationProperties(c *C) {
@@ -607,6 +572,53 @@ func (s *ServerSuite) TestConvertPath(c *C) {
 	c.Assert(convertPath(`TrieRoute("hello")`), Equals, `TrieRoute("hello")`)
 	c.Assert(convertPath(`RegexpRoute("hello")`), Equals, `RegexpRoute("hello")`)
 	c.Assert(convertPath(`/hello`), Equals, `RegexpRoute("/hello")`)
+}
+
+func (s *ServerSuite) TestFilesNoFiles(c *C) {
+	e := NewTestResponder("Hi, I'm endpoint 1")
+	defer e.Close()
+
+	files, err := s.mux.GetFiles()
+	c.Assert(err, IsNil)
+	c.Assert(len(files), Equals, 0)
+	c.Assert(s.mux.Start(), IsNil)
+}
+
+func (s *ServerSuite) TestTakeFiles(c *C) {
+	e := NewTestResponder("Hi, I'm endpoint 1")
+	defer e.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
+	h.KeyPair = &KeyPair{Key: localhostKey, Cert: localhostCert}
+	h.Listeners[0].Protocol = HTTPS
+
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint 1")
+
+	mux2, err := NewMuxServerWithOptions(s.lastId, Options{})
+	c.Assert(err, IsNil)
+
+	e2 := NewTestResponder("Hi, I'm endpoint 2")
+	defer e2.Close()
+
+	l2, h2 := MakeLocation("localhost", "localhost:31000", e2.URL)
+	h2.KeyPair = &KeyPair{Key: localhostKey2, Cert: localhostCert2}
+	h2.Listeners[0].Protocol = HTTPS
+
+	c.Assert(mux2.UpsertLocation(h2, l2), IsNil)
+
+	files, err := s.mux.GetFiles()
+	c.Assert(err, IsNil)
+	c.Assert(mux2.TakeFiles(files), IsNil)
+
+	c.Assert(mux2.Start(), IsNil)
+	s.mux.Stop(true)
+	defer mux2.Stop(true)
+
+	c.Assert(GETResponse(c, MakeURL(l2, h2.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint 2")
 }
 
 func AssertSameEndpoints(c *C, we []*roundrobin.WeightedEndpoint, e []*Endpoint) {

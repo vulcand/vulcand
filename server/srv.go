@@ -14,8 +14,8 @@ import (
 	"github.com/mailgun/vulcand/backend"
 )
 
-// server contains all what's necessary to run the HTTP(s) server. server does not work on it's own,
-// it heavilly dependes on MuxServer and it acts as is it's internal data structure.
+// server contains all that is necessary to run the HTTP(s) server. server does not work on its own,
+// it heavily depends on MuxServer and acts as its internal data structure.
 type server struct {
 	defaultHost string
 	mux         *MuxServer
@@ -29,8 +29,22 @@ type server struct {
 	state       int
 }
 
+func (s *server) GetFile() (*FileDescriptor, error) {
+	if !s.hasListeners() || s.srv == nil {
+		return nil, nil
+	}
+	file, err := s.srv.GetFile()
+	if err != nil {
+		return nil, err
+	}
+	return &FileDescriptor{
+		File:    file,
+		Address: s.listener.Address,
+	}, nil
+}
+
 func (s *server) String() string {
-	return fmt.Sprintf("%s->srv(%s, %s)", s.mux, srvStateDescription(s.state), s.listener.String())
+	return fmt.Sprintf("%s->srv(%v, %v)", s.mux, s.state, s.listener)
 }
 
 func newServer(m *MuxServer, host *backend.Host, r route.Router, l *backend.Listener) (*server, error) {
@@ -139,23 +153,34 @@ func (s *server) hasListeners() bool {
 	return s.state == srvStateActive || s.state == srvStateHijacked
 }
 
-func (s *server) hijackListenerFrom(so *server) error {
-	log.Infof("%s hijackListenerFrom %s", s, so)
-	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
-	var config *tls.Config
-	if s.isTLS() {
-		var err error
-		config, err = newTLSConfig(s.keyPairs, s.defaultHost)
-		if err != nil {
-			return err
-		}
-	}
+func (s *server) takeFile(f *FileDescriptor) error {
+	log.Infof("%s takeFile %d", s, f)
 
-	gracefulServer, err := so.srv.HijackListener(s.newHTTPServer(), config)
+	listener, err := f.ToListener()
 	if err != nil {
 		return err
 	}
-	s.srv = gracefulServer
+
+	if s.isTLS() {
+		tcpListener, ok := listener.(*net.TCPListener)
+		if !ok {
+			return fmt.Errorf(`%s failed to take file descriptor - it is running in TLS mode so I need a TCP listener, 
+but the file descriptor that was given corresponded to a listener of type %T. More about file descriptor: %s`, listener, s, f)
+		}
+		config, err := newTLSConfig(s.keyPairs, s.defaultHost)
+		if err != nil {
+			return err
+		}
+		listener = manners.NewTLSListener(
+			manners.TCPKeepAliveListener{tcpListener}, config)
+	}
+
+	s.srv = manners.NewWithOptions(
+		manners.Options{
+			Server:       s.newHTTPServer(),
+			Listener:     listener,
+			StateHandler: s.mux.connTracker.onStateChange,
+		})
 	s.state = srvStateHijacked
 	return nil
 }
@@ -260,9 +285,15 @@ func (s *server) start() error {
 			if err != nil {
 				return err
 			}
-			listener = manners.NewTLSListener(manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
+			listener = manners.NewTLSListener(
+				manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
 		}
-		s.srv = manners.NewWithListener(s.newHTTPServer(), listener)
+		s.srv = manners.NewWithOptions(
+			manners.Options{
+				Server:       s.newHTTPServer(),
+				Listener:     listener,
+				StateHandler: s.mux.connTracker.onStateChange,
+			})
 		s.state = srvStateActive
 		go s.serve(s.srv)
 		return nil
@@ -271,7 +302,7 @@ func (s *server) start() error {
 		go s.serve(s.srv)
 		return nil
 	}
-	return fmt.Errorf("%s Calling start in unsupported state: %d", s.state)
+	return fmt.Errorf("%v Calling start in unsupported state", s)
 }
 
 func (s *server) serve(srv *manners.GracefulServer) {
@@ -285,14 +316,16 @@ func (s *server) serve(srv *manners.GracefulServer) {
 	log.Infof("Stop %s", s.listener.String())
 }
 
+type srvState int
+
 const (
 	srvStateInit     = iota // server has been created
 	srvStateActive   = iota // server is active and is serving requests
 	srvStateHijacked = iota // server has hijacked listeners from other server
 )
 
-func srvStateDescription(state int) string {
-	switch state {
+func (s srvState) String() string {
+	switch s {
 	case srvStateInit:
 		return "init"
 	case srvStateActive:
