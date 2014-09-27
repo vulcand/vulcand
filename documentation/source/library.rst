@@ -505,8 +505,8 @@ Limit the amount of simultaneous conections per IP to 10:
 Metrics
 -------
 
-Vulcan watches the failure rate of the endpoint withing a moving time window by comparing the amount of successful requests to a number of failed requests. 
-This metrics allows to activate failure recovery scenarios inside load balancers.
+Vulcan watches the failure rate of the endpoint within a moving time window by comparing the amount of successful requests to a number of failed requests. 
+This metric allows for activatation of failure recovery scenarios inside load balancers.
 
 Calculates in memory failure rate of an endpoint
 
