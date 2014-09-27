@@ -45,6 +45,7 @@ func (cmd *Command) Run(args []string) error {
 		NewLogCommand(cmd),
 		NewKeyCommand(cmd),
 		NewStatusCommand(cmd),
+		NewTopCommand(cmd),
 		NewHostCommand(cmd),
 		NewUpstreamCommand(cmd),
 		NewLocationCommand(cmd),

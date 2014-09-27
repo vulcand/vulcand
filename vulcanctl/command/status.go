@@ -9,9 +9,8 @@ import (
 
 func NewStatusCommand(cmd *Command) cli.Command {
 	return cli.Command{
-		Name:      "status",
-		ShortName: "s",
-		Usage:     "Show vulcan status and configuration",
+		Name:  "status",
+		Usage: "Show vulcan status and configuration",
 		Flags: []cli.Flag{
 			cli.IntFlag{Name: "limit", Usage: "How many top locations to show", Value: 20},
 			cli.IntFlag{Name: "watch, w", Usage: "Watch and refresh every given amount of seconds", Value: 0},
@@ -20,8 +19,26 @@ func NewStatusCommand(cmd *Command) cli.Command {
 	}
 }
 
+func NewTopCommand(cmd *Command) cli.Command {
+	return cli.Command{
+		Name:  "top",
+		Usage: "Show vulcan status and configuration in top-style mdoe",
+		Flags: []cli.Flag{
+			cli.IntFlag{Name: "limit", Usage: "How many top locations to show", Value: 20},
+		},
+		Action: cmd.topAction,
+	}
+}
+
+func (cmd *Command) topAction(c *cli.Context) {
+	cmd.overviewAction(1, c.Int("limit"))
+}
+
 func (cmd *Command) statusAction(c *cli.Context) {
-	watch := c.Int("watch")
+	cmd.overviewAction(c.Int("watch"), c.Int("limit"))
+}
+
+func (cmd *Command) overviewAction(watch int, limit int) {
 	// One time print and return
 	if watch == 0 {
 		out, err := cmd.client.GetHosts()
@@ -29,7 +46,7 @@ func (cmd *Command) statusAction(c *cli.Context) {
 			cmd.printError(err)
 			return
 		}
-		cmd.printOverview(out, c.Int("limit"))
+		cmd.printOverview(out, limit)
 		return
 	}
 
@@ -45,8 +62,8 @@ func (cmd *Command) statusAction(c *cli.Context) {
 		cmd.out.Write([]byte("\033[H"))
 		// Print overview
 		t := time.Now()
-		fmt.Fprintf(cmd.out, "%s Every %d seconds. Top %d locations\n\n", t.Format("2006-01-02 15:04:05"), watch, c.Int("limit"))
-		cmd.printOverview(out, c.Int("limit"))
+		fmt.Fprintf(cmd.out, "%s Every %d seconds. Top %d locations\n\n", t.Format("2006-01-02 15:04:05"), watch, limit)
+		cmd.printOverview(out, limit)
 		time.Sleep(time.Second * time.Duration(watch))
 	}
 }
