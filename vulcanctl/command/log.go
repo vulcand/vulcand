@@ -39,7 +39,7 @@ func (cmd *Command) getLogSeverityAction(c *cli.Context) {
 	sev, err := cmd.client.GetLogSeverity()
 	if err != nil {
 		cmd.printError(err)
-	} else {
-		cmd.printOk("severity: %v", sev)
+		return
 	}
+	cmd.printOk("severity: %v", sev)
 }

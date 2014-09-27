@@ -321,10 +321,10 @@ func (m *MemBackend) DeleteEndpoint(upstreamId, id string) error {
 	return &NotFoundError{}
 }
 
-func (m *MemBackend) WatchChanges(changes chan interface{}, cancel chan bool) error {
+func (m *MemBackend) WatchChanges(changes chan interface{}, cancelC chan bool) error {
 	for {
 		select {
-		case <-cancel:
+		case <-cancelC:
 			return nil
 		case change := <-m.ChangesC:
 			select {
