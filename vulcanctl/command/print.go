@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/wsxiaoys/terminal/color"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
 	"github.com/mailgun/vulcand/backend"
 )
 
@@ -25,15 +25,15 @@ func (cmd *Command) printStatus(in interface{}, err error) {
 }
 
 func (cmd *Command) printError(err error) {
-	color.Fprint(cmd.out, fmt.Sprintf("@rERROR: %s\n", err))
+	fmt.Fprint(cmd.out, goterm.Color(fmt.Sprintf("ERROR: %s", err), goterm.RED)+"\n")
 }
 
 func (cmd *Command) printOk(message string, params ...interface{}) {
-	color.Fprint(cmd.out, fmt.Sprintf("@gOK: %s\n", fmt.Sprintf(message, params...)))
+	fmt.Fprintf(cmd.out, goterm.Color(fmt.Sprintf("OK: %s\n", fmt.Sprintf(message, params...)), goterm.GREEN)+"\n")
 }
 
 func (cmd *Command) printInfo(message string, params ...interface{}) {
-	color.Fprint(cmd.out, "INFO: @w%s\n", fmt.Sprintf(message, params...))
+	fmt.Fprintf(cmd.out, "INFO: %s\n", fmt.Sprintf(message, params...))
 }
 
 func (cmd *Command) printHosts(hosts []*backend.Host) {
@@ -49,8 +49,8 @@ func (cmd *Command) printHost(host *backend.Host) {
 func (cmd *Command) printOverview(hosts []*backend.Host, limit int) {
 	out := &bytes.Buffer{}
 	fmt.Fprintf(out, "\n")
-	printTree(out, hostsOverview(hosts, limit), 0, true, "")
-	color.Fprint(cmd.out, out.String())
+	fmt.Fprintf(out, hostsOverview(hosts, limit))
+	fmt.Fprintf(cmd.out, out.String())
 }
 
 func (cmd *Command) printUpstreams(upstreams []*backend.Upstream) {

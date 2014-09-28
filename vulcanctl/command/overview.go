@@ -2,19 +2,21 @@ package command
 
 import (
 	"fmt"
+	"io"
 	"sort"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
 	"github.com/mailgun/vulcand/backend"
 )
 
 // High level overview of all locations sorted by activity (a.k.a top)
-func hostsOverview(hosts []*backend.Host, limit int) Tree {
-	r := &StringTree{
-		Node: "[locations]",
-	}
+func hostsOverview(hosts []*backend.Host, limit int) string {
+
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	fmt.Fprint(t, "Id\tHostname\tPath\tReqs/sec\tFailures %%%% \n")
 
 	if len(hosts) == 0 {
-		return r
+		return t.String()
 	}
 
 	// Shuffle all locations
@@ -33,42 +35,31 @@ func hostsOverview(hosts []*backend.Host, limit int) Tree {
 		if limit > 0 && count >= limit {
 			break
 		}
-		r.AddChild(locOverview(l))
+		locOverview(t, l)
 		count += 1
 	}
 
-	return r
+	return t.String()
 }
 
-func hostOverview(h *backend.Host) *StringTree {
-	r := &StringTree{
-		Node: fmt.Sprintf("host[%s]", h.Name),
-	}
-
-	return r
-}
-
-func locOverview(l *backend.Location) *StringTree {
+func locOverview(w io.Writer, l *backend.Location) {
 	s := locStats(l)
 	failRate := float64(0)
 	if s.Successes+s.Failures != 0 {
 		failRate = (float64(s.Failures) / float64(s.Failures+s.Successes)) * 100
 	}
-	r := &StringTree{
-		Node: fmt.Sprintf("loc[%s, %s, %s, %0.1f requests/sec, %0.2f%%%% failures]",
-			l.Id,
-			l.Hostname,
-			l.Path,
-			float64(s.Successes+s.Failures)/float64(s.PeriodSeconds),
-			failRate,
-		),
-	}
+	reqsSec := float64(s.Successes+s.Failures) / float64(s.PeriodSeconds)
+
+	failRateS := fmt.Sprintf("%0.2f", failRate)
 	if failRate != 0 {
-		r.Node = fmt.Sprintf("@r%s@w", r.Node)
+		failRateS = goterm.Color(failRateS, goterm.RED)
 	} else {
-		r.Node = fmt.Sprintf("@g%s@w", r.Node)
+		failRateS = goterm.Color(failRateS, goterm.GREEN)
 	}
-	return r
+
+	fmt.Fprintf(w, "%s\t%s\t%s\t%0.1f\t%s\n",
+		l.Id, l.Hostname, l.Path, reqsSec, failRateS)
+
 }
 
 // Sorts locations by failures first, successes next

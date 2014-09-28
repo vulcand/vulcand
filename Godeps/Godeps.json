@@ -21,6 +21,10 @@
 			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
 		},
 		{
+			"ImportPath": "github.com/buger/goterm",
+			"Rev": "af3f07dadc88b80c7b5a15f26033c6dd979f012f"
+		},
+		{
 			"ImportPath": "github.com/codegangsta/cli",
 			"Comment": "1.2.0-22-g687db20",
 			"Rev": "687db20fc379d1686465a28e9959707cd1acc990"
@@ -71,10 +75,6 @@
 			"ImportPath": "github.com/mailgun/vulcan",
 			"Comment": "v0.1-195-g291c114",
 			"Rev": "291c1147f12470a0ddc5809ba993cb4af7d10096"
-		},
-		{
-			"ImportPath": "github.com/wsxiaoys/terminal/color",
-			"Rev": "a83cd00f6d7acf3554bc24f06d7f9e48a90d0a47"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
