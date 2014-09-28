@@ -27,6 +27,50 @@ Returns: ``200 OK``
  }
 
 
+Log severity
+~~~~~~~~~~~~
+
+Log severity endpoint allows to change the logging severity for a running instance
+
+Get severity
+++++++++++++
+
+.. code-block:: url
+
+     GET /v1/log/severity
+
+Returns: ``200 OK``
+
+.. code-block:: json
+
+ {
+    "Severity": "WARN"
+ }
+
+Set severity
+++++++++++++
+
+.. code-block:: url
+
+     PUT 'multipart/form-data' /v1/log/severity
+
+.. container:: ptable
+
+ ================= ==========================================================
+ Parameter         Description
+ ================= ==========================================================
+ severity          Severity - ``WARN``, ``INFO`` or ``ERROR``
+ ================= ==========================================================
+
+Returns: ``200 OK``
+
+.. code-block:: json
+
+ {
+    "Message": "Severity has been updated to INFO"
+ }
+
+
 Host
 ~~~~
 
