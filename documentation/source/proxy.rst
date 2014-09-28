@@ -517,7 +517,7 @@ Log control
 
 You can controll logging verbosity by supplying ``logSeverity`` startup flag with the supported values ``INFO``, ``WARN`` and ``ERROR``, default value is ``WARN``.
 
-If you need to change the logging for a running process (e.g. to debug some issue), you can do that by using ``set_severity`` command:
+If you need to temporarily change the logging for a running process (e.g. to debug some issue), you can do that by using ``set_severity`` command:
 
 .. code-block:: sh
 
