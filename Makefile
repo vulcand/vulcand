@@ -8,7 +8,10 @@ install:
 	pip install Fabric
 
 deploy:
-	fab -f deploy/fabfile.py deploy:$(ENV)
+	git fetch origin master
+	git reset --hard FETCH_HEAD
+	git clean -df
+	sphinx-build -A corpsite_hostname=$(corpsite_hostname) -b html ./documentation/source ./build
 
 install-devmode:
 	pip install livereload
