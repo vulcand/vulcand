@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 )
 
@@ -57,13 +58,13 @@ func (cmd *Command) overviewAction(watch int, limit int) {
 			cmd.printError(err)
 			return
 		}
-		// Flush screen
-		cmd.out.Write([]byte("\033[2J"))
-		cmd.out.Write([]byte("\033[H"))
-		// Print overview
+		goterm.Clear()
+		goterm.MoveCursor(1, 1)
+		goterm.Flush()
 		t := time.Now()
 		fmt.Fprintf(cmd.out, "%s Every %d seconds. Top %d locations\n\n", t.Format("2006-01-02 15:04:05"), watch, limit)
 		cmd.printOverview(out, limit)
+		goterm.Flush()
 		time.Sleep(time.Second * time.Duration(watch))
 	}
 }

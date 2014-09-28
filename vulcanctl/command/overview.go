@@ -5,7 +5,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/buger/goterm"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
 	"github.com/mailgun/vulcand/backend"
 )
 
@@ -13,7 +13,7 @@ import (
 func hostsOverview(hosts []*backend.Host, limit int) string {
 
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprintf(t, "Id\tHostname\tPath\tRequests/sec\tFail rate\n")
+	fmt.Fprint(t, "Id\tHostname\tPath\tReqs/sec\tFailures %%%% \n")
 
 	if len(hosts) == 0 {
 		return t.String()

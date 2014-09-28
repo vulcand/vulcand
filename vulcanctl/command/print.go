@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/buger/goterm"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
 	"github.com/mailgun/vulcand/backend"
 )
 

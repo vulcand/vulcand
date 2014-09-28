@@ -70,7 +70,7 @@ func (s *CmdSuite) run(params ...string) string {
 }
 
 func (s *CmdSuite) TestStatus(c *C) {
-	c.Assert(s.run("status"), Matches, ".*locations.*")
+	c.Assert(s.run("status"), Matches, ".*Hostname.*")
 }
 
 func (s *CmdSuite) TestHostCRUD(c *C) {
