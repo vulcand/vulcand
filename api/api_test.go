@@ -38,11 +38,7 @@ func (s *ApiSuite) SetUpTest(c *C) {
 
 	s.backend = membackend.NewMemBackend(registry.GetRegistry())
 
-	newBackend := func() (Backend, error) {
-		return s.backend, nil
-	}
-
-	sv := supervisor.NewSupervisor(newServer, newBackend, make(chan error))
+	sv := supervisor.NewSupervisor(newServer, s.backend, make(chan error))
 
 	app := scroll.NewApp()
 	InitProxyController(s.backend, sv, app)
@@ -56,6 +52,21 @@ func (s *ApiSuite) TearDownTest(c *C) {
 
 func (s *ApiSuite) TestStatus(c *C) {
 	c.Assert(s.client.GetStatus(), IsNil)
+}
+
+func (s *ApiSuite) TestSeverity(c *C) {
+	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarn, log.SeverityError} {
+		_, err := s.client.UpdateLogSeverity(sev)
+		c.Assert(err, IsNil)
+		out, err := s.client.GetLogSeverity()
+		c.Assert(err, IsNil)
+		c.Assert(out, Equals, sev)
+	}
+}
+
+func (s *ApiSuite) TestInvalidSeverity(c *C) {
+	_, err := s.client.UpdateLogSeverity(-1)
+	c.Assert(err, NotNil)
 }
 
 func (s *ApiSuite) TestNotFoundHandler(c *C) {

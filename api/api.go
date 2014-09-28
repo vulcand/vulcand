@@ -24,6 +24,9 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 
 	app.AddHandler(scroll.Spec{Path: "/v1/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
 
+	app.AddHandler(scroll.Spec{Path: "/v1/log/severity", Methods: []string{"GET"}, Handler: c.getLogSeverity})
+	app.AddHandler(scroll.Spec{Path: "/v1/log/severity", Methods: []string{"PUT"}, Handler: c.updateLogSeverity})
+
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"POST"}, HandlerWithBody: c.addHost})
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"GET"}, Handler: c.getHost})
@@ -69,6 +72,21 @@ func (c *ProxyController) getStatus(w http.ResponseWriter, r *http.Request, para
 	return scroll.Response{
 		"Status": "ok",
 	}, nil
+}
+
+func (c *ProxyController) getLogSeverity(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	return scroll.Response{
+		"severity": log.GetSeverity().String(),
+	}, nil
+}
+
+func (c *ProxyController) updateLogSeverity(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	s, err := log.SeverityFromString(r.Form.Get("severity"))
+	if err != nil {
+		return nil, formatError(err)
+	}
+	log.SetSeverity(s)
+	return scroll.Response{"message": fmt.Sprintf("Severity has been updated to %v", s)}, nil
 }
 
 func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {

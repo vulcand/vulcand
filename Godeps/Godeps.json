@@ -35,16 +35,12 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/go-etcd/etcd",
-			"Comment": "v0.2.0-rc1-100-g264551f",
-			"Rev": "264551f7c5b4453c949dde015d1012ad7efe967d"
-		},
-		{
-			"ImportPath": "github.com/mailgun/go-statsd-client/statsd",
-			"Rev": "3fb0a0f3daec83814e71a13c91a43daab6164770"
+			"Comment": "v0.2.0-rc1-124-g248e96a",
+			"Rev": "248e96a4ad7adfa23b531eb2d8e80d9050c33d24"
 		},
 		{
 			"ImportPath": "github.com/mailgun/log",
-			"Rev": "b2f25357aec271f07fef6ff89913aaa93cf8c012"
+			"Rev": "5dc398f9fd1471fbdfa776258249cee93f3c6296"
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"log/syslog"
 
-	. "launchpad.net/gocheck"
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type SysLogSuite struct {

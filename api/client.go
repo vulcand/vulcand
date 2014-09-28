@@ -4,22 +4,26 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	. "github.com/mailgun/vulcand/backend"
-	. "github.com/mailgun/vulcand/plugin"
+
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/plugin"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
 const CurrentVersion = "v1"
 
 type Client struct {
 	Addr     string
-	Registry *Registry
+	Registry *plugin.Registry
 }
 
-func NewClient(addr string, registry *Registry) *Client {
+func NewClient(addr string, registry *plugin.Registry) *Client {
 	return &Client{Addr: addr, Registry: registry}
 }
 
@@ -28,24 +32,40 @@ func (c *Client) GetStatus() error {
 	return err
 }
 
-func (c *Client) GetHosts() ([]*Host, error) {
+func (c *Client) GetHosts() ([]*backend.Host, error) {
 	data, err := c.Get(c.endpoint("hosts"), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	return HostsFromJSON(data, c.Registry.GetSpec)
+	return backend.HostsFromJSON(data, c.Registry.GetSpec)
 }
 
-func (c *Client) GetHost(name string) (*Host, error) {
+func (c *Client) UpdateLogSeverity(s log.Severity) (*StatusResponse, error) {
+	return c.PutForm(c.endpoint("log", "severity"), url.Values{"severity": {s.String()}})
+}
+
+func (c *Client) GetLogSeverity() (log.Severity, error) {
+	data, err := c.Get(c.endpoint("log", "severity"), url.Values{})
+	if err != nil {
+		return -1, err
+	}
+	var sev *SeverityResponse
+	if err := json.Unmarshal(data, &sev); err != nil {
+		return -1, err
+	}
+	return log.SeverityFromString(sev.Severity)
+}
+
+func (c *Client) GetHost(name string) (*backend.Host, error) {
 	response, err := c.Get(c.endpoint("hosts", name), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	return HostFromJSON(response, c.Registry.GetSpec)
+	return backend.HostFromJSON(response, c.Registry.GetSpec)
 }
 
-func (c *Client) AddHost(name string) (*Host, error) {
-	host, err := NewHost(name)
+func (c *Client) AddHost(name string) (*backend.Host, error) {
+	host, err := backend.NewHost(name)
 	if err != nil {
 		return nil, err
 	}
@@ -53,47 +73,47 @@ func (c *Client) AddHost(name string) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	return HostFromJSON(response, c.Registry.GetSpec)
+	return backend.HostFromJSON(response, c.Registry.GetSpec)
 }
 
-func (c *Client) AddHostListener(hostname string, l *Listener) (*Listener, error) {
+func (c *Client) AddHostListener(hostname string, l *backend.Listener) (*backend.Listener, error) {
 	response, err := c.Post(c.endpoint("hosts", hostname, "listeners"), l)
 	if err != nil {
 		return nil, err
 	}
-	return ListenerFromJSON(response)
+	return backend.ListenerFromJSON(response)
 }
 
 func (c *Client) DeleteHostListener(name, listenerId string) (*StatusResponse, error) {
 	return c.Delete(c.endpoint("hosts", name, "listeners", listenerId))
 }
 
-func (c *Client) UpdateHostKeyPair(hostname string, keyPair *KeyPair) (*Host, error) {
+func (c *Client) UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) (*backend.Host, error) {
 	response, err := c.Put(c.endpoint("hosts", hostname, "keypair"), keyPair)
 	if err != nil {
 		return nil, err
 	}
-	return HostFromJSON(response, c.Registry.GetSpec)
+	return backend.HostFromJSON(response, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteHost(name string) (*StatusResponse, error) {
 	return c.Delete(c.endpoint("hosts", name))
 }
 
-func (c *Client) AddLocation(hostname, id, path, upstream string) (*Location, error) {
-	return c.AddLocationWithOptions(hostname, id, path, upstream, LocationOptions{})
+func (c *Client) AddLocation(hostname, id, path, upstream string) (*backend.Location, error) {
+	return c.AddLocationWithOptions(hostname, id, path, upstream, backend.LocationOptions{})
 }
 
-func (c *Client) GetLocation(name, id string) (*Location, error) {
+func (c *Client) GetLocation(name, id string) (*backend.Location, error) {
 	response, err := c.Get(c.endpoint("hosts", name, "locations", id), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	return LocationFromJSON(response, c.Registry.GetSpec)
+	return backend.LocationFromJSON(response, c.Registry.GetSpec)
 }
 
-func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, options LocationOptions) (*Location, error) {
-	location, err := NewLocationWithOptions(hostname, id, path, upstream, options)
+func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, options backend.LocationOptions) (*backend.Location, error) {
+	location, err := backend.NewLocationWithOptions(hostname, id, path, upstream, options)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +121,7 @@ func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, opt
 	if err != nil {
 		return nil, err
 	}
-	return LocationFromJSON(response, c.Registry.GetSpec)
+	return backend.LocationFromJSON(response, c.Registry.GetSpec)
 }
 
 func (c *Client) DeleteLocation(hostname, id string) (*StatusResponse, error) {
@@ -112,16 +132,16 @@ func (c *Client) UpdateLocationUpstream(hostname, location, upstream string) (*S
 	return c.PutForm(c.endpoint("hosts", hostname, "locations", location), url.Values{"upstream": {upstream}})
 }
 
-func (c *Client) UpdateLocationOptions(hostname, location string, options LocationOptions) (*Location, error) {
+func (c *Client) UpdateLocationOptions(hostname, location string, options backend.LocationOptions) (*backend.Location, error) {
 	response, err := c.Put(c.endpoint("hosts", hostname, "locations", location, "options"), options)
 	if err != nil {
 		return nil, err
 	}
-	return LocationFromJSON(response, c.Registry.GetSpec)
+	return backend.LocationFromJSON(response, c.Registry.GetSpec)
 }
 
-func (c *Client) AddUpstream(id string) (*Upstream, error) {
-	upstream, err := NewUpstream(id)
+func (c *Client) AddUpstream(id string) (*backend.Upstream, error) {
+	upstream, err := backend.NewUpstream(id)
 	if err != nil {
 		return nil, err
 	}
@@ -129,34 +149,22 @@ func (c *Client) AddUpstream(id string) (*Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return UpstreamFromJSON(response)
+	return backend.UpstreamFromJSON(response)
 }
 
 func (c *Client) DeleteUpstream(id string) (*StatusResponse, error) {
 	return c.Delete(c.endpoint("upstreams", id))
 }
 
-func (c *Client) GetUpstream(id string) (*Upstream, error) {
+func (c *Client) GetUpstream(id string) (*backend.Upstream, error) {
 	response, err := c.Get(c.endpoint("upstreams", id), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	return UpstreamFromJSON(response)
+	return backend.UpstreamFromJSON(response)
 }
 
-func (c *Client) DrainUpstreamConnections(upstreamId, timeout string) (int, error) {
-	data, err := c.Get(c.endpoint("upstreams", upstreamId, "drain"), url.Values{"timeout": {timeout}})
-	if err != nil {
-		return -1, err
-	}
-	var connections *ConnectionsResponse
-	if err := json.Unmarshal(data, &connections); err != nil {
-		return -1, err
-	}
-	return connections.Connections, nil
-}
-
-func (c *Client) GetUpstreams() ([]*Upstream, error) {
+func (c *Client) GetUpstreams() ([]*backend.Upstream, error) {
 	data, err := c.Get(c.endpoint("upstreams"), url.Values{})
 	if err != nil {
 		return nil, err
@@ -168,8 +176,8 @@ func (c *Client) GetUpstreams() ([]*Upstream, error) {
 	return upstreams.Upstreams, nil
 }
 
-func (c *Client) AddEndpoint(upstreamId, id, u string) (*Endpoint, error) {
-	e, err := NewEndpoint(upstreamId, id, u)
+func (c *Client) AddEndpoint(upstreamId, id, u string) (*backend.Endpoint, error) {
+	e, err := backend.NewEndpoint(upstreamId, id, u)
 	if err != nil {
 		return nil, err
 	}
@@ -177,32 +185,32 @@ func (c *Client) AddEndpoint(upstreamId, id, u string) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EndpointFromJSON(data)
+	return backend.EndpointFromJSON(data)
 }
 
 func (c *Client) DeleteEndpoint(upstreamId, id string) (*StatusResponse, error) {
 	return c.Delete(c.endpoint("upstreams", upstreamId, "endpoints", id))
 }
 
-func (c *Client) AddMiddleware(spec *MiddlewareSpec, hostname, locationId string, m *MiddlewareInstance) (*MiddlewareInstance, error) {
+func (c *Client) AddMiddleware(spec *plugin.MiddlewareSpec, hostname, locationId string, m *backend.MiddlewareInstance) (*backend.MiddlewareInstance, error) {
 	data, err := c.Post(
 		c.endpoint("hosts", hostname, "locations", locationId, "middlewares", spec.Type), m)
 	if err != nil {
 		return nil, err
 	}
-	return MiddlewareFromJSON(data, c.Registry.GetSpec)
+	return backend.MiddlewareFromJSON(data, c.Registry.GetSpec)
 }
 
-func (c *Client) UpdateMiddleware(spec *MiddlewareSpec, hostname, locationId string, m *MiddlewareInstance) (*MiddlewareInstance, error) {
+func (c *Client) UpdateMiddleware(spec *plugin.MiddlewareSpec, hostname, locationId string, m *backend.MiddlewareInstance) (*backend.MiddlewareInstance, error) {
 	data, err := c.Put(
 		c.endpoint("hosts", hostname, "locations", locationId, "middlewares", spec.Type, m.Id), m)
 	if err != nil {
 		return nil, err
 	}
-	return MiddlewareFromJSON(data, c.Registry.GetSpec)
+	return backend.MiddlewareFromJSON(data, c.Registry.GetSpec)
 }
 
-func (c *Client) DeleteMiddleware(spec *MiddlewareSpec, hostname, locationId, mId string) (*StatusResponse, error) {
+func (c *Client) DeleteMiddleware(spec *plugin.MiddlewareSpec, hostname, locationId, mId string) (*StatusResponse, error) {
 	return c.Delete(c.endpoint("hosts", hostname, "locations", locationId, "middlewares", spec.Type, mId))
 }
 
@@ -294,10 +302,10 @@ func (c *Client) RoundTrip(fn RoundTripFn) ([]byte, error) {
 			return nil, fmt.Errorf("failed to decode response '%s', error: %", responseBody, err)
 		}
 		if response.StatusCode == http.StatusNotFound {
-			return nil, &NotFoundError{Message: status.Message}
+			return nil, &backend.NotFoundError{Message: status.Message}
 		}
 		if response.StatusCode == http.StatusConflict {
-			return nil, &AlreadyExistsError{Message: status.Message}
+			return nil, &backend.AlreadyExistsError{Message: status.Message}
 		}
 		return nil, status
 	}
@@ -309,15 +317,15 @@ func (c *Client) endpoint(params ...string) string {
 }
 
 type HostsResponse struct {
-	Hosts []*Host
+	Hosts []*backend.Host
 }
 
 type UpstreamsResponse struct {
-	Upstreams []*Upstream
+	Upstreams []*backend.Upstream
 }
 
 type UpstreamResponse struct {
-	Upstream *Upstream
+	Upstream *backend.Upstream
 }
 
 type StatusResponse struct {
@@ -330,4 +338,8 @@ func (e *StatusResponse) Error() string {
 
 type ConnectionsResponse struct {
 	Connections int
+}
+
+type SeverityResponse struct {
+	Severity string
 }

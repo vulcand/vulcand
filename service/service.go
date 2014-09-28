@@ -51,6 +51,7 @@ type Service struct {
 	supervisor    *supervisor.Supervisor
 	metricsClient metrics.Client
 	apiServer     *manners.GracefulServer
+	backend       backend.Backend
 }
 
 func NewService(options Options, registry *plugin.Registry) *Service {
@@ -65,6 +66,8 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 
 func (s *Service) Start() error {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: s.options.Log}})
+
+	log.SetSeverity(s.options.LogSeverity.s)
 
 	if s.options.PidPath != "" {
 		ioutil.WriteFile(s.options.PidPath, []byte(fmt.Sprint(os.Getpid())), 0644)
@@ -83,8 +86,12 @@ func (s *Service) Start() error {
 		return err
 	}
 
+	if err := s.newBackend(); err != nil {
+		return err
+	}
+
 	s.supervisor = supervisor.NewSupervisorWithOptions(
-		s.newServer, s.newBackend, s.errorC, supervisor.Options{Files: muxFiles})
+		s.newServer, s.backend, s.errorC, supervisor.Options{Files: muxFiles})
 
 	// Tells configurator to perform initial proxy configuration and start watching changes
 	if err := s.supervisor.Start(); err != nil {
@@ -244,17 +251,22 @@ func (s *Service) newBox() (*secret.Box, error) {
 	return secret.NewBox(key)
 }
 
-func (s *Service) newBackend() (backend.Backend, error) {
+func (s *Service) newBackend() error {
 	box, err := s.newBox()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return etcdbackend.NewEtcdBackendWithOptions(
+	b, err := etcdbackend.NewEtcdBackendWithOptions(
 		s.registry, s.options.EtcdNodes, s.options.EtcdKey,
 		etcdbackend.Options{
 			EtcdConsistency: s.options.EtcdConsistency,
 			Box:             box,
 		})
+	if err != nil {
+		return err
+	}
+	s.backend = b
+	return err
 }
 
 func (s *Service) reportSystemMetrics() {
@@ -291,11 +303,7 @@ func (s *Service) newServer(id int) (server.Server, error) {
 
 func (s *Service) initApi() error {
 	s.apiApp = scroll.NewApp()
-	b, err := s.newBackend()
-	if err != nil {
-		return err
-	}
-	api.InitProxyController(b, s.supervisor, s.apiApp)
+	api.InitProxyController(s.backend, s.supervisor, s.apiApp)
 	return nil
 }
 
