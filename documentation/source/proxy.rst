@@ -259,8 +259,8 @@ This command will read the cert and key and update the certificate
 
  $ vulcanctl host set_keypair -host <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
-Status
-~~~~~~
+Status & Top
+~~~~~~~~~~~~~
 
 Displays the realtime stats about this Vulcand instance.
 
@@ -268,15 +268,36 @@ Displays the realtime stats about this Vulcand instance.
 
  $ vulcanctl status
 
- [locations]
-   │
-   └loc[loc1, localhost, 22.8 requests/sec, 100.00% failures]
+  Id       Hostname      Path                        Reqs/sec     Failures % 
+  loc1     localhost     TrieRoute("GET", "/")       0.0          0.00
+  loc2     localhost     TrieRoute("GET", "/v1")     0.0          0.00
+  loc3     localhost     TrieRoute("GET", "/v2")     0.0          0.00
+  loc4     localhost     TrieRoute("GET", "/v3")     0.0          0.00
 
-When added ``-w=1`` flag, ``status`` will act like a ``top`` command, displaying top active locations every second.
+
+``vulcanctl top`` acts like a standard linux ``top`` command, refreshing top active locations every second.
 
 .. code-block:: sh
  
- $ vulcanctl status -w 1
+ $ vulcanctl top
+
+
+Log
+~~~
+
+Change the real time logging output by using ``set_severity`` command:
+
+.. code-block:: sh
+
+  vulcanctl log set_severity -s=INFO
+  OK: Severity has been updated to INFO
+
+You can check the current logging seveirty by using ``get_severity`` command:
+
+.. code-block:: sh
+
+  vulcanctl log get_severity
+  OK: severity: INFO
 
 
 Host
@@ -417,8 +438,12 @@ Control simultaneous connections for a location.
  $ vulcanctl connlimit rm --id c1  --host example.com --loc 'loc1'
 
 
-Startup
--------
+Process management
+------------------
+
+
+Startup and configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Usage of vulcand
 
@@ -433,20 +458,83 @@ Usage of vulcand
   -etcdKey="vulcand"             # etceKey - etcd key for reading configuration
 
   -log="console"                 # log - syslog or console
+  -logSeverity="WARN"            # log severity, INFO, WARN or ERROR
   -pidPath=""                    # path to write PID
   
   
   -sealKey=""                    # sealKey is used to store encrypted data in the backend,
                                  # use 'vulcanctl secret new_key' to create a new key.
 
-  -statsdAddr=localhost:8185     # statsdAddr - address where Vulcand will emit statsd metrics
-  -statsdPrefix=vulcand          # statsdPrefix is a prefix prepended to every metric
+  -statsdAddr="localhost:8185"   # statsdAddr - address where Vulcand will emit statsd metrics
+  -statsdPrefix="vulcand"        # statsdPrefix is a prefix prepended to every metric
 
   -serverMaxHeaderBytes=1048576  # Maximum size of request headers in server
 
 
+Binary upgrades
+~~~~~~~~~~~~~~~
+
+In case if you need to upgrade the binary on the fly, you can now use signals to reload the binary without downtime.
+
+Here's how it works:
+
+* Replace the binary with a new version
+* Send ``USR2`` signal to a running vulcand instance 
+
+.. code-block:: sh
+
+  kill -USR2 $(pidof vulcand)
+
+* Check that there are two instances running:
+
+.. code-block:: sh
+
+  4938 pts/12   Sl+    0:04 vulcand
+  10459 pts/12   Sl+    0:01 vulcand
+
+Parent vulcand process forks the child process and passes all listening sockets file descriptors to the child. 
+Child process is now serving the requests along with parent process.
+
+* Check the logs for errors
+
+* If everything works smoothly, send ``SIGTERM`` to the parent process, so it will gracefully shut down:
+
+.. code-block:: sh
+
+  kill 4938
+
+* On the other hand, if something went wrong, send ``SIGTERM`` to the child process and recover the old binary back.
+
+.. code-block:: sh
+
+  kill 10459
+
+You can repeat this process multiple times.
+
+
+Log control
+~~~~~~~~~~~
+
+You can controll logging verbosity by supplying `logSeverity` with the supported values ``INFO``, ``WARN`` and ``ERROR``, default value is ``WARN``.
+
+If you need to change the logging for a running process (e.g. to debug some issue), you can do that by using ``set_severity`` command:
+
+.. code-block:: sh
+
+  vulcanctl log set_severity -s=INFO
+  OK: Severity has been updated to INFO
+
+You can check the current logging seveirty by using ``get_severity`` command:
+
+.. code-block:: sh
+
+  vulcanctl log get_severity
+  OK: severity: INFO
+
+
+
 Metrics
--------
+~~~~~~~
 
 Vulcand can emit metrics to statsd via UDP. To turn this feature on, supply ``statsdAddr`` and ``statsdPrefix`` parameters to vulcand executable.
 
