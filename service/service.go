@@ -109,7 +109,7 @@ func (s *Service) Start() error {
 	if s.metricsClient != nil {
 		go s.reportSystemMetrics()
 	}
-	signal.Notify(s.sigC, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGUSR2)
+	signal.Notify(s.sigC, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGUSR2, syscall.SIGCHLD)
 
 	// Block until a signal is received or we got an error
 	for {
@@ -132,6 +132,11 @@ func (s *Service) Start() error {
 				} else {
 					log.Infof("Successfully started self")
 				}
+			case syscall.SIGCHLD:
+				log.Warningf("Child exited, got '%s', collecting status", signal)
+				var wait syscall.WaitStatus
+				syscall.Wait4(-1, &wait, syscall.WNOHANG, nil)
+				log.Warningf("Collected exit status from child")
 			default:
 				log.Infof("Ignoring '%s'", signal)
 			}
