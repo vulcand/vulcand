@@ -145,8 +145,6 @@ func (s *Service) Start() error {
 			return err
 		}
 	}
-
-	return nil
 }
 
 func (s *Service) getFiles() (*server.FileDescriptor, []*server.FileDescriptor, error) {
@@ -175,7 +173,7 @@ func (s *Service) splitFiles(files []*server.FileDescriptor) (*server.FileDescri
 			return files[i], append(files[:i], files[i+1:]...), nil
 		}
 	}
-	return nil, nil, fmt.Errorf("API address %s not found in %s", files)
+	return nil, nil, fmt.Errorf("API address %s not found in %s", apiAddr, files)
 }
 
 func (s *Service) startChild() error {

@@ -299,7 +299,7 @@ func (c *Client) RoundTrip(fn RoundTripFn) ([]byte, error) {
 	if response.StatusCode != http.StatusOK {
 		var status *StatusResponse
 		if err := json.Unmarshal(responseBody, &status); err != nil {
-			return nil, fmt.Errorf("failed to decode response '%s', error: %", responseBody, err)
+			return nil, fmt.Errorf("failed to decode response '%s', error: %v", responseBody, err)
 		}
 		if response.StatusCode == http.StatusNotFound {
 			return nil, &backend.NotFoundError{Message: status.Message}

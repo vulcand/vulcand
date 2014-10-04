@@ -431,7 +431,7 @@ func (s *EtcdBackend) DeleteUpstream(upstreamId string) error {
 		return err
 	}
 	if len(locations) != 0 {
-		return fmt.Errorf("can not delete upstream '%s', it is in use by %s", locations)
+		return fmt.Errorf("can not delete upstream '%s', it is in use by %s", upstreamId, locations)
 	}
 	_, err = s.client.Delete(s.path("upstreams", upstreamId), true)
 	return convertErr(err)
@@ -567,7 +567,6 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, cancelC chan bool) 
 			}
 		}
 	}
-	return nil
 }
 
 type MatcherFn func(*etcd.Response) (interface{}, error)
@@ -793,7 +792,7 @@ func (s *EtcdBackend) parseUpstreamChange(r *etcd.Response) (interface{}, error)
 			UpstreamId: upstreamId,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported node action: %s", r)
+	return nil, fmt.Errorf("unsupported node action: %s", r.Action)
 }
 
 func (s *EtcdBackend) parseUpstreamEndpointChange(r *etcd.Response) (interface{}, error) {
