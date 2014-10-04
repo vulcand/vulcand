@@ -172,7 +172,7 @@ but the file descriptor that was given corresponded to a listener of type %T. Mo
 			return err
 		}
 		listener = manners.NewTLSListener(
-			manners.TCPKeepAliveListener(tcpListener), config)
+			manners.TCPKeepAliveListener{tcpListener}, config)
 	}
 
 	s.srv = manners.NewWithOptions(
