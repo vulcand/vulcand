@@ -109,7 +109,7 @@ func (srv *server) isTLS() bool {
 func (s *server) updateHostKeyPair(hostname string, keyPair *backend.KeyPair) error {
 	old, exists := s.keyPairs[hostname]
 	if !exists {
-		return fmt.Errorf("host %s keyPairificate not found")
+		return fmt.Errorf("host %s keyPairificate not found", hostname)
 	}
 	if old.Equals(keyPair) {
 		return nil

@@ -3,9 +3,10 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"reflect"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends
@@ -67,7 +68,7 @@ func (r *Registry) AddSpec(s *MiddlewareSpec) error {
 		return fmt.Errorf("spec can not be nil")
 	}
 	if r.GetSpec(s.Type) != nil {
-		return fmt.Errorf("middleware of type %s already registered")
+		return fmt.Errorf("middleware of type %s already registered", s.Type)
 	}
 	if err := verifySignature(s.FromOther); err != nil {
 		return err
@@ -101,7 +102,7 @@ func verifySignature(fn interface{}) error {
 		return fmt.Errorf("function argument should be struct, got %s", t.In(0).Kind())
 	}
 	if t.NumOut() != 2 {
-		return fmt.Errorf("function should return 2 values, got %s", t.NumOut())
+		return fmt.Errorf("function should return 2 values, got %d", t.NumOut())
 	}
 	if !t.Out(0).AssignableTo(reflect.TypeOf((*Middleware)(nil)).Elem()) {
 		return fmt.Errorf("function first return value should be Middleware got, %s", t.Out(0))

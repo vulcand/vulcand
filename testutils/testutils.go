@@ -12,7 +12,7 @@ func MakeLocation(hostname, listenerAddress, endpointURL string) (*backend.Locat
 	host := &backend.Host{
 		Name: hostname,
 		Listeners: []*backend.Listener{
-			&backend.Listener{Protocol: backend.HTTP, Address: backend.Address{"tcp", listenerAddress}}},
+			&backend.Listener{Protocol: backend.HTTP, Address: backend.Address{Network: "tcp", Address: listenerAddress}}},
 	}
 
 	upstream := &backend.Upstream{

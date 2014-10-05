@@ -344,7 +344,7 @@ type Endpoint struct {
 
 func NewEndpoint(upstreamId, id, url string) (*Endpoint, error) {
 	if upstreamId == "" {
-		return nil, fmt.Errorf("upstream id '%s' can not be empty")
+		return nil, fmt.Errorf("upstream id can not be empty")
 	}
 	if _, err := netutils.ParseUrl(url); err != nil {
 		return nil, fmt.Errorf("endpoint url '%s' is not valid", url)
