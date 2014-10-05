@@ -603,7 +603,8 @@ func (s *EtcdBackend) parseHostChange(r *etcd.Response) (interface{}, error) {
 
 	hostname := out[1]
 
-	if oneOf(r, createA, setA) {
+	switch r.Action {
+	case createA, setA:
 		host, err := s.readHost(hostname, false)
 		if err != nil {
 			return nil, err
@@ -611,7 +612,7 @@ func (s *EtcdBackend) parseHostChange(r *etcd.Response) (interface{}, error) {
 		return &backend.HostAdded{
 			Host: host,
 		}, nil
-	} else if oneOf(r, deleteA, expireA) {
+	case deleteA, expireA:
 		return &backend.HostDeleted{
 			Name: hostname,
 		}, nil
@@ -625,7 +626,9 @@ func (s *EtcdBackend) parseHostKeyPairChange(r *etcd.Response) (interface{}, err
 		return nil, nil
 	}
 
-	if !oneOf(r, createA, setA, deleteA, expireA) {
+	switch r.Action {
+	case createA, setA, deleteA, expireA: // supported
+	default:
 		return nil, fmt.Errorf("unsupported action on the certificate: %s", r.Action)
 	}
 	hostname := out[1]
@@ -648,7 +651,8 @@ func (s *EtcdBackend) parseLocationChange(r *etcd.Response) (interface{}, error)
 	if err != nil {
 		return nil, err
 	}
-	if oneOf(r, createA, expireA) {
+	switch r.Action {
+	case createA:
 		location, err := s.GetLocation(hostname, locationId)
 		if err != nil {
 			return nil, err
@@ -657,7 +661,7 @@ func (s *EtcdBackend) parseLocationChange(r *etcd.Response) (interface{}, error)
 			Host:     host,
 			Location: location,
 		}, nil
-	} else if oneOf(r, deleteA, expireA) {
+	case deleteA, expireA:
 		return &backend.LocationDeleted{
 			Host:       host,
 			LocationId: locationId,
@@ -672,7 +676,9 @@ func (s *EtcdBackend) parseLocationUpstreamChange(r *etcd.Response) (interface{}
 		return nil, nil
 	}
 
-	if !oneOf(r, createA, setA) {
+	switch r.Action {
+	case createA, setA: // supported
+	default:
 		return nil, fmt.Errorf("unsupported action on the location upstream: %s", r.Action)
 	}
 
@@ -697,7 +703,9 @@ func (s *EtcdBackend) parseLocationOptionsChange(r *etcd.Response) (interface{},
 		return nil, nil
 	}
 
-	if !oneOf(r, createA, setA) {
+	switch r.Action {
+	case createA, setA: // supported
+	default:
 		return nil, fmt.Errorf("unsupported action on the location options: %s", r.Action)
 	}
 
@@ -722,7 +730,9 @@ func (s *EtcdBackend) parseLocationPathChange(r *etcd.Response) (interface{}, er
 		return nil, nil
 	}
 
-	if !oneOf(r, createA, setA) {
+	switch r.Action {
+	case createA, setA: // supported
+	default:
 		return nil, fmt.Errorf("unsupported action on the location path: %s", r.Action)
 	}
 
@@ -754,7 +764,8 @@ func (s *EtcdBackend) parseHostListenerChange(r *etcd.Response) (interface{}, er
 	if err != nil {
 		return nil, err
 	}
-	if oneOf(r, createA, setA) {
+	switch r.Action {
+	case createA, setA:
 		for _, l := range host.Listeners {
 			if l.Id == listenerId {
 				return &backend.HostListenerAdded{
@@ -764,7 +775,7 @@ func (s *EtcdBackend) parseHostListenerChange(r *etcd.Response) (interface{}, er
 			}
 		}
 		return nil, fmt.Errorf("listener %s not found", listenerId)
-	} else if oneOf(r, deleteA, expireA) {
+	case deleteA, expireA:
 		return &backend.HostListenerDeleted{
 			Host:       host,
 			ListenerId: listenerId,
@@ -779,7 +790,8 @@ func (s *EtcdBackend) parseUpstreamChange(r *etcd.Response) (interface{}, error)
 		return nil, nil
 	}
 	upstreamId := out[1]
-	if oneOf(r, createA, expireA) {
+	switch r.Action {
+	case createA:
 		upstream, err := s.GetUpstream(upstreamId)
 		if err != nil {
 			return nil, err
@@ -787,7 +799,7 @@ func (s *EtcdBackend) parseUpstreamChange(r *etcd.Response) (interface{}, error)
 		return &backend.UpstreamAdded{
 			Upstream: upstream,
 		}, nil
-	} else if oneOf(r, deleteA, expireA) {
+	case deleteA, expireA:
 		return &backend.UpstreamDeleted{
 			UpstreamId: upstreamId,
 		}, nil
@@ -811,7 +823,8 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(r *etcd.Response) (interface{}
 		return nil, err
 	}
 
-	if oneOf(r, setA, createA) {
+	switch r.Action {
+	case setA, createA:
 		for _, e := range upstream.Endpoints {
 			if e.Id == endpointId {
 				return &backend.EndpointUpdated{
@@ -822,7 +835,7 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(r *etcd.Response) (interface{}
 			}
 		}
 		return nil, fmt.Errorf("endpoint %s not found", endpointId)
-	} else if oneOf(r, deleteA, expireA) {
+	case deleteA, expireA:
 		return &backend.EndpointDeleted{
 			Upstream:          upstream,
 			EndpointId:        endpointId,
@@ -852,7 +865,8 @@ func (s *EtcdBackend) parseMiddlewareChange(r *etcd.Response) (interface{}, erro
 	if err != nil {
 		return nil, err
 	}
-	if r.Action == createA {
+	switch r.Action {
+	case createA:
 		m, err := s.GetLocationMiddleware(hostname, locationId, mType, mId)
 		if err != nil {
 			return nil, err
@@ -862,7 +876,7 @@ func (s *EtcdBackend) parseMiddlewareChange(r *etcd.Response) (interface{}, erro
 			Location:   location,
 			Middleware: m,
 		}, nil
-	} else if r.Action == setA {
+	case setA:
 		m, err := s.GetLocationMiddleware(hostname, locationId, mType, mId)
 		if err != nil {
 			return nil, err
@@ -872,7 +886,7 @@ func (s *EtcdBackend) parseMiddlewareChange(r *etcd.Response) (interface{}, erro
 			Location:   location,
 			Middleware: m,
 		}, nil
-	} else if oneOf(r, deleteA, expireA) {
+	case deleteA, expireA:
 		return &backend.LocationMiddlewareDeleted{
 			Host:           host,
 			Location:       location,
@@ -1137,12 +1151,3 @@ const (
 	deleteA = "delete"
 	expireA = "expire"
 )
-
-func oneOf(r *etcd.Response, actions ...string) bool {
-	for _, a := range actions {
-		if r.Action == a {
-			return true
-		}
-	}
-	return false
-}
