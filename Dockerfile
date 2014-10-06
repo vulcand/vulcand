@@ -7,7 +7,7 @@ RUN curl -s https://storage.googleapis.com/golang/go1.3.1.src.tar.gz | tar -v -C
 RUN cd /usr/local/go/src && ./make.bash --no-clean 2>&1
 
 # Set up environment variables.
-ENV PATH /usr/local/go/bin:$PATH
+ENV PATH /opt/vulcan:/usr/local/go/bin:$PATH
 ENV GOROOT /usr/local/go
 ENV GOPATH /home/goworld
 ENV VULCANPATH /home/goworld/src/github.com/mailgun/vulcand
