@@ -31,6 +31,7 @@ func newLazyClient(c *etcd.Client, b *secret.Box) (*lazyClient, error) {
 
 // getNode will retreive the value from the backend and cache it for subsequent reads.
 func (c *lazyClient) getNode(key string) (*etcd.Node, error) {
+
 	for k, n := range c.nodes {
 		if strings.HasPrefix(key, k) {
 			return c.findNode(key, n)
@@ -49,6 +50,11 @@ func (c *lazyClient) findNode(key string, node *etcd.Node) (*etcd.Node, error) {
 	if node == nil {
 		return nil, &backend.NotFoundError{Message: fmt.Sprintf("key '%s' not found", key)}
 	}
+
+	if !strings.HasPrefix(key, "/") {
+		key = "/" + key
+	}
+
 	if key == node.Key {
 		return node, nil
 	}
