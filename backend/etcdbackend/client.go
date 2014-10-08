@@ -49,6 +49,11 @@ func (c *lazyClient) findNode(key string, node *etcd.Node) (*etcd.Node, error) {
 	if node == nil {
 		return nil, &backend.NotFoundError{Message: fmt.Sprintf("key '%s' not found", key)}
 	}
+
+	if !strings.HasPrefix(key, "/") {
+		key = "/" + key
+	}
+
 	if key == node.Key {
 		return node, nil
 	}
