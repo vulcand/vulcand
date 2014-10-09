@@ -77,7 +77,7 @@ func (s *EtcdBackend) GetRegistry() *plugin.Registry {
 }
 
 func (s *EtcdBackend) GetHosts() ([]*backend.Host, error) {
-	return s.readHosts(nil, true)
+	return s.readHosts(true)
 }
 
 func (s *EtcdBackend) UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) (*backend.Host, error) {
@@ -151,7 +151,7 @@ func (s *EtcdBackend) DeleteHostListener(hostname string, listenerId string) err
 }
 
 func (s *EtcdBackend) GetHost(hostname string) (*backend.Host, error) {
-	return s.readHost(nil, hostname, true)
+	return s.readHost(hostname, true)
 }
 
 func (s *EtcdBackend) setHostKeyPair(hostname string, keyPair *backend.KeyPair) error {
@@ -162,12 +162,11 @@ func (s *EtcdBackend) setHostKeyPair(hostname string, keyPair *backend.KeyPair) 
 	return s.setSealedVal(s.path("hosts", hostname, "keypair"), bytes)
 }
 
-func (s *EtcdBackend) readHostKeyPair(c *lazyClient, hostname string) (*backend.KeyPair, error) {
-	keyPairKey := s.path("hosts", hostname, "keypair")
-	if err := s.initClient(keyPairKey, &c); err != nil {
-		return nil, err
+func (s *EtcdBackend) readHostKeyPair(hostname string) (*backend.KeyPair, error) {
+	if s.options.Box == nil {
+		return nil, nil
 	}
-	bytes, err := c.getSealedVal(keyPairKey)
+	bytes, err := s.getSealedVal(s.path("hosts", hostname, "keypair"))
 	if err != nil {
 		return nil, err
 	}
@@ -178,36 +177,15 @@ func (s *EtcdBackend) readHostKeyPair(c *lazyClient, hostname string) (*backend.
 	return keyPair, nil
 }
 
-func (s *EtcdBackend) initClient(key string, c **lazyClient) error {
-	if *c == nil {
-		client, err := newLazyClient(s.client, s.options.Box)
-		if err != nil {
-			return err
-		}
-		*c = client
-	}
-
-	// Retrieve the value by key to cache it.
-	if _, err := c.getNode(key); !isNotFoundError(err) {
-		return err
-	}
-	return nil
-}
-
-func (s *EtcdBackend) readHost(c *lazyClient, hostname string, deep bool) (*backend.Host, error) {
+func (s *EtcdBackend) readHost(hostname string, deep bool) (*backend.Host, error) {
 
 	hostKey := s.path("hosts", hostname)
-
-	if err := s.initClient(hostKey, &c); err != nil {
-		return nil, err
-	}
-
-	if err := c.checkKeyExists(hostKey); err != nil {
+	if err := s.checkKeyExists(hostKey); err != nil {
 		return nil, err
 	}
 
 	var options *backend.HostOptions
-	err := c.getJSONVal(join(hostKey, "options"), &options)
+	err := s.getJSONVal(join(hostKey, "options"), &options)
 	if err != nil {
 		if isNotFoundError(err) {
 			options = &backend.HostOptions{}
@@ -216,8 +194,9 @@ func (s *EtcdBackend) readHost(c *lazyClient, hostname string, deep bool) (*back
 		}
 	}
 
-	keyPair, err := s.readHostKeyPair(c, hostname)
+	keyPair, err := s.readHostKeyPair(hostname)
 	if err != nil && !isNotFoundError(err) {
+
 		return nil, err
 	}
 
@@ -229,7 +208,7 @@ func (s *EtcdBackend) readHost(c *lazyClient, hostname string, deep bool) (*back
 		Options:   *options,
 	}
 
-	listeners, err := c.getVals(join(hostKey, "listeners"))
+	listeners, err := s.getVals(hostKey, "listeners")
 	if err != nil {
 		return nil, err
 	}
@@ -242,15 +221,16 @@ func (s *EtcdBackend) readHost(c *lazyClient, hostname string, deep bool) (*back
 		l.Id = suffix(p.Key)
 		host.Listeners = append(host.Listeners, l)
 	}
+
 	if !deep {
 		return host, nil
 	}
-	locations, err := c.getDirs(join(hostKey, "locations"))
+	locations, err := s.getDirs(hostKey, "locations")
 	if err != nil {
 		return nil, err
 	}
 	for _, key := range locations {
-		location, err := s.readLocation(c, hostname, suffix(key))
+		location, err := s.GetLocation(hostname, suffix(key))
 		if err != nil {
 			return nil, err
 		}
@@ -269,7 +249,7 @@ func (s *EtcdBackend) AddLocation(l *backend.Location) (*backend.Location, error
 	}
 
 	// Check if the host of the location exists
-	if _, err := s.readHost(nil, l.Hostname, false); err != nil {
+	if _, err := s.readHost(l.Hostname, false); err != nil {
 		return nil, err
 	}
 
@@ -298,37 +278,29 @@ func (s *EtcdBackend) AddLocation(l *backend.Location) (*backend.Location, error
 	return l, nil
 }
 
-func (s *EtcdBackend) expectLocation(hostname, locationId string) error {
+func (s *EtcdBackend) ExpectLocation(hostname, locationId string) error {
 	return s.checkKeyExists(s.path("hosts", hostname, "locations", locationId))
 }
 
 func (s *EtcdBackend) GetLocation(hostname, locationId string) (*backend.Location, error) {
-	return s.readLocation(nil, hostname, locationId)
-}
-
-func (s *EtcdBackend) readLocation(c *lazyClient, hostname, locationId string) (*backend.Location, error) {
 	locationKey := s.path("hosts", hostname, "locations", locationId)
 
-	if err := s.initClient(locationKey, &c); err != nil {
+	if err := s.checkKeyExists(locationKey); err != nil {
 		return nil, err
 	}
 
-	if err := c.checkKeyExists(locationKey); err != nil {
-		return nil, err
-	}
-
-	path, err := c.getVal(join(locationKey, "path"))
+	path, err := s.getVal(join(locationKey, "path"))
 	if err != nil {
 		return nil, err
 	}
 
-	upstreamKey, err := c.getVal(join(locationKey, "upstream"))
+	upstreamKey, err := s.getVal(join(locationKey, "upstream"))
 	if err != nil {
 		return nil, err
 	}
 
 	var options *backend.LocationOptions
-	err = c.getJSONVal(join(locationKey, "options"), &options)
+	err = s.getJSONVal(join(locationKey, "options"), &options)
 	if err != nil {
 		if isNotFoundError(err) {
 			options = &backend.LocationOptions{}
@@ -344,17 +316,17 @@ func (s *EtcdBackend) readLocation(c *lazyClient, hostname, locationId string) (
 		Middlewares: []*backend.MiddlewareInstance{},
 		Options:     *options,
 	}
-	upstream, err := s.readUpstream(c, upstreamKey)
+	upstream, err := s.GetUpstream(upstreamKey)
 	if err != nil {
 		return nil, err
 	}
 	for _, spec := range s.registry.GetSpecs() {
-		values, err := c.getVals(join(locationKey, "middlewares", spec.Type))
+		values, err := s.getVals(locationKey, "middlewares", spec.Type)
 		if err != nil {
 			return nil, err
 		}
 		for _, cl := range values {
-			m, err := s.readLocationMiddleware(c, hostname, locationId, spec.Type, suffix(cl.Key))
+			m, err := s.GetLocationMiddleware(hostname, locationId, spec.Type, suffix(cl.Key))
 			if err != nil {
 				log.Errorf("failed to read middleware %s(%s), error: %s", spec.Type, cl.Key, err)
 			} else {
@@ -407,17 +379,9 @@ func (s *EtcdBackend) AddUpstream(u *backend.Upstream) (*backend.Upstream, error
 }
 
 func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) {
-	return s.readUpstream(nil, upstreamId)
-}
-
-func (s *EtcdBackend) readUpstream(c *lazyClient, upstreamId string) (*backend.Upstream, error) {
 	upstreamKey := s.path("upstreams", upstreamId)
 
-	if err := s.initClient(s.path("upstreams"), &c); err != nil {
-		return nil, err
-	}
-
-	if err := c.checkKeyExists(upstreamKey); err != nil {
+	if err := s.checkKeyExists(upstreamKey); err != nil {
 		return nil, err
 	}
 
@@ -426,7 +390,7 @@ func (s *EtcdBackend) readUpstream(c *lazyClient, upstreamId string) (*backend.U
 		Endpoints: []*backend.Endpoint{},
 	}
 
-	endpointPairs, err := c.getVals(join(upstreamKey, "endpoints"))
+	endpointPairs, err := s.getVals(join(upstreamKey, "endpoints"))
 	if err != nil {
 		return nil, err
 	}
@@ -446,18 +410,13 @@ func (s *EtcdBackend) readUpstream(c *lazyClient, upstreamId string) (*backend.U
 }
 
 func (s *EtcdBackend) GetUpstreams() ([]*backend.Upstream, error) {
-	upstreamsKey := join(s.etcdKey, "upstreams")
-	var c *lazyClient
-	if err := s.initClient(upstreamsKey, &c); err != nil {
-		return nil, err
-	}
 	upstreams := []*backend.Upstream{}
-	ups, err := c.getDirs(upstreamsKey)
+	ups, err := s.getDirs(s.etcdKey, "upstreams")
 	if err != nil {
 		return nil, err
 	}
 	for _, upstreamKey := range ups {
-		upstream, err := s.readUpstream(c, suffix(upstreamKey))
+		upstream, err := s.GetUpstream(suffix(upstreamKey))
 		if err != nil {
 			return nil, err
 		}
@@ -494,18 +453,11 @@ func (s *EtcdBackend) AddEndpoint(e *backend.Endpoint) (*backend.Endpoint, error
 }
 
 func (s *EtcdBackend) GetEndpoint(upstreamId, id string) (*backend.Endpoint, error) {
-	upstreamKey := s.path("upstreams", upstreamId)
-
-	var c *lazyClient
-	if err := s.initClient(upstreamKey, &c); err != nil {
+	if _, err := s.GetUpstream(upstreamId); err != nil {
 		return nil, err
 	}
 
-	if _, err := s.readUpstream(c, upstreamId); err != nil {
-		return nil, err
-	}
-
-	url, err := c.getVal(s.path("upstreams", upstreamId, "endpoints", id))
+	url, err := s.getVal(s.path("upstreams", upstreamId, "endpoints", id))
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +477,7 @@ func (s *EtcdBackend) DeleteEndpoint(upstreamId, id string) error {
 }
 
 func (s *EtcdBackend) AddLocationMiddleware(hostname, locationId string, m *backend.MiddlewareInstance) (*backend.MiddlewareInstance, error) {
-	if err := s.expectLocation(hostname, locationId); err != nil {
+	if err := s.ExpectLocation(hostname, locationId); err != nil {
 		return nil, err
 	}
 	if m.Id == "" {
@@ -543,19 +495,11 @@ func (s *EtcdBackend) AddLocationMiddleware(hostname, locationId string, m *back
 }
 
 func (s *EtcdBackend) GetLocationMiddleware(hostname, locationId, mType, id string) (*backend.MiddlewareInstance, error) {
-	return s.readLocationMiddleware(nil, hostname, locationId, mType, id)
-}
-
-func (s *EtcdBackend) readLocationMiddleware(c *lazyClient, hostname, locationId, mType, id string) (*backend.MiddlewareInstance, error) {
-	locationKey := s.path("hosts", hostname, "locations", locationId)
-	if err := s.initClient(locationKey, &c); err != nil {
-		return nil, err
-	}
-	if err := c.checkKeyExists(locationKey); err != nil {
+	if err := s.ExpectLocation(hostname, locationId); err != nil {
 		return nil, err
 	}
 	backendKey := s.path("hosts", hostname, "locations", locationId, "middlewares", mType, id)
-	bytes, err := c.getVal(backendKey)
+	bytes, err := s.getVal(backendKey)
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +519,7 @@ func (s *EtcdBackend) UpdateLocationMiddleware(hostname, locationId string, m *b
 	if spec == nil {
 		return nil, fmt.Errorf("middleware type %s is not registered", m.Type)
 	}
-	if err := s.expectLocation(hostname, locationId); err != nil {
+	if err := s.ExpectLocation(hostname, locationId); err != nil {
 		return nil, err
 	}
 	if err := s.setJSONVal(s.path("hosts", hostname, "locations", locationId, "middlewares", m.Type, m.Id), m); err != nil {
@@ -585,7 +529,7 @@ func (s *EtcdBackend) UpdateLocationMiddleware(hostname, locationId string, m *b
 }
 
 func (s *EtcdBackend) DeleteLocationMiddleware(hostname, locationId, mType, id string) error {
-	if err := s.expectLocation(hostname, locationId); err != nil {
+	if err := s.ExpectLocation(hostname, locationId); err != nil {
 		return err
 	}
 	return s.deleteKey(s.path("hosts", hostname, "locations", locationId, "middlewares", mType, id))
@@ -661,7 +605,7 @@ func (s *EtcdBackend) parseHostChange(r *etcd.Response) (interface{}, error) {
 
 	switch r.Action {
 	case createA, setA:
-		host, err := s.readHost(nil, hostname, false)
+		host, err := s.readHost(hostname, false)
 		if err != nil {
 			return nil, err
 		}
@@ -688,7 +632,7 @@ func (s *EtcdBackend) parseHostKeyPairChange(r *etcd.Response) (interface{}, err
 		return nil, fmt.Errorf("unsupported action on the certificate: %s", r.Action)
 	}
 	hostname := out[1]
-	host, err := s.readHost(nil, hostname, false)
+	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +647,7 @@ func (s *EtcdBackend) parseLocationChange(r *etcd.Response) (interface{}, error)
 		return nil, nil
 	}
 	hostname, locationId := out[1], out[2]
-	host, err := s.readHost(nil, hostname, false)
+	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
@@ -739,7 +683,7 @@ func (s *EtcdBackend) parseLocationUpstreamChange(r *etcd.Response) (interface{}
 	}
 
 	hostname, locationId := out[1], out[2]
-	host, err := s.readHost(nil, hostname, false)
+	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
@@ -766,7 +710,7 @@ func (s *EtcdBackend) parseLocationOptionsChange(r *etcd.Response) (interface{},
 	}
 
 	hostname, locationId := out[1], out[2]
-	host, err := s.readHost(nil, hostname, false)
+	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
@@ -793,7 +737,7 @@ func (s *EtcdBackend) parseLocationPathChange(r *etcd.Response) (interface{}, er
 	}
 
 	hostname, locationId := out[1], out[2]
-	host, err := s.readHost(nil, hostname, false)
+	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
@@ -816,7 +760,7 @@ func (s *EtcdBackend) parseHostListenerChange(r *etcd.Response) (interface{}, er
 	}
 	hostname, listenerId := out[1], out[2]
 
-	host, err := s.readHost(nil, hostname, false)
+	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
@@ -913,7 +857,7 @@ func (s *EtcdBackend) parseMiddlewareChange(r *etcd.Response) (interface{}, erro
 	if spec == nil {
 		return nil, fmt.Errorf("unregistered middleware type %s", mType)
 	}
-	host, err := s.readHost(nil, hostname, false)
+	host, err := s.readHost(hostname, false)
 	if err != nil {
 		return nil, err
 	}
@@ -953,18 +897,15 @@ func (s *EtcdBackend) parseMiddlewareChange(r *etcd.Response) (interface{}, erro
 	return nil, fmt.Errorf("unsupported action on the rate: %s", r.Action)
 }
 
-func (s *EtcdBackend) readHosts(c *lazyClient, deep bool) ([]*backend.Host, error) {
-	hostsKey := join(s.etcdKey, "hosts")
-	if err := s.initClient(hostsKey, &c); err != nil {
-		return nil, err
-	}
+func (s *EtcdBackend) readHosts(deep bool) ([]*backend.Host, error) {
 	hosts := []*backend.Host{}
-	vals, err := c.getDirs(hostsKey)
+	vals, err := s.getDirs(s.etcdKey, "hosts")
 	if err != nil {
+
 		return nil, err
 	}
 	for _, hostKey := range vals {
-		host, err := s.readHost(c, suffix(hostKey), deep)
+		host, err := s.readHost(suffix(hostKey), deep)
 		if err != nil {
 			return nil, err
 		}
@@ -975,7 +916,7 @@ func (s *EtcdBackend) readHosts(c *lazyClient, deep bool) ([]*backend.Host, erro
 
 func (s *EtcdBackend) upstreamUsedBy(upstreamId string) ([]*backend.Location, error) {
 	locations := []*backend.Location{}
-	hosts, err := s.readHosts(nil, true)
+	hosts, err := s.readHosts(true)
 	if err != nil {
 		return nil, err
 	}
@@ -1023,6 +964,85 @@ func (s *EtcdBackend) setVal(key string, val []byte) error {
 
 func (s *EtcdBackend) setStringVal(key string, val string) error {
 	return s.setVal(key, []byte(val))
+}
+
+func (s *EtcdBackend) getSealedVal(key string) ([]byte, error) {
+	if s.options.Box == nil {
+		return nil, fmt.Errorf("this backend does not support encryption")
+	}
+	bytes, err := s.getVal(key)
+	if err != nil {
+		return nil, err
+	}
+	sv, err := secret.SealedValueFromJSON([]byte(bytes))
+	if err != nil {
+		return nil, err
+	}
+	return s.options.Box.Open(sv)
+}
+
+func (s *EtcdBackend) getJSONVal(key string, in interface{}) error {
+	val, err := s.getVal(key)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(val), in)
+}
+
+func (s *EtcdBackend) getVal(key string) (string, error) {
+	response, err := s.client.Get(key, false, false)
+	if err != nil {
+		return "", convertErr(err)
+	}
+
+	if isDir(response.Node) {
+		return "", &backend.NotFoundError{Message: fmt.Sprintf("missing key: %s", key)}
+	}
+	return response.Node.Value, nil
+}
+
+func (s *EtcdBackend) getDirs(keys ...string) ([]string, error) {
+	var out []string
+	response, err := s.client.Get(strings.Join(keys, "/"), true, true)
+	if err != nil {
+		if notFound(err) {
+			return out, nil
+		}
+		return nil, err
+	}
+
+	if response == nil || !isDir(response.Node) {
+		return out, nil
+	}
+
+	for _, srvNode := range response.Node.Nodes {
+		if isDir(srvNode) {
+			out = append(out, srvNode.Key)
+		}
+	}
+	return out, nil
+}
+
+func (s *EtcdBackend) getVals(keys ...string) ([]Pair, error) {
+	var out []Pair
+	response, err := s.client.Get(strings.Join(keys, "/"), true, true)
+	if err != nil {
+		if notFound(err) {
+			return out, nil
+		}
+		return nil, err
+	}
+
+	if !isDir(response.Node) {
+		return out, nil
+	}
+
+	for _, srvNode := range response.Node.Nodes {
+		if !isDir(srvNode) {
+			out = append(out, Pair{srvNode.Key, srvNode.Value})
+		}
+	}
+	return out, nil
 }
 
 func (s *EtcdBackend) createDir(key string) error {
