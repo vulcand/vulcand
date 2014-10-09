@@ -25,6 +25,10 @@
 			"Rev": "af3f07dadc88b80c7b5a15f26033c6dd979f012f"
 		},
 		{
+			"ImportPath": "github.com/codahale/hdrhistogram",
+			"Rev": "e2235d826b63c4375dbdf45d5d9a8699a5b6970e"
+		},
+		{
 			"ImportPath": "github.com/codegangsta/cli",
 			"Comment": "1.2.0-22-g687db20",
 			"Rev": "687db20fc379d1686465a28e9959707cd1acc990"
@@ -73,8 +77,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-195-g291c114",
-			"Rev": "291c1147f12470a0ddc5809ba993cb4af7d10096"
+			"Comment": "v0.1-206-gcf238a7",
+			"Rev": "cf238a77dd2eac890a9559672cecc74d2454365a"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

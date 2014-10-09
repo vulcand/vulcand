@@ -2,11 +2,12 @@ package testutils
 
 import (
 	"crypto/tls"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 )
 
 type Opts struct {
@@ -19,7 +20,7 @@ type Opts struct {
 func MakeRequest(url string, opts Opts) (*http.Response, []byte, error) {
 	method := "GET"
 	if opts.Method != "" {
-		opts.Method = opts.Method
+		method = opts.Method
 	}
 	request, _ := http.NewRequest(method, url, strings.NewReader(opts.Body))
 	if opts.Headers != nil {

@@ -23,9 +23,10 @@ func NewStatusCommand(cmd *Command) cli.Command {
 func NewTopCommand(cmd *Command) cli.Command {
 	return cli.Command{
 		Name:  "top",
-		Usage: "Show vulcan status and configuration in top-style mdoe",
+		Usage: "Show vulcan status and configuration in top-style mode",
 		Flags: []cli.Flag{
-			cli.IntFlag{Name: "limit", Usage: "How many top locations to show", Value: 20},
+			cli.IntFlag{Name: "limit", Usage: "How many top entries to show", Value: 20},
+			cli.StringFlag{Name: "type", Usage: "Top type (location, upstream)", Value: "location"},
 		},
 		Action: cmd.topAction,
 	}
@@ -40,31 +41,29 @@ func (cmd *Command) statusAction(c *cli.Context) {
 }
 
 func (cmd *Command) overviewAction(watch int, limit int) {
-	// One time print and return
-	if watch == 0 {
-		out, err := cmd.client.GetHosts()
-		if err != nil {
-			cmd.printError(err)
-			return
-		}
-		cmd.printOverview(out, limit)
-		return
-	}
-
-	//Loop and get values
 	for {
-		out, err := cmd.client.GetHosts()
+		hosts, err := cmd.client.GetHosts()
 		if err != nil {
 			cmd.printError(err)
 			return
 		}
+
+		upstreams, err := cmd.client.GetUpstreams()
+		if err != nil {
+			cmd.printError(err)
+			return
+		}
+
 		goterm.Clear()
 		goterm.MoveCursor(1, 1)
 		goterm.Flush()
 		t := time.Now()
-		fmt.Fprintf(cmd.out, "%s Every %d seconds. Top %d locations\n\n", t.Format("2006-01-02 15:04:05"), watch, limit)
-		cmd.printOverview(out, limit)
+		fmt.Fprintf(cmd.out, "%s Every %d seconds. Top %d entries\n\n", t.Format("2006-01-02 15:04:05"), watch, limit)
+		cmd.printOverview(hosts, upstreams, limit)
 		goterm.Flush()
+		if watch == 0 {
+			return
+		}
 		time.Sleep(time.Second * time.Duration(watch))
 	}
 }

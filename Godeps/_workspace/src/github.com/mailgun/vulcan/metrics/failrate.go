@@ -3,48 +3,38 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"time"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 )
 
 type FailRateMeter interface {
 	GetRate() float64
 	IsReady() bool
 	GetWindowSize() time.Duration
-	Observer
+	middleware.Observer
 }
 
 // Predicate that helps to see if the attempt resulted in error
-type FailPredicate func(Attempt) bool
+type FailPredicate func(request.Attempt) bool
 
-func IsNetworkError(attempt Attempt) bool {
+func IsNetworkError(attempt request.Attempt) bool {
 	return attempt != nil && attempt.GetError() != nil
 }
 
-// Calculates in memory failure rate of an endpoint using rolling window of a predefined size
+// Calculates various performance metrics about the endpoint using counters of the predefined size
 type RollingMeter struct {
-	lastUpdated    time.Time
-	success        []int
-	failure        []int
-	endpoint       Endpoint
-	buckets        int
-	resolution     time.Duration
-	isError        FailPredicate
-	timeProvider   timetools.TimeProvider
-	countedBuckets int // how many samples in different buckets have we collected so far
-	lastBucket     int // last recorded bucket
+	endpoint endpoint.Endpoint
+	isError  FailPredicate
+
+	errors    *RollingCounter
+	successes *RollingCounter
 }
 
-func NewRollingMeter(endpoint Endpoint, buckets int, resolution time.Duration, timeProvider timetools.TimeProvider, isError FailPredicate) (*RollingMeter, error) {
-	if buckets <= 0 {
-		return nil, fmt.Errorf("Buckets should be >= 0")
-	}
-	if resolution < time.Second {
-		return nil, fmt.Errorf("Resolution should be larger than a second")
-	}
+func NewRollingMeter(endpoint endpoint.Endpoint, buckets int, resolution time.Duration, timeProvider timetools.TimeProvider, isError FailPredicate) (*RollingMeter, error) {
 	if endpoint == nil {
 		return nil, fmt.Errorf("Select an endpoint")
 	}
@@ -52,61 +42,60 @@ func NewRollingMeter(endpoint Endpoint, buckets int, resolution time.Duration, t
 		isError = IsNetworkError
 	}
 
+	e, err := NewRollingCounter(buckets, resolution, timeProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := NewRollingCounter(buckets, resolution, timeProvider)
+	if err != nil {
+		return nil, err
+	}
+
 	return &RollingMeter{
-		endpoint:     endpoint,
-		buckets:      buckets,
-		resolution:   resolution,
-		isError:      isError,
-		timeProvider: timeProvider,
-		success:      make([]int, buckets),
-		failure:      make([]int, buckets),
-		lastBucket:   -1,
+		endpoint:  endpoint,
+		errors:    e,
+		successes: s,
+		isError:   isError,
 	}, nil
 }
 
-func (em *RollingMeter) Reset() {
-	em.lastBucket = -1
-	em.countedBuckets = 0
-	em.lastUpdated = time.Time{}
-	for i, _ := range em.success {
-		em.success[i] = 0
-		em.failure[i] = 0
-	}
+func (r *RollingMeter) Reset() {
+	r.errors.Reset()
+	r.successes.Reset()
 }
 
-func (em *RollingMeter) IsReady() bool {
-	return em.countedBuckets >= em.buckets
+func (r *RollingMeter) IsReady() bool {
+	return r.errors.countedBuckets+r.successes.countedBuckets >= len(r.errors.values)
 }
 
-func (em *RollingMeter) SuccessCount() int64 {
-	em.cleanup(em.success)
-	return em.sum(em.success)
+func (r *RollingMeter) SuccessCount() int64 {
+	return r.successes.Count()
 }
 
-func (em *RollingMeter) FailureCount() int64 {
-	em.cleanup(em.failure)
-	return em.sum(em.failure)
+func (r *RollingMeter) FailureCount() int64 {
+	return r.errors.Count()
 }
 
-func (em *RollingMeter) Resolution() time.Duration {
-	return em.resolution
+func (r *RollingMeter) Resolution() time.Duration {
+	return r.errors.Resolution()
 }
 
-func (em *RollingMeter) Buckets() int {
-	return em.buckets
+func (r *RollingMeter) Buckets() int {
+	return r.errors.Buckets()
 }
 
-func (em *RollingMeter) GetWindowSize() time.Duration {
-	return time.Duration(em.buckets) * em.resolution
+func (r *RollingMeter) GetWindowSize() time.Duration {
+	return r.errors.GetWindowSize()
 }
 
-func (em *RollingMeter) ProcessedCount() int64 {
-	return em.SuccessCount() + em.FailureCount()
+func (r *RollingMeter) ProcessedCount() int64 {
+	return r.SuccessCount() + r.FailureCount()
 }
 
-func (em *RollingMeter) GetRate() float64 {
-	success := em.SuccessCount()
-	failure := em.FailureCount()
+func (r *RollingMeter) GetRate() float64 {
+	success := r.SuccessCount()
+	failure := r.FailureCount()
 	// No data, return ok
 	if success+failure == 0 {
 		return 0
@@ -114,62 +103,19 @@ func (em *RollingMeter) GetRate() float64 {
 	return float64(failure) / float64(success+failure)
 }
 
-func (em *RollingMeter) ObserveRequest(r Request) {
+func (r *RollingMeter) ObserveRequest(request.Request) {
 }
 
-func (em *RollingMeter) ObserveResponse(r Request, lastAttempt Attempt) {
-	if lastAttempt == nil || lastAttempt.GetEndpoint() != em.endpoint {
+func (r *RollingMeter) ObserveResponse(req request.Request, lastAttempt request.Attempt) {
+	if lastAttempt == nil || lastAttempt.GetEndpoint() != r.endpoint {
 		return
 	}
-	// Cleanup the data that was here in case if endpoint has been inactive for some time
-	em.cleanup(em.failure)
-	em.cleanup(em.success)
 
-	if em.isError(lastAttempt) {
-		em.incBucket(em.failure)
+	if r.isError(lastAttempt) {
+		r.errors.Inc()
 	} else {
-		em.incBucket(em.success)
+		r.successes.Inc()
 	}
-}
-
-// Returns the number in the moving window bucket that this slot occupies
-func (em *RollingMeter) getBucket(t time.Time) int {
-	return int(t.Truncate(em.resolution).Unix() % int64(em.buckets))
-}
-
-func (em *RollingMeter) incBucket(buckets []int) {
-	now := em.timeProvider.UtcNow()
-	bucket := em.getBucket(now)
-	buckets[bucket] += 1
-	em.lastUpdated = now
-	// update usage stats if we haven't collected enough
-	if !em.IsReady() {
-		if em.lastBucket != bucket {
-			em.lastBucket = bucket
-			em.countedBuckets += 1
-		}
-	}
-}
-
-// Reset buckets that were not updated
-func (em *RollingMeter) cleanup(buckets []int) {
-	now := em.timeProvider.UtcNow()
-	for i := 0; i < em.buckets; i++ {
-		now = now.Add(time.Duration(-1*i) * em.resolution)
-		if now.Truncate(em.resolution).After(em.lastUpdated.Truncate(em.resolution)) {
-			buckets[em.getBucket(now)] = 0
-		} else {
-			break
-		}
-	}
-}
-
-func (em *RollingMeter) sum(buckets []int) int64 {
-	out := int64(0)
-	for _, v := range buckets {
-		out += int64(v)
-	}
-	return out
 }
 
 type TestMeter struct {
@@ -190,8 +136,8 @@ func (tm *TestMeter) GetRate() float64 {
 	return tm.Rate
 }
 
-func (em *TestMeter) ObserveRequest(r Request) {
+func (em *TestMeter) ObserveRequest(r request.Request) {
 }
 
-func (em *TestMeter) ObserveResponse(r Request, lastAttempt Attempt) {
+func (em *TestMeter) ObserveResponse(r request.Request, lastAttempt request.Attempt) {
 }

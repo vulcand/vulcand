@@ -160,7 +160,7 @@ func (s *RouteSuite) TestMatchByMethod(c *C) {
 	c.Assert(out, Equals, l2)
 }
 
-func (s *RouteSuite) TestMatchLongestPath(c *C) {
+func (s *RouteSuite) TestTrieMatchLongestPath(c *C) {
 	r := NewExpRouter()
 
 	l1 := makeLoc("loc1")
@@ -171,6 +171,22 @@ func (s *RouteSuite) TestMatchLongestPath(c *C) {
 
 	req := makeReq("http://google.com/r/hello")
 	req.GetHttpRequest().Method = "POST"
+
+	out, err := r.Route(req)
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, l2)
+}
+
+func (s *RouteSuite) TestRegexpMatchLongestPath(c *C) {
+	r := NewExpRouter()
+
+	l1 := makeLoc("loc1")
+	c.Assert(r.AddLocation(`RegexpRoute("/r")`, l1), IsNil)
+
+	l2 := makeLoc("loc2")
+	c.Assert(r.AddLocation(`RegexpRoute("/r/hello")`, l2), IsNil)
+
+	req := makeReq("http://google.com/r/hello")
 
 	out, err := r.Route(req)
 	c.Assert(err, IsNil)

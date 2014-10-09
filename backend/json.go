@@ -22,6 +22,7 @@ type rawLocation struct {
 	Upstream    *Upstream
 	Middlewares []json.RawMessage
 	Options     LocationOptions
+	Stats       RoundTripStats
 }
 
 type rawMiddleware struct {
@@ -101,6 +102,7 @@ func LocationFromJSON(in []byte, getter plugin.SpecGetter) (*Location, error) {
 		return nil, err
 	}
 	loc.Upstream = l.Upstream
+	loc.Stats = l.Stats
 	for _, el := range l.Middlewares {
 		m, err := MiddlewareFromJSON(el, getter)
 		if err != nil {

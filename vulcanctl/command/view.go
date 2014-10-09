@@ -101,13 +101,8 @@ func upstreamView(u *backend.Upstream) *StringTree {
 }
 
 func endpointView(e *backend.Endpoint) *StringTree {
-	if e.Stats == nil {
-		return &StringTree{Node: fmt.Sprintf("endpoint[%s, %s]", e.Id, e.Url)}
-	}
-	s := e.Stats
-	reqsSec := float64(s.Failures+s.Successes) / float64(s.PeriodSeconds)
 	return &StringTree{
-		Node: fmt.Sprintf("endpoint[%s, %s, %0.1f requests/sec, %0.2f%%%% failures]", e.Id, e.Url, reqsSec, s.FailRate*100),
+		Node: fmt.Sprintf("endpoint[%s, %s]", e.Id, e.Url),
 	}
 }
 

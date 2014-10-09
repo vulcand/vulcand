@@ -6,9 +6,9 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcand/endpoint"
 )
 
+// Reporter reports real time metrics to the Statsd client
 type Reporter struct {
 	c         metrics.Client
 	locPrefix string
@@ -30,9 +30,9 @@ func (rp *Reporter) ObserveResponse(r request.Request, a request.Attempt) {
 	}
 	rp.emitMetrics(metric("location", rp.locPrefix), r, a)
 	if a.GetEndpoint() != nil {
-		ve, ok := a.GetEndpoint().(*endpoint.VulcanEndpoint)
+		ve, ok := a.GetEndpoint().(*muxEndpoint)
 		if ok {
-			rp.emitMetrics(metric("upstream", escape(ve.UpstreamId), escape(ve.Id)), r, a)
+			rp.emitMetrics(metric("upstream", escape(ve.location.Upstream.Id), escape(ve.endpoint.Id)), r, a)
 		}
 	}
 }

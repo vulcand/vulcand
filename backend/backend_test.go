@@ -175,7 +175,6 @@ func (s *BackendSuite) TestHostsFromJSON(c *C) {
 	out, err := HostsFromJSON(bytes, registry.GetRegistry().GetSpec)
 	c.Assert(err, IsNil)
 	c.Assert(out, NotNil)
-
 	c.Assert(out, DeepEquals, hosts)
 }
 

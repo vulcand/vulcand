@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
 	"github.com/mailgun/vulcand/backend"
@@ -13,7 +14,7 @@ import (
 func hostsOverview(hosts []*backend.Host, limit int) string {
 
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "Id\tHostname\tPath\tReqs/sec\tFailures %%%% \n")
+	fmt.Fprint(t, "Id\tHostname\tPath\tReqs/sec\t95ile [ms]\t99ile [ms]\tStatus codes %%%%\tNetwork errors %%%%\n")
 
 	if len(hosts) == 0 {
 		return t.String()
@@ -42,24 +43,59 @@ func hostsOverview(hosts []*backend.Host, limit int) string {
 	return t.String()
 }
 
+func upstreamsOverview(upstreams []*backend.Upstream, limit int) string {
+
+	t := goterm.NewTable(0, 10, 5, ' ', 0)
+	fmt.Fprint(t, "UpstreamId\tId\tUrl\tReqs/sec\t95ile [ms]\t99ile [ms]\tStatus codes %%%%\tNetwork errors %%%%\n")
+
+	// Sort endpoints
+	endpoints := []*backend.Endpoint{}
+	for _, u := range upstreams {
+		for _, e := range u.Endpoints {
+			endpoints = append(endpoints, e)
+		}
+	}
+
+	sort.Sort(&endpointSorter{es: endpoints})
+
+	count := 0
+	for _, e := range endpoints {
+		if limit > 0 && count >= limit {
+			break
+		}
+		endpointOverview(t, e)
+		count += 1
+	}
+
+	return t.String()
+}
+
 func locOverview(w io.Writer, l *backend.Location) {
-	s := locStats(l)
-	failRate := float64(0)
-	if s.Successes+s.Failures != 0 {
-		failRate = (float64(s.Failures) / float64(s.Failures+s.Successes)) * 100
-	}
-	reqsSec := float64(s.Successes+s.Failures) / float64(s.PeriodSeconds)
+	s := l.Stats
 
-	failRateS := fmt.Sprintf("%0.2f", failRate)
-	if failRate != 0 {
-		failRateS = goterm.Color(failRateS, goterm.RED)
-	} else {
-		failRateS = goterm.Color(failRateS, goterm.GREEN)
-	}
+	fmt.Fprintf(w, "%s\t%s\t%s\t%0.1f\t%0.3f\t%0.3f\t%s\t%s\n",
+		l.Id,
+		l.Hostname,
+		l.Path,
+		s.RequestsPerSecond(),
+		float64(s.Latency.Q95)/1000.0,
+		float64(s.Latency.Q99)/1000.0,
+		statusCodesToString(&s),
+		errRateToString(s.NetErrorRate()))
+}
 
-	fmt.Fprintf(w, "%s\t%s\t%s\t%0.1f\t%s\n",
-		l.Id, l.Hostname, l.Path, reqsSec, failRateS)
+func endpointOverview(w io.Writer, e *backend.Endpoint) {
+	s := e.Stats
 
+	fmt.Fprintf(w, "%s\t%s\t%s\t%0.1f\t%0.3f\t%0.3f\t%s\t%s\n",
+		e.UpstreamId,
+		e.Id,
+		e.Url,
+		s.RequestsPerSecond(),
+		float64(s.Latency.Q95)/1000.0,
+		float64(s.Latency.Q99)/1000.0,
+		statusCodesToString(&s),
+		errRateToString(s.NetErrorRate()))
 }
 
 // Sorts locations by failures first, successes next
@@ -76,20 +112,59 @@ func (s *locSorter) Swap(i, j int) {
 }
 
 func (s *locSorter) Less(i, j int) bool {
-	s1 := locStats(s.locs[i])
-	s2 := locStats(s.locs[j])
-
-	return s1.Failures > s2.Failures || s1.Successes > s2.Successes
+	return cmpStats(&s.locs[i].Stats, &s.locs[j].Stats)
 }
 
-func locStats(loc *backend.Location) *backend.EndpointStats {
-	stats := &backend.EndpointStats{}
-	for _, e := range loc.Upstream.Endpoints {
-		if e.Stats != nil {
-			stats.Successes += e.Stats.Successes
-			stats.Failures += e.Stats.Failures
-			stats.PeriodSeconds = e.Stats.PeriodSeconds
+type endpointSorter struct {
+	es []*backend.Endpoint
+}
+
+func (s *endpointSorter) Len() int {
+	return len(s.es)
+}
+
+func (s *endpointSorter) Swap(i, j int) {
+	s.es[i], s.es[j] = s.es[j], s.es[i]
+}
+
+func (s *endpointSorter) Less(i, j int) bool {
+	return cmpStats(&s.es[i].Stats, &s.es[j].Stats)
+}
+
+func cmpStats(s1, s2 *backend.RoundTripStats) bool {
+	if s1.NetErrorRate() != 0 || s2.NetErrorRate() != 0 {
+		return s1.NetErrorRate() > s2.NetErrorRate()
+	}
+
+	return (s1.Latency.Q99 > s2.Latency.Q99 || s1.Latency.Q95 > s2.Latency.Q95 || s1.Counters.Total > s2.Counters.Total)
+}
+
+func errRateToString(r float64) string {
+	failRateS := fmt.Sprintf("%0.2f", r)
+	if r != 0 {
+		return goterm.Color(failRateS, goterm.RED)
+	} else {
+		return goterm.Color(failRateS, goterm.GREEN)
+	}
+}
+
+func statusCodesToString(s *backend.RoundTripStats) string {
+	codes := make([]string, 0, len(s.Counters.StatusCodes))
+	if s.Counters.Total != 0 {
+		for _, c := range s.Counters.StatusCodes {
+			percent := 100 * (float64(c.Count) / float64(s.Counters.Total))
+			out := fmt.Sprintf("%d: %0.2f", c.Code, percent)
+			codes = append(codes, out)
 		}
 	}
-	return stats
+	return strings.Join(codes, ", ")
+}
+
+func getColor(code int) int {
+	if code < 300 {
+		return goterm.GREEN
+	} else if code < 500 {
+		return goterm.YELLOW
+	}
+	return goterm.RED
 }

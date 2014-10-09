@@ -2,11 +2,12 @@ package roundrobin
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"time"
 )
 
 type FSMSuite struct {
@@ -243,16 +244,6 @@ func (s *FSMSuite) TestNormalize(c *C) {
 	weights := newWeights(1, 2, 3, 4)
 	c.Assert(weights, DeepEquals, normalizeWeights(weights))
 	c.Assert(newWeights(1, 1, 1, 4), DeepEquals, normalizeWeights(newWeights(4, 4, 4, 16)))
-}
-
-func (s *FSMSuite) TestMedian(c *C) {
-	c.Assert(median([]float64{0.1, 0.2}), Equals, (float64(0.1)+float64(0.2))/2.0)
-	c.Assert(median([]float64{0.3, 0.2, 0.5}), Equals, 0.3)
-}
-
-func (s *FSMSuite) TestMedianEndpoint(c *C) {
-	c.Assert(medianEndpoint(newW(0.1, 0.2)), Equals, (float64(0.1)+float64(0.2))/2.0)
-	c.Assert(medianEndpoint(newW(0.5, 0.1, 0.2)), Equals, 0.2)
 }
 
 func newW(failRates ...float64) []*WeightedEndpoint {

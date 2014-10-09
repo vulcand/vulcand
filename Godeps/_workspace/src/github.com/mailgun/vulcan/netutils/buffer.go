@@ -179,5 +179,5 @@ type MaxSizeReachedError struct {
 }
 
 func (e *MaxSizeReachedError) Error() string {
-	return fmt.Sprintf("Maximum size %d was reached")
+	return fmt.Sprintf("Maximum size %d was reached", e)
 }
