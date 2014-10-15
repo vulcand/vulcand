@@ -3,7 +3,41 @@ package metrics
 import (
 	"math"
 	"sort"
+	"time"
 )
+
+// SplitRatios provides simple anomaly detection for latency values, that are all expressed in microseconds.
+// it splits values into good or bad category based on the threshold and the median value.
+// If all values are not far from the median, it will return all values in 'good' set.
+// Precision is the smallest value to consider, e.g. if set to millisecond, microseconds will be ignored.
+func SplitLatencies(values []time.Duration, precision time.Duration) (good map[time.Duration]bool, bad map[time.Duration]bool) {
+	// The trick is to map latencies to their ratios to the biggest latency and use the same settings as for ratios
+	v2r := map[float64]time.Duration{}
+	ratios := make([]float64, len(values))
+	m := maxTime(values)
+	for i, v := range values {
+		ratio := float64(v/precision+1) / float64(m/precision+1) // +1 is to avoid division by 0
+		v2r[ratio] = v
+		ratios[i] = ratio
+	}
+
+	good, bad = make(map[time.Duration]bool), make(map[time.Duration]bool)
+	vgood, vbad := SplitRatios(ratios)
+	for r, _ := range vgood {
+		good[v2r[r]] = true
+	}
+	for r, _ := range vbad {
+		bad[v2r[r]] = true
+	}
+	return good, bad
+}
+
+// SplitRatios provides simple anomaly detection for ratio values, that are all in the range [0, 1]
+// it splits values into good or bad category based on the threshold and the median value.
+// If all values are not far from the median, it will return all values in 'good' set.
+func SplitRatios(values []float64) (good map[float64]bool, bad map[float64]bool) {
+	return SplitFloat64(1.5, 0, values)
+}
 
 // SplitFloat64 provides simple anomaly detection for skewed data sets with no particular distribution.
 // In essense it applies the formula if(v > median(values) + threshold * medianAbsoluteDeviation) -> anomaly
@@ -52,4 +86,14 @@ func medianAbsoluteDeviation(values []float64) float64 {
 		distances[i] = math.Abs(v - m)
 	}
 	return median(distances)
+}
+
+func maxTime(vals []time.Duration) time.Duration {
+	val := vals[0]
+	for _, v := range vals {
+		if v > val {
+			val = v
+		}
+	}
+	return val
 }

@@ -112,6 +112,23 @@ func (c *Client) GetLocation(name, id string) (*backend.Location, error) {
 	return backend.LocationFromJSON(response, c.Registry.GetSpec)
 }
 
+func (c *Client) GetTopLocations(hostname, upstreamId string, limit int) ([]*backend.Location, error) {
+	response, err := c.Get(c.endpoint("hosts", "top", "locations"),
+		url.Values{
+			"hostname":   {hostname},
+			"upstreamId": {upstreamId},
+			"limit":      {fmt.Sprintf("%d", limit)},
+		})
+	if err != nil {
+		return nil, err
+	}
+	var re *LocationsResponse
+	if err = json.Unmarshal(response, &re); err != nil {
+		return nil, err
+	}
+	return re.Locations, nil
+}
+
 func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, options backend.LocationOptions) (*backend.Location, error) {
 	location, err := backend.NewLocationWithOptions(hostname, id, path, upstream, options)
 	if err != nil {
@@ -186,6 +203,22 @@ func (c *Client) AddEndpoint(upstreamId, id, u string) (*backend.Endpoint, error
 		return nil, err
 	}
 	return backend.EndpointFromJSON(data)
+}
+
+func (c *Client) GetTopEndpoints(upstreamId string, limit int) ([]*backend.Endpoint, error) {
+	response, err := c.Get(c.endpoint("upstreams", "top", "endpoints"),
+		url.Values{
+			"upstreamId": {upstreamId},
+			"limit":      {fmt.Sprintf("%d", limit)},
+		})
+	if err != nil {
+		return nil, err
+	}
+	var re *EndpointsResponse
+	if err = json.Unmarshal(response, &re); err != nil {
+		return nil, err
+	}
+	return re.Endpoints, nil
 }
 
 func (c *Client) DeleteEndpoint(upstreamId, id string) (*StatusResponse, error) {
@@ -316,16 +349,16 @@ func (c *Client) endpoint(params ...string) string {
 	return fmt.Sprintf("%s/%s/%s", c.Addr, CurrentVersion, strings.Join(params, "/"))
 }
 
-type HostsResponse struct {
-	Hosts []*backend.Host
-}
-
 type UpstreamsResponse struct {
 	Upstreams []*backend.Upstream
 }
 
-type UpstreamResponse struct {
-	Upstream *backend.Upstream
+type EndpointsResponse struct {
+	Endpoints []*backend.Endpoint
+}
+
+type LocationsResponse struct {
+	Locations []*backend.Location
 }
 
 type StatusResponse struct {

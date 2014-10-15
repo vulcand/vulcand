@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -64,6 +65,14 @@ type StatsGetter interface {
 	GetLocationStats(l *Location) (*RoundTripStats, error)
 	GetEndpointStats(e *Endpoint) (*RoundTripStats, error)
 	GetUpstreamStats(u *Upstream) (*RoundTripStats, error)
+
+	// GetTopLocations returns locations sorted by criteria (faulty, slow, most used)
+	// if hostname or upstreamId is present, will filter out locations for that host or upstreamId
+	GetTopLocations(hostname, upstreamId string) ([]*Location, error)
+
+	// GetTopEndpoints returns endpoints sorted by criteria (faulty, slow, mos used)
+	// if upsrtreamId is not empty, will filter out endpoints for that upstreamId
+	GetTopEndpoints(upstreamId string) ([]*Endpoint, error)
 }
 
 type KeyPair struct {
@@ -382,17 +391,39 @@ func (e *Endpoint) GetUniqueId() EndpointKey {
 }
 
 // RoundTrip stats contain real time statistics about performance of Endpoint or Location
-// such as latency, processed and failed requests
+// such as latency, processed and failed requests.
 type RoundTripStats struct {
-	Counters Counters
-	Latency  Brackets
+	Verdict         Verdict
+	Counters        Counters
+	LatencyBrackets []Bracket
 }
 
+// NetErroRate calculates the amont of ntwork errors such as time outs and dropped connection
+// that occured in the given time window
 func (e *RoundTripStats) NetErrorRate() float64 {
 	if e.Counters.Total == 0 {
 		return 0
 	}
 	return (float64(e.Counters.NetErrors) / float64(e.Counters.Total)) * 100
+}
+
+// AppErrorRate calculates the ratio of 500 responses that designate internal server errors
+// to success responses - 2xx, it specifically not counts 4xx or any other than 500 error to avoid noisy results.
+func (e *RoundTripStats) AppErrorRate() float64 {
+	good := int64(0)
+	bad := int64(0)
+	for _, status := range e.Counters.StatusCodes {
+		if status.Code < 300 && status.Code >= 200 {
+			good += status.Count
+		}
+		if status.Code == http.StatusInternalServerError {
+			bad += status.Count
+		}
+	}
+	if good+bad != 0 {
+		return float64(bad) / float64(good+bad)
+	}
+	return 0
 }
 
 func (e *RoundTripStats) RequestsPerSecond() float64 {
@@ -404,6 +435,24 @@ func (e *RoundTripStats) RequestsPerSecond() float64 {
 
 func (e *RoundTripStats) String() string {
 	return fmt.Sprintf("%.2f requests/sec, %.2f failures/sec", e.RequestsPerSecond(), e.NetErrorRate())
+}
+
+type Verdict struct {
+	IsBad     bool
+	Anomalies []Anomaly
+}
+
+func (v Verdict) String() string {
+	return fmt.Sprintf("verdict[bad=%t, anomalies=%v]", v.IsBad, v.Anomalies)
+}
+
+type Anomaly struct {
+	Code    int
+	Message string
+}
+
+func (a Anomaly) String() string {
+	return fmt.Sprintf("(%d) %s", a.Code, a.Message)
 }
 
 type NotFoundError struct {
@@ -438,20 +487,22 @@ type StatusCode struct {
 	Count int64
 }
 
-type Brackets struct {
-	Q50 int64
-	Q75 int64
-	Q95 int64
-	Q99 int64
+type Bracket struct {
+	Quantile float64
+	Value    time.Duration
 }
 
-func NewBrackets(h metrics.Histogram) Brackets {
-	return Brackets{
-		Q50: h.ValueAtQuantile(50),
-		Q75: h.ValueAtQuantile(75),
-		Q95: h.ValueAtQuantile(95),
-		Q99: h.ValueAtQuantile(99),
+func NewBrackets(h metrics.Histogram) []Bracket {
+	quantiles := []float64{50, 75, 95, 99, 99.9}
+	brackets := make([]Bracket, len(quantiles))
+
+	for i, v := range quantiles {
+		brackets[i] = Bracket{
+			Quantile: v,
+			Value:    time.Duration(h.ValueAtQuantile(v)) * time.Microsecond,
+		}
 	}
+	return brackets
 }
 
 type LocationKey struct {

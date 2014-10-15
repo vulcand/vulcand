@@ -604,15 +604,32 @@ func (s *ServerSuite) TestUpdateLocationPathCreateLocation(c *C) {
 }
 
 func (s *ServerSuite) TestGetStats(c *C) {
-	e := NewTestResponder("Hi, I'm endpoint")
-	defer e.Close()
+	e1 := NewTestResponder("Hi, I'm endpoint 1")
+	defer e1.Close()
+
+	e2 := NewTestResponder("Hi, I'm endpoint 2")
+	defer e2.Close()
 
 	c.Assert(s.mux.Start(), IsNil)
 
-	l, h := MakeLocation("localhost", "localhost:31000", e.URL)
+	l, h := MakeLocation("localhost", "localhost:31000", e1.URL)
+	l.Upstream.Endpoints = []*Endpoint{
+		{
+			UpstreamId: "up1",
+			Id:         e1.URL,
+			Url:        e1.URL,
+		},
+		{
+			UpstreamId: "up2",
+			Id:         e2.URL,
+			Url:        e2.URL,
+		},
+	}
 
 	c.Assert(s.mux.UpdateLocationPath(h, l, l.Path), IsNil)
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+	for i := 0; i < 10; i++ {
+		GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{})
+	}
 
 	stats, err := s.mux.GetEndpointStats(l.Upstream.Endpoints[0])
 	c.Assert(err, IsNil)
@@ -625,6 +642,14 @@ func (s *ServerSuite) TestGetStats(c *C) {
 	upStats, err := s.mux.GetUpstreamStats(l.Upstream)
 	c.Assert(upStats, NotNil)
 	c.Assert(err, IsNil)
+
+	topLocs, err := s.mux.GetTopLocations("", "")
+	c.Assert(err, IsNil)
+	c.Assert(len(topLocs), Equals, 1)
+
+	topEndpoints, err := s.mux.GetTopEndpoints("")
+	c.Assert(err, IsNil)
+	c.Assert(len(topEndpoints), Equals, 2)
 }
 
 func (s *ServerSuite) TestConvertPath(c *C) {
