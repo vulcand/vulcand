@@ -245,6 +245,47 @@ func (s *ServerSuite) TestLocationProperties(c *C) {
 	c.Assert(loc, IsNil)
 }
 
+func (s *ServerSuite) TestPerfMonitoring(c *C) {
+	c.Assert(s.mux.Start(), IsNil)
+
+	e1 := NewTestResponder("Hi, I'm endpoint 1")
+	defer e1.Close()
+
+	e2 := NewTestResponder("Hi, I'm endpoint 2")
+	defer e2.Close()
+
+	l, h := MakeLocation("localhost", "localhost:31000", e1.URL)
+	l.Id = "loc1"
+
+	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
+	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint 1")
+
+	// Make sure endpoint has been added to the performance monitor
+	_, ok := s.mux.perfMon.locations[l.GetUniqueId().String()]
+	c.Assert(ok, Equals, true)
+
+	// Make sure upstream has been added to the performance monitor
+	_, ok = s.mux.perfMon.upstreams[l.Upstream.GetUniqueId().String()]
+	c.Assert(ok, Equals, true)
+
+	// Delete the location
+	c.Assert(s.mux.DeleteLocation(h, l.Id), IsNil)
+
+	// Make sure location has been added to the performance monitor
+	_, ok = s.mux.perfMon.locations[l.GetUniqueId().String()]
+	c.Assert(ok, Equals, false)
+
+	// Delete the upstream
+	c.Assert(s.mux.DeleteUpstream(l.Upstream.Id), IsNil)
+
+	_, ok = s.mux.perfMon.upstreams[l.Upstream.Id]
+	c.Assert(ok, Equals, false)
+
+	// Make sure all endpoints in the upstream have been deleted in the monitor
+	_, ok = s.mux.perfMon.endpoints[l.Upstream.Endpoints[0].GetUniqueId().String()]
+	c.Assert(ok, Equals, false)
+}
+
 func (s *ServerSuite) TestUpdateLocationOptions(c *C) {
 	c.Assert(s.mux.Start(), IsNil)
 
@@ -403,8 +444,17 @@ func (s *ServerSuite) TestUpstreamEndpointCRUD(c *C) {
 
 	c.Assert(responseSet, DeepEquals, map[string]bool{"1": true, "2": true})
 
+	// Make sure endpoint has been added to the performance monitor after some requests
+	// to it have been made
+	_, ok := s.mux.perfMon.endpoints[newEndpoint.GetUniqueId().String()]
+	c.Assert(ok, Equals, true)
+
 	up.Endpoints = up.Endpoints[:1]
 	c.Assert(s.mux.DeleteEndpoint(up, newEndpoint.Id, []*Location{l}), IsNil)
+
+	// Make sure endpoint has been deleted from the performance monitor as well
+	_, ok = s.mux.perfMon.endpoints[newEndpoint.GetUniqueId().String()]
+	c.Assert(ok, Equals, false)
 
 	AssertSameEndpoints(c, lb.GetEndpoints(), up.Endpoints)
 
@@ -564,8 +614,17 @@ func (s *ServerSuite) TestGetStats(c *C) {
 	c.Assert(s.mux.UpdateLocationPath(h, l, l.Path), IsNil)
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
 
-	stats := s.mux.GetStats(h.Name, l.Id, l.Upstream.Endpoints[0])
+	stats, err := s.mux.GetEndpointStats(l.Upstream.Endpoints[0])
+	c.Assert(err, IsNil)
 	c.Assert(stats, NotNil)
+
+	locStats, err := s.mux.GetLocationStats(l)
+	c.Assert(locStats, NotNil)
+	c.Assert(err, IsNil)
+
+	upStats, err := s.mux.GetUpstreamStats(l.Upstream)
+	c.Assert(upStats, NotNil)
+	c.Assert(err, IsNil)
 }
 
 func (s *ServerSuite) TestConvertPath(c *C) {

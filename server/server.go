@@ -7,10 +7,13 @@ import (
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/backend"
 )
 
 type Server interface {
+	backend.StatsGetter
+
 	UpsertHost(host *backend.Host) error
 	DeleteHost(hostname string) error
 	UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) error
@@ -21,6 +24,9 @@ type Server interface {
 	UpsertLocation(host *backend.Host, loc *backend.Location) error
 	DeleteLocation(host *backend.Host, locationId string) error
 
+	AddUpstream(u *backend.Upstream) error
+	DeleteUpstream(upstreamId string) error
+
 	UpdateLocationUpstream(host *backend.Host, loc *backend.Location) error
 	UpdateLocationPath(host *backend.Host, loc *backend.Location, path string) error
 	UpdateLocationOptions(host *backend.Host, loc *backend.Location) error
@@ -30,8 +36,6 @@ type Server interface {
 
 	UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error
 	DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error
-
-	GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats
 
 	// TakeFiles takes file descriptors representing sockets in listening state to start serving on them
 	// instead of binding. This is nessesary if the child process needs to inherit sockets from the parent
@@ -54,6 +58,7 @@ type Options struct {
 	MaxHeaderBytes  int
 	DefaultListener *backend.Listener
 	Files           []*FileDescriptor
+	TimeProvider    timetools.TimeProvider
 }
 
 type NewServerFn func(id int) (Server, error)

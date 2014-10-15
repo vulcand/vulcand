@@ -2,11 +2,10 @@ package roundrobin
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
-	"math"
-	"sort"
-	"time"
 )
 
 // This handler increases weights on endpoints that perform better than others
@@ -176,64 +175,27 @@ func makeOriginalWeights(endpoints []*WeightedEndpoint) []SuggestedWeight {
 	return weights
 }
 
-// Splits endpoint into two groups of endpoints with bad performance and good performance. It does compare relative
-// performances of the endpoints though, so if all endpoints have the same performance,
+// splitEndpoints splits endpoints into two groups of endpoints with bad and good failure rate.
+// It does compare relative performances of the endpoints though, so if all endpoints have approximately the same error rate
+// this function returns the result as if all endpoints are equally good.
 func splitEndpoints(endpoints []*WeightedEndpoint) (map[string]bool, map[string]bool) {
-	good, bad := make(map[string]bool), make(map[string]bool)
 
-	// In case of event amount of endpoints, the algo below won't be able to do anything smart.
-	// to overcome this, we add a third endpoint that is same to the "best" endpoint of those two given to resolve potential ambiguity
-	var newEndpoints []*WeightedEndpoint
-	if len(endpoints)%2 == 0 {
-		newEndpoints = make([]*WeightedEndpoint, len(endpoints)+1)
-		copy(newEndpoints, endpoints)
-		// Add a sentinel endpoint so we can distinguish outliers better
-		newEndpoints[len(endpoints)] = &WeightedEndpoint{
-			meter: &metrics.TestMeter{Rate: 0},
-		}
-	} else {
-		newEndpoints = endpoints
+	failRates := make([]float64, len(endpoints))
+
+	for i, e := range endpoints {
+		failRates[i] = e.failRate()
 	}
 
-	m := medianEndpoint(newEndpoints)
-	mAbs := medianAbsoluteDeviation(newEndpoints)
+	g, b := metrics.SplitFloat64(1.5, 0, failRates)
+	good, bad := make(map[string]bool, len(g)), make(map[string]bool, len(b))
+
 	for _, e := range endpoints {
-		if e.failRate() > m+mAbs*1.5 {
-			bad[e.GetId()] = true
-		} else {
+		if g[e.failRate()] {
 			good[e.GetId()] = true
+		} else {
+			bad[e.GetId()] = true
 		}
 	}
+
 	return good, bad
-}
-
-func medianEndpoint(values []*WeightedEndpoint) float64 {
-	vals := make([]*WeightedEndpoint, len(values))
-	copy(vals, values)
-	sort.Sort(WeightedEndpoints(vals))
-	l := len(vals)
-	if l%2 != 0 {
-		return vals[l/2].failRate()
-	} else {
-		return (vals[l/2-1].failRate() + vals[l/2].failRate()) / 2.0
-	}
-}
-
-func median(values []float64) float64 {
-	sort.Float64s(values)
-	l := len(values)
-	if l%2 != 0 {
-		return values[l/2]
-	} else {
-		return (values[l/2-1] + values[l/2]) / 2.0
-	}
-}
-
-func medianAbsoluteDeviation(values []*WeightedEndpoint) float64 {
-	m := medianEndpoint(values)
-	distances := make([]float64, len(values))
-	for i, v := range values {
-		distances[i] = math.Abs(v.failRate() - m)
-	}
-	return median(distances)
 }

@@ -4,19 +4,17 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
-	vmetrics "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
 
 	"github.com/mailgun/vulcand/backend"
-	. "github.com/mailgun/vulcand/endpoint"
 )
 
 // MuxServer is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
@@ -43,6 +41,9 @@ type MuxServer struct {
 
 	// Connection watcher
 	connTracker *connTracker
+
+	// Perfomance monitor
+	perfMon *perfMon
 }
 
 func (m *MuxServer) String() string {
@@ -59,6 +60,7 @@ func NewMuxServerWithOptions(id int, o Options) (*MuxServer, error) {
 		connTracker: newConnTracker(o.MetricsClient),
 		wg:          &sync.WaitGroup{},
 		mtx:         &sync.RWMutex{},
+		perfMon:     newPerfMon(o.TimeProvider),
 	}, nil
 }
 
@@ -80,27 +82,16 @@ func (m *MuxServer) GetFiles() ([]*FileDescriptor, error) {
 	return fds, nil
 }
 
-func (m *MuxServer) GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats {
-	rr := m.getLocationLB(hostname, locationId)
-	if rr == nil {
-		return nil
-	}
-	endpoint := rr.FindEndpointById(e.GetUniqueId())
-	if endpoint == nil {
-		return nil
-	}
-	meterI := endpoint.GetMeter()
-	if meterI == nil {
-		return nil
-	}
-	meter := meterI.(*vmetrics.RollingMeter)
+func (m *MuxServer) GetLocationStats(l *backend.Location) (*backend.RoundTripStats, error) {
+	return m.perfMon.getLocationStats(l)
+}
 
-	return &backend.EndpointStats{
-		Successes:     meter.SuccessCount(),
-		Failures:      meter.FailureCount(),
-		PeriodSeconds: int(meter.GetWindowSize() / time.Second),
-		FailRate:      meter.GetRate(),
-	}
+func (m *MuxServer) GetEndpointStats(e *backend.Endpoint) (*backend.RoundTripStats, error) {
+	return m.perfMon.getEndpointStats(e)
+}
+
+func (m *MuxServer) GetUpstreamStats(u *backend.Upstream) (*backend.RoundTripStats, error) {
+	return m.perfMon.getUpstreamStats(u)
 }
 
 func (m *MuxServer) TakeFiles(files []*FileDescriptor) error {
@@ -178,6 +169,19 @@ func (m *MuxServer) stopServers() {
 	for _, s := range m.servers {
 		s.shutdown()
 	}
+}
+
+func (m *MuxServer) AddUpstream(u *backend.Upstream) error {
+	log.Infof("%v AddUpstream(%v)", m, u)
+
+	return nil
+}
+
+func (m *MuxServer) DeleteUpstream(upstreamId string) error {
+	log.Infof("%v DeleteUpstream(%s)", m, upstreamId)
+
+	m.perfMon.deleteUpstream(backend.UpstreamKey{Id: upstreamId})
+	return nil
 }
 
 func (m *MuxServer) UpsertHost(host *backend.Host) error {
@@ -437,8 +441,9 @@ func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) er
 		return err
 	}
 
-	// Register watchers and metric reporters
+	// Register metric emitters and performance monitors
 	location.GetObserverChain().Upsert(Metrics, NewReporter(m.options.MetricsClient, loc.Id))
+	location.GetObserverChain().Upsert(PerfMon, m.perfMon)
 
 	// Add the location to the router
 	if err := router.AddLocation(convertPath(loc.Path), location); err != nil {
@@ -483,23 +488,23 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 
 	rr := m.getLocationLB(location.Hostname, location.Id)
 	if rr == nil {
-		return fmt.Errorf("%s lb not found", location)
+		return fmt.Errorf("%v lb not found", location)
 	}
 
 	// First, collect and parse endpoints to add
-	newEndpoints := map[string]endpoint.Endpoint{}
+	newEndpoints := map[string]*muxEndpoint{}
 	for _, e := range location.Upstream.Endpoints {
-		ep, err := EndpointFromUrl(location.Upstream.Id, e.GetUniqueId(), e.Url)
+		ep, err := newEndpoint(location, e)
 		if err != nil {
-			return fmt.Errorf("failed to parse endpoint url: %s", e)
+			return fmt.Errorf("failed to create load balancer endpoint from %v", e)
 		}
 		newEndpoints[e.Url] = ep
 	}
 
 	// Memorize what endpoints exist in load balancer at the moment
-	existingEndpoints := map[string]endpoint.Endpoint{}
+	existingEndpoints := map[string]*muxEndpoint{}
 	for _, e := range rr.GetEndpoints() {
-		existingEndpoints[e.GetUrl().String()] = e
+		existingEndpoints[e.GetUrl().String()] = e.GetOriginalEndpoint().(*muxEndpoint)
 	}
 
 	// First, add endpoints, that should be added and are not in lb
@@ -516,8 +521,9 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 	// Second, remove endpoints that should not be there any more
 	for _, e := range existingEndpoints {
 		if _, exists := newEndpoints[e.GetUrl().String()]; !exists {
+			m.perfMon.deleteEndpoint(e.endpoint.GetUniqueId())
 			if err := rr.RemoveEndpoint(e); err != nil {
-				log.Errorf("failed to remove %s, err: %s", e, err)
+				log.Errorf("failed to remove %v, err: %v", e, err)
 			} else {
 				log.Infof("Removed %s from %s", e, location)
 			}
@@ -527,10 +533,10 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 }
 
 func (m *MuxServer) addEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
-	endpoint, err := EndpointFromUrl(upstream.Id, e.GetUniqueId(), e.Url)
-	if err != nil {
-		return fmt.Errorf("failed to parse endpoint url: %s", endpoint)
+	if _, err := netutils.ParseUrl(e.Url); err != nil {
+		return fmt.Errorf("failed to parse %v, error: %v", e, err)
 	}
+
 	for _, l := range affectedLocations {
 		if err := m.syncLocationEndpoints(l); err != nil {
 			log.Errorf("failed to sync %s endpoints err: %s", l, err)
@@ -600,11 +606,11 @@ func (m *MuxServer) deleteLocation(host *backend.Host, locationId string) error 
 	if router == nil {
 		return fmt.Errorf("router for %s not found", host)
 	}
-
 	location := router.GetLocationById(locationId)
 	if location == nil {
 		return fmt.Errorf("location(id=%s) not found", locationId)
 	}
+	m.perfMon.deleteLocation(backend.LocationKey{Hostname: host.Name, Id: locationId})
 	return router.RemoveLocationById(location.GetId())
 }
 
@@ -630,6 +636,7 @@ func (s muxState) String() string {
 
 const (
 	Metrics = "_metrics"
+	PerfMon = "_perfMon"
 )
 
 // convertPath changes strings to structured format /hello -> RegexpRoute("/hello") and leaves structured strings unchanged.
@@ -643,6 +650,9 @@ func convertPath(in string) string {
 func parseOptions(o Options) Options {
 	if o.MetricsClient == nil {
 		o.MetricsClient = metrics.NewNop()
+	}
+	if o.TimeProvider == nil {
+		o.TimeProvider = &timetools.RealTime{}
 	}
 	return o
 }

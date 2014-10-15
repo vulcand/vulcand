@@ -2,11 +2,12 @@ package exproute
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"strconv"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
 )
 
 // Parses expression in the go language into matchers, e.g.
@@ -103,7 +104,7 @@ func makeTrieRouteMatcher(matcher matcher, params []interface{}) (matcher, error
 
 	t, err := parseTrie(args[len(args)-1], matcher)
 	if err != nil {
-		return nil, fmt.Errorf("%s - failed to parse path expression, %s", err)
+		return nil, fmt.Errorf("%s - failed to parse path expression, %s", TrieRouteFn, err)
 	}
 	return t, nil
 }

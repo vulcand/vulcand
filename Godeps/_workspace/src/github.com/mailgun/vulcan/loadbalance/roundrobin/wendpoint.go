@@ -3,23 +3,26 @@ package roundrobin
 import (
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"net/url"
 )
 
-// Wraps the endpoint and adds support for weights and failure detection
+// WeightedEndpoint wraps the endpoint and adds support for weights and failure detection.
 type WeightedEndpoint struct {
-	// This meter will accumulate endpoint stats in realtime and can be used
-	// for failure detection in the failure handlers.
-	meter FailRateMeter
-	// Original endpoint supplied by user
-	endpoint Endpoint
-	// Original weight supplied by user
+	// meter accumulates endpoint stats and  for failure detection
+	meter metrics.FailRateMeter
+
+	// endpoint is an original endpoint supplied by user
+	endpoint endpoint.Endpoint
+
+	// weight holds original weight supplied by user
 	weight int
-	// Current weight that is in effect at the moment
+
+	// effectiveWeight is the weights assigned by the load balancer based on failure
 	effectiveWeight int
-	// Reference to the parent load balancer
+
+	// rr is a reference to the parent load balancer
 	rr *RoundRobin
 }
 
@@ -41,6 +44,10 @@ func (we *WeightedEndpoint) setEffectiveWeight(w int) {
 	we.effectiveWeight = w
 }
 
+func (we *WeightedEndpoint) GetOriginalEndpoint() endpoint.Endpoint {
+	return we.endpoint
+}
+
 func (we *WeightedEndpoint) GetOriginalWeight() int {
 	return we.weight
 }
@@ -49,7 +56,7 @@ func (we *WeightedEndpoint) GetEffectiveWeight() int {
 	return we.effectiveWeight
 }
 
-func (we *WeightedEndpoint) GetMeter() FailRateMeter {
+func (we *WeightedEndpoint) GetMeter() metrics.FailRateMeter {
 	return we.meter
 }
 

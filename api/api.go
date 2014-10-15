@@ -95,8 +95,13 @@ func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, param
 	// This is to display the realtime stats, looks ugly.
 	for _, h := range hosts {
 		for _, l := range h.Locations {
+			if s, err := c.statsGetter.GetLocationStats(l); err == nil {
+				l.Stats = *s
+			}
 			for _, e := range l.Upstream.Endpoints {
-				e.Stats = c.statsGetter.GetStats(h.Name, l.Id, e)
+				if s, err := c.statsGetter.GetEndpointStats(e); err == nil {
+					e.Stats = *s
+				}
 			}
 		}
 	}
@@ -109,11 +114,6 @@ func (c *ProxyController) getHost(w http.ResponseWriter, r *http.Request, params
 	h, err := c.backend.GetHost(params["hostname"])
 	if err != nil {
 		return nil, formatError(err)
-	}
-	for _, l := range h.Locations {
-		for _, e := range l.Upstream.Endpoints {
-			e.Stats = c.statsGetter.GetStats(h.Name, l.Id, e)
-		}
 	}
 	return formatResult(h, err)
 }
@@ -196,6 +196,15 @@ func (c *ProxyController) deleteUpstream(w http.ResponseWriter, r *http.Request,
 
 func (c *ProxyController) getUpstreams(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	upstreams, err := c.backend.GetUpstreams()
+
+	for _, u := range upstreams {
+		for _, e := range u.Endpoints {
+			if s, err := c.statsGetter.GetEndpointStats(e); err == nil {
+				e.Stats = *s
+			}
+		}
+	}
+
 	return scroll.Response{
 		"Upstreams": upstreams,
 	}, err

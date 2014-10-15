@@ -11,6 +11,7 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/failover"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/plugin"
 )
@@ -58,9 +59,11 @@ type Backend interface {
 	Close()
 }
 
-// StatsGetter provides realtime stats about endpoint specific to a particular location.
+// StatsGetter provides realtime stats abount endpoints, upstreams and locations
 type StatsGetter interface {
-	GetStats(hostname string, locationId string, e *Endpoint) *EndpointStats
+	GetLocationStats(l *Location) (*RoundTripStats, error)
+	GetEndpointStats(e *Endpoint) (*RoundTripStats, error)
+	GetUpstreamStats(u *Upstream) (*RoundTripStats, error)
 }
 
 type KeyPair struct {
@@ -149,6 +152,8 @@ type Location struct {
 	Upstream    *Upstream
 	Middlewares []*MiddlewareInstance
 	Options     LocationOptions
+	// Combined stats from all endpoints in the location
+	Stats RoundTripStats
 }
 
 type LocationTimeouts struct {
@@ -312,6 +317,10 @@ func (l *Location) GetId() string {
 	return l.Id
 }
 
+func (l *Location) GetUniqueId() LocationKey {
+	return LocationKey{Hostname: l.Hostname, Id: l.Id}
+}
+
 // Upstream is a collection of endpoints. Each location is assigned an upstream. Changing assigned upstream
 // of the location gracefully redirects the traffic to the new endpoints of the upstream.
 type Upstream struct {
@@ -334,12 +343,16 @@ func (u *Upstream) GetId() string {
 	return u.Id
 }
 
+func (u *Upstream) GetUniqueId() UpstreamKey {
+	return UpstreamKey{Id: u.Id}
+}
+
 // Endpoint is a final destination of the request
 type Endpoint struct {
 	Id         string
 	Url        string
 	UpstreamId string
-	Stats      *EndpointStats
+	Stats      RoundTripStats
 }
 
 func NewEndpoint(upstreamId, id, url string) (*Endpoint, error) {
@@ -364,21 +377,33 @@ func (e *Endpoint) GetId() string {
 	return e.Id
 }
 
-func (e *Endpoint) GetUniqueId() string {
-	return fmt.Sprintf("%s.%s", e.UpstreamId, e.Id)
+func (e *Endpoint) GetUniqueId() EndpointKey {
+	return EndpointKey{UpstreamId: e.UpstreamId, Id: e.Id}
 }
 
-// Endpoint's realtime stats
-type EndpointStats struct {
-	Successes     int64
-	Failures      int64
-	FailRate      float64
-	PeriodSeconds int
+// RoundTrip stats contain real time statistics about performance of Endpoint or Location
+// such as latency, processed and failed requests
+type RoundTripStats struct {
+	Counters Counters
+	Latency  Brackets
 }
 
-func (e *EndpointStats) String() string {
-	reqsSec := (e.Failures + e.Successes) / int64(e.PeriodSeconds)
-	return fmt.Sprintf("%d requests/sec, %.2f failures/sec", reqsSec, e.FailRate)
+func (e *RoundTripStats) NetErrorRate() float64 {
+	if e.Counters.Total == 0 {
+		return 0
+	}
+	return (float64(e.Counters.NetErrors) / float64(e.Counters.Total)) * 100
+}
+
+func (e *RoundTripStats) RequestsPerSecond() float64 {
+	if e.Counters.Period == 0 {
+		return 0
+	}
+	return float64(e.Counters.Total) / float64(e.Counters.Period/time.Second)
+}
+
+func (e *RoundTripStats) String() string {
+	return fmt.Sprintf("%.2f requests/sec, %.2f failures/sec", e.RequestsPerSecond(), e.NetErrorRate())
 }
 
 type NotFoundError struct {
@@ -399,6 +424,76 @@ type AlreadyExistsError struct {
 
 func (n *AlreadyExistsError) Error() string {
 	return n.Message
+}
+
+type Counters struct {
+	Period      time.Duration
+	NetErrors   int64
+	Total       int64
+	StatusCodes []StatusCode
+}
+
+type StatusCode struct {
+	Code  int
+	Count int64
+}
+
+type Brackets struct {
+	Q50 int64
+	Q75 int64
+	Q95 int64
+	Q99 int64
+}
+
+func NewBrackets(h metrics.Histogram) Brackets {
+	return Brackets{
+		Q50: h.ValueAtQuantile(50),
+		Q75: h.ValueAtQuantile(75),
+		Q95: h.ValueAtQuantile(95),
+		Q99: h.ValueAtQuantile(99),
+	}
+}
+
+type LocationKey struct {
+	Hostname string
+	Id       string
+}
+
+func (l LocationKey) String() string {
+	return fmt.Sprintf("%s.%s", l.Hostname, l.Id)
+}
+
+type EndpointKey struct {
+	UpstreamId string
+	Id         string
+}
+
+func (e EndpointKey) String() string {
+	return fmt.Sprintf("%s.%s", e.UpstreamId, e.Id)
+}
+
+func ParseEndpointKey(v string) (*EndpointKey, error) {
+	out := strings.SplitN(v, ".", 2)
+	if len(out) != 2 {
+		return nil, fmt.Errorf("invalid id: '%s'", v)
+	}
+	return &EndpointKey{UpstreamId: out[0], Id: out[1]}, nil
+}
+
+func MustParseEndpointKey(v string) EndpointKey {
+	k, err := ParseEndpointKey(v)
+	if err != nil {
+		panic(err)
+	}
+	return *k
+}
+
+type UpstreamKey struct {
+	Id string
+}
+
+func (u UpstreamKey) String() string {
+	return u.Id
 }
 
 const (

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"net/http"
 	"net/url"
 	"sync"
@@ -36,8 +36,9 @@ type Options struct {
 type EndpointOptions struct {
 	// Relative weight for the enpoint to other enpoints in the load balancer
 	Weight int
-	// Meter that will be used to detect failures
-	Meter FailRateMeter
+
+	// Meter tracks the failure count and is used to do failover
+	Meter metrics.FailRateMeter
 }
 
 func NewRoundRobin() (*RoundRobin, error) {
@@ -58,7 +59,7 @@ func NewRoundRobinWithOptions(o Options) (*RoundRobin, error) {
 	return rr, nil
 }
 
-func (r *RoundRobin) NextEndpoint(req Request) (Endpoint, error) {
+func (r *RoundRobin) NextEndpoint(req request.Request) (endpoint.Endpoint, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -74,8 +75,8 @@ func (r *RoundRobin) NextEndpoint(req Request) (Endpoint, error) {
 	// Try to prevent failover to the same endpoint that we've seen before,
 	// that reduces the probability of the scenario when failover hits same endpoint
 	// on the next attempt and fails, so users will see a failed request.
-	var endpoint Endpoint
-	for _, _ = range r.endpoints {
+	var endpoint endpoint.Endpoint
+	for _ = range r.endpoints {
 		endpoint, err = r.nextEndpoint(req)
 		if err != nil {
 			return nil, err
@@ -87,7 +88,7 @@ func (r *RoundRobin) NextEndpoint(req Request) (Endpoint, error) {
 	return endpoint, nil
 }
 
-func (r *RoundRobin) nextEndpoint(req Request) (Endpoint, error) {
+func (r *RoundRobin) nextEndpoint(req request.Request) (endpoint.Endpoint, error) {
 	if len(r.endpoints) == 0 {
 		return nil, fmt.Errorf("No endpoints")
 	}
@@ -150,12 +151,12 @@ func (r *RoundRobin) GetEndpoints() []*WeightedEndpoint {
 	return r.endpoints
 }
 
-func (rr *RoundRobin) AddEndpoint(endpoint Endpoint) error {
+func (rr *RoundRobin) AddEndpoint(endpoint endpoint.Endpoint) error {
 	return rr.AddEndpointWithOptions(endpoint, EndpointOptions{})
 }
 
 // In case if endpoint is already present in the load balancer, returns error
-func (r *RoundRobin) AddEndpointWithOptions(endpoint Endpoint, options EndpointOptions) error {
+func (r *RoundRobin) AddEndpointWithOptions(endpoint endpoint.Endpoint, options EndpointOptions) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -223,7 +224,7 @@ func (r *RoundRobin) FindEndpointById(id string) *WeightedEndpoint {
 	return nil
 }
 
-func (rr *RoundRobin) newWeightedEndpoint(endpoint Endpoint, options EndpointOptions) (*WeightedEndpoint, error) {
+func (rr *RoundRobin) newWeightedEndpoint(endpoint endpoint.Endpoint, options EndpointOptions) (*WeightedEndpoint, error) {
 	// Treat weight 0 as a default value passed by customer
 	if options.Weight == 0 {
 		options.Weight = 1
@@ -233,8 +234,8 @@ func (rr *RoundRobin) newWeightedEndpoint(endpoint Endpoint, options EndpointOpt
 	}
 
 	if options.Meter == nil {
-		meter, err := NewRollingMeter(
-			endpoint, 10, time.Second, rr.options.TimeProvider, IsNetworkError)
+		meter, err := metrics.NewRollingMeter(
+			endpoint, 10, time.Second, rr.options.TimeProvider, metrics.IsNetworkError)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +251,7 @@ func (rr *RoundRobin) newWeightedEndpoint(endpoint Endpoint, options EndpointOpt
 	}, nil
 }
 
-func (r *RoundRobin) RemoveEndpoint(endpoint Endpoint) error {
+func (r *RoundRobin) RemoveEndpoint(endpoint endpoint.Endpoint) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -263,17 +264,17 @@ func (r *RoundRobin) RemoveEndpoint(endpoint Endpoint) error {
 	return nil
 }
 
-func (rr *RoundRobin) ProcessRequest(Request) (*http.Response, error) {
+func (rr *RoundRobin) ProcessRequest(request.Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func (rr *RoundRobin) ProcessResponse(req Request, a Attempt) {
+func (rr *RoundRobin) ProcessResponse(req request.Request, a request.Attempt) {
 }
 
-func (rr *RoundRobin) ObserveRequest(Request) {
+func (rr *RoundRobin) ObserveRequest(request.Request) {
 }
 
-func (rr *RoundRobin) ObserveResponse(req Request, a Attempt) {
+func (rr *RoundRobin) ObserveResponse(req request.Request, a request.Attempt) {
 	rr.mutex.Lock()
 	defer rr.mutex.Unlock()
 
@@ -284,7 +285,8 @@ func (rr *RoundRobin) ObserveResponse(req Request, a Attempt) {
 	if we == nil {
 		return
 	}
-	// Update stats for the endpoint after the request was done
+
+	// Update endpoint stats: failure count and request roundtrip
 	we.meter.ObserveResponse(req, a)
 }
 
@@ -332,7 +334,7 @@ func validateOptions(o Options) (Options, error) {
 	return o, nil
 }
 
-func hasAttempted(req Request, endpoint Endpoint) bool {
+func hasAttempted(req request.Request, endpoint endpoint.Endpoint) bool {
 	for _, a := range req.GetAttempts() {
 		if a.GetEndpoint().GetId() == endpoint.GetId() {
 			return true

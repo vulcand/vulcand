@@ -2,10 +2,11 @@ package exproute
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"regexp"
 	"strings"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 )
 
 // Regular expression to match url parameters
@@ -47,7 +48,7 @@ func (t *trie) canMerge(m matcher) bool {
 func (p *trie) merge(m matcher) (matcher, error) {
 	other, ok := m.(*trie)
 	if !ok {
-		return nil, fmt.Errorf("Can't merge %T and %T")
+		return nil, fmt.Errorf("Can't merge %T and %T", p, m)
 	}
 	root, err := p.root.merge(other.root)
 	if err != nil {

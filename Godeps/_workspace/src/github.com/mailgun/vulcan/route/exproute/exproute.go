@@ -8,9 +8,11 @@ package exproute
 
 import (
 	"fmt"
+	"sort"
+	"sync"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
-	"sync"
 )
 
 type ExpRouter struct {
@@ -52,9 +54,16 @@ func (e *ExpRouter) AddLocation(expr string, l location.Location) error {
 }
 
 func (e *ExpRouter) compile() error {
+	var exprs = []string{}
+	for expr, _ := range e.routes {
+		exprs = append(exprs, expr)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(exprs)))
+
 	matchers := []matcher{}
 	i := 0
-	for expr, location := range e.routes {
+	for _, expr := range exprs {
+		location := e.routes[expr]
 		matcher, err := parseExpression(expr, location)
 		if err != nil {
 			return err

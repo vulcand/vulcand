@@ -100,12 +100,28 @@ func (s *Supervisor) setState(state supervisorState) {
 	s.state = state
 }
 
-func (s *Supervisor) GetStats(hostname, locationId string, e *backend.Endpoint) *backend.EndpointStats {
+func (s *Supervisor) GetLocationStats(l *backend.Location) (*backend.RoundTripStats, error) {
 	srv := s.getCurrentServer()
 	if srv != nil {
-		return srv.GetStats(hostname, locationId, e)
+		return srv.GetLocationStats(l)
 	}
-	return nil
+	return nil, fmt.Errorf("no current server")
+}
+
+func (s *Supervisor) GetEndpointStats(e *backend.Endpoint) (*backend.RoundTripStats, error) {
+	srv := s.getCurrentServer()
+	if srv != nil {
+		return srv.GetEndpointStats(e)
+	}
+	return nil, fmt.Errorf("no current server")
+}
+
+func (s *Supervisor) GetUpstreamStats(u *backend.Upstream) (*backend.RoundTripStats, error) {
+	srv := s.getCurrentServer()
+	if srv != nil {
+		return srv.GetUpstreamStats(u)
+	}
+	return nil, fmt.Errorf("no current server")
 }
 
 func (s *Supervisor) init() error {
@@ -323,9 +339,9 @@ func processChange(s server.Server, ch interface{}) error {
 	case *backend.LocationMiddlewareDeleted:
 		return s.DeleteLocationMiddleware(change.Host, change.Location, change.MiddlewareType, change.MiddlewareId)
 	case *backend.UpstreamAdded:
-		return nil
+		return s.AddUpstream(change.Upstream)
 	case *backend.UpstreamDeleted:
-		return nil
+		return s.DeleteUpstream(change.UpstreamId)
 	case *backend.EndpointAdded:
 		return s.UpsertEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
 	case *backend.EndpointUpdated:
