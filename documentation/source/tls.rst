@@ -24,7 +24,7 @@ Once we got the key, we can pass it to the running daemon.
 
 .. code-block:: sh
 
- $ vulcanctl vulcand -sealKey="the-seal-key"
+ $ vulcand -sealKey="the-seal-key"
 
 
 **Setting host certiticate via ETCD**
