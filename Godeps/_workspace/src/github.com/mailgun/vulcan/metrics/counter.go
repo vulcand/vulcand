@@ -7,6 +7,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 )
 
+// NewRollingCounterFn is a constructor of rolling counters.
 type NewRollingCounterFn func() (*RollingCounter, error)
 
 // Calculates in memory failure rate of an endpoint using rolling window of a predefined size
@@ -19,6 +20,8 @@ type RollingCounter struct {
 	lastUpdated    time.Time
 }
 
+// NewRollingCounter creates a counter with fixed amount of buckets that are rotated every resolition period.
+// E.g. 10 buckets with 1 second means that every new second the bucket is refreshed, so it maintains 10 second rolling window.
 func NewRollingCounter(buckets int, resolution time.Duration, timeProvider timetools.TimeProvider) (*RollingCounter, error) {
 	if buckets <= 0 {
 		return nil, fmt.Errorf("Buckets should be >= 0")
@@ -39,13 +42,13 @@ func (c *RollingCounter) Reset() {
 	c.lastBucket = -1
 	c.countedBuckets = 0
 	c.lastUpdated = time.Time{}
-	for i, _ := range c.values {
+	for i := range c.values {
 		c.values[i] = 0
 	}
 }
 
-func (r *RollingCounter) CountedBuckets() int {
-	return r.countedBuckets
+func (c *RollingCounter) CountedBuckets() int {
+	return c.countedBuckets
 }
 
 func (c *RollingCounter) Count() int64 {
@@ -73,7 +76,7 @@ func (c *RollingCounter) Inc() {
 func (c *RollingCounter) incBucketValue() {
 	now := c.timeProvider.UtcNow()
 	bucket := c.getBucket(now)
-	c.values[bucket] += 1
+	c.values[bucket]++
 	c.lastUpdated = now
 	// Update usage stats if we haven't collected enough data
 	if c.countedBuckets < len(c.values) {
@@ -81,7 +84,7 @@ func (c *RollingCounter) incBucketValue() {
 		// in the current bucket.
 		if c.lastBucket != bucket {
 			c.lastBucket = bucket
-			c.countedBuckets += 1
+			c.countedBuckets++
 		}
 	}
 }

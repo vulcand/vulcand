@@ -17,7 +17,7 @@ type Histogram interface {
 	Reset()
 }
 
-// Rolling histogram holds multiple histogram and rotates every period.
+// RollingHistogram holds multiple histograms and rotates every period.
 // It provides resulting histogram as a result of a call of 'Merged' function.
 type RollingHistogram interface {
 	RecordValues(v, n int64) error
@@ -27,6 +27,7 @@ type RollingHistogram interface {
 // NewHistogramFn is a constructor that can be passed to NewRollingHistogram
 type NewHistogramFn func() (Histogram, error)
 
+// NewHDRHistogramFn creates a constructor of HDR histograms with predefined parameters.
 func NewHDRHistogramFn(low, high int64, sigfigs int) NewHistogramFn {
 	return func() (Histogram, error) {
 		return NewHDRHistogram(low, high, sigfigs)
@@ -44,7 +45,7 @@ type rollingHistogram struct {
 
 func NewRollingHistogram(maker NewHistogramFn, bucketCount int, period time.Duration, timeProvider timetools.TimeProvider) (RollingHistogram, error) {
 	buckets := make([]Histogram, bucketCount)
-	for i, _ := range buckets {
+	for i := range buckets {
 		h, err := maker()
 		if err != nil {
 			return nil, err

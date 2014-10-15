@@ -5,13 +5,12 @@ import (
 	"sort"
 )
 
-type CompareFn func(float64, float64) bool
-
-func GTFloat64(a float64, b float64) bool {
-	return a > b
-}
-
-func SplitFloat64(compare CompareFn, multiplier, sentinel float64, values []float64) (good map[float64]bool, bad map[float64]bool) {
+// SplitFloat64 provides simple anomaly detection for skewed data sets with no particular distribution.
+// In essense it applies the formula if(v > median(values) + threshold * medianAbsoluteDeviation) -> anomaly
+// There's a corner case where there are just 2 values, so by definition there's no value that exceeds the threshold.
+// This case is solved by introducing additional value that we know is good, e.g. 0. That helps to improve the detection results
+// on such data sets.
+func SplitFloat64(threshold, sentinel float64, values []float64) (good map[float64]bool, bad map[float64]bool) {
 	good, bad = make(map[float64]bool), make(map[float64]bool)
 	var newValues []float64
 	if len(values)%2 == 0 {
@@ -26,7 +25,7 @@ func SplitFloat64(compare CompareFn, multiplier, sentinel float64, values []floa
 	m := median(newValues)
 	mAbs := medianAbsoluteDeviation(newValues)
 	for _, v := range values {
-		if compare(v, m+mAbs*multiplier) {
+		if v > m+mAbs*threshold {
 			bad[v] = true
 		} else {
 			good[v] = true
@@ -42,9 +41,8 @@ func median(values []float64) float64 {
 	l := len(vals)
 	if l%2 != 0 {
 		return vals[l/2]
-	} else {
-		return (vals[l/2-1] + vals[l/2]) / 2.0
 	}
+	return (vals[l/2-1] + vals[l/2]) / 2.0
 }
 
 func medianAbsoluteDeviation(values []float64) float64 {

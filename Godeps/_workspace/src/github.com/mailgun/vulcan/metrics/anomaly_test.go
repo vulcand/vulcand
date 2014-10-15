@@ -74,7 +74,7 @@ func (s *AnomalySuite) TestSplitValues(c *C) {
 		},
 	}
 	for _, v := range vals {
-		good, bad := SplitFloat64(GTFloat64, 1.5, 0, v.values)
+		good, bad := SplitFloat64(1.5, 0, v.values)
 		c.Assert(good, DeepEquals, v.good)
 		c.Assert(bad, DeepEquals, v.bad)
 	}

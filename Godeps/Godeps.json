@@ -77,8 +77,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-206-gcf238a7",
-			"Rev": "cf238a77dd2eac890a9559672cecc74d2454365a"
+			"Comment": "v0.1-207-ge8fc746",
+			"Rev": "e8fc74617e7bea89b82f39b7c6eed938c4840716"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

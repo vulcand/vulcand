@@ -175,8 +175,9 @@ func makeOriginalWeights(endpoints []*WeightedEndpoint) []SuggestedWeight {
 	return weights
 }
 
-// Splits endpoint into two groups of endpoints with bad performance and good performance. It does compare relative
-// performances of the endpoints though, so if all endpoints have the same performance,
+// splitEndpoints splits endpoints into two groups of endpoints with bad and good failure rate.
+// It does compare relative performances of the endpoints though, so if all endpoints have approximately the same error rate
+// this function returns the result as if all endpoints are equally good.
 func splitEndpoints(endpoints []*WeightedEndpoint) (map[string]bool, map[string]bool) {
 
 	failRates := make([]float64, len(endpoints))
@@ -185,7 +186,7 @@ func splitEndpoints(endpoints []*WeightedEndpoint) (map[string]bool, map[string]
 		failRates[i] = e.failRate()
 	}
 
-	g, b := metrics.SplitFloat64(metrics.GTFloat64, 1.5, 0, failRates)
+	g, b := metrics.SplitFloat64(1.5, 0, failRates)
 	good, bad := make(map[string]bool, len(g)), make(map[string]bool, len(b))
 
 	for _, e := range endpoints {
