@@ -122,11 +122,7 @@ func (c *Client) GetTopLocations(hostname, upstreamId string, limit int) ([]*bac
 	if err != nil {
 		return nil, err
 	}
-	var re *LocationsResponse
-	if err = json.Unmarshal(response, &re); err != nil {
-		return nil, err
-	}
-	return re.Locations, nil
+	return backend.LocationsFromJSON(response, c.Registry.GetSpec)
 }
 
 func (c *Client) AddLocationWithOptions(hostname, id, path, upstream string, options backend.LocationOptions) (*backend.Location, error) {
@@ -355,10 +351,6 @@ type UpstreamsResponse struct {
 
 type EndpointsResponse struct {
 	Endpoints []*backend.Endpoint
-}
-
-type LocationsResponse struct {
-	Locations []*backend.Location
 }
 
 type StatusResponse struct {
