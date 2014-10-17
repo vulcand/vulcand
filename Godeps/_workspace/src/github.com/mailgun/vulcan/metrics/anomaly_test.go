@@ -118,13 +118,13 @@ func (s *AnomalySuite) TestSplitLatencies(c *C) {
 		},
 		{
 			values: []int{8, 8, 18},
-			good:   []int{8, 8, 18},
-			bad:    []int{},
+			good:   []int{8},
+			bad:    []int{18},
 		},
 		{
 			values: []int{32, 28, 11, 26, 19, 51, 25, 39, 28, 26, 8, 97},
-			good:   []int{32, 28, 11, 26, 19, 51, 25, 39, 28, 26, 8, 97},
-			bad:    []int{},
+			good:   []int{32, 28, 11, 26, 19, 51, 25, 39, 28, 26, 8},
+			bad:    []int{97},
 		},
 		{
 			values: []int{1, 2, 4, 40},
