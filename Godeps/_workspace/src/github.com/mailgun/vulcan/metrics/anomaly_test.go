@@ -97,45 +97,59 @@ func (s *AnomalySuite) TestSplitRatios(c *C) {
 
 func (s *AnomalySuite) TestSplitLatencies(c *C) {
 	vals := []struct {
-		values []time.Duration
-		good   []time.Duration
-		bad    []time.Duration
+		values []int
+		good   []int
+		bad    []int
 	}{
 		{
-			values: []time.Duration{0, 0},
-			good:   []time.Duration{0},
-			bad:    []time.Duration{},
+			values: []int{0, 0},
+			good:   []int{0},
+			bad:    []int{},
 		},
 		{
-			values: []time.Duration{time.Millisecond, 2 * time.Millisecond},
-			good:   []time.Duration{time.Millisecond, 2 * time.Millisecond},
-			bad:    []time.Duration{},
+			values: []int{1, 2},
+			good:   []int{1, 2},
+			bad:    []int{},
 		},
 		{
-			values: []time.Duration{time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond},
-			good:   []time.Duration{time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond},
-			bad:    []time.Duration{},
+			values: []int{1, 2, 4},
+			good:   []int{1, 2, 4},
+			bad:    []int{},
 		},
 		{
-			values: []time.Duration{time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond, 40 * time.Millisecond},
-			good:   []time.Duration{time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond},
-			bad:    []time.Duration{40 * time.Millisecond},
+			values: []int{8, 8, 18},
+			good:   []int{8, 8, 18},
+			bad:    []int{},
 		},
 		{
-			values: []time.Duration{40 * time.Millisecond, 60 * time.Millisecond, time.Second},
-			good:   []time.Duration{40 * time.Millisecond, 60 * time.Millisecond},
-			bad:    []time.Duration{time.Second},
+			values: []int{32, 28, 11, 26, 19, 51, 25, 39, 28, 26, 8, 97},
+			good:   []int{32, 28, 11, 26, 19, 51, 25, 39, 28, 26, 8, 97},
+			bad:    []int{},
+		},
+		{
+			values: []int{1, 2, 4, 40},
+			good:   []int{1, 2, 4},
+			bad:    []int{40},
+		},
+		{
+			values: []int{40, 60, 1000},
+			good:   []int{40, 60},
+			bad:    []int{1000},
 		},
 	}
 	for _, v := range vals {
-		good, bad := SplitLatencies(v.values, time.Millisecond)
+		vvalues := make([]time.Duration, len(v.values))
+		for i, d := range v.values {
+			vvalues[i] = time.Millisecond * time.Duration(d)
+		}
+		good, bad := SplitLatencies(vvalues, time.Millisecond)
 
 		vgood, vbad := make(map[time.Duration]bool, len(v.good)), make(map[time.Duration]bool, len(v.bad))
 		for _, v := range v.good {
-			vgood[v] = true
+			vgood[time.Duration(v)*time.Millisecond] = true
 		}
 		for _, v := range v.bad {
-			vbad[v] = true
+			vbad[time.Duration(v)*time.Millisecond] = true
 		}
 
 		c.Assert(good, DeepEquals, vgood)

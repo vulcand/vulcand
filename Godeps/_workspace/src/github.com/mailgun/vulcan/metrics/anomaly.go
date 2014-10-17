@@ -20,10 +20,9 @@ func SplitLatencies(values []time.Duration, precision time.Duration) (good map[t
 		v2r[ratio] = v
 		ratios[i] = ratio
 	}
-
 	good, bad = make(map[time.Duration]bool), make(map[time.Duration]bool)
 	// Note that 10 makes this function way less sensitive than ratios detector, this is to avoid noise.
-	vgood, vbad := SplitFloat64(10, 0, ratios)
+	vgood, vbad := SplitFloat64(5, 0, ratios)
 	for r, _ := range vgood {
 		good[v2r[r]] = true
 	}
@@ -60,7 +59,7 @@ func SplitFloat64(threshold, sentinel float64, values []float64) (good map[float
 	m := median(newValues)
 	mAbs := medianAbsoluteDeviation(newValues)
 	for _, v := range values {
-		if v > m+mAbs*threshold {
+		if v > (m+mAbs)*threshold {
 			bad[v] = true
 		} else {
 			good[v] = true
