@@ -35,6 +35,8 @@ func MarkEndpointAnomalies(endpoints []*backend.Endpoint) {
 	MarkAnomalies(stats)
 }
 
+// MarkAnomalies takes the list of stats and marks anomalies detected within this group by updating
+// the Verdict property.
 func MarkAnomalies(stats []*backend.RoundTripStats) {
 	if len(stats) == 0 {
 		return
