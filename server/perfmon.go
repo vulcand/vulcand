@@ -334,13 +334,6 @@ func cmpStats(s1, s2 *backend.RoundTripStats) bool {
 		return s1.AppErrorRate() > s2.AppErrorRate()
 	}
 
-	// Slower items go next
-	for i := range s1.LatencyBrackets {
-		if s1.LatencyBrackets[i].Value > s2.LatencyBrackets[i].Value {
-			return true
-		}
-	}
-
 	// More highly loaded items go next
 	return s1.Counters.Total > s2.Counters.Total
 }

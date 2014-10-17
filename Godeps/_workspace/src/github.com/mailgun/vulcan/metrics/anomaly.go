@@ -6,12 +6,12 @@ import (
 	"time"
 )
 
-// SplitRatios provides simple anomaly detection for latency values, that are all expressed in microseconds.
+// SplitRatios provides simple anomaly detection for requests latencies.
 // it splits values into good or bad category based on the threshold and the median value.
 // If all values are not far from the median, it will return all values in 'good' set.
 // Precision is the smallest value to consider, e.g. if set to millisecond, microseconds will be ignored.
 func SplitLatencies(values []time.Duration, precision time.Duration) (good map[time.Duration]bool, bad map[time.Duration]bool) {
-	// The trick is to map latencies to their ratios to the biggest latency and use the same settings as for ratios
+	// Find the max latency M and then map each latency L to the ratio L/M and then call SplitFloat64
 	v2r := map[float64]time.Duration{}
 	ratios := make([]float64, len(values))
 	m := maxTime(values)
@@ -22,7 +22,8 @@ func SplitLatencies(values []time.Duration, precision time.Duration) (good map[t
 	}
 
 	good, bad = make(map[time.Duration]bool), make(map[time.Duration]bool)
-	vgood, vbad := SplitRatios(ratios)
+	// Note that 10 makes this function way less sensitive than ratios detector, this is to avoid noise.
+	vgood, vbad := SplitFloat64(10, 0, ratios)
 	for r, _ := range vgood {
 		good[v2r[r]] = true
 	}

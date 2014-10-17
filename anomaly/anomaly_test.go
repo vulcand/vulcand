@@ -1,6 +1,7 @@
 package anomaly
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -128,7 +129,7 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 					},
 				},
 			},
-			Verdicts: []Verdict{{IsBad: true, Anomalies: []Anomaly{{Code: CodeLatency, Message: MessageLatency}}}, {}},
+			Verdicts: []Verdict{{IsBad: true, Anomalies: []Anomaly{{Code: CodeLatency, Message: fmt.Sprintf(MessageLatency, 50.0)}}}, {}},
 		},
 	}
 

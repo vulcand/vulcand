@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -78,14 +79,19 @@ func errRateToString(r float64) string {
 }
 
 func statusCodesToString(s *backend.RoundTripStats) string {
-	codes := make([]string, 0, len(s.Counters.StatusCodes))
-	if s.Counters.Total != 0 {
-		for _, c := range s.Counters.StatusCodes {
-			percent := 100 * (float64(c.Count) / float64(s.Counters.Total))
-			out := fmt.Sprintf("%d: %0.2f", c.Code, percent)
-			codes = append(codes, out)
-		}
+	if s.Counters.Total == 0 {
+		return ""
 	}
+
+	sort.Sort(&codeSorter{codes: s.Counters.StatusCodes})
+
+	codes := make([]string, 0, len(s.Counters.StatusCodes))
+	for _, c := range s.Counters.StatusCodes {
+		percent := 100 * (float64(c.Count) / float64(s.Counters.Total))
+		out := fmt.Sprintf("%d: %0.2f", c.Code, percent)
+		codes = append(codes, out)
+	}
+
 	return strings.Join(codes, ", ")
 }
 
@@ -96,4 +102,20 @@ func getColor(code int) int {
 		return goterm.YELLOW
 	}
 	return goterm.RED
+}
+
+type codeSorter struct {
+	codes []backend.StatusCode
+}
+
+func (c *codeSorter) Len() int {
+	return len(c.codes)
+}
+
+func (c *codeSorter) Swap(i, j int) {
+	c.codes[i], c.codes[j] = c.codes[j], c.codes[i]
+}
+
+func (c *codeSorter) Less(i, j int) bool {
+	return c.codes[i].Code < c.codes[j].Code
 }

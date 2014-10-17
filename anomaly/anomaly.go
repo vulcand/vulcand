@@ -1,6 +1,7 @@
 package anomaly
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
@@ -17,7 +18,7 @@ const (
 const (
 	MessageNetErrRate = "Error rate stands out"
 	MessageAppErrRate = "App error rate (status 500) stands out"
-	MessageLatency    = "Latency stands out"
+	MessageLatency    = "%0.2f quantile latency stands out"
 )
 
 // MarkEndpointAnomalies takes the list of endpoints and marks anomalies detected within this set
@@ -78,7 +79,11 @@ func markLatency(index int, stats []*backend.RoundTripStats) {
 		if bad[s.LatencyBrackets[index].Value] {
 			s.Verdict.IsBad = true
 			s.Verdict.Anomalies = append(
-				s.Verdict.Anomalies, backend.Anomaly{Code: CodeLatency, Message: MessageLatency})
+				s.Verdict.Anomalies,
+				backend.Anomaly{
+					Code:    CodeLatency,
+					Message: fmt.Sprintf(MessageLatency, quantile),
+				})
 		}
 	}
 }
