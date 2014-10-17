@@ -51,30 +51,31 @@ func (s *HistogramSuite) TestMergeNil(c *C) {
 func (s *HistogramSuite) TestRotation(c *C) {
 	h, err := NewRollingHistogram(
 		NewHDRHistogramFn(1, 3600000, 3),
-		2,           // 3 histograms in a window
+		2,           // 2 histograms in a window
 		time.Second, // 1 second is a rolling period
 		s.tm)
 
 	c.Assert(err, IsNil)
 	c.Assert(h, NotNil)
 
-	h.RecordValues(2, 1)
+	h.RecordValues(5, 1)
 
 	m, err := h.Merged()
 	c.Assert(err, IsNil)
-	c.Assert(m.ValueAtQuantile(100), Equals, int64(2))
+	c.Assert(m.ValueAtQuantile(100), Equals, int64(5))
 
 	s.tm.CurrentTime = s.tm.CurrentTime.Add(time.Second)
+	h.RecordValues(2, 1)
 	h.RecordValues(1, 1)
 
 	m, err = h.Merged()
 	c.Assert(err, IsNil)
-	c.Assert(m.ValueAtQuantile(100), Equals, int64(2))
+	c.Assert(m.ValueAtQuantile(100), Equals, int64(5))
 
 	// rotate, this means that the old value would evaporate
 	s.tm.CurrentTime = s.tm.CurrentTime.Add(time.Second)
 	h.RecordValues(1, 1)
 	m, err = h.Merged()
 	c.Assert(err, IsNil)
-	c.Assert(m.ValueAtQuantile(100), Equals, int64(1))
+	c.Assert(m.ValueAtQuantile(100), Equals, int64(2))
 }

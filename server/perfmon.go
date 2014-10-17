@@ -277,7 +277,9 @@ func (m *metricsBucket) getStats() (*backend.RoundTripStats, error) {
 
 	sc := make([]backend.StatusCode, 0, len(m.statusCodes))
 	for k, v := range m.statusCodes {
-		sc = append(sc, backend.StatusCode{Code: k, Count: v.Count()})
+		if v.Count() != 0 {
+			sc = append(sc, backend.StatusCode{Code: k, Count: v.Count()})
+		}
 	}
 
 	return &backend.RoundTripStats{

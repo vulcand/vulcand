@@ -82,6 +82,7 @@ func (r *rollingHistogram) Merged() (Histogram, error) {
 func (r *rollingHistogram) RecordValues(v, n int64) error {
 	if r.timeProvider.UtcNow().Sub(r.lastRoll) >= r.period {
 		r.rotate()
+		r.lastRoll = r.timeProvider.UtcNow()
 	}
 	return r.buckets[r.idx].RecordValues(v, n)
 }
