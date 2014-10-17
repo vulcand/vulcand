@@ -46,15 +46,15 @@ func (cmd *Command) printHost(host *backend.Host) {
 	printTree(cmd.out, hostView(host), 0, true, "")
 }
 
-func (cmd *Command) printOverview(hosts []*backend.Host, upstreams []*backend.Upstream, limit int) {
+func (cmd *Command) printOverview(locations []*backend.Location, endpoints []*backend.Endpoint) {
 	out := &bytes.Buffer{}
 	fmt.Fprintf(out, "[Locations]\n\n")
-	fmt.Fprintf(out, hostsOverview(hosts, limit))
+	fmt.Fprintf(out, locationsOverview(locations))
 	fmt.Fprintf(cmd.out, out.String())
 
 	out = &bytes.Buffer{}
 	fmt.Fprintf(out, "\n\n[Endpoints]\n\n")
-	fmt.Fprintf(out, upstreamsOverview(upstreams, limit))
+	fmt.Fprintf(out, endpointsOverview(endpoints))
 	fmt.Fprintf(cmd.out, out.String())
 }
 

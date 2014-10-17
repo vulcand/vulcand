@@ -57,7 +57,6 @@ func locationsView(ls []*backend.Location) *StringTree {
 	if len(ls) == 0 {
 		return r
 	}
-	sort.Sort(&locSorter{locs: ls})
 	for _, l := range ls {
 		r.AddChild(locationView(l))
 	}

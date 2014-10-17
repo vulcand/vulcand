@@ -94,6 +94,14 @@ func (m *MuxServer) GetUpstreamStats(u *backend.Upstream) (*backend.RoundTripSta
 	return m.perfMon.getUpstreamStats(u)
 }
 
+func (m *MuxServer) GetTopLocations(hostname, upstreamId string) ([]*backend.Location, error) {
+	return m.perfMon.getTopLocations(hostname, upstreamId)
+}
+
+func (m *MuxServer) GetTopEndpoints(upstreamId string) ([]*backend.Endpoint, error) {
+	return m.perfMon.getTopEndpoints(upstreamId)
+}
+
 func (m *MuxServer) TakeFiles(files []*FileDescriptor) error {
 	log.Infof("%s TakeFiles %s", m, files)
 

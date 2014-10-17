@@ -3,10 +3,12 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 
+	"github.com/mailgun/vulcand/anomaly"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
 )
@@ -32,6 +34,8 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"GET"}, Handler: c.getHost})
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
 
+	app.AddHandler(scroll.Spec{Path: "/v1/hosts/top/locations", Methods: []string{"GET"}, Handler: c.getTopLocations})
+
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"GET"}, Handler: c.getHostLocation})
 
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/keypair", Methods: []string{"PUT"}, HandlerWithBody: c.updateHostKeyPair})
@@ -52,6 +56,7 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}/options", Methods: []string{"PUT"}, HandlerWithBody: c.updateLocationOptions})
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"DELETE"}, Handler: c.deleteLocation})
 
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/top/endpoints", Methods: []string{"GET"}, Handler: c.getTopEndpoints})
 	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"POST"}, HandlerWithBody: c.addEndpoint})
 	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"GET"}, Handler: c.getUpstreamEndpoints})
 	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints/{endpoint}", Methods: []string{"DELETE"}, Handler: c.deleteEndpoint})
@@ -125,6 +130,23 @@ func (c *ProxyController) getHostLocations(w http.ResponseWriter, r *http.Reques
 	}
 	return scroll.Response{
 		"Locations": host.Locations,
+	}, nil
+}
+
+func (c *ProxyController) getTopLocations(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	limit, err := strconv.Atoi(r.Form.Get("limit"))
+	if err != nil {
+		return nil, formatError(err)
+	}
+	locations, err := c.statsGetter.GetTopLocations(r.Form.Get("hostname"), r.Form.Get("upstreamId"))
+	if err != nil {
+		return nil, formatError(err)
+	}
+	if limit > 0 && limit < len(locations) {
+		locations = locations[:limit]
+	}
+	return scroll.Response{
+		"Locations": locations,
 	}, nil
 }
 
@@ -203,6 +225,7 @@ func (c *ProxyController) getUpstreams(w http.ResponseWriter, r *http.Request, p
 				e.Stats = *s
 			}
 		}
+		anomaly.MarkEndpointAnomalies(u.Endpoints)
 	}
 
 	return scroll.Response{
@@ -215,8 +238,34 @@ func (c *ProxyController) getUpstreamEndpoints(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return nil, formatError(err)
 	}
+	for _, e := range up.Endpoints {
+		if s, err := c.statsGetter.GetEndpointStats(e); err == nil {
+			e.Stats = *s
+		}
+	}
+	anomaly.MarkEndpointAnomalies(up.Endpoints)
 	return scroll.Response{
 		"Endpoints": up.Endpoints,
+	}, nil
+}
+
+func (c *ProxyController) getTopEndpoints(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	limit, err := strconv.Atoi(r.Form.Get("limit"))
+	if err != nil {
+		return nil, formatError(err)
+	}
+	endpoints, err := c.statsGetter.GetTopEndpoints(r.Form.Get("upstreamId"))
+	if err != nil {
+		return nil, formatError(err)
+	}
+	if r.Form.Get("upstreamId") != "" {
+		anomaly.MarkEndpointAnomalies(endpoints)
+	}
+	if limit > 0 && limit < len(endpoints) {
+		endpoints = endpoints[:limit]
+	}
+	return scroll.Response{
+		"Endpoints": endpoints,
 	}, nil
 }
 

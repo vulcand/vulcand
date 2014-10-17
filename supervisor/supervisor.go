@@ -124,6 +124,22 @@ func (s *Supervisor) GetUpstreamStats(u *backend.Upstream) (*backend.RoundTripSt
 	return nil, fmt.Errorf("no current server")
 }
 
+func (s *Supervisor) GetTopLocations(hostname, upstreamId string) ([]*backend.Location, error) {
+	srv := s.getCurrentServer()
+	if srv != nil {
+		return srv.GetTopLocations(hostname, upstreamId)
+	}
+	return nil, fmt.Errorf("no current server")
+}
+
+func (s *Supervisor) GetTopEndpoints(upstreamId string) ([]*backend.Endpoint, error) {
+	srv := s.getCurrentServer()
+	if srv != nil {
+		return srv.GetTopEndpoints(upstreamId)
+	}
+	return nil, fmt.Errorf("no current server")
+}
+
 func (s *Supervisor) init() error {
 	srv, err := s.newSrv(s.lastId)
 	if err != nil {

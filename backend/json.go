@@ -15,6 +15,10 @@ type rawHost struct {
 	Locations []json.RawMessage
 }
 
+type rawLocations struct {
+	Locations []json.RawMessage
+}
+
 type rawLocation struct {
 	Hostname    string
 	Path        string
@@ -47,6 +51,23 @@ func HostsFromJSON(in []byte, getter plugin.SpecGetter) ([]*Host, error) {
 			}
 			out = append(out, h)
 		}
+	}
+	return out, nil
+}
+
+func LocationsFromJSON(in []byte, getter plugin.SpecGetter) ([]*Location, error) {
+	var rl *rawLocations
+	err := json.Unmarshal(in, &rl)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*Location, len(rl.Locations))
+	for i, raw := range rl.Locations {
+		l, err := LocationFromJSON(raw, getter)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = l
 	}
 	return out, nil
 }
