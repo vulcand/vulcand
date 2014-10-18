@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/backend"
 )
@@ -53,7 +52,6 @@ func markNetErrorRates(stats []*backend.RoundTripStats) {
 	}
 
 	_, bad := metrics.SplitRatios(errRates)
-	log.Infof("Bad error rates: %s", bad)
 	for _, s := range stats {
 		if bad[s.NetErrorRate()] {
 			s.Verdict.IsBad = true
@@ -63,9 +61,8 @@ func markNetErrorRates(stats []*backend.RoundTripStats) {
 }
 
 func markLatencies(stats []*backend.RoundTripStats) {
-	for i := range stats[0].LatencyBrackets {
-		markLatency(i, stats)
-	}
+	// We are processing only median as others are more volatile
+	markLatency(0, stats)
 }
 
 func markLatency(index int, stats []*backend.RoundTripStats) {
@@ -75,8 +72,7 @@ func markLatency(index int, stats []*backend.RoundTripStats) {
 	}
 
 	quantile := stats[0].LatencyBrackets[index].Quantile
-	good, bad := metrics.SplitLatencies(quantiles, time.Millisecond)
-	log.Infof("Bad %0.2f latencies: good:%v bad: %v", quantile, good, bad)
+	_, bad := metrics.SplitLatencies(quantiles, time.Millisecond)
 	for _, s := range stats {
 		if bad[s.LatencyBrackets[index].Value] {
 			s.Verdict.IsBad = true
