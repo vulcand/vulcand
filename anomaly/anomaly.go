@@ -68,6 +68,9 @@ func markLatencies(stats []*backend.RoundTripStats) {
 func markLatency(index int, stats []*backend.RoundTripStats) {
 	quantiles := make([]time.Duration, len(stats))
 	for i, s := range stats {
+		if len(s.LatencyBrackets) < index+1 {
+			return
+		}
 		quantiles[i] = s.LatencyBrackets[index].Value
 	}
 

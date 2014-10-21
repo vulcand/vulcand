@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/failover"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -304,7 +304,7 @@ func parseLocationOptions(l LocationOptions) (*httploc.Options, error) {
 
 	// Failover predicate
 	if len(l.FailoverPredicate) != 0 {
-		if o.ShouldFailover, err = failover.ParseExpression(l.FailoverPredicate); err != nil {
+		if o.FailoverPredicate, err = threshold.ParseExpression(l.FailoverPredicate); err != nil {
 			return nil, err
 		}
 	}

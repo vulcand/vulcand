@@ -75,7 +75,7 @@ func (s *BackendSuite) TestNewLocationWithOptions(c *C) {
 	c.Assert(o.Limits.MaxMemBodyBytes, Equals, int64(12))
 	c.Assert(o.Limits.MaxBodyBytes, Equals, int64(400))
 
-	c.Assert(o.ShouldFailover, NotNil)
+	c.Assert(o.FailoverPredicate, NotNil)
 	c.Assert(o.TrustForwardHeader, Equals, true)
 	c.Assert(o.Hostname, Equals, "host1")
 }
