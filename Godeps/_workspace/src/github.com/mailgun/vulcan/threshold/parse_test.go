@@ -149,7 +149,7 @@ func (s *ThresholdSuite) TestAttemptsLeLegacy(c *C) {
 	c.Assert(p(req), Equals, false)
 }
 
-func (s *ThresholdSuite) TestAttemptsLt(c *C) {
+func (s *ThresholdSuite) TestAttemptsLT(c *C) {
 	p, err := ParseExpression(`Attempts() < 1`)
 	c.Assert(err, IsNil)
 
@@ -171,7 +171,7 @@ func (s *ThresholdSuite) TestAttemptsLt(c *C) {
 	c.Assert(p(req), Equals, false)
 }
 
-func (s *ThresholdSuite) TestAttemptsGt(c *C) {
+func (s *ThresholdSuite) TestAttemptsGT(c *C) {
 	p, err := ParseExpression(`Attempts() > 1`)
 	c.Assert(err, IsNil)
 
@@ -193,7 +193,7 @@ func (s *ThresholdSuite) TestAttemptsGt(c *C) {
 	c.Assert(p(req), Equals, true)
 }
 
-func (s *ThresholdSuite) TestAttemptsGe(c *C) {
+func (s *ThresholdSuite) TestAttemptsGE(c *C) {
 	p, err := ParseExpression(`Attempts() >= 1`)
 	c.Assert(err, IsNil)
 
@@ -224,7 +224,7 @@ func (s *ThresholdSuite) TestAttemptsGe(c *C) {
 	c.Assert(p(req), Equals, true)
 }
 
-func (s *ThresholdSuite) TestAttemptsNe(c *C) {
+func (s *ThresholdSuite) TestAttemptsNE(c *C) {
 	p, err := ParseExpression(`Attempts() != 1`)
 	c.Assert(err, IsNil)
 
@@ -260,6 +260,47 @@ func (s *ThresholdSuite) TestComplexExpression(c *C) {
 	// 503 error and more than one attempt
 	req = &BaseRequest{
 		Attempts: []Attempt{
+			&BaseAttempt{
+				Response: &http.Response{StatusCode: 503},
+			},
+			&BaseAttempt{
+				Response: &http.Response{StatusCode: 503},
+			},
+		},
+	}
+	c.Assert(p(req), Equals, false)
+}
+
+func (s *ThresholdSuite) TestComplexLegacyExpression(c *C) {
+	p, err := ParseExpression(`(IsNetworkError || ResponseCodeEq(503)) && AttemptsLe(2)`)
+	c.Assert(err, IsNil)
+
+	// 503 error and one attempt
+	req := &BaseRequest{
+		Attempts: []Attempt{
+			&BaseAttempt{
+				Response: &http.Response{StatusCode: 503},
+			},
+		},
+	}
+	c.Assert(p(req), Equals, true)
+
+	// Network error and one attempt
+	req = &BaseRequest{
+		Attempts: []Attempt{
+			&BaseAttempt{
+				Error: fmt.Errorf("Something failed"),
+			},
+		},
+	}
+	c.Assert(p(req), Equals, true)
+
+	// 503 error and three attempts
+	req = &BaseRequest{
+		Attempts: []Attempt{
+			&BaseAttempt{
+				Response: &http.Response{StatusCode: 503},
+			},
 			&BaseAttempt{
 				Response: &http.Response{StatusCode: 503},
 			},
