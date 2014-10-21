@@ -390,12 +390,26 @@ func (e *Endpoint) GetUniqueId() EndpointKey {
 	return EndpointKey{UpstreamId: e.UpstreamId, Id: e.Id}
 }
 
+type LatencyBrackets []Bracket
+
+func (l LatencyBrackets) GetQuantile(q float64) (*Bracket, error) {
+	if len(l) == 0 {
+		return nil, fmt.Errorf("quantile %f not found", q)
+	}
+	for _, b := range l {
+		if b.Quantile == q {
+			return &b, nil
+		}
+	}
+	return nil, fmt.Errorf("quantile %f not found", q)
+}
+
 // RoundTrip stats contain real time statistics about performance of Endpoint or Location
 // such as latency, processed and failed requests.
 type RoundTripStats struct {
 	Verdict         Verdict
 	Counters        Counters
-	LatencyBrackets []Bracket
+	LatencyBrackets LatencyBrackets
 }
 
 // NetErroRate calculates the amont of ntwork errors such as time outs and dropped connection

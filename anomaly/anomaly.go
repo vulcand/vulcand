@@ -22,30 +22,34 @@ const (
 
 // MarkEndpointAnomalies takes the list of endpoints and marks anomalies detected within this set
 // by modifying the inner Verdict property.
-func MarkEndpointAnomalies(endpoints []*backend.Endpoint) {
+func MarkEndpointAnomalies(endpoints []*backend.Endpoint) error {
 	if len(endpoints) == 0 {
-		return
+		return nil
 	}
 
 	stats := make([]*backend.RoundTripStats, len(endpoints))
 	for i, e := range endpoints {
 		stats[i] = &e.Stats
 	}
-	MarkAnomalies(stats)
+	return MarkAnomalies(stats)
 }
 
 // MarkAnomalies takes the list of stats and marks anomalies detected within this group by updating
 // the Verdict property.
-func MarkAnomalies(stats []*backend.RoundTripStats) {
+func MarkAnomalies(stats []*backend.RoundTripStats) error {
 	if len(stats) == 0 {
-		return
+		return nil
 	}
-	markLatencies(stats)
-	markNetErrorRates(stats)
-	markAppErrorRates(stats)
+	if err := markLatencies(stats); err != nil {
+		return err
+	}
+	if err := markNetErrorRates(stats); err != nil {
+		return err
+	}
+	return markAppErrorRates(stats)
 }
 
-func markNetErrorRates(stats []*backend.RoundTripStats) {
+func markNetErrorRates(stats []*backend.RoundTripStats) error {
 	errRates := make([]float64, len(stats))
 	for i, s := range stats {
 		errRates[i] = s.NetErrorRate()
@@ -58,20 +62,22 @@ func markNetErrorRates(stats []*backend.RoundTripStats) {
 			s.Verdict.Anomalies = append(s.Verdict.Anomalies, backend.Anomaly{Code: CodeNetErrorRate, Message: MessageNetErrRate})
 		}
 	}
+	return nil
 }
 
-func markLatencies(stats []*backend.RoundTripStats) {
+func markLatencies(stats []*backend.RoundTripStats) error {
 	// We are processing only median as others are more volatile
-	markLatency(0, stats)
+	return markLatency(0, stats)
 }
 
-func markLatency(index int, stats []*backend.RoundTripStats) {
+func markLatency(index int, stats []*backend.RoundTripStats) error {
 	quantiles := make([]time.Duration, len(stats))
 	for i, s := range stats {
-		if len(s.LatencyBrackets) < index+1 {
-			return
+		v, err := s.LatencyBrackets.GetQuantile(50)
+		if err != nil {
+			return err
 		}
-		quantiles[i] = s.LatencyBrackets[index].Value
+		quantiles[i] = v.Value
 	}
 
 	quantile := stats[0].LatencyBrackets[index].Quantile
@@ -87,9 +93,10 @@ func markLatency(index int, stats []*backend.RoundTripStats) {
 				})
 		}
 	}
+	return nil
 }
 
-func markAppErrorRates(stats []*backend.RoundTripStats) {
+func markAppErrorRates(stats []*backend.RoundTripStats) error {
 	errRates := make([]float64, len(stats))
 	for i, s := range stats {
 		errRates[i] = s.AppErrorRate()
@@ -103,4 +110,5 @@ func markAppErrorRates(stats []*backend.RoundTripStats) {
 				s.Verdict.Anomalies, backend.Anomaly{Code: CodeAppErrorRate, Message: MessageAppErrRate})
 		}
 	}
+	return nil
 }
