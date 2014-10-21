@@ -16,6 +16,6 @@ Project info
 
 | documentation | https://www.vulcanproxy.com                                      |
 | :------------- |:-----------------------------------------------------------------|
-| status        | Hardening, testing, benchmarking. Not usable for production yet |
+| status        | Used in production@Mailgun on moderate workloads.  Under active development.              |
 | blog          | http://blog.vulcanproxy.com                                     |
 | discussions   | https://groups.google.com/d/forum/vulcan-proxy                  |
