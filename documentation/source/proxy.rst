@@ -56,12 +56,12 @@ Failover predicates
 ~~~~~~~~~~~~~~~~~~~
 
 Sometimes it is handy to retry the request on error. The good question is what constitues an error? Sometimes it's a read/write timeout, and somethimes it's a special error code. 
-Failover predicates are expressions that define when the request can be failed over, e.g.  ``IsNetworkError && AttemptsLe(1)``
+Failover predicates are expressions that define when the request can be failed over, e.g.  ``IsNetworkError() && Attempts <= 2``
 
-* ``IsNetworkError`` - failover on network error
-* ``AttemptsLe(1)`` - allows only 1 failover attempt. If you omit this, failover will go into endless loop
-* ``RequestMethodEq("GET")`` - allows failover for GET requests only
-* ``ResponseCodeEq(408)`` - allows failover on 408 HTTP response code
+* ``IsNetworkError()`` - failover on network error
+* ``Attempts <= (1)`` - allows only 1 failover attempt. If you omit this, failover will go into endless loop
+* ``RequestMethod() == "GET"`` - allows failover for GET requests only
+* ``ResponseCode() == 408`` - allows failover on 408 HTTP response code
 
 .. warning::  if you omit `AttemptsLe`, failover will go into endless loop
 

@@ -264,10 +264,6 @@ This is useful in cases if one wants to implement classic Apache Vhosts routing,
  router.SetRouter("api.example.com", apiRouter)
 
 
-
-.. include:: middlewares-intro.rst
-
-
 Middleware
 ----------
 
