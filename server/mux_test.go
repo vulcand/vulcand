@@ -301,7 +301,7 @@ func (s *ServerSuite) TestUpdateLocationOptions(c *C) {
 	c.Assert(s.mux.UpdateLocationOptions(h, l), IsNil)
 
 	lo := s.mux.getLocation(h.Name, l.Id)
-	c.Assert(lo.GetOptions().ShouldFailover, NotNil)
+	c.Assert(lo.GetOptions().FailoverPredicate, NotNil)
 	c.Assert(lo.GetOptions().Timeouts.Dial, Equals, time.Second*7)
 }
 

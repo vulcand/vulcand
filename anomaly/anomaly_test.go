@@ -41,6 +41,12 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 			Endpoints: []*Endpoint{
 				&Endpoint{
 					Stats: RoundTripStats{
+						LatencyBrackets: []Bracket{
+							{
+								Quantile: 50,
+								Value:    time.Second,
+							},
+						},
 						Counters: Counters{
 							Period:    time.Second,
 							NetErrors: 10,
@@ -50,6 +56,12 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 				},
 				&Endpoint{
 					Stats: RoundTripStats{
+						LatencyBrackets: []Bracket{
+							{
+								Quantile: 50,
+								Value:    time.Second,
+							},
+						},
 						Counters: Counters{
 							Period:    time.Second,
 							NetErrors: 0,
@@ -64,6 +76,12 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 			Endpoints: []*Endpoint{
 				&Endpoint{
 					Stats: RoundTripStats{
+						LatencyBrackets: []Bracket{
+							{
+								Quantile: 50,
+								Value:    time.Second,
+							},
+						},
 						Counters: Counters{
 							Period:      time.Second,
 							Total:       100,
@@ -73,6 +91,12 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 				},
 				&Endpoint{
 					Stats: RoundTripStats{
+						LatencyBrackets: []Bracket{
+							{
+								Quantile: 50,
+								Value:    time.Second,
+							},
+						},
 						Counters: Counters{
 							Period:    time.Second,
 							NetErrors: 0,
@@ -87,6 +111,12 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 			Endpoints: []*Endpoint{
 				&Endpoint{
 					Stats: RoundTripStats{
+						LatencyBrackets: []Bracket{
+							{
+								Quantile: 50,
+								Value:    time.Second,
+							},
+						},
 						Counters: Counters{
 							Period:      time.Second,
 							Total:       100,
@@ -96,6 +126,12 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 				},
 				&Endpoint{
 					Stats: RoundTripStats{
+						LatencyBrackets: []Bracket{
+							{
+								Quantile: 50,
+								Value:    time.Second,
+							},
+						},
 						Counters: Counters{
 							Period:    time.Second,
 							NetErrors: 0,

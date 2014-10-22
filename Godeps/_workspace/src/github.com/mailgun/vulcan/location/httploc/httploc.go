@@ -14,11 +14,11 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/failover"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
 )
 
 // Location with built in failover and load balancing support
@@ -69,7 +69,7 @@ type Options struct {
 	// Limits contains various limits one can supply for a location.
 	Limits Limits
 	// Predicate that defines when requests are allowed to failover
-	ShouldFailover failover.Predicate
+	FailoverPredicate threshold.Predicate
 	// Used in forwarding headers
 	Hostname string
 	// In this case appends new forward info to the existing header
@@ -203,7 +203,7 @@ func (l *HttpLocation) RoundTrip(req request.Request) (*http.Response, error) {
 		// In case if error is not nil, we allow load balancer to choose the next endpoint
 		// e.g. to do request failover. Nil error means that we got proxied the request successfully.
 		response, err := l.proxyToEndpoint(tr, &o, endpoint, req)
-		if o.ShouldFailover(req) {
+		if o.FailoverPredicate(req) {
 			continue
 		} else {
 			return response, err
@@ -328,9 +328,13 @@ func parseOptions(o Options) (Options, error) {
 	if o.TimeProvider == nil {
 		o.TimeProvider = &timetools.RealTime{}
 	}
-	if o.ShouldFailover == nil {
-		// Failover on errors for 2 times maximum on GET requests only.
-		o.ShouldFailover = failover.And(failover.AttemptsLe(2), failover.IsNetworkError, failover.RequestMethodEq("GET"))
+	if o.FailoverPredicate == nil {
+		// Failover on network errors for 2 times maximum on GET requests only.
+		p, err := threshold.ParseExpression(`Attempts() < 2 && IsNetworkError() && RequestMethod() == "GET"`)
+		if err != nil {
+			return o, err
+		}
+		o.FailoverPredicate = p
 	}
 	return o, nil
 }
