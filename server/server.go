@@ -12,7 +12,7 @@ import (
 )
 
 type Server interface {
-	backend.StatsGetter
+	backend.StatsProvider
 
 	UpsertHost(host *backend.Host) error
 	DeleteHost(hostname string) error

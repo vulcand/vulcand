@@ -2,19 +2,29 @@
 package registry
 
 import (
-	. "github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/plugin/cbreaker"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
+	"github.com/mailgun/vulcand/plugin/rewrite"
 )
 
-func GetRegistry() *Registry {
-	r := NewRegistry()
+func GetRegistry() *plugin.Registry {
+	r := plugin.NewRegistry()
 
 	if err := r.AddSpec(ratelimit.GetSpec()); err != nil {
 		panic(err)
 	}
 
 	if err := r.AddSpec(connlimit.GetSpec()); err != nil {
+		panic(err)
+	}
+
+	if err := r.AddSpec(rewrite.GetSpec()); err != nil {
+		panic(err)
+	}
+
+	if err := r.AddSpec(cbreaker.GetSpec()); err != nil {
 		panic(err)
 	}
 

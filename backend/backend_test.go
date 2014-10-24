@@ -7,8 +7,8 @@ import (
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 
+	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/plugin/connlimit"
-	"github.com/mailgun/vulcand/plugin/registry"
 )
 
 func TestBackend(t *testing.T) { TestingT(t) }
@@ -172,7 +172,10 @@ func (s *BackendSuite) TestHostsFromJSON(c *C) {
 
 	bytes, err := json.Marshal(map[string]interface{}{"Hosts": hosts})
 
-	out, err := HostsFromJSON(bytes, registry.GetRegistry().GetSpec)
+	r := plugin.NewRegistry()
+	c.Assert(r.AddSpec(connlimit.GetSpec()), IsNil)
+
+	out, err := HostsFromJSON(bytes, r.GetSpec)
 	c.Assert(err, IsNil)
 	c.Assert(out, NotNil)
 	c.Assert(out, DeepEquals, hosts)

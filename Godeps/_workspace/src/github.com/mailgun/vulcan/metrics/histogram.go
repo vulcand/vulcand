@@ -9,6 +9,11 @@ import (
 )
 
 type Histogram interface {
+	// Returns latency at quantile with microsecond precision
+	LatencyAtQuantile(float64) time.Duration
+	// Records latencies with microsecond precision
+	RecordLatencies(d time.Duration, n int64) error
+
 	ValueAtQuantile(q float64) int64
 	RecordValues(v, n int64) error
 	// Merge updates this histogram with values of another histogram
@@ -21,7 +26,9 @@ type Histogram interface {
 // It provides resulting histogram as a result of a call of 'Merged' function.
 type RollingHistogram interface {
 	RecordValues(v, n int64) error
+	RecordLatencies(d time.Duration, n int64) error
 	Merged() (Histogram, error)
+	Reset()
 }
 
 // NewHistogramFn is a constructor that can be passed to NewRollingHistogram
@@ -61,6 +68,14 @@ func NewRollingHistogram(maker NewHistogramFn, bucketCount int, period time.Dura
 	}, nil
 }
 
+func (r *rollingHistogram) Reset() {
+	r.idx = 0
+	r.lastRoll = r.timeProvider.UtcNow()
+	for _, b := range r.buckets {
+		b.Reset()
+	}
+}
+
 func (r *rollingHistogram) rotate() {
 	r.idx = (r.idx + 1) % len(r.buckets)
 	r.buckets[r.idx].Reset()
@@ -79,12 +94,20 @@ func (r *rollingHistogram) Merged() (Histogram, error) {
 	return m, nil
 }
 
-func (r *rollingHistogram) RecordValues(v, n int64) error {
+func (r *rollingHistogram) getHist() Histogram {
 	if r.timeProvider.UtcNow().Sub(r.lastRoll) >= r.period {
 		r.rotate()
 		r.lastRoll = r.timeProvider.UtcNow()
 	}
-	return r.buckets[r.idx].RecordValues(v, n)
+	return r.buckets[r.idx]
+}
+
+func (r *rollingHistogram) RecordLatencies(v time.Duration, n int64) error {
+	return r.getHist().RecordLatencies(v, n)
+}
+
+func (r *rollingHistogram) RecordValues(v, n int64) error {
+	return r.getHist().RecordValues(v, n)
 }
 
 type HDRHistogram struct {
@@ -113,6 +136,16 @@ func NewHDRHistogram(low, high int64, sigfigs int) (h *HDRHistogram, err error) 
 		h:       hdr,
 	}
 	return h, err
+}
+
+// Returns latency at quantile with microsecond precision
+func (h *HDRHistogram) LatencyAtQuantile(q float64) time.Duration {
+	return time.Duration(h.ValueAtQuantile(q)) * time.Microsecond
+}
+
+// Records latencies with microsecond precision
+func (h *HDRHistogram) RecordLatencies(d time.Duration, n int64) error {
+	return h.RecordValues(int64(d/time.Microsecond), n)
 }
 
 func (h *HDRHistogram) Reset() {

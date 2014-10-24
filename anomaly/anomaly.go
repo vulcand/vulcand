@@ -52,12 +52,12 @@ func MarkAnomalies(stats []*backend.RoundTripStats) error {
 func markNetErrorRates(stats []*backend.RoundTripStats) error {
 	errRates := make([]float64, len(stats))
 	for i, s := range stats {
-		errRates[i] = s.NetErrorRate()
+		errRates[i] = s.NetErrorRatio()
 	}
 
 	_, bad := metrics.SplitRatios(errRates)
 	for _, s := range stats {
-		if bad[s.NetErrorRate()] {
+		if bad[s.NetErrorRatio()] {
 			s.Verdict.IsBad = true
 			s.Verdict.Anomalies = append(s.Verdict.Anomalies, backend.Anomaly{Code: CodeNetErrorRate, Message: MessageNetErrRate})
 		}
@@ -99,12 +99,12 @@ func markLatency(index int, stats []*backend.RoundTripStats) error {
 func markAppErrorRates(stats []*backend.RoundTripStats) error {
 	errRates := make([]float64, len(stats))
 	for i, s := range stats {
-		errRates[i] = s.AppErrorRate()
+		errRates[i] = s.AppErrorRatio()
 	}
 
 	_, bad := metrics.SplitRatios(errRates)
 	for _, s := range stats {
-		if bad[s.AppErrorRate()] {
+		if bad[s.AppErrorRatio()] {
 			s.Verdict.IsBad = true
 			s.Verdict.Anomalies = append(
 				s.Verdict.Anomalies, backend.Anomaly{Code: CodeAppErrorRate, Message: MessageAppErrRate})

@@ -252,7 +252,7 @@ func (l *HttpLocation) proxyToEndpoint(tr *http.Transport, o *Options, endpoint 
 		if a.Response != nil || a.Error != nil {
 			// Move the iterator forward to count it again once we unwind the chain
 			it.Next()
-			log.Errorf("Midleware intercepted request with response=%s, error=%s", a.Response.Status, a.Error)
+			log.Errorf("Midleware intercepted request with response=%v, error=%v", a.Response, a.Error)
 			return a.Response, a.Error
 		}
 	}

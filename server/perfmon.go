@@ -4,23 +4,12 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/backend"
-)
-
-const (
-	counterBuckets         = 10
-	counterResolution      = time.Second
-	histMin                = 1
-	histMax                = 3600000000       // 1 hour in microseconds
-	histSignificantFigures = 2                // signigicant figures (1% precision)
-	histBuckets            = 6                // number of sub-histograms in a rolling histogram
-	histPeriod             = 10 * time.Second // roll time
 )
 
 // perfMon stands for performance monitor, it is observer that watches realtime metrics
@@ -82,6 +71,18 @@ func (m *perfMon) getTopEndpoints(upstreamId string) ([]*backend.Endpoint, error
 	}
 	sort.Sort(&endpointSorter{es: endpoints})
 	return endpoints, nil
+}
+
+func (m *perfMon) resetLocationStats(l *backend.Location) error {
+	m.m.Lock()
+	defer m.m.Unlock()
+
+	b, err := m.findBucket(l.GetUniqueId().String(), m.locations)
+	if err != nil {
+		return err
+	}
+
+	return b.resetStats()
 }
 
 func (m *perfMon) getLocationStats(l *backend.Location) (*backend.RoundTripStats, error) {
@@ -184,39 +185,13 @@ func (m *perfMon) getBucket(id string, ms map[string]*metricsBucket, e *muxEndpo
 	if b, ok := ms[id]; ok {
 		return b, nil
 	}
-	h, err := metrics.NewRollingHistogram(
-		// this will create subhistograms
-		metrics.NewHDRHistogramFn(histMin, histMax, histSignificantFigures),
-		// number of buckets in a rolling histogram
-		histBuckets,
-		// rolling period for a histogram
-		histPeriod,
-		m.timeProvider)
+	mt, err := metrics.NewRoundTripMetrics(metrics.RoundTripOptions{TimeProvider: m.timeProvider})
 	if err != nil {
 		return nil, err
 	}
-
-	newCounter := func() (*metrics.RollingCounter, error) {
-		return metrics.NewRollingCounter(counterBuckets, counterResolution, m.timeProvider)
-	}
-
-	netErrors, err := newCounter()
-	if err != nil {
-		return nil, err
-	}
-
-	total, err := newCounter()
-	if err != nil {
-		return nil, err
-	}
-
 	b := &metricsBucket{
-		endpoint:    e,
-		total:       total,
-		netErrors:   netErrors,
-		newCounter:  newCounter,
-		statusCodes: make(map[int]*metrics.RollingCounter),
-		histogram:   h,
+		endpoint: e,
+		metrics:  mt,
 	}
 	ms[id] = b
 	return b, nil
@@ -224,73 +199,21 @@ func (m *perfMon) getBucket(id string, ms map[string]*metricsBucket, e *muxEndpo
 
 // metricBucket holds common metrics collected for every part that serves requests.
 type metricsBucket struct {
-	endpoint    *muxEndpoint
-	total       *metrics.RollingCounter
-	netErrors   *metrics.RollingCounter
-	newCounter  metrics.NewRollingCounterFn
-	statusCodes map[int]*metrics.RollingCounter
-	histogram   metrics.RollingHistogram
+	endpoint *muxEndpoint
+	metrics  *metrics.RoundTripMetrics
 }
 
 func (m *metricsBucket) recordMetrics(a request.Attempt) {
-	m.total.Inc()
-	m.recordNetError(a)
-	m.recordLatency(a)
-	m.recordStatusCode(a)
+	m.metrics.RecordMetrics(a)
 }
 
-func (m *metricsBucket) recordNetError(a request.Attempt) {
-	if metrics.IsNetworkError(a) {
-		m.netErrors.Inc()
-	}
-}
-
-func (m *metricsBucket) recordLatency(a request.Attempt) {
-	if err := m.histogram.RecordValues(int64(a.GetDuration()/time.Microsecond), 1); err != nil {
-		log.Errorf("Failed to record latency: %v", err)
-	}
-}
-
-func (m *metricsBucket) recordStatusCode(a request.Attempt) {
-	if a.GetResponse() == nil {
-		return
-	}
-	statusCode := a.GetResponse().StatusCode
-	if c, ok := m.statusCodes[statusCode]; ok {
-		c.Inc()
-		return
-	}
-	c, err := m.newCounter()
-	if err != nil {
-		log.Errorf("failed to create a counter: %v", err)
-		return
-	}
-	c.Inc()
-	m.statusCodes[statusCode] = c
+func (m *metricsBucket) resetStats() error {
+	m.metrics.Reset()
+	return nil
 }
 
 func (m *metricsBucket) getStats() (*backend.RoundTripStats, error) {
-	h, err := m.histogram.Merged()
-	if err != nil {
-		return nil, err
-	}
-
-	sc := make([]backend.StatusCode, 0, len(m.statusCodes))
-	for k, v := range m.statusCodes {
-		if v.Count() != 0 {
-			sc = append(sc, backend.StatusCode{Code: k, Count: v.Count()})
-		}
-	}
-
-	return &backend.RoundTripStats{
-		Counters: backend.Counters{
-			NetErrors:   m.netErrors.Count(),
-			Total:       m.total.Count(),
-			Period:      m.total.GetWindowSize(),
-			StatusCodes: sc,
-		},
-		LatencyBrackets: backend.NewBrackets(h),
-	}, nil
+	return backend.NewRoundTripStats(m.metrics)
 }
 
 type locSorter struct {
@@ -327,13 +250,13 @@ func (s *endpointSorter) Less(i, j int) bool {
 
 func cmpStats(s1, s2 *backend.RoundTripStats) bool {
 	// Items that have network errors go first
-	if s1.NetErrorRate() != 0 || s2.NetErrorRate() != 0 {
-		return s1.NetErrorRate() > s2.NetErrorRate()
+	if s1.NetErrorRatio() != 0 || s2.NetErrorRatio() != 0 {
+		return s1.NetErrorRatio() > s2.NetErrorRatio()
 	}
 
 	// Items that have application level errors go next
-	if s1.AppErrorRate() != 0 || s2.AppErrorRate() != 0 {
-		return s1.AppErrorRate() > s2.AppErrorRate()
+	if s1.AppErrorRatio() != 0 || s2.AppErrorRatio() != 0 {
+		return s1.AppErrorRatio() > s2.AppErrorRatio()
 	}
 
 	// More highly loaded items go next

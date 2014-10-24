@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/backend"
 )
 
 func locationsOverview(locations []*backend.Location) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "Id\tHostname\tPath\tReqs/sec\t50ile [ms]\t99ile [ms]\tStatus codes %%%%\tNet. errors %%%%\n")
+	fmt.Fprint(t, "Id\tHostname\tPath\tReqs/sec\t95ile [ms]\t99ile [ms]\tStatus codes %%%%\tNet. errors %%%%\n")
 
 	if len(locations) == 0 {
 		return t.String()
@@ -26,7 +27,7 @@ func locationsOverview(locations []*backend.Location) string {
 
 func endpointsOverview(endpoints []*backend.Endpoint) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "UpstreamId\tId\tUrl\tReqs/sec\t50ile [ms]\t99ile [ms]\tStatus codes %%%%\tNet. errors %%%%\tAnomalies\n")
+	fmt.Fprint(t, "UpstreamId\tId\tUrl\tReqs/sec\t95ile [ms]\t99ile [ms]\tStatus codes %%%%\tNet. errors %%%%\tAnomalies\n")
 
 	for _, e := range endpoints {
 		endpointOverview(t, e)
@@ -42,10 +43,10 @@ func locationOverview(w io.Writer, l *backend.Location) {
 		l.Hostname,
 		l.Path,
 		s.RequestsPerSecond(),
-		float64(s.LatencyBrackets[0].Value)/float64(time.Millisecond),
-		float64(s.LatencyBrackets[len(s.LatencyBrackets)-1].Value)/float64(time.Millisecond),
+		latencyAtQuantile(95.0, &s),
+		latencyAtQuantile(99.0, &s),
 		statusCodesToString(&s),
-		errRateToString(s.NetErrorRate()),
+		errRatioToString(s.NetErrorRatio()),
 	)
 }
 
@@ -62,19 +63,28 @@ func endpointOverview(w io.Writer, e *backend.Endpoint) {
 		e.Id,
 		e.Url,
 		s.RequestsPerSecond(),
-		float64(s.LatencyBrackets[0].Value)/float64(time.Millisecond),
-		float64(s.LatencyBrackets[len(s.LatencyBrackets)-1].Value)/float64(time.Millisecond),
+		latencyAtQuantile(95.0, &s),
+		latencyAtQuantile(99.0, &s),
 		statusCodesToString(&s),
-		errRateToString(s.NetErrorRate()),
+		errRatioToString(s.NetErrorRatio()),
 		anomalies)
 }
 
-func errRateToString(r float64) string {
-	failRateS := fmt.Sprintf("%0.2f", r)
+func latencyAtQuantile(q float64, s *backend.RoundTripStats) float64 {
+	v, err := s.LatencyBrackets.GetQuantile(q)
+	if err != nil {
+		log.Errorf("Failed to get latency %f from %v, err: %v", q, s, err)
+		return -1
+	}
+	return float64(v.Value) / float64(time.Millisecond)
+}
+
+func errRatioToString(r float64) string {
+	failRatioS := fmt.Sprintf("%0.2f", r*100)
 	if r != 0 {
-		return goterm.Color(failRateS, goterm.RED)
+		return goterm.Color(failRatioS, goterm.RED)
 	} else {
-		return goterm.Color(failRateS, goterm.GREEN)
+		return goterm.Color(failRatioS, goterm.GREEN)
 	}
 }
 

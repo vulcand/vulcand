@@ -14,13 +14,13 @@ import (
 )
 
 type ProxyController struct {
-	backend     backend.Backend
-	statsGetter backend.StatsGetter
-	app         *scroll.App
+	backend backend.Backend
+	stats   backend.StatsProvider
+	app     *scroll.App
 }
 
-func InitProxyController(backend backend.Backend, statsGetter backend.StatsGetter, app *scroll.App) {
-	c := &ProxyController{backend: backend, statsGetter: statsGetter, app: app}
+func InitProxyController(backend backend.Backend, stats backend.StatsProvider, app *scroll.App) {
+	c := &ProxyController{backend: backend, stats: stats, app: app}
 
 	app.SetNotFoundHandler(c.handleError)
 
@@ -63,8 +63,8 @@ func InitProxyController(backend backend.Backend, statsGetter backend.StatsGette
 
 	// Register controllers for middlewares
 	if backend.GetRegistry() != nil {
-		for _, middlewareSpec := range backend.GetRegistry().GetSpecs() {
-			c.registerMiddlewareHandlers(middlewareSpec)
+		for _, s := range backend.GetRegistry().GetSpecs() {
+			c.registerMiddlewareHandlers(s)
 		}
 	}
 }
@@ -100,11 +100,11 @@ func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, param
 	// This is to display the realtime stats, looks ugly.
 	for _, h := range hosts {
 		for _, l := range h.Locations {
-			if s, err := c.statsGetter.GetLocationStats(l); err == nil {
+			if s, err := c.stats.GetLocationStats(l); err == nil {
 				l.Stats = *s
 			}
 			for _, e := range l.Upstream.Endpoints {
-				if s, err := c.statsGetter.GetEndpointStats(e); err == nil {
+				if s, err := c.stats.GetEndpointStats(e); err == nil {
 					e.Stats = *s
 				}
 			}
@@ -138,7 +138,7 @@ func (c *ProxyController) getTopLocations(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, formatError(err)
 	}
-	locations, err := c.statsGetter.GetTopLocations(r.Form.Get("hostname"), r.Form.Get("upstreamId"))
+	locations, err := c.stats.GetTopLocations(r.Form.Get("hostname"), r.Form.Get("upstreamId"))
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -221,7 +221,7 @@ func (c *ProxyController) getUpstreams(w http.ResponseWriter, r *http.Request, p
 
 	for _, u := range upstreams {
 		for _, e := range u.Endpoints {
-			if s, err := c.statsGetter.GetEndpointStats(e); err == nil {
+			if s, err := c.stats.GetEndpointStats(e); err == nil {
 				e.Stats = *s
 			}
 		}
@@ -239,7 +239,7 @@ func (c *ProxyController) getUpstreamEndpoints(w http.ResponseWriter, r *http.Re
 		return nil, formatError(err)
 	}
 	for _, e := range up.Endpoints {
-		if s, err := c.statsGetter.GetEndpointStats(e); err == nil {
+		if s, err := c.stats.GetEndpointStats(e); err == nil {
 			e.Stats = *s
 		}
 	}
@@ -254,7 +254,7 @@ func (c *ProxyController) getTopEndpoints(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return nil, formatError(err)
 	}
-	endpoints, err := c.statsGetter.GetTopEndpoints(r.Form.Get("upstreamId"))
+	endpoints, err := c.stats.GetTopEndpoints(r.Form.Get("upstreamId"))
 	if err != nil {
 		return nil, formatError(err)
 	}

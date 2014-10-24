@@ -4,16 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/service"
 )
 
 func main() {
-	r, err := GetRegistry()
-	if err != nil {
-		fmt.Printf("Service exited with error: %s\n", err)
-		os.Exit(255)
-	}
-	if err := service.Run(r); err != nil {
+	if err := service.Run(registry.GetRegistry()); err != nil {
 		fmt.Printf("Service exited with error: %s\n", err)
 		os.Exit(255)
 	} else {
