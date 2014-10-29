@@ -13,6 +13,7 @@ type MultiReader interface {
 	io.Reader
 	io.Seeker
 	io.Closer
+	io.WriterTo
 
 	// TotalSize calculates and returns the total size of the reader and not the length remaining.
 	TotalSize() (int64, error)
@@ -21,6 +22,7 @@ type MultiReader interface {
 const (
 	DefaultMemBufferBytes = 1048576
 	DefaultMaxSizeBytes   = -1
+	DefaultBufferBytes    = 512
 )
 
 // Constraints:
@@ -56,6 +58,28 @@ func (mr *multiReaderSeek) Close() (err error) {
 		return mr.cleanup()
 	}
 	return nil
+}
+
+func (mr *multiReaderSeek) WriteTo(w io.Writer) (int64, error) {
+	b := make([]byte, DefaultBufferBytes)
+	total := int64(0)
+	n, err := mr.mr.Read(b)
+	for {
+		if n > 0 {
+			nw, errw := w.Write(b[:n])
+			total += int64(nw)
+			if nw != n || errw != nil {
+				return total, errw
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return total, nil
+			}
+			return total, err
+		}
+		n, err = mr.mr.Read(b)
+	}
 }
 
 func (mr *multiReaderSeek) Read(p []byte) (n int, err error) {
