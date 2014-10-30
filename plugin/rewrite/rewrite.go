@@ -54,11 +54,11 @@ func (rewrite *RewriteInstance) ProcessRequest(r Request) (*http.Response, error
 func (*RewriteInstance) ProcessResponse(r Request, a Attempt) {
 }
 
-func FromOther(r Rewrite) (plugin.Middleware, error) {
+func FromOther(r Rewrite) (plugin.MiddlewareFactory, error) {
 	return NewRewriteInstance(r.Regexp, r.Replacement)
 }
 
-func FromCli(c *cli.Context) (plugin.Middleware, error) {
+func FromCli(c *cli.Context) (plugin.MiddlewareFactory, error) {
 	return NewRewriteInstance(c.String("regexp"), c.String("replacement"))
 }
 

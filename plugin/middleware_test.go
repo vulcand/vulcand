@@ -16,7 +16,7 @@ type MiddlewareSuite struct {
 var _ = Suite(&MiddlewareSuite{})
 
 func (s *MiddlewareSuite) TestVerifySignatureOK(c *C) {
-	fn := func(TestMiddleware) (Middleware, error) { return nil, nil }
+	fn := func(TestMiddleware) (MiddlewareFactory, error) { return nil, nil }
 	c.Assert(verifySignature(fn), IsNil)
 }
 
@@ -25,15 +25,15 @@ func (s *MiddlewareSuite) TestVerifySignatureIncompatibleFunctions(c *C) {
 	c.Assert(verifySignature(nil), NotNil)
 
 	// Pointers are not ok
-	fn := func(*TestMiddleware) (Middleware, error) { return nil, nil }
+	fn := func(*TestMiddleware) (MiddlewareFactory, error) { return nil, nil }
 	c.Assert(verifySignature(fn), NotNil)
 
 	// Just one input arg is needed
-	fn1 := func(TestMiddleware, int) (Middleware, error) { return nil, nil }
+	fn1 := func(TestMiddleware, int) (MiddlewareFactory, error) { return nil, nil }
 	c.Assert(verifySignature(fn1), NotNil)
 
 	// Return arguments are incorrect
-	fn2 := func(TestMiddleware) Middleware { return nil }
+	fn2 := func(TestMiddleware) MiddlewareFactory { return nil }
 	c.Assert(verifySignature(fn2), NotNil)
 
 	// First return argument is not middleware
@@ -41,7 +41,7 @@ func (s *MiddlewareSuite) TestVerifySignatureIncompatibleFunctions(c *C) {
 	c.Assert(verifySignature(fn3), NotNil)
 
 	// Second return argument is not error
-	fn4 := func(TestMiddleware) (Middleware, int) { return nil, 0 }
+	fn4 := func(TestMiddleware) (MiddlewareFactory, int) { return nil, 0 }
 	c.Assert(verifySignature(fn4), NotNil)
 
 }
@@ -107,7 +107,7 @@ func (*TestMiddleware) NewMiddleware() (middleware.Middleware, error) {
 func GetSpec() *MiddlewareSpec {
 	return &MiddlewareSpec{
 		Type: "test",
-		FromOther: func(b TestMiddleware) (Middleware, error) {
+		FromOther: func(b TestMiddleware) (MiddlewareFactory, error) {
 			if b.Field == "" {
 				return nil, fmt.Errorf("can not be empty")
 			}

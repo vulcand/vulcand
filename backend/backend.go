@@ -204,10 +204,10 @@ type LocationOptions struct {
 
 // Wrapper that contains information about this middleware backend-specific data used for serialization/deserialization
 type MiddlewareInstance struct {
-	Id         string
-	Priority   int
-	Type       string
-	Middleware plugin.Middleware
+	Id       string
+	Priority int
+	Type     string
+	Factory  plugin.MiddlewareFactory
 }
 
 func NewAddress(network, address string) (*Address, error) {

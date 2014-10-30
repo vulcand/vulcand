@@ -67,12 +67,12 @@ func (rl *RateLimit) String() string {
 		rl.Variable, time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst)
 }
 
-func FromOther(rate RateLimit) (plugin.Middleware, error) {
+func FromOther(rate RateLimit) (plugin.MiddlewareFactory, error) {
 	return NewRateLimit(rate.Requests, rate.Variable, rate.Burst, rate.PeriodSeconds)
 }
 
 // Constructs the middleware from the command line
-func FromCli(c *cli.Context) (plugin.Middleware, error) {
+func FromCli(c *cli.Context) (plugin.MiddlewareFactory, error) {
 	return NewRateLimit(c.Int("requests"), c.String("var"), int64(c.Int("burst")), c.Int("period"))
 }
 

@@ -52,12 +52,12 @@ func (cl *ConnLimit) String() string {
 	return fmt.Sprintf("connections=%d, variable=%s", cl.Connections, cl.Variable)
 }
 
-func FromOther(c ConnLimit) (plugin.Middleware, error) {
+func FromOther(c ConnLimit) (plugin.MiddlewareFactory, error) {
 	return NewConnLimit(c.Connections, c.Variable)
 }
 
 // Constructs the middleware from the command line
-func FromCli(c *cli.Context) (plugin.Middleware, error) {
+func FromCli(c *cli.Context) (plugin.MiddlewareFactory, error) {
 	return NewConnLimit(int64(c.Int("connections")), c.String("var"))
 }
 

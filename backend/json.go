@@ -156,15 +156,15 @@ func MiddlewareFromJSON(in []byte, getter plugin.SpecGetter) (*MiddlewareInstanc
 	if spec == nil {
 		return nil, fmt.Errorf("middleware of type %s is not supported", ms.Type)
 	}
-	m, err := spec.FromJSON(ms.Middleware)
+	factory, err := spec.FromJSON(ms.Middleware)
 	if err != nil {
 		return nil, err
 	}
 	return &MiddlewareInstance{
-		Id:         ms.Id,
-		Type:       ms.Type,
-		Middleware: m,
-		Priority:   ms.Priority,
+		Id:       ms.Id,
+		Type:     ms.Type,
+		Factory:  factory,
+		Priority: ms.Priority,
 	}, nil
 }
 

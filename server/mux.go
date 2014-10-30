@@ -476,7 +476,7 @@ func (m *MuxServer) upsertLocationMiddleware(host *backend.Host, loc *backend.Lo
 	if location == nil {
 		return fmt.Errorf("%s not found", loc)
 	}
-	instance, err := mi.Middleware.NewMiddleware()
+	instance, err := mi.Factory.NewMiddleware()
 	if err != nil {
 		return err
 	}

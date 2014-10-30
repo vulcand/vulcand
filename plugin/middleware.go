@@ -9,10 +9,12 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
 )
 
-// Middleware specification, used to construct new middlewares and plug them into CLI API and backends
+// Middleware specification, used to construct new middlewares and plug them
+// into CLI API and backends
 type MiddlewareSpec struct {
 	Type string
-	// Reader function that returns a middleware from another middleware structure
+	// Reader function that returns a middleware factory from another
+	// middleware structure
 	FromOther interface{}
 	// Flags for CLI tool to generate interface
 	CliFlags []cli.Flag
@@ -20,7 +22,7 @@ type MiddlewareSpec struct {
 	FromCli CliReader
 }
 
-func (ms *MiddlewareSpec) FromJSON(data []byte) (Middleware, error) {
+func (ms *MiddlewareSpec) FromJSON(data []byte) (MiddlewareFactory, error) {
 	// Get a function's type
 	fnType := reflect.TypeOf(ms.FromOther)
 
@@ -38,16 +40,16 @@ func (ms *MiddlewareSpec) FromJSON(data []byte) (Middleware, error) {
 	if out != nil {
 		return nil, out.(error)
 	}
-	return m.(Middleware), nil
+	return m.(MiddlewareFactory), nil
 }
 
-type Middleware interface {
+type MiddlewareFactory interface {
 	// Returns vulcan library compatible middleware
 	NewMiddleware() (middleware.Middleware, error)
 }
 
-// Reader constructs the middleware from the CLI interface
-type CliReader func(c *cli.Context) (Middleware, error)
+// Reader constructs a middleware factory from the CLI interface
+type CliReader func(c *cli.Context) (MiddlewareFactory, error)
 
 // Function that returns middleware spec by it's type
 type SpecGetter func(string) *MiddlewareSpec
@@ -104,7 +106,7 @@ func verifySignature(fn interface{}) error {
 	if t.NumOut() != 2 {
 		return fmt.Errorf("function should return 2 values, got %d", t.NumOut())
 	}
-	if !t.Out(0).AssignableTo(reflect.TypeOf((*Middleware)(nil)).Elem()) {
+	if !t.Out(0).AssignableTo(reflect.TypeOf((*MiddlewareFactory)(nil)).Elem()) {
 		return fmt.Errorf("function first return value should be Middleware got, %s", t.Out(0))
 	}
 	if !t.Out(1).AssignableTo(reflect.TypeOf((*error)(nil)).Elem()) {
