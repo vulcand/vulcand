@@ -1,7 +1,7 @@
-// circuitbreaker package implements circuit breaker similar to  https://github.com/Netflix/Hystrix/wiki/How-it-Works
+// package circuitbreaker implements circuit breaker similar to  https://github.com/Netflix/Hystrix/wiki/How-it-Works
 //
-// Vulcand circuit breaker watches the error condtion to match
-// after what it activates the fallback scenario, e.g. returns the response code
+// Vulcan circuit breaker watches the error condtion to match
+// after which it activates the fallback scenario, e.g. returns the response code
 // or redirects the request to another location
 
 // Circuit breakers start in the Standby state first, observing responses and watching location metrics.
@@ -18,8 +18,10 @@
 // 1. Condition matches again, this will reset the state to "Tripped" and reset the timer.
 // 2. Condition does not match, circuit breaker enters "Standby" state
 //
-// It is possible to define actions of transitions (Standby -> Tripped) and (Recovering -> Standby)
-// using handlers 'OnTripped' and 'OnStandby', e.g. issuing webhook calls.
+// It is possible to define actions (e.g. webhooks) of transitions between states:
+//
+// * OnTripped action is called on transition (Standby -> Tripped)
+// * OnStandby action is called on transition (Recovering -> Standby)
 //
 package circuitbreaker
 
@@ -75,6 +77,7 @@ type Options struct {
 
 	// FallbackDuration is a period for fallback scenario
 	FallbackDuration time.Duration
+
 	// RecoveryDuration is a period for recovery scenario
 	RecoveryDuration time.Duration
 
@@ -90,9 +93,10 @@ type Options struct {
 
 // CircuitBreaker is a middleware that implements circuit breaker pattern
 type CircuitBreaker struct {
-	m  *sync.RWMutex
-	tm timetools.TimeProvider
+	o Options
 
+	m       *sync.RWMutex
+	tm      timetools.TimeProvider
 	metrics *metrics.RoundTripMetrics
 
 	condition threshold.Predicate
@@ -103,24 +107,18 @@ type CircuitBreaker struct {
 
 	rc *ratioController
 
-	onTripped SideEffect
-	onStandby SideEffect
-
-	recoveryDuration time.Duration
-	fallbackDuration time.Duration
-
 	checkPeriod time.Duration
 	lastCheck   time.Time
 
 	fallback middleware.Middleware
 }
 
-// New creates an new CircuitBreaker middleware
+// New creates a new CircuitBreaker middleware
 func New(condition threshold.Predicate, fallback middleware.Middleware, options Options) (*CircuitBreaker, error) {
 	if condition == nil || fallback == nil {
 		return nil, fmt.Errorf("provide non nil condition and fallback")
 	}
-	o, err := parseOptions(options)
+	o, err := setDefaults(options)
 	if err != nil {
 		return nil, err
 	}
@@ -131,16 +129,13 @@ func New(condition threshold.Predicate, fallback middleware.Middleware, options 
 	}
 
 	cb := &CircuitBreaker{
-		tm:               o.TimeProvider,
-		condition:        condition,
-		fallback:         fallback,
-		metrics:          mt,
-		m:                &sync.RWMutex{},
-		onTripped:        o.OnTripped,
-		onStandby:        o.OnStandby,
-		fallbackDuration: o.FallbackDuration,
-		recoveryDuration: o.RecoveryDuration,
-		checkPeriod:      o.CheckPeriod,
+		tm:          o.TimeProvider,
+		o:           o,
+		condition:   condition,
+		fallback:    fallback,
+		metrics:     mt,
+		m:           &sync.RWMutex{},
+		checkPeriod: o.CheckPeriod,
 	}
 	return cb, nil
 }
@@ -155,11 +150,11 @@ func (c *CircuitBreaker) String() string {
 	}
 }
 
-// ProcessRequest is called on every request to the endpoint, CircuitBreaker uses this feature
+// ProcessRequest is called on every request to the endpoint. CircuitBreaker uses this feature
 // to intercept the request if it's in Tripped state or slowly start passing the requests to endpoint
 // if it's in the recovering state
 func (c *CircuitBreaker) ProcessRequest(r request.Request) (*http.Response, error) {
-	if c.isInactive() {
+	if c.isStandby() {
 		c.markToRecordMetrics(r)
 		return nil, nil
 	}
@@ -175,19 +170,22 @@ func (c *CircuitBreaker) ProcessRequest(r request.Request) (*http.Response, erro
 		// other goroutine has set it to standby state
 		return nil, nil
 	case stateTripped:
-		// We have been in active state enough, enter recovering state
-		if c.tm.UtcNow().After(c.until) {
-			c.setRecovering(r)
+		if c.tm.UtcNow().Before(c.until) {
+			return c.fallback.ProcessRequest(r)
 		}
-		return c.fallback.ProcessRequest(r)
+		// We have been in active state enough, enter recovering state
+		c.setRecovering()
+		fallthrough
 	case stateRecovering:
 		// We have been in recovering state enough, enter standby
 		if c.tm.UtcNow().After(c.until) {
+			// instructs ProcessResponse() to record metrics for this request
+			c.markToRecordMetrics(r)
 			c.setState(stateStandby, c.tm.UtcNow())
 			return nil, nil
 		}
 		if c.rc.allowRequest() {
-			// record metrics for allowed request
+			// instructs ProcessResponse() to record metrics for this request
 			c.markToRecordMetrics(r)
 			return nil, nil
 		}
@@ -204,14 +202,14 @@ func (c *CircuitBreaker) ProcessResponse(r request.Request, a request.Attempt) {
 		c.metrics.RecordMetrics(a)
 	}
 
-	// We check condition periodically as it may be quite expensive operation
-	// (e.g. in case if we compute latencies from rolling histogram)
+	// Note that this call is less expensive than it looks -- checkCondition only performs the real check
+	// periodically. Because of that we can afford to call it here on every single response.
 	if c.checkCondition(r) {
 		c.setTripped(a.GetEndpoint())
 	}
 }
 
-func (c *CircuitBreaker) isInactive() bool {
+func (c *CircuitBreaker) isStandby() bool {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.state == stateStandby
@@ -235,13 +233,13 @@ func (c *CircuitBreaker) setState(new cbState, until time.Time) {
 	c.until = until
 	switch new {
 	case stateTripped:
-		c.exec(c.onTripped)
+		c.exec(c.o.OnTripped)
 	case stateStandby:
-		c.exec(c.onStandby)
+		c.exec(c.o.OnStandby)
 	}
 }
 
-// cmpAndSetActive sets state only when current state is not tripped already
+// setTripped sets state only when current state is not tripped already
 func (c *CircuitBreaker) setTripped(e endpoint.Endpoint) bool {
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -251,7 +249,7 @@ func (c *CircuitBreaker) setTripped(e endpoint.Endpoint) bool {
 		return false
 	}
 
-	c.setState(stateTripped, c.tm.UtcNow().Add(c.fallbackDuration))
+	c.setState(stateTripped, c.tm.UtcNow().Add(c.o.FallbackDuration))
 	c.resetStats(e)
 	return true
 }
@@ -275,13 +273,15 @@ func (c *CircuitBreaker) checkCondition(r request.Request) bool {
 		return false
 	}
 	c.lastCheck = c.tm.UtcNow().Add(c.checkPeriod)
+	// Each requests holds a context attached to it, we use it to attach the metrics to the request
+	// so condition checker function can use it for analysis on the next line.
 	r.SetUserData(cbreakerMetrics, c.metrics)
 	return c.condition(r)
 }
 
-func (c *CircuitBreaker) setRecovering(r request.Request) {
-	c.setState(stateRecovering, c.tm.UtcNow().Add(c.recoveryDuration))
-	c.rc = newRatioController(c.tm, c.recoveryDuration)
+func (c *CircuitBreaker) setRecovering() {
+	c.setState(stateRecovering, c.tm.UtcNow().Add(c.o.RecoveryDuration))
+	c.rc = newRatioController(c.tm, c.o.RecoveryDuration)
 }
 
 // resetStats is neccessary to start collecting fresh stats after fallback time passes.
@@ -298,9 +298,9 @@ func (c *CircuitBreaker) shouldRecordMetrics(r request.Request) bool {
 	return ok
 }
 
-func parseOptions(o Options) (Options, error) {
+func setDefaults(o Options) (Options, error) {
 	if o.FallbackDuration < 0 || o.RecoveryDuration < 0 {
-		return o, fmt.Errorf("FallbackDuration and Recoveryuration can not be negative")
+		return o, fmt.Errorf("FallbackDuration and RecoveryDuration can not be negative")
 	}
 
 	if o.CheckPeriod == 0 {

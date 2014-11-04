@@ -44,10 +44,8 @@ type RoundTripOptions struct {
 
 // NewRoundTripMetrics returns new instance of metrics collector.
 func NewRoundTripMetrics(o RoundTripOptions) (*RoundTripMetrics, error) {
-	o, err := parseOptions(o)
-	if err != nil {
-		return nil, err
-	}
+	o = setDefaults(o)
+
 	h, err := NewRollingHistogram(
 		// this will create subhistograms
 		NewHDRHistogramFn(o.HistMin, o.HistMax, o.HistSignificantFigures),
@@ -86,7 +84,7 @@ func (m *RoundTripMetrics) GetOptions() *RoundTripOptions {
 	return m.o
 }
 
-// NetworkErrorRatio calculates the amont of network errors such as time outs and dropped connection
+// GetNetworkErrorRatio calculates the amont of network errors such as time outs and dropped connection
 // that occured in the given time window compared to the total requests count.
 func (m *RoundTripMetrics) GetNetworkErrorRatio() float64 {
 	if m.total.Count() == 0 {
@@ -95,7 +93,7 @@ func (m *RoundTripMetrics) GetNetworkErrorRatio() float64 {
 	return float64(m.netErrors.Count()) / float64(m.total.Count())
 }
 
-// ResponseCodeRatio calculates ratio of count(startA to endA) / count(startB to endB)
+// GetResponseCodeRatio calculates ratio of count(startA to endA) / count(startB to endB)
 func (m *RoundTripMetrics) GetResponseCodeRatio(startA, endA, startB, endB int) float64 {
 	a := int64(0)
 	b := int64(0)
@@ -126,12 +124,12 @@ func (m *RoundTripMetrics) GetTotalCount() int64 {
 	return m.total.Count()
 }
 
-// GetNetworklCount returns total count of processed requests observed
+// GetNetworkErrorCount returns total count of processed requests observed
 func (m *RoundTripMetrics) GetNetworkErrorCount() int64 {
 	return m.netErrors.Count()
 }
 
-// GetNetworklCount returns map with counts of the response codes
+// GetStatusCodesCounts returns map with counts of the response codes
 func (m *RoundTripMetrics) GetStatusCodesCounts() map[int]int64 {
 	sc := make(map[int]int64)
 	for k, v := range m.statusCodes {
@@ -198,7 +196,7 @@ const (
 	histPeriod             = 10 * time.Second // roll time
 )
 
-func parseOptions(o RoundTripOptions) (RoundTripOptions, error) {
+func setDefaults(o RoundTripOptions) RoundTripOptions {
 	if o.CounterBuckets == 0 {
 		o.CounterBuckets = counterBuckets
 	}
@@ -223,5 +221,5 @@ func parseOptions(o RoundTripOptions) (RoundTripOptions, error) {
 	if o.TimeProvider == nil {
 		o.TimeProvider = &timetools.RealTime{}
 	}
-	return o, nil
+	return o
 }

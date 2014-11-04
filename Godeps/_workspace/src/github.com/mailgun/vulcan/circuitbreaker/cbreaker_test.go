@@ -19,7 +19,7 @@ import (
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
-func TestConn(t *testing.T) { TestingT(t) }
+func TestCircuitBreaker(t *testing.T) { TestingT(t) }
 
 type CBSuite struct {
 	tm *timetools.FreezedTime
@@ -97,7 +97,7 @@ func (s *CBSuite) TestFullCycle(c *C) {
 	c.Assert(re.StatusCode, Equals, http.StatusBadRequest)
 
 	// Some time has passed, but we are still in triggered state.
-	s.advanceTime(time.Second * 9)
+	s.advanceTime(9 * time.Second)
 	re, err = cb.ProcessRequest(req)
 	c.Assert(re, NotNil)
 	c.Assert(err, IsNil)
@@ -116,7 +116,7 @@ func (s *CBSuite) TestFullCycle(c *C) {
 	cb.ProcessResponse(okReq, okReq.Attempts[0])
 
 	// 5 seconds after we should be allowing some requests to pass
-	s.advanceTime(time.Second * 5)
+	s.advanceTime(5 * time.Second)
 	allowed := 0
 	for i := 0; i < 100; i++ {
 		re, err = cb.ProcessRequest(okReq)
@@ -127,7 +127,7 @@ func (s *CBSuite) TestFullCycle(c *C) {
 	c.Assert(allowed, Not(Equals), 0)
 
 	// After some time, all is good and we should be in stand by mode again
-	s.advanceTime(time.Second*5 + time.Millisecond)
+	s.advanceTime(5*time.Second + time.Millisecond)
 	re, err = cb.ProcessRequest(okReq)
 	c.Assert(cb.state, Equals, cbState(stateStandby))
 	c.Assert(err, IsNil)
@@ -184,7 +184,7 @@ func (s *CBSuite) TestTriggerDuringRecovery(c *C) {
 
 	// We should be in recovering state by now
 	okReq := makeRequest(O{stats: statsOK()})
-	s.advanceTime(time.Second*10 + time.Millisecond)
+	s.advanceTime(10*time.Second + time.Millisecond)
 	re, err = cb.ProcessRequest(okReq)
 	c.Assert(re, NotNil)
 	c.Assert(err, IsNil)
@@ -270,13 +270,13 @@ func (s *CBSuite) TestSideEffects(c *C) {
 
 	// Transition to recovering state
 	okReq := makeRequest(O{stats: statsOK()})
-	s.advanceTime(time.Second*10 + time.Millisecond)
+	s.advanceTime(10*time.Second + time.Millisecond)
 	cb.ProcessRequest(okReq)
 	c.Assert(cb.state, Equals, cbState(stateRecovering))
 	cb.ProcessResponse(okReq, okReq.Attempts[0])
 
 	// Going back to standby
-	s.advanceTime(time.Second*10 + time.Millisecond)
+	s.advanceTime(10*time.Second + time.Millisecond)
 	cb.ProcessRequest(okReq)
 	cb.ProcessResponse(okReq, req.Attempts[0])
 	c.Assert(cb.state, Equals, cbState(stateStandby))

@@ -30,7 +30,7 @@ type WebhookSideEffect struct {
 }
 
 func NewWebhookSideEffect(w Webhook) (*WebhookSideEffect, error) {
-	if len(w.Method) == 0 {
+	if w.Method == "" {
 		return nil, fmt.Errorf("Supply method")
 	}
 	_, err := netutils.ParseUrl(w.URL)
