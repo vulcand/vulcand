@@ -30,7 +30,20 @@ type Options struct {
 
 // Accepts requests, round trips it to the endpoint, and writes back the response.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := p.proxyRequest(w, r); err != nil {
+	err := p.proxyRequest(w, r)
+	if err == nil {
+		return
+	}
+
+	switch e := err.(type) {
+	case *errors.RedirectError:
+		// In case if it's redirect error, try the request one more time, but with different URL
+		r.URL = e.URL
+		r.Host = e.URL.Host
+		if err := p.proxyRequest(w, r); err != nil {
+			p.replyError(err, w, r)
+		}
+	default:
 		p.replyError(err, w, r)
 	}
 }
@@ -91,6 +104,9 @@ func (p *Proxy) replyError(err error, w http.ResponseWriter, req *http.Request) 
 	proxyError := convertError(err)
 	statusCode, body, contentType := p.options.ErrorFormatter.Format(proxyError)
 	w.Header().Set("Content-Type", contentType)
+	if proxyError.Headers() != nil {
+		netutils.CopyHeaders(w.Header(), proxyError.Headers())
+	}
 	w.WriteHeader(statusCode)
 	w.Write(body)
 }

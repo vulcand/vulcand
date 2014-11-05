@@ -110,6 +110,7 @@ func builtinPackages() []Package {
 	return []Package{
 		"github.com/mailgun/vulcand/plugin/connlimit",
 		"github.com/mailgun/vulcand/plugin/ratelimit",
+		"github.com/mailgun/vulcand/plugin/cbreaker",
 	}
 }
 

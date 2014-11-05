@@ -502,7 +502,7 @@ func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
 	// First, collect and parse endpoints to add
 	newEndpoints := map[string]*muxEndpoint{}
 	for _, e := range location.Upstream.Endpoints {
-		ep, err := newEndpoint(location, e)
+		ep, err := newEndpoint(location, e, m.perfMon)
 		if err != nil {
 			return fmt.Errorf("failed to create load balancer endpoint from %v", e)
 		}

@@ -3,6 +3,7 @@ package backend
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/mailgun/vulcand/plugin"
 )
 

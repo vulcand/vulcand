@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +44,12 @@ func MakeRequest(url string, opts Opts) (*http.Response, []byte, error) {
 		}
 	}
 
-	client := &http.Client{Transport: tr}
+	client := &http.Client{
+		Transport: tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return fmt.Errorf("No redirects")
+		},
+	}
 	response, err := client.Do(request)
 	if err == nil {
 		bodyBytes, err := ioutil.ReadAll(response.Body)

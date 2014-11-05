@@ -3,8 +3,11 @@ package errors
 
 import (
 	"encoding/json"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"fmt"
 	"net/http"
+	"net/url"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
 const (
@@ -14,6 +17,7 @@ const (
 type ProxyError interface {
 	GetStatusCode() int
 	Error() string
+	Headers() http.Header
 }
 
 type Formatter interface {
@@ -43,10 +47,32 @@ func FromStatus(statusCode int) *HttpError {
 	return &HttpError{statusCode, http.StatusText(statusCode)}
 }
 
+func (r *HttpError) Headers() http.Header {
+	return nil
+}
+
 func (r *HttpError) Error() string {
 	return r.Body
 }
 
 func (r *HttpError) GetStatusCode() int {
 	return r.StatusCode
+}
+
+type RedirectError struct {
+	URL *url.URL
+}
+
+func (r *RedirectError) Error() string {
+	return fmt.Sprintf("Redirect(url=%v)", r.URL)
+}
+
+func (r *RedirectError) GetStatusCode() int {
+	return http.StatusFound
+}
+
+func (r *RedirectError) Headers() http.Header {
+	h := make(http.Header)
+	h.Set("Location", r.URL.String())
+	return h
 }

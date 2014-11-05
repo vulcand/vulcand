@@ -60,8 +60,8 @@ type Backend interface {
 	Close()
 }
 
-// StatsGetter provides realtime stats abount endpoints, upstreams and locations
-type StatsGetter interface {
+// StatsProvider provides realtime stats abount endpoints, upstreams and locations
+type StatsProvider interface {
 	GetLocationStats(l *Location) (*RoundTripStats, error)
 	GetEndpointStats(e *Endpoint) (*RoundTripStats, error)
 	GetUpstreamStats(u *Upstream) (*RoundTripStats, error)
@@ -412,30 +412,61 @@ type RoundTripStats struct {
 	LatencyBrackets LatencyBrackets
 }
 
+func NewRoundTripStats(m *metrics.RoundTripMetrics) (*RoundTripStats, error) {
+	codes := m.GetStatusCodesCounts()
+
+	sc := make([]StatusCode, 0, len(codes))
+	for k, v := range codes {
+		if v != 0 {
+			sc = append(sc, StatusCode{Code: k, Count: v})
+		}
+	}
+
+	h, err := m.GetLatencyHistogram()
+	if err != nil {
+		return nil, err
+	}
+
+	return &RoundTripStats{
+		Counters: Counters{
+			NetErrors:   m.GetNetworkErrorCount(),
+			Total:       m.GetTotalCount(),
+			Period:      m.GetOptions().CounterResolution * time.Duration(m.GetOptions().CounterBuckets),
+			StatusCodes: sc,
+		},
+		LatencyBrackets: NewBrackets(h),
+	}, nil
+}
+
 // NetErroRate calculates the amont of ntwork errors such as time outs and dropped connection
 // that occured in the given time window
-func (e *RoundTripStats) NetErrorRate() float64 {
+func (e *RoundTripStats) NetErrorRatio() float64 {
 	if e.Counters.Total == 0 {
 		return 0
 	}
-	return (float64(e.Counters.NetErrors) / float64(e.Counters.Total)) * 100
+	return (float64(e.Counters.NetErrors) / float64(e.Counters.Total))
 }
 
 // AppErrorRate calculates the ratio of 500 responses that designate internal server errors
 // to success responses - 2xx, it specifically not counts 4xx or any other than 500 error to avoid noisy results.
-func (e *RoundTripStats) AppErrorRate() float64 {
-	good := int64(0)
-	bad := int64(0)
+func (e *RoundTripStats) AppErrorRatio() float64 {
+	return e.ResponseCodeRatio(http.StatusInternalServerError, http.StatusInternalServerError+1, 200, 300)
+}
+
+// ResponseCodeRatio calculates ratio of count(startA to endA) / count(startB to endB)
+func (e *RoundTripStats) ResponseCodeRatio(startA, endA, startB, endB int) float64 {
+	a := int64(0)
+	b := int64(0)
 	for _, status := range e.Counters.StatusCodes {
-		if status.Code < 300 && status.Code >= 200 {
-			good += status.Count
+		if status.Code < endA && status.Code >= startA {
+			a += status.Count
 		}
-		if status.Code == http.StatusInternalServerError {
-			bad += status.Count
+		if status.Code < endB && status.Code >= startB {
+			b += status.Count
 		}
 	}
-	if good+bad != 0 {
-		return float64(bad) / float64(good+bad)
+	if b != 0 {
+		return float64(a) / float64(b)
 	}
 	return 0
 }
@@ -448,7 +479,7 @@ func (e *RoundTripStats) RequestsPerSecond() float64 {
 }
 
 func (e *RoundTripStats) String() string {
-	return fmt.Sprintf("%.2f requests/sec, %.2f failures/sec", e.RequestsPerSecond(), e.NetErrorRate())
+	return fmt.Sprintf("%.2f requests/sec, %.2f failures/sec", e.RequestsPerSecond(), e.NetErrorRatio())
 }
 
 type Verdict struct {

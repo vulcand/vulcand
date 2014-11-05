@@ -13,6 +13,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/headers"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
@@ -20,6 +21,8 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
@@ -519,4 +522,147 @@ func (s *LocSuite) TestRewritesURLsWithEncodedPath(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(actualURL, Equals, path)
+}
+
+// Test scenario when middleware redirects the request
+func (s *LocSuite) TestMiddlewareRedirectsRequest(c *C) {
+	server1 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint 1"))
+	})
+	defer server1.Close()
+
+	server2 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint 2"))
+	})
+	defer server2.Close()
+
+	rr1, rr2 := s.newRoundRobin(server1.URL), s.newRoundRobin(server2.URL)
+
+	loc1, err := NewLocationWithOptions("loc1", rr1, Options{})
+	c.Assert(err, IsNil)
+
+	loc2, err := NewLocationWithOptions("loc2", rr2, Options{})
+	c.Assert(err, IsNil)
+
+	m := hostroute.NewHostRouter()
+	route1 := exproute.NewExpRouter()
+	c.Assert(route1.AddLocation(`TrieRoute("/loc1")`, loc1), IsNil)
+
+	route2 := exproute.NewExpRouter()
+	c.Assert(route2.AddLocation(`TrieRoute("/loc2")`, loc2), IsNil)
+
+	m.SetRouter("localhost1", route1)
+	m.SetRouter("localhost2", route2)
+
+	p, err := vulcan.NewProxy(m)
+	c.Assert(err, IsNil)
+
+	proxy := httptest.NewServer(p)
+	defer proxy.Close()
+
+	redirect := &MiddlewareWrapper{
+		OnRequest: func(r Request) (*http.Response, error) {
+			u, err := netutils.ParseUrl("http://localhost2/loc2")
+			if err != nil {
+				return nil, err
+			}
+			return nil, &errors.RedirectError{URL: u}
+		},
+		OnResponse: func(r Request, a Attempt) {
+		},
+	}
+
+	loc1.GetMiddlewareChain().Add("redir", 0, redirect)
+
+	response, bodyBytes, err := MakeRequest(proxy.URL+"/loc1", Opts{Host: "localhost1"})
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(bodyBytes), Equals, "Hi, I'm endpoint 2")
+}
+
+// Test scenario when middleware redirects the request to bad location
+func (s *LocSuite) TestMiddlewareRedirectsRequestToBadLocation(c *C) {
+	server1 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint 1"))
+	})
+	defer server1.Close()
+
+	rr1 := s.newRoundRobin(server1.URL)
+
+	loc1, err := NewLocationWithOptions("loc1", rr1, Options{})
+	c.Assert(err, IsNil)
+
+	m := hostroute.NewHostRouter()
+	route1 := exproute.NewExpRouter()
+	c.Assert(route1.AddLocation(`TrieRoute("/loc1")`, loc1), IsNil)
+
+	m.SetRouter("localhost1", route1)
+
+	p, err := vulcan.NewProxy(m)
+	c.Assert(err, IsNil)
+
+	proxy := httptest.NewServer(p)
+	defer proxy.Close()
+
+	redirect := &MiddlewareWrapper{
+		OnRequest: func(r Request) (*http.Response, error) {
+			u, err := netutils.ParseUrl("http://localhost2/loc2")
+			if err != nil {
+				return nil, err
+			}
+			return nil, &errors.RedirectError{URL: u}
+		},
+		OnResponse: func(r Request, a Attempt) {
+		},
+	}
+
+	loc1.GetMiddlewareChain().Add("redir", 0, redirect)
+
+	response, _, err := MakeRequest(proxy.URL+"/loc1", Opts{Host: "localhost1"})
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusBadGateway)
+}
+
+// Test scenario when middleware redirects the request only once
+func (s *LocSuite) TestMiddlewareRedirectsOnlyOnce(c *C) {
+	server1 := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hi, I'm endpoint 1"))
+	})
+	defer server1.Close()
+
+	rr1 := s.newRoundRobin(server1.URL)
+
+	loc1, err := NewLocationWithOptions("loc1", rr1, Options{})
+	c.Assert(err, IsNil)
+
+	m := hostroute.NewHostRouter()
+	route1 := exproute.NewExpRouter()
+	c.Assert(route1.AddLocation(`TrieRoute("/loc1")`, loc1), IsNil)
+
+	m.SetRouter("localhost1", route1)
+
+	p, err := vulcan.NewProxy(m)
+	c.Assert(err, IsNil)
+
+	proxy := httptest.NewServer(p)
+	defer proxy.Close()
+
+	redirect := &MiddlewareWrapper{
+		OnRequest: func(r Request) (*http.Response, error) {
+			u, err := netutils.ParseUrl("http://localhost1/loc1")
+			if err != nil {
+				return nil, err
+			}
+			return nil, &errors.RedirectError{URL: u}
+		},
+		OnResponse: func(r Request, a Attempt) {
+		},
+	}
+
+	loc1.GetMiddlewareChain().Add("redir", 0, redirect)
+
+	response, _, err := MakeRequest(proxy.URL+"/loc1", Opts{Host: "localhost1"})
+	c.Assert(err, NotNil)
+	c.Assert(response.StatusCode, Equals, http.StatusFound)
+	c.Assert(response.Header.Get("Location"), Equals, "http://localhost1/loc1")
 }
