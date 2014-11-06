@@ -8,7 +8,8 @@ import (
 	"os"
 )
 
-// MultiReader provides Read, Close and Seek and TotalSize methods.
+// MultiReader provides Read, Close, Seek and TotalSize methods. In addition to that it supports WriterTo interface
+// to provide efficient writing schemes, as functions like io.Copy use WriterTo when it's available.
 type MultiReader interface {
 	io.Reader
 	io.Seeker
@@ -22,7 +23,8 @@ type MultiReader interface {
 const (
 	DefaultMemBufferBytes = 1048576
 	DefaultMaxSizeBytes   = -1
-	DefaultBufferBytes    = 512
+	// Equivalent of bytes.MinRead used in ioutil.ReadAll
+	DefaultBufferBytes = 512
 )
 
 // Constraints:
@@ -62,12 +64,14 @@ func (mr *multiReaderSeek) Close() (err error) {
 
 func (mr *multiReaderSeek) WriteTo(w io.Writer) (int64, error) {
 	b := make([]byte, DefaultBufferBytes)
-	total := int64(0)
-	n, err := mr.mr.Read(b)
+	var total int64
 	for {
+		n, err := mr.mr.Read(b)
+		// Recommended way is to always handle non 0 reads despite the errors
 		if n > 0 {
 			nw, errw := w.Write(b[:n])
 			total += int64(nw)
+			// Write must return a non-nil error if it returns nw < n
 			if nw != n || errw != nil {
 				return total, errw
 			}
@@ -78,7 +82,6 @@ func (mr *multiReaderSeek) WriteTo(w io.Writer) (int64, error) {
 			}
 			return total, err
 		}
-		n, err = mr.mr.Read(b)
 	}
 }
 
