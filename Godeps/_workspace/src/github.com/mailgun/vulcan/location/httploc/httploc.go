@@ -258,20 +258,11 @@ func (l *HttpLocation) proxyToEndpoint(tr *http.Transport, o *Options, endpoint 
 	}
 	// Forward the request and mirror the response
 	start := o.TimeProvider.UtcNow()
-	a.Response, a.Error = tr.RoundTrip(req.GetHttpRequest())
-	if a.Error == nil && a.Response != nil && a.Response.Body != nil {
-		// Read the response as soon as we can, this will allow to release a connection to the pool
-		body, err := netutils.NewBodyBufferWithOptions(a.Response.Body, netutils.BodyBufferOptions{
-			MemBufferBytes: o.Limits.MaxMemBodyBytes,
-			MaxSizeBytes:   o.Limits.MaxBodyBytes,
-		})
-		if err != nil {
-			return nil, err
-		}
-		// Closing a response body releases connection to the pool in transport
-		a.Response.Body.Close()
-		a.Response.Body = body
-	}
+
+	re, err := tr.RoundTrip(req.GetHttpRequest())
+	// Read the response as soon as we can, this will allow to release a connection to the pool
+	a.Response, a.Error = readResponse(&o.Limits, re, err)
+
 	a.Duration = o.TimeProvider.UtcNow().Sub(start)
 	return a.Response, a.Error
 }
@@ -300,6 +291,26 @@ func (l *HttpLocation) copyRequest(req *http.Request, body netutils.MultiReader,
 	outReq.Header = make(http.Header)
 	netutils.CopyHeaders(outReq.Header, req.Header)
 	return outReq
+}
+
+// readResponse reads the response body into buffer, closes the original response body to release the connection
+// and replaces the body with the buffer.
+func readResponse(l *Limits, re *http.Response, err error) (*http.Response, error) {
+	if re == nil || re.Body == nil {
+		return nil, err
+	}
+	// Closing a response body releases connection to the pool in transport
+	body := re.Body
+	defer body.Close()
+	newBody, err := netutils.NewBodyBufferWithOptions(body, netutils.BodyBufferOptions{
+		MemBufferBytes: l.MaxMemBodyBytes,
+		MaxSizeBytes:   l.MaxBodyBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	re.Body = newBody
+	return re, nil
 }
 
 // Standard dial and read timeouts, can be overriden when supplying location

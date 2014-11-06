@@ -17,7 +17,7 @@ type Reporter struct {
 func NewReporter(c metrics.Client, locationId string) *Reporter {
 	return &Reporter{
 		c:         c,
-		locPrefix: escape(locationId),
+		locPrefix: locationId,
 	}
 }
 
@@ -28,36 +28,31 @@ func (rp *Reporter) ObserveResponse(r request.Request, a request.Attempt) {
 	if a == nil {
 		return
 	}
-	rp.emitMetrics(metric("location", rp.locPrefix), r, a)
+	rp.emitMetrics(r, a, "location", rp.locPrefix)
 	if a.GetEndpoint() != nil {
 		ve, ok := a.GetEndpoint().(*muxEndpoint)
 		if ok {
-			rp.emitMetrics(metric("upstream", escape(ve.location.Upstream.Id), escape(ve.endpoint.Id)), r, a)
+			rp.emitMetrics(r, a, "upstream", ve.location.Upstream.Id, ve.endpoint.Id)
 		}
 	}
 }
 
-func (rp *Reporter) emitMetrics(p string, r request.Request, a request.Attempt) {
+func (rp *Reporter) emitMetrics(r request.Request, a request.Attempt, p ...string) {
 	// Report ttempt roundtrip time
-	rp.c.TimingMs(metric(p, "roundtrip"), a.GetDuration(), 1)
+	m := rp.c.Metric(p...)
+	rp.c.TimingMs(m.Metric("rtt"), a.GetDuration(), 1)
 
 	// Report request throughput
 	if body := r.GetBody(); body != nil {
 		if bytes, err := body.TotalSize(); err != nil {
-			rp.c.Timing(metric(p, "request", "bytes"), bytes, 1)
+			rp.c.Timing(m.Metric("request", "bytes"), bytes, 1)
 		}
 	}
 
 	// Response code-related metrics
 	if re := a.GetResponse(); re != nil {
-		rp.c.Inc(metric(p, "code", fmt.Sprintf("%v", re.StatusCode)), 1, 1)
-		rp.c.Inc(metric(p, "request"), 1, 1)
-
-		if 200 <= re.StatusCode && re.StatusCode < 300 {
-			rp.c.Inc(metric(p, "success"), 1, 1)
-		} else {
-			rp.c.Inc(metric(p, "failure"), 1, 1)
-		}
+		rp.c.Inc(m.Metric("code", fmt.Sprintf("%v", re.StatusCode)), 1, 1)
+		rp.c.Inc(m.Metric("request"), 1, 1)
 	}
 }
 

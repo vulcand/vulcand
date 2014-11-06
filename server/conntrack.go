@@ -57,5 +57,5 @@ func (c *connTracker) inc(conn net.Conn, state http.ConnState, v int64) {
 	}
 
 	m[addr] += v
-	c.c.Gauge(metric("conns", escape(addr), state.String()), m[addr], 1)
+	c.c.Gauge(c.c.Metric("conns", addr, state.String()), m[addr], 1)
 }

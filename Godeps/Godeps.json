@@ -57,7 +57,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
-			"Rev": "f590a41f280c7023e93d3604fe1e0e5d92f6d7ee"
+			"Rev": "a980c2a498b038de81be9488afa7a11aa8a09e40"
 		},
 		{
 			"ImportPath": "github.com/mailgun/minheap",
@@ -81,8 +81,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-219-g084d3ae",
-			"Rev": "084d3aeecedf4e744448557e00c2ed17271e026f"
+			"Comment": "v0.1-220-g8e6e523",
+			"Rev": "8e6e523ed1badd3ac003b831fef8276bc2e40781"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
