@@ -160,6 +160,7 @@ func (l *HttpLocation) RoundTrip(req request.Request) (*http.Response, error) {
 	originalRequest := req.GetHttpRequest()
 
 	//  Check request size first, if that exceeds the limit, we don't bother reading the request.
+
 	if l.isRequestOverLimit(req) {
 		return nil, errors.FromStatus(http.StatusRequestEntityTooLarge)
 	}
@@ -199,7 +200,6 @@ func (l *HttpLocation) RoundTrip(req request.Request) (*http.Response, error) {
 		// Adds headers, changes urls. Note that we rewrite request each time we proxy it to the
 		// endpoint, so that each try gets a fresh start
 		req.SetHttpRequest(l.copyRequest(originalRequest, req.GetBody(), endpoint))
-
 		// In case if error is not nil, we allow load balancer to choose the next endpoint
 		// e.g. to do request failover. Nil error means that we got proxied the request successfully.
 		response, err := l.proxyToEndpoint(tr, &o, endpoint, req)
@@ -256,10 +256,13 @@ func (l *HttpLocation) proxyToEndpoint(tr *http.Transport, o *Options, endpoint 
 			return a.Response, a.Error
 		}
 	}
-
 	// Forward the request and mirror the response
 	start := o.TimeProvider.UtcNow()
-	a.Response, a.Error = tr.RoundTrip(req.GetHttpRequest())
+
+	re, err := tr.RoundTrip(req.GetHttpRequest())
+	// Read the response as soon as we can, this will allow to release a connection to the pool
+	a.Response, a.Error = readResponse(&o.Limits, re, err)
+
 	a.Duration = o.TimeProvider.UtcNow().Sub(start)
 	return a.Response, a.Error
 }
@@ -290,13 +293,33 @@ func (l *HttpLocation) copyRequest(req *http.Request, body netutils.MultiReader,
 	return outReq
 }
 
+// readResponse reads the response body into buffer, closes the original response body to release the connection
+// and replaces the body with the buffer.
+func readResponse(l *Limits, re *http.Response, err error) (*http.Response, error) {
+	if re == nil || re.Body == nil {
+		return nil, err
+	}
+	// Closing a response body releases connection to the pool in transport
+	body := re.Body
+	defer body.Close()
+	newBody, err := netutils.NewBodyBufferWithOptions(body, netutils.BodyBufferOptions{
+		MemBufferBytes: l.MaxMemBodyBytes,
+		MaxSizeBytes:   l.MaxBodyBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	re.Body = newBody
+	return re, nil
+}
+
 // Standard dial and read timeouts, can be overriden when supplying location
 const (
 	DefaultHttpReadTimeout     = time.Duration(10) * time.Second
 	DefaultHttpDialTimeout     = time.Duration(10) * time.Second
 	DefaultTlsHandshakeTimeout = time.Duration(10) * time.Second
 	DefaultKeepAlivePeriod     = time.Duration(30) * time.Second
-	DefaultMaxIdleConnsPerHost = 2
+	DefaultMaxIdleConnsPerHost = 16
 )
 
 func parseOptions(o Options) (Options, error) {
@@ -347,6 +370,7 @@ func newTransport(o Options) *http.Transport {
 		}).Dial,
 		ResponseHeaderTimeout: o.Timeouts.Read,
 		TLSHandshakeTimeout:   o.Timeouts.TlsHandshake,
+		MaxIdleConnsPerHost:   o.KeepAlive.MaxIdleConnsPerHost,
 	}
 }
 

@@ -92,7 +92,7 @@ func (p *Proxy) proxyRequest(w http.ResponseWriter, r *http.Request) error {
 		netutils.CopyHeaders(w.Header(), response.Header)
 		w.WriteHeader(response.StatusCode)
 		io.Copy(w, response.Body)
-		defer response.Body.Close()
+		response.Body.Close()
 		return nil
 	} else {
 		return err

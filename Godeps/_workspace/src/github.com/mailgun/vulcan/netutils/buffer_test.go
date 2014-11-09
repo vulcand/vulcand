@@ -112,3 +112,29 @@ func (s *BufferSuite) TestLimitExceeds(c *C) {
 	c.Assert(err, FitsTypeOf, &MaxSizeReachedError{})
 	c.Assert(bb, IsNil)
 }
+
+func (s *BufferSuite) TestWriteToBigBuffer(c *C) {
+	l := int64(13631488)
+	r, hash := createReaderOfSize(l)
+	bb, err := NewBodyBuffer(r)
+	c.Assert(err, IsNil)
+
+	other := &bytes.Buffer{}
+	wrote, err := bb.WriteTo(other)
+	c.Assert(err, IsNil)
+	c.Assert(wrote, Equals, l)
+	c.Assert(hashOfReader(other), Equals, hash)
+}
+
+func (s *BufferSuite) TestWriteToSmallBuffer(c *C) {
+	l := int64(1)
+	r, hash := createReaderOfSize(l)
+	bb, err := NewBodyBuffer(r)
+	c.Assert(err, IsNil)
+
+	other := &bytes.Buffer{}
+	wrote, err := bb.WriteTo(other)
+	c.Assert(err, IsNil)
+	c.Assert(wrote, Equals, l)
+	c.Assert(hashOfReader(other), Equals, hash)
+}
