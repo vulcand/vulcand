@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
@@ -54,12 +53,4 @@ func (rp *Reporter) emitMetrics(r request.Request, a request.Attempt, p ...strin
 		rp.c.Inc(m.Metric("code", fmt.Sprintf("%v", re.StatusCode)), 1, 1)
 		rp.c.Inc(m.Metric("request"), 1, 1)
 	}
-}
-
-func escape(in string) string {
-	return strings.Replace(in, ".", "_", -1)
-}
-
-func metric(p ...string) string {
-	return strings.Join(p, ".")
 }
