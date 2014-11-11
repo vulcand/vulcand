@@ -75,7 +75,7 @@ func (s *Service) Start() error {
 
 	if s.options.StatsdAddr != "" {
 		var err error
-		s.metricsClient, err = metrics.NewStatsd(s.options.StatsdAddr, s.options.StatsdPrefix)
+		s.metricsClient, err = metrics.NewWithOptions(s.options.StatsdAddr, s.options.StatsdPrefix, metrics.Options{UseBuffering: true})
 		if err != nil {
 			return err
 		}
