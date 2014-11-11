@@ -153,12 +153,30 @@ func (s *ApiSuite) TestUpstreamCRUD(c *C) {
 	_, err = s.client.DeleteEndpoint("up1", "e1")
 	c.Assert(err, IsNil)
 
+	_, err = s.client.UpdateUpstreamOptions("up1", UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "1s"}})
+	c.Assert(err, IsNil)
+
+	// Make sure changes have taken effect
+	out, err = s.client.GetUpstream("up1")
+	c.Assert(err, IsNil)
+	c.Assert(out.Options.Timeouts.Dial, Equals, "1s")
+
 	_, err = s.client.DeleteUpstream("up1")
 	c.Assert(err, IsNil)
 
 	ups, err = s.client.GetUpstreams()
 	c.Assert(err, IsNil)
 	c.Assert(len(ups), Equals, 0)
+}
+
+func (s *ApiSuite) TestAddUpstreamWithOptions(c *C) {
+	up, err := s.client.AddUpstreamWithOptions("up1", UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "1s"}})
+	c.Assert(err, IsNil)
+	c.Assert(up.Id, Equals, "up1")
+
+	out, err := s.client.GetUpstream("up1")
+	c.Assert(err, IsNil)
+	c.Assert(out.Options.Timeouts.Dial, Equals, "1s")
 }
 
 func (s *ApiSuite) TestUpstreamHostTwice(c *C) {

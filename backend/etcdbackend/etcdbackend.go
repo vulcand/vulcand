@@ -375,7 +375,18 @@ func (s *EtcdBackend) AddUpstream(u *backend.Upstream) (*backend.Upstream, error
 			return nil, err
 		}
 	}
+	upstreamKey := s.path("upstreams", u.Id)
+	if err := s.setJSONVal(s.path(upstreamKey, "options"), u.Options); err != nil {
+		return nil, err
+	}
 	return u, nil
+}
+
+func (s *EtcdBackend) UpdateUpstreamOptions(id string, o backend.UpstreamOptions) (*backend.Upstream, error) {
+	if err := s.setJSONVal(s.path("upstreams", id, "options"), o); err != nil {
+		return nil, err
+	}
+	return s.GetUpstream(id)
 }
 
 func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) {
@@ -385,9 +396,20 @@ func (s *EtcdBackend) GetUpstream(upstreamId string) (*backend.Upstream, error) 
 		return nil, err
 	}
 
+	var options *backend.UpstreamOptions
+	err := s.getJSONVal(join(upstreamKey, "options"), &options)
+	if err != nil {
+		if isNotFoundError(err) {
+			options = &backend.UpstreamOptions{}
+		} else {
+			return nil, err
+		}
+	}
+
 	upstream := &backend.Upstream{
 		Id:        suffix(upstreamKey),
 		Endpoints: []*backend.Endpoint{},
+		Options:   *options,
 	}
 
 	endpointPairs, err := s.getVals(join(upstreamKey, "endpoints"))
@@ -559,7 +581,7 @@ func (s *EtcdBackend) WatchChanges(changes chan interface{}, cancelC chan bool) 
 			continue
 		}
 		if change != nil {
-			log.Infof("%s", change)
+			log.Infof("%T: %v", change, change)
 			select {
 			case changes <- change:
 			case <-cancelC:
@@ -583,6 +605,7 @@ func (s *EtcdBackend) parseChange(response *etcd.Response) (interface{}, error) 
 		s.parseLocationPathChange,
 		s.parseUpstreamChange,
 		s.parseUpstreamEndpointChange,
+		s.parseUpstreamOptionsChange,
 		s.parseUpstreamChange,
 		s.parseMiddlewareChange,
 	}
@@ -807,6 +830,28 @@ func (s *EtcdBackend) parseUpstreamChange(r *etcd.Response) (interface{}, error)
 	return nil, fmt.Errorf("unsupported node action: %s", r.Action)
 }
 
+func (s *EtcdBackend) parseUpstreamOptionsChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/upstreams/([^/]+)/options").FindStringSubmatch(r.Node.Key)
+	if len(out) != 2 {
+		return nil, nil
+	}
+
+	switch r.Action {
+	case createA, setA: // supported
+	default:
+		return nil, fmt.Errorf("unsupported action on the upstream options: %s", r.Action)
+	}
+
+	upstreamId := out[1]
+	up, err := s.GetUpstream(upstreamId)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.UpstreamOptionsUpdated{
+		Upstream: up,
+	}, nil
+}
+
 func (s *EtcdBackend) parseUpstreamEndpointChange(r *etcd.Response) (interface{}, error) {
 	out := regexp.MustCompile("/upstreams/([^/]+)/endpoints/([^/]+)").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
@@ -818,28 +863,21 @@ func (s *EtcdBackend) parseUpstreamEndpointChange(r *etcd.Response) (interface{}
 		return nil, err
 	}
 
-	affectedLocations, err := s.upstreamUsedBy(upstreamId)
-	if err != nil {
-		return nil, err
-	}
-
 	switch r.Action {
 	case setA, createA:
 		for _, e := range upstream.Endpoints {
 			if e.Id == endpointId {
 				return &backend.EndpointUpdated{
-					Upstream:          upstream,
-					Endpoint:          e,
-					AffectedLocations: affectedLocations,
+					Upstream: upstream,
+					Endpoint: e,
 				}, nil
 			}
 		}
 		return nil, fmt.Errorf("endpoint %s not found", endpointId)
 	case deleteA, expireA:
 		return &backend.EndpointDeleted{
-			Upstream:          upstream,
-			EndpointId:        endpointId,
-			AffectedLocations: affectedLocations,
+			Upstream:   upstream,
+			EndpointId: endpointId,
 		}, nil
 	}
 	return nil, fmt.Errorf("unsupported action on the endpoint: %s", r.Action)

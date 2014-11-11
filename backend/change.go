@@ -75,20 +75,21 @@ type UpstreamDeleted struct {
 	UpstreamId string
 }
 
+type UpstreamOptionsUpdated struct {
+	Upstream *Upstream
+}
+
 type EndpointAdded struct {
-	Upstream          *Upstream
-	Endpoint          *Endpoint
-	AffectedLocations []*Location
+	Upstream *Upstream
+	Endpoint *Endpoint
 }
 
 type EndpointUpdated struct {
-	Upstream          *Upstream
-	Endpoint          *Endpoint
-	AffectedLocations []*Location
+	Upstream *Upstream
+	Endpoint *Endpoint
 }
 
 type EndpointDeleted struct {
-	Upstream          *Upstream
-	EndpointId        string
-	AffectedLocations []*Location
+	Upstream   *Upstream
+	EndpointId string
 }

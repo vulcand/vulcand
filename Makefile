@@ -36,7 +36,7 @@ cover-package-with-etcd: clean
 	${ETCD_FLAGS} go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
 
-systest: clean
+systest: clean install
 	${VULCAN_FLAGS} go test -v ./systest
 
 sloccount:

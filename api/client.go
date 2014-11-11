@@ -153,8 +153,8 @@ func (c *Client) UpdateLocationOptions(hostname, location string, options backen
 	return backend.LocationFromJSON(response, c.Registry.GetSpec)
 }
 
-func (c *Client) AddUpstream(id string) (*backend.Upstream, error) {
-	upstream, err := backend.NewUpstream(id)
+func (c *Client) AddUpstreamWithOptions(id string, o backend.UpstreamOptions) (*backend.Upstream, error) {
+	upstream, err := backend.NewUpstreamWithOptions(id, o)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +163,18 @@ func (c *Client) AddUpstream(id string) (*backend.Upstream, error) {
 		return nil, err
 	}
 	return backend.UpstreamFromJSON(response)
+}
+
+func (c *Client) UpdateUpstreamOptions(upId string, options backend.UpstreamOptions) (*backend.Upstream, error) {
+	response, err := c.Put(c.endpoint("upstreams", upId, "options"), options)
+	if err != nil {
+		return nil, err
+	}
+	return backend.UpstreamFromJSON(response)
+}
+
+func (c *Client) AddUpstream(id string) (*backend.Upstream, error) {
+	return c.AddUpstreamWithOptions(id, backend.UpstreamOptions{})
 }
 
 func (c *Client) DeleteUpstream(id string) (*StatusResponse, error) {

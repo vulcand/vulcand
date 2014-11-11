@@ -69,6 +69,8 @@ func (s *Service) Start() error {
 
 	log.SetSeverity(s.options.LogSeverity.s)
 
+	log.Infof("Service starts with options: %#v", s.options)
+
 	if s.options.PidPath != "" {
 		ioutil.WriteFile(s.options.PidPath, []byte(fmt.Sprint(os.Getpid())), 0644)
 	}

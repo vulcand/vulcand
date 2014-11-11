@@ -3,7 +3,7 @@ package location
 
 import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"net/http"
 )
 
@@ -12,7 +12,7 @@ type Location interface {
 	// Unique identifier of this location
 	GetId() string
 	// Forward the request to a specific location and return the response
-	RoundTrip(Request) (*http.Response, error)
+	RoundTrip(request.Request) (*http.Response, error)
 }
 
 // This location is used in tests
@@ -21,7 +21,7 @@ type Loc struct {
 	Name string
 }
 
-func (*Loc) RoundTrip(Request) (*http.Response, error) {
+func (*Loc) RoundTrip(request.Request) (*http.Response, error) {
 	return nil, nil
 }
 
@@ -35,7 +35,7 @@ type ConstHttpLocation struct {
 	Url string
 }
 
-func (l *ConstHttpLocation) RoundTrip(r Request) (*http.Response, error) {
+func (l *ConstHttpLocation) RoundTrip(r request.Request) (*http.Response, error) {
 	req := r.GetHttpRequest()
 	req.URL = netutils.MustParseUrl(l.Url)
 	return http.DefaultTransport.RoundTrip(req)

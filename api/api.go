@@ -48,6 +48,7 @@ func InitProxyController(backend backend.Backend, stats backend.StatsProvider, a
 
 	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"DELETE"}, Handler: c.deleteUpstream})
 	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"GET"}, Handler: c.getUpstream})
+	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}/options", Methods: []string{"PUT"}, HandlerWithBody: c.updateUpstreamOptions})
 
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"POST"}, HandlerWithBody: c.addLocation})
 	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"GET"}, Handler: c.getHostLocations})
@@ -205,6 +206,16 @@ func (c *ProxyController) addUpstream(w http.ResponseWriter, r *http.Request, pa
 	}
 	log.Infof("Add Upstream: %s", upstream)
 	return formatResult(c.backend.AddUpstream(upstream))
+}
+
+func (c *ProxyController) updateUpstreamOptions(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	upId := params["id"]
+
+	options, err := backend.UpstreamOptionsFromJSON(body)
+	if err != nil {
+		return nil, formatError(err)
+	}
+	return formatResult(c.backend.UpdateUpstreamOptions(upId, *options))
 }
 
 func (c *ProxyController) deleteUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {

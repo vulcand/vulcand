@@ -175,7 +175,24 @@ func UpstreamFromJSON(in []byte) (*Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return u, nil
+	up, err := NewUpstreamWithOptions(u.Id, u.Options)
+	if err != nil {
+		return nil, err
+	}
+	up.Endpoints = u.Endpoints
+	return up, nil
+}
+
+func UpstreamOptionsFromJSON(in []byte) (*UpstreamOptions, error) {
+	var o *UpstreamOptions
+	err := json.Unmarshal(in, &o)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := parseUpstreamOptions(*o); err != nil {
+		return nil, err
+	}
+	return o, nil
 }
 
 func EndpointFromJSON(in []byte) (*Endpoint, error) {
