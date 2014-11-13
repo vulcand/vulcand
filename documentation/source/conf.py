@@ -220,5 +220,9 @@ man_pages = [
 # between those tags.
 from sphinx.highlighting import lexers
 from pygments.lexers import PhpLexer, TextLexer
+from pygments.lexers.shell import BashLexer
 lexers['php'] = PhpLexer(startinline=True)
 lexers['url'] = TextLexer()
+lexers['bash_etcd'] = BashLexer()
+lexers['bash_api'] = BashLexer()
+lexers['bash_cli'] = BashLexer()
