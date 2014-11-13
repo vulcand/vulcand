@@ -669,14 +669,14 @@ func (s *LocSuite) TestMiddlewareRedirectsOnlyOnce(c *C) {
 
 func (s *LocSuite) TestTransportOperations(c *C) {
 	backend := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		w.Write([]byte("Hi, I'm endpoint 1"))
 	})
 	defer backend.Close()
 
 	rr := s.newRoundRobin(backend.URL)
 
-	t := NewTransport(TransportOptions{Timeouts: Timeouts{Read: 50 * time.Millisecond}})
+	t := NewTransport(TransportOptions{Timeouts: Timeouts{Read: 1 * time.Millisecond}})
 
 	loc, err := NewLocationWithOptions("loc1", rr, Options{Transport: t})
 	c.Assert(err, IsNil)
@@ -693,7 +693,7 @@ func (s *LocSuite) TestTransportOperations(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusRequestTimeout)
 
-	tn := NewTransport(TransportOptions{Timeouts: Timeouts{Read: 150 * time.Millisecond}})
+	tn := NewTransport(TransportOptions{Timeouts: Timeouts{Read: 20 * time.Millisecond}})
 	loc.SetTransport(tn)
 
 	response, _, err = MakeRequest(srv.URL, Opts{})

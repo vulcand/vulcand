@@ -114,10 +114,10 @@ func (s *BackendSuite) TestNewUpstreamWithOptions(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(o.Timeouts.Read, Equals, time.Second)
-	c.Assert(o.Timeouts.Dial, Equals, time.Second*2)
-	c.Assert(o.Timeouts.TlsHandshake, Equals, time.Second*3)
+	c.Assert(o.Timeouts.Dial, Equals, 2*time.Second)
+	c.Assert(o.Timeouts.TlsHandshake, Equals, 3*time.Second)
 
-	c.Assert(o.KeepAlive.Period, Equals, time.Second*4)
+	c.Assert(o.KeepAlive.Period, Equals, 4*time.Second)
 	c.Assert(o.KeepAlive.MaxIdleConnsPerHost, Equals, 3)
 }
 

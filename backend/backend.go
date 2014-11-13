@@ -326,6 +326,7 @@ type Upstream struct {
 	Options   UpstreamOptions
 }
 
+// NewUpstreamWithOptions creates a new instance of the upstream object
 func NewUpstreamWithOptions(id string, o UpstreamOptions) (*Upstream, error) {
 	if _, err := parseUpstreamOptions(o); err != nil {
 		return nil, err
@@ -337,6 +338,7 @@ func NewUpstreamWithOptions(id string, o UpstreamOptions) (*Upstream, error) {
 	}, nil
 }
 
+// NewUpstream creates a new instance of the upstream object with default options applied
 func NewUpstream(id string) (*Upstream, error) {
 	return NewUpstreamWithOptions(id, UpstreamOptions{})
 }

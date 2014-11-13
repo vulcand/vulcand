@@ -142,11 +142,11 @@ func (l *HttpLocation) SetOptions(o Options) error {
 }
 
 func (l *HttpLocation) SetTransport(t *http.Transport) error {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
 	if t == nil {
 		return fmt.Errorf("supply a non-nil transport")
 	}
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	l.setTransport(t)
 	return nil
 }

@@ -442,7 +442,7 @@ func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) (*
 	}
 
 	l, ok := m.locations[loc.GetUniqueId()]
-	// If location already exists, update it's upstream
+	// If location already exists, update its upstream
 	if ok {
 		return l, l.updateUpstream(up)
 	}

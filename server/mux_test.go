@@ -653,7 +653,7 @@ func (s *ServerSuite) TestGetStats(c *C) {
 
 func (s *ServerSuite) TestUpdateUpstreamOptions(c *C) {
 	e := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		w.Write([]byte("Hi, I'm backend"))
 	})
 	defer e.Close()
@@ -661,7 +661,7 @@ func (s *ServerSuite) TestUpdateUpstreamOptions(c *C) {
 	c.Assert(s.mux.Start(), IsNil)
 
 	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:31000", URL: e.URL})
-	l.Upstream.Options = UpstreamOptions{Timeouts: UpstreamTimeouts{Read: "50ms"}}
+	l.Upstream.Options = UpstreamOptions{Timeouts: UpstreamTimeouts{Read: "1ms"}}
 	c.Assert(s.mux.UpsertLocation(h, l), IsNil)
 
 	l1, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:31000", URL: e.URL})
@@ -676,7 +676,7 @@ func (s *ServerSuite) TestUpdateUpstreamOptions(c *C) {
 	re, _, err = GET(MakeURL(l1, h.Listeners[0]), Opts{})
 	c.Assert(re.StatusCode, Equals, http.StatusRequestTimeout)
 
-	l.Upstream.Options = UpstreamOptions{Timeouts: UpstreamTimeouts{Read: "150ms"}}
+	l.Upstream.Options = UpstreamOptions{Timeouts: UpstreamTimeouts{Read: "20ms"}}
 	c.Assert(s.mux.UpsertUpstream(l.Upstream), IsNil)
 
 	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm backend")
