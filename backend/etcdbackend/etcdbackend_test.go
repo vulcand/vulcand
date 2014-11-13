@@ -294,12 +294,19 @@ func (s *EtcdBackendSuite) TestUpstreamCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(u, Equals, up)
 
-	s.expectChanges(c, &UpstreamAdded{Upstream: up})
+	s.expectChanges(c, &UpstreamAdded{Upstream: up}, &UpstreamOptionsUpdated{Upstream: up})
 
 	upR, err := s.backend.GetUpstream("up1")
 	c.Assert(err, IsNil)
 	c.Assert(upR, NotNil)
 	c.Assert(upR.Id, Equals, "up1")
+
+	o := UpstreamOptions{Timeouts: UpstreamTimeouts{Read: "1s"}}
+	out, err := s.backend.UpdateUpstreamOptions(up.Id, o)
+	c.Assert(err, IsNil)
+	c.Assert(out.Options, DeepEquals, o)
+
+	s.expectChanges(c, &UpstreamOptionsUpdated{Upstream: out})
 
 	err = s.backend.DeleteUpstream("up1")
 	c.Assert(err, IsNil)
@@ -331,7 +338,10 @@ func (s *EtcdBackendSuite) TestEndpointAddReadDelete(c *C) {
 	_, err := s.backend.AddUpstream(up0)
 	c.Assert(err, IsNil)
 
-	s.expectChanges(c, &UpstreamAdded{Upstream: up0})
+	s.expectChanges(c,
+		&UpstreamAdded{Upstream: up0},
+		&UpstreamOptionsUpdated{Upstream: up0})
+
 	up := s.makeUpstream("up1", 1)
 	e := up.Endpoints[0]
 
@@ -344,18 +354,16 @@ func (s *EtcdBackendSuite) TestEndpointAddReadDelete(c *C) {
 	c.Assert(eO, DeepEquals, e)
 
 	s.expectChanges(c, &EndpointUpdated{
-		Upstream:          up,
-		Endpoint:          e,
-		AffectedLocations: []*Location{},
+		Upstream: up,
+		Endpoint: e,
 	})
 
 	err = s.backend.DeleteEndpoint(up.Id, e.Id)
 	c.Assert(err, IsNil)
 
 	s.expectChanges(c, &EndpointDeleted{
-		Upstream:          up0,
-		EndpointId:        e.Id,
-		AffectedLocations: []*Location{},
+		Upstream:   up0,
+		EndpointId: e.Id,
 	})
 }
 
@@ -367,9 +375,8 @@ func (s *EtcdBackendSuite) TestAddEndpointUsingSet(c *C) {
 	c.Assert(err, IsNil)
 
 	s.expectChanges(c, &EndpointUpdated{
-		Upstream:          up,
-		Endpoint:          up.Endpoints[0],
-		AffectedLocations: []*Location{},
+		Upstream: up,
+		Endpoint: up.Endpoints[0],
 	})
 }
 
@@ -381,13 +388,11 @@ func (s *EtcdBackendSuite) TestExpireEndpoint(c *C) {
 	c.Assert(err, IsNil)
 
 	s.expectChanges(c, &EndpointUpdated{
-		Upstream:          up,
-		Endpoint:          up.Endpoints[0],
-		AffectedLocations: []*Location{},
+		Upstream: up,
+		Endpoint: up.Endpoints[0],
 	}, &EndpointDeleted{
-		Upstream:          s.makeUpstream(up.Id, 0),
-		EndpointId:        e.Id,
-		AffectedLocations: []*Location{},
+		Upstream:   s.makeUpstream(up.Id, 0),
+		EndpointId: e.Id,
 	})
 }
 
@@ -428,7 +433,7 @@ func (s *EtcdBackendSuite) TestLocationAddReadDelete(c *C) {
 
 	_, err = s.backend.AddHost(host)
 	c.Assert(err, IsNil)
-	s.collectChanges(c, 3)
+	s.collectChanges(c, 4)
 
 	loc := s.makeLocation("loc1", "/hello", host, up)
 
@@ -523,7 +528,7 @@ func (s *EtcdBackendSuite) TestLocationUpdateUpstream(c *C) {
 
 	_, err = s.backend.AddHost(host)
 	c.Assert(err, IsNil)
-	s.collectChanges(c, 5)
+	s.collectChanges(c, 7)
 
 	loc := s.makeLocation("loc1", "/hello", host, up1)
 
@@ -552,7 +557,7 @@ func (s *EtcdBackendSuite) TestLocationUpdateOptions(c *C) {
 
 	_, err = s.backend.AddHost(host)
 	c.Assert(err, IsNil)
-	s.collectChanges(c, 3)
+	s.collectChanges(c, 4)
 
 	loc := s.makeLocation("loc1", "/hello", host, up)
 
@@ -561,8 +566,8 @@ func (s *EtcdBackendSuite) TestLocationUpdateOptions(c *C) {
 	s.collectChanges(c, 1)
 
 	options := LocationOptions{
-		Timeouts: LocationTimeouts{
-			Dial: "7s",
+		Limits: LocationLimits{
+			MaxMemBodyBytes: 123456,
 		},
 	}
 
@@ -608,7 +613,7 @@ func (s *EtcdBackendSuite) TestLocationRateLimitCRUD(c *C) {
 	c.Assert(err, IsNil)
 	_, err = s.backend.AddHost(host)
 	c.Assert(err, IsNil)
-	s.collectChanges(c, 3)
+	s.collectChanges(c, 4)
 
 	loc := s.makeLocation("loc1", "/hello", host, up)
 	_, err = s.backend.AddLocation(loc)

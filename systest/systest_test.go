@@ -31,7 +31,7 @@ func TestVulcandWithEtcd(t *testing.T) { TestingT(t) }
 type VESuite struct {
 	apiUrl     string
 	serviceUrl string
-	etcdNodes  string
+	etcdNodes  []string
 	etcdPrefix string
 	sealKey    string
 	box        *secret.Box
@@ -47,12 +47,13 @@ func (s *VESuite) name(prefix string) string {
 func (s *VESuite) SetUpSuite(c *C) {
 	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
 
-	s.etcdNodes = os.Getenv("VULCAND_TEST_ETCD_NODES")
-	if s.etcdNodes == "" {
+	etcdNodes := os.Getenv("VULCAND_TEST_ETCD_NODES")
+	if etcdNodes == "" {
 		c.Skip("This test requires running Etcd, please provide url via VULCAND_TEST_ETCD_NODES environment variable")
 		return
 	}
-	s.client = etcd.NewClient(strings.Split(s.etcdNodes, ","))
+	s.etcdNodes = strings.Split(etcdNodes, ",")
+	s.client = etcd.NewClient(s.etcdNodes)
 
 	s.etcdPrefix = os.Getenv("VULCAND_TEST_ETCD_PREFIX")
 	if s.etcdPrefix == "" {
@@ -104,10 +105,33 @@ func (s *VESuite) SetUpTest(c *C) {
 		_, err = s.client.Delete(s.etcdPrefix, true)
 		c.Assert(err, IsNil)
 	}
+
+	// Restart vulcand
+	exec.Command("killall", "vulcand").Output()
+
+	args := []string{
+		fmt.Sprintf("--etcdKey=%s", s.etcdPrefix),
+		fmt.Sprintf("--sealKey=%s", s.sealKey),
+		"--logSeverity=INFO",
+		"--log=syslog",
+	}
+	for _, n := range s.etcdNodes {
+		args = append(args, fmt.Sprintf("-etcd=%s", n))
+	}
+	cmd := exec.Command("vulcand", args...)
+	c.Assert(cmd.Start(), IsNil)
+	go func() {
+		// Wait for process completion to avoid zombie process
+		cmd.Wait()
+	}()
+}
+
+func (s *VESuite) TearDownTest(c *C) {
+	exec.Command("killall", "vulcand").Output()
 }
 
 // Set up a location with a path, hit this location and make sure everything worked fine
-func (s *VESuite) TestLocationCrud(c *C) {
+func (s *VESuite) TestLocationCRUD(c *C) {
 	called := false
 	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -243,7 +267,8 @@ func (s *VESuite) TestUpdateUpstreamLocation(c *C) {
 }
 
 // Set up a location with a path, hit this location and make sure everything worked fine
-func (s *VESuite) TestHTTPListenerCrud(c *C) {
+func (s *VESuite) TestHTTPListenerCRUD(c *C) {
+
 	called := false
 	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -285,7 +310,7 @@ func (s *VESuite) TestHTTPListenerCrud(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *VESuite) TestHTTPSListenerCrud(c *C) {
+func (s *VESuite) TestHTTPSListenerCRUD(c *C) {
 	called := false
 	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -337,6 +362,7 @@ func (s *VESuite) TestHTTPSListenerCrud(c *C) {
 
 // Set up a location with a path, hit this location and make sure everything worked fine
 func (s *VESuite) TestExpiringEndpoint(c *C) {
+
 	server := NewTestResponder("e1")
 	defer server.Close()
 
@@ -382,6 +408,52 @@ func (s *VESuite) TestExpiringEndpoint(c *C) {
 		responses2[string(body)] = true
 	}
 	c.Assert(responses2, DeepEquals, map[string]bool{"e1": true})
+}
+
+// Make sure live upstream options updates work as expected
+func (s *VESuite) TestUpstreamUpdateOptions(c *C) {
+
+	server := NewTestServer(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		w.Write([]byte("tc: update upstream options"))
+	})
+	defer server.Close()
+
+	// Create upstream and endpoints
+	up, url := "upz", server.URL
+
+	_, err := s.client.Set(s.path("upstreams", up, "endpoints", "e1"), url, 0)
+	c.Assert(err, IsNil)
+
+	_, err = s.client.Set(s.path("upstreams", up, "options"), `{"Timeouts": {"Read":"10ms"}}`, 0)
+	c.Assert(err, IsNil)
+
+	// Add location
+	host, locId, path := "localhost", "locz", "/pathz"
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "path"), path, 0)
+	c.Assert(err, IsNil)
+	_, err = s.client.Set(s.path("hosts", host, "locations", locId, "upstream"), up, 0)
+	c.Assert(err, IsNil)
+
+	// Wait for the changes to take effect
+	time.Sleep(time.Second)
+
+	// Make sure request times out
+	response, _, err := GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{})
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusRequestTimeout)
+
+	// Update upstream options
+	_, err = s.client.Set(s.path("upstreams", up, "options"), `{"Timeouts": {"Read":"100ms"}}`, 0)
+	c.Assert(err, IsNil)
+
+	// Wait for the changes to take effect
+	time.Sleep(time.Second)
+
+	response, body, err := GET(fmt.Sprintf("%s%s", s.serviceUrl, path), Opts{})
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(body), Equals, "tc: update upstream options")
 }
 
 func (s *VESuite) TestLiveBinaryUpgrade(c *C) {

@@ -8,7 +8,6 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
@@ -23,6 +22,11 @@ type MuxServer struct {
 	id int
 	// Each listener address has a server associated with it
 	servers map[backend.Address]*server
+
+	// Each upstream holds a transport and list of associated locations
+	upstreams map[backend.UpstreamKey]*upstream
+
+	locations map[backend.LocationKey]*location
 
 	// Options hold parameters that are used to initialize http servers
 	options Options
@@ -61,6 +65,8 @@ func NewMuxServerWithOptions(id int, o Options) (*MuxServer, error) {
 		wg:          &sync.WaitGroup{},
 		mtx:         &sync.RWMutex{},
 		perfMon:     newPerfMon(o.TimeProvider),
+		upstreams:   make(map[backend.UpstreamKey]*upstream),
+		locations:   make(map[backend.LocationKey]*location),
 	}, nil
 }
 
@@ -179,15 +185,42 @@ func (m *MuxServer) stopServers() {
 	}
 }
 
-func (m *MuxServer) AddUpstream(u *backend.Upstream) error {
-	log.Infof("%v AddUpstream(%v)", m, u)
+func (m *MuxServer) UpsertUpstream(u *backend.Upstream) error {
+	log.Infof("%v UpsertUpstream(%v)", m, u)
 
-	return nil
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	_, err := m.upsertUpstream(u)
+	return err
+}
+
+func (m *MuxServer) upsertUpstream(u *backend.Upstream) (*upstream, error) {
+	up, ok := m.upstreams[u.GetUniqueId()]
+	if ok {
+		return up, up.update(u)
+	}
+	up, err := newUpstream(m, u)
+	if err != nil {
+		return nil, err
+	}
+	m.upstreams[u.GetUniqueId()] = up
+	return up, nil
 }
 
 func (m *MuxServer) DeleteUpstream(upstreamId string) error {
 	log.Infof("%v DeleteUpstream(%s)", m, upstreamId)
 
+	up, ok := m.upstreams[backend.UpstreamKey{Id: upstreamId}]
+	if !ok {
+		return fmt.Errorf("Upstream(%v) not found", upstreamId)
+	}
+
+	if len(up.locs) != 0 {
+		return fmt.Errorf("Upstream(%v) is used by locations: %v", upstreamId, up.locs)
+	}
+
+	up.Close()
 	m.perfMon.deleteUpstream(backend.UpstreamKey{Id: upstreamId})
 	return nil
 }
@@ -279,7 +312,8 @@ func (m *MuxServer) UpsertLocation(host *backend.Host, loc *backend.Location) er
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	return m.upsertLocation(host, loc)
+	_, err := m.upsertLocation(host, loc)
+	return err
 }
 
 func (m *MuxServer) UpsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error {
@@ -306,10 +340,8 @@ func (m *MuxServer) UpdateLocationUpstream(host *backend.Host, loc *backend.Loca
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if err := m.upsertLocation(host, loc); err != nil {
-		return err
-	}
-	return m.syncLocationEndpoints(loc)
+	_, err := m.upsertLocation(host, loc)
+	return err
 }
 
 func (m *MuxServer) UpdateLocationPath(host *backend.Host, loc *backend.Location, path string) error {
@@ -319,12 +351,13 @@ func (m *MuxServer) UpdateLocationPath(host *backend.Host, loc *backend.Location
 	defer m.mtx.Unlock()
 
 	// If location already exists, delete it and re-create from scratch
-	if httploc := m.getLocation(host.Name, loc.Id); httploc != nil {
+	if _, ok := m.locations[loc.GetUniqueId()]; ok {
 		if err := m.deleteLocation(host, loc.Id); err != nil {
 			return err
 		}
 	}
-	return m.upsertLocation(host, loc)
+	_, err := m.upsertLocation(host, loc)
+	return err
 }
 
 func (m *MuxServer) UpdateLocationOptions(host *backend.Host, loc *backend.Location) error {
@@ -333,18 +366,12 @@ func (m *MuxServer) UpdateLocationOptions(host *backend.Host, loc *backend.Locat
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if err := m.upsertLocation(host, loc); err != nil {
-		return err
+	l, ok := m.locations[loc.GetUniqueId()]
+	if !ok {
+		return fmt.Errorf("%v not found", loc)
 	}
-	location := m.getLocation(host.Name, loc.Id)
-	if location == nil {
-		return fmt.Errorf("%s not found", loc)
-	}
-	options, err := m.getLocationOptions(loc)
-	if err != nil {
-		return err
-	}
-	return location.SetOptions(*options)
+
+	return l.updateOptions(loc)
 }
 
 func (m *MuxServer) DeleteLocation(host *backend.Host, locationId string) error {
@@ -356,43 +383,36 @@ func (m *MuxServer) DeleteLocation(host *backend.Host, locationId string) error 
 	return m.deleteLocation(host, locationId)
 }
 
-func (m *MuxServer) UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
-	log.Infof("%s UpsertEdpoint %s %s", m, upstream, e)
+func (m *MuxServer) UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint) error {
+	log.Infof("%s UpsertEndpoint %s %s", m, upstream, e)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	return m.addEndpoint(upstream, e, affectedLocations)
+	if _, err := netutils.ParseUrl(e.Url); err != nil {
+		return fmt.Errorf("failed to parse %v, error: %v", e, err)
+	}
+
+	up, ok := m.upstreams[upstream.GetUniqueId()]
+	if !ok {
+		return fmt.Errorf("%v not found", upstream)
+	}
+
+	return up.updateEndpoints(upstream.Endpoints)
 }
 
-func (m *MuxServer) DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error {
+func (m *MuxServer) DeleteEndpoint(upstream *backend.Upstream, endpointId string) error {
 	log.Infof("%s DeleteEndpoint %s %s", m, upstream, endpointId)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	for _, l := range affectedLocations {
-		if err := m.syncLocationEndpoints(l); err != nil {
-			log.Errorf("Failed to sync %s endpoints err: %s", l, err)
-		}
-	}
-	return nil
-}
-
-func (m *MuxServer) getLocationOptions(loc *backend.Location) (*httploc.Options, error) {
-	o, err := loc.GetOptions()
-	if err != nil {
-		return nil, err
+	up, ok := m.upstreams[upstream.GetUniqueId()]
+	if !ok {
+		return fmt.Errorf("%v not found", upstream)
 	}
 
-	// Apply global defaults if options are not set
-	if o.Timeouts.Dial == 0 {
-		o.Timeouts.Dial = m.options.DialTimeout
-	}
-	if o.Timeouts.Read == 0 {
-		o.Timeouts.Read = m.options.ReadTimeout
-	}
-	return o, nil
+	return up.updateEndpoints(upstream.Endpoints)
 }
 
 func (m *MuxServer) getRouter(hostname string) *exproute.ExpRouter {
@@ -411,146 +431,46 @@ func (m *MuxServer) getLocation(hostname string, locationId string) *httploc.Htt
 	return ilo.(*httploc.HttpLocation)
 }
 
-func (m *MuxServer) getLocationLB(hostname string, locationId string) *roundrobin.RoundRobin {
-	loc := m.getLocation(hostname, locationId)
-	if loc == nil {
-		return nil
-	}
-	return loc.GetLoadBalancer().(*roundrobin.RoundRobin)
-}
-
-func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) error {
+func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) (*location, error) {
 	if err := m.upsertHost(host); err != nil {
-		return err
+		return nil, err
 	}
 
-	// If location already exists, do nothing
-	if loc := m.getLocation(host.Name, loc.Id); loc != nil {
-		return nil
-	}
-
-	router := m.getRouter(host.Name)
-	if router == nil {
-		return fmt.Errorf("router not found for %s", host)
-	}
-	// Create a load balancer that handles all the endpoints within the given location
-	rr, err := roundrobin.NewRoundRobin()
+	up, err := m.upsertUpstream(loc.Upstream)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Create a location itself
-	options, err := m.getLocationOptions(loc)
+	l, ok := m.locations[loc.GetUniqueId()]
+	// If location already exists, update its upstream
+	if ok {
+		return l, l.updateUpstream(up)
+	}
+
+	// create a new location
+	l, err = newLocation(m, loc, up)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	location, err := httploc.NewLocationWithOptions(loc.Id, rr, *options)
-	if err != nil {
-		return err
-	}
-
-	// Register metric emitters and performance monitors
-	location.GetObserverChain().Upsert(Metrics, NewReporter(m.options.MetricsClient, loc.Id))
-	location.GetObserverChain().Upsert(PerfMon, m.perfMon)
-
-	// Add the location to the router
-	if err := router.AddLocation(convertPath(loc.Path), location); err != nil {
-		return err
-	}
-
-	// Add middlewares
-	for _, ml := range loc.Middlewares {
-		if err := m.upsertLocationMiddleware(host, loc, ml); err != nil {
-			log.Errorf("failed to add middleware: %s", err)
-		}
-	}
-	// Once the location added, configure all endpoints
-	return m.syncLocationEndpoints(loc)
+	// register it with the locations registry
+	m.locations[loc.GetUniqueId()] = l
+	return l, nil
 }
 
 func (m *MuxServer) upsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error {
-	if err := m.upsertLocation(host, loc); err != nil {
-		return err
-	}
-	location := m.getLocation(host.Name, loc.Id)
-	if location == nil {
-		return fmt.Errorf("%s not found", loc)
-	}
-	instance, err := mi.Middleware.NewMiddleware()
+	l, err := m.upsertLocation(host, loc)
 	if err != nil {
 		return err
 	}
-	location.GetMiddlewareChain().Upsert(fmt.Sprintf("%s.%s", mi.Type, mi.Id), mi.Priority, instance)
-	return nil
+	return l.upsertMiddleware(mi)
 }
 
 func (m *MuxServer) deleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error {
-	location := m.getLocation(host.Name, loc.Id)
-	if location == nil {
+	l, ok := m.locations[loc.GetUniqueId()]
+	if !ok {
 		return fmt.Errorf("%s not found", loc)
 	}
-	return location.GetMiddlewareChain().Remove(fmt.Sprintf("%s.%s", mType, mId))
-}
-
-func (m *MuxServer) syncLocationEndpoints(location *backend.Location) error {
-
-	rr := m.getLocationLB(location.Hostname, location.Id)
-	if rr == nil {
-		return fmt.Errorf("%v lb not found", location)
-	}
-
-	// First, collect and parse endpoints to add
-	newEndpoints := map[string]*muxEndpoint{}
-	for _, e := range location.Upstream.Endpoints {
-		ep, err := newEndpoint(location, e, m.perfMon)
-		if err != nil {
-			return fmt.Errorf("failed to create load balancer endpoint from %v", e)
-		}
-		newEndpoints[e.Url] = ep
-	}
-
-	// Memorize what endpoints exist in load balancer at the moment
-	existingEndpoints := map[string]*muxEndpoint{}
-	for _, e := range rr.GetEndpoints() {
-		existingEndpoints[e.GetUrl().String()] = e.GetOriginalEndpoint().(*muxEndpoint)
-	}
-
-	// First, add endpoints, that should be added and are not in lb
-	for _, e := range newEndpoints {
-		if _, exists := existingEndpoints[e.GetUrl().String()]; !exists {
-			if err := rr.AddEndpoint(e); err != nil {
-				log.Errorf("%s failed to add %s, err: %s", m, e, err)
-			} else {
-				log.Infof("%s add endpoint %s to %s", m, e, location)
-			}
-		}
-	}
-
-	// Second, remove endpoints that should not be there any more
-	for _, e := range existingEndpoints {
-		if _, exists := newEndpoints[e.GetUrl().String()]; !exists {
-			m.perfMon.deleteEndpoint(e.endpoint.GetUniqueId())
-			if err := rr.RemoveEndpoint(e); err != nil {
-				log.Errorf("failed to remove %v, err: %v", e, err)
-			} else {
-				log.Infof("Removed %s from %s", e, location)
-			}
-		}
-	}
-	return nil
-}
-
-func (m *MuxServer) addEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error {
-	if _, err := netutils.ParseUrl(e.Url); err != nil {
-		return fmt.Errorf("failed to parse %v, error: %v", e, err)
-	}
-
-	for _, l := range affectedLocations {
-		if err := m.syncLocationEndpoints(l); err != nil {
-			log.Errorf("failed to sync %s endpoints err: %s", l, err)
-		}
-	}
-	return nil
+	return l.deleteMiddleware(mType, mId)
 }
 
 func (m *MuxServer) addHostListener(host *backend.Host, router route.Router, l *backend.Listener) error {
@@ -610,16 +530,31 @@ func (m *MuxServer) hasHostListener(hostname, listenerId string) bool {
 }
 
 func (m *MuxServer) deleteLocation(host *backend.Host, locationId string) error {
-	router := m.getRouter(host.Name)
-	if router == nil {
-		return fmt.Errorf("router for %s not found", host)
+	key := backend.LocationKey{Hostname: host.Name, Id: locationId}
+	l, ok := m.locations[key]
+	if !ok {
+		return fmt.Errorf("%v not found")
 	}
-	location := router.GetLocationById(locationId)
-	if location == nil {
-		return fmt.Errorf("location(id=%s) not found", locationId)
+	if err := l.remove(); err != nil {
+		return err
 	}
-	m.perfMon.deleteLocation(backend.LocationKey{Hostname: host.Name, Id: locationId})
-	return router.RemoveLocationById(location.GetId())
+	delete(m.locations, key)
+	return nil
+}
+
+func (m *MuxServer) getTransportOptions(up *backend.Upstream) (*httploc.TransportOptions, error) {
+	o, err := up.GetTransportOptions()
+	if err != nil {
+		return nil, err
+	}
+	// Apply global defaults if options are not set
+	if o.Timeouts.Dial == 0 {
+		o.Timeouts.Dial = m.options.DialTimeout
+	}
+	if o.Timeouts.Read == 0 {
+		o.Timeouts.Read = m.options.ReadTimeout
+	}
+	return o, nil
 }
 
 type muxState int

@@ -2,36 +2,65 @@ package testutils
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 )
 
-func MakeLocation(hostname, listenerAddress, endpointURL string) (*backend.Location, *backend.Host) {
-	host := &backend.Host{
-		Name: hostname,
-		Listeners: []*backend.Listener{
-			&backend.Listener{Protocol: backend.HTTP, Address: backend.Address{Network: "tcp", Address: listenerAddress}}},
-	}
+var lastId int64
 
+type LocOpts struct {
+	UpId     string
+	Hostname string
+	Addr     string
+	URL      string
+	LocId    string
+}
+
+func nextId(prefix string) string {
+	return fmt.Sprintf("%s%d", prefix, atomic.AddInt64(&lastId, 1))
+}
+
+func MakeLocation(o LocOpts) (*backend.Location, *backend.Host) {
+	o = setDefaults(o)
+	host := &backend.Host{
+		Name: o.Hostname,
+		Listeners: []*backend.Listener{
+			&backend.Listener{
+				Protocol: backend.HTTP,
+				Address:  backend.Address{Network: "tcp", Address: o.Addr},
+			},
+		},
+	}
 	upstream := &backend.Upstream{
-		Id: "up1",
+		Id: o.UpId,
 		Endpoints: []*backend.Endpoint{
 			{
-				UpstreamId: "up1",
-				Id:         endpointURL,
-				Url:        endpointURL,
+				UpstreamId: o.UpId,
+				Id:         o.URL,
+				Url:        o.URL,
 			},
 		},
 	}
 	location := &backend.Location{
 		Hostname: host.Name,
-		Path:     "/loc1",
-		Id:       "loc1",
+		Path:     fmt.Sprintf("/%s", o.LocId),
+		Id:       o.LocId,
 		Upstream: upstream,
 	}
 	return location, host
+}
+
+func setDefaults(o LocOpts) LocOpts {
+	if o.UpId == "" {
+		o.UpId = nextId("up")
+	}
+	if o.LocId == "" {
+		o.LocId = nextId("loc")
+	}
+	return o
 }
 
 func MakeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *backend.Location) *backend.MiddlewareInstance {

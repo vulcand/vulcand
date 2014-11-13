@@ -24,7 +24,7 @@ type Server interface {
 	UpsertLocation(host *backend.Host, loc *backend.Location) error
 	DeleteLocation(host *backend.Host, locationId string) error
 
-	AddUpstream(u *backend.Upstream) error
+	UpsertUpstream(u *backend.Upstream) error
 	DeleteUpstream(upstreamId string) error
 
 	UpdateLocationUpstream(host *backend.Host, loc *backend.Location) error
@@ -34,8 +34,8 @@ type Server interface {
 	UpsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error
 	DeleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error
 
-	UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint, affectedLocations []*backend.Location) error
-	DeleteEndpoint(upstream *backend.Upstream, endpointId string, affectedLocations []*backend.Location) error
+	UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint) error
+	DeleteEndpoint(upstream *backend.Upstream, endpointId string) error
 
 	// TakeFiles takes file descriptors representing sockets in listening state to start serving on them
 	// instead of binding. This is nessesary if the child process needs to inherit sockets from the parent

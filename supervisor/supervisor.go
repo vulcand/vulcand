@@ -355,15 +355,17 @@ func processChange(s server.Server, ch interface{}) error {
 	case *backend.LocationMiddlewareDeleted:
 		return s.DeleteLocationMiddleware(change.Host, change.Location, change.MiddlewareType, change.MiddlewareId)
 	case *backend.UpstreamAdded:
-		return s.AddUpstream(change.Upstream)
+		return s.UpsertUpstream(change.Upstream)
 	case *backend.UpstreamDeleted:
 		return s.DeleteUpstream(change.UpstreamId)
+	case *backend.UpstreamOptionsUpdated:
+		return s.UpsertUpstream(change.Upstream)
 	case *backend.EndpointAdded:
-		return s.UpsertEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
+		return s.UpsertEndpoint(change.Upstream, change.Endpoint)
 	case *backend.EndpointUpdated:
-		return s.UpsertEndpoint(change.Upstream, change.Endpoint, change.AffectedLocations)
+		return s.UpsertEndpoint(change.Upstream, change.Endpoint)
 	case *backend.EndpointDeleted:
-		return s.DeleteEndpoint(change.Upstream, change.EndpointId, change.AffectedLocations)
+		return s.DeleteEndpoint(change.Upstream, change.EndpointId)
 	}
 	return fmt.Errorf("unsupported change: %#v", ch)
 }

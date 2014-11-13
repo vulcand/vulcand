@@ -53,7 +53,7 @@ func (s *SupervisorSuite) TestInitFromExistingConfig(c *C) {
 	e := NewTestResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
+	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
 
 	_, err := s.b.AddUpstream(l.Upstream)
 	c.Assert(err, IsNil)
@@ -75,7 +75,7 @@ func (s *SupervisorSuite) TestInitOnTheFly(c *C) {
 
 	s.sv.Start()
 
-	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
+	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
 
 	s.b.ChangesC <- &LocationAdded{
 		Host:     h,
@@ -91,7 +91,7 @@ func (s *SupervisorSuite) TestGracefulShutdown(c *C) {
 
 	s.sv.Start()
 
-	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
+	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
 
 	s.b.ChangesC <- &LocationAdded{
 		Host:     h,
@@ -106,7 +106,7 @@ func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
 	e := NewTestResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
+	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
 
 	_, err := s.b.AddUpstream(l.Upstream)
 	c.Assert(err, IsNil)
@@ -129,7 +129,7 @@ func (s *SupervisorSuite) TestTransferFiles(c *C) {
 	e := NewTestResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation("localhost", "localhost:33000", e.URL)
+	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
 
 	_, err := s.b.AddUpstream(l.Upstream)
 	c.Assert(err, IsNil)

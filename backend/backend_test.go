@@ -41,15 +41,6 @@ func (s *BackendSuite) TestNewLocation(c *C) {
 
 func (s *BackendSuite) TestNewLocationWithOptions(c *C) {
 	options := LocationOptions{
-		Timeouts: LocationTimeouts{
-			Read:         "1s",
-			Dial:         "2s",
-			TlsHandshake: "3s",
-		},
-		KeepAlive: LocationKeepAlive{
-			Period:              "4s",
-			MaxIdleConnsPerHost: 3,
-		},
 		Limits: LocationLimits{
 			MaxMemBodyBytes: 12,
 			MaxBodyBytes:    400,
@@ -64,13 +55,6 @@ func (s *BackendSuite) TestNewLocationWithOptions(c *C) {
 
 	o, err := l.GetOptions()
 	c.Assert(err, IsNil)
-
-	c.Assert(o.Timeouts.Read, Equals, time.Second)
-	c.Assert(o.Timeouts.Dial, Equals, time.Second*2)
-	c.Assert(o.Timeouts.TlsHandshake, Equals, time.Second*3)
-
-	c.Assert(o.KeepAlive.Period, Equals, time.Second*4)
-	c.Assert(o.KeepAlive.MaxIdleConnsPerHost, Equals, 3)
 
 	c.Assert(o.Limits.MaxMemBodyBytes, Equals, int64(12))
 	c.Assert(o.Limits.MaxBodyBytes, Equals, int64(400))
@@ -93,26 +77,6 @@ func (s *BackendSuite) TestNewLocationBadParams(c *C) {
 func (s *BackendSuite) TestNewLocationWithBadOptions(c *C) {
 	options := []LocationOptions{
 		LocationOptions{
-			Timeouts: LocationTimeouts{
-				Read: "1what?",
-			},
-		},
-		LocationOptions{
-			Timeouts: LocationTimeouts{
-				Dial: "1what?",
-			},
-		},
-		LocationOptions{
-			Timeouts: LocationTimeouts{
-				TlsHandshake: "1what?",
-			},
-		},
-		LocationOptions{
-			KeepAlive: LocationKeepAlive{
-				Period: "1what?",
-			},
-		},
-		LocationOptions{
 			FailoverPredicate: "bad predicate",
 		},
 	}
@@ -128,6 +92,84 @@ func (s *BackendSuite) TestNewUpstream(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(u.GetId(), Equals, "u1")
 	c.Assert(u.String(), Not(Equals), "")
+}
+
+func (s *BackendSuite) TestNewUpstreamWithOptions(c *C) {
+	options := UpstreamOptions{
+		Timeouts: UpstreamTimeouts{
+			Read:         "1s",
+			Dial:         "2s",
+			TlsHandshake: "3s",
+		},
+		KeepAlive: UpstreamKeepAlive{
+			Period:              "4s",
+			MaxIdleConnsPerHost: 3,
+		},
+	}
+	u, err := NewUpstreamWithOptions("u1", options)
+	c.Assert(err, IsNil)
+	c.Assert(u.GetId(), Equals, "u1")
+
+	o, err := u.GetTransportOptions()
+	c.Assert(err, IsNil)
+
+	c.Assert(o.Timeouts.Read, Equals, time.Second)
+	c.Assert(o.Timeouts.Dial, Equals, 2*time.Second)
+	c.Assert(o.Timeouts.TlsHandshake, Equals, 3*time.Second)
+
+	c.Assert(o.KeepAlive.Period, Equals, 4*time.Second)
+	c.Assert(o.KeepAlive.MaxIdleConnsPerHost, Equals, 3)
+}
+
+func (s *BackendSuite) TestUpstreamOptionsEq(c *C) {
+	options := []struct {
+		a UpstreamOptions
+		b UpstreamOptions
+		e bool
+	}{
+		{UpstreamOptions{}, UpstreamOptions{}, true},
+
+		{UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "1s"}}, UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "1s"}}, true},
+		{UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "2s"}}, UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "1s"}}, false},
+		{UpstreamOptions{Timeouts: UpstreamTimeouts{Read: "2s"}}, UpstreamOptions{Timeouts: UpstreamTimeouts{Read: "1s"}}, false},
+		{UpstreamOptions{Timeouts: UpstreamTimeouts{TlsHandshake: "2s"}}, UpstreamOptions{Timeouts: UpstreamTimeouts{TlsHandshake: "1s"}}, false},
+
+		{UpstreamOptions{KeepAlive: UpstreamKeepAlive{Period: "2s"}}, UpstreamOptions{KeepAlive: UpstreamKeepAlive{Period: "1s"}}, false},
+		{UpstreamOptions{KeepAlive: UpstreamKeepAlive{MaxIdleConnsPerHost: 1}}, UpstreamOptions{KeepAlive: UpstreamKeepAlive{MaxIdleConnsPerHost: 2}}, false},
+	}
+	for _, o := range options {
+		c.Assert(o.a.Equals(o.b), Equals, o.e)
+	}
+}
+
+func (s *BackendSuite) TestNewUpstreamWithBadOptions(c *C) {
+	options := []UpstreamOptions{
+		UpstreamOptions{
+			Timeouts: UpstreamTimeouts{
+				Read: "1what?",
+			},
+		},
+		UpstreamOptions{
+			Timeouts: UpstreamTimeouts{
+				Dial: "1what?",
+			},
+		},
+		UpstreamOptions{
+			Timeouts: UpstreamTimeouts{
+				TlsHandshake: "1what?",
+			},
+		},
+		UpstreamOptions{
+			KeepAlive: UpstreamKeepAlive{
+				Period: "1what?",
+			},
+		},
+	}
+	for _, o := range options {
+		l, err := NewUpstreamWithOptions("u1", o)
+		c.Assert(err, NotNil)
+		c.Assert(l, IsNil)
+	}
 }
 
 func (s *BackendSuite) TestNewEndpoint(c *C) {

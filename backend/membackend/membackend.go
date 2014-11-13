@@ -269,6 +269,15 @@ func (m *MemBackend) AddUpstream(up *Upstream) (*Upstream, error) {
 	return up, nil
 }
 
+func (m *MemBackend) UpdateUpstreamOptions(id string, o UpstreamOptions) (*Upstream, error) {
+	up, err := m.GetUpstream(id)
+	if err != nil {
+		return nil, &NotFoundError{}
+	}
+	up.Options = o
+	return up, nil
+}
+
 func (m *MemBackend) DeleteUpstream(id string) error {
 	for i, u := range m.Upstreams {
 		if u.Id == id {

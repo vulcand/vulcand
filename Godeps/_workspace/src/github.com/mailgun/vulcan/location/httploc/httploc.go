@@ -76,6 +76,13 @@ type Options struct {
 	TrustForwardHeader bool
 	// Time provider (useful for testing purposes)
 	TimeProvider timetools.TimeProvider
+	// Transport gives a way to provide external transport that can be shared between multiple locations
+	Transport *http.Transport
+}
+
+type TransportOptions struct {
+	Timeouts  Timeouts
+	KeepAlive KeepAlive
 }
 
 func NewLocation(id string, loadBalancer loadbalance.LoadBalancer) (*HttpLocation, error) {
@@ -86,7 +93,7 @@ func NewLocationWithOptions(id string, loadBalancer loadbalance.LoadBalancer, o 
 	if loadBalancer == nil {
 		return nil, fmt.Errorf("Provide load balancer")
 	}
-	o, err := parseOptions(o)
+	o, err := setDefaults(o)
 	if err != nil {
 		return nil, err
 	}
@@ -98,11 +105,16 @@ func NewLocationWithOptions(id string, loadBalancer loadbalance.LoadBalancer, o 
 	middlewareChain.Add(RewriterId, -2, &Rewriter{TrustForwardHeader: o.TrustForwardHeader, Hostname: o.Hostname})
 	middlewareChain.Add(BalancerId, -1, loadBalancer)
 
+	t := o.Transport
+	if t == nil {
+		t = NewTransport(TransportOptions{KeepAlive: o.KeepAlive, Timeouts: o.Timeouts})
+	}
+
 	return &HttpLocation{
 		id:              id,
 		loadBalancer:    loadBalancer,
 		options:         o,
-		transport:       newTransport(o),
+		transport:       t,
 		middlewareChain: middlewareChain,
 		observerChain:   observerChain,
 		mutex:           &sync.RWMutex{},
@@ -110,7 +122,7 @@ func NewLocationWithOptions(id string, loadBalancer loadbalance.LoadBalancer, o 
 }
 
 func (l *HttpLocation) SetOptions(o Options) error {
-	options, err := parseOptions(o)
+	options, err := setDefaults(o)
 	if err != nil {
 		return err
 	}
@@ -121,7 +133,21 @@ func (l *HttpLocation) SetOptions(o Options) error {
 		return err
 	}
 	l.options = options
-	l.setTransport(newTransport(options))
+	if l.options.Transport != nil {
+		l.setTransport(l.options.Transport)
+	} else {
+		l.setTransport(NewTransport(TransportOptions{KeepAlive: o.KeepAlive, Timeouts: o.Timeouts}))
+	}
+	return nil
+}
+
+func (l *HttpLocation) SetTransport(t *http.Transport) error {
+	if t == nil {
+		return fmt.Errorf("supply a non-nil transport")
+	}
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	l.setTransport(t)
 	return nil
 }
 
@@ -138,9 +164,6 @@ func (l *HttpLocation) GetOptionsAndTransport() (Options, *http.Transport) {
 }
 
 func (l *HttpLocation) setTransport(tr *http.Transport) {
-	if l.transport != nil {
-		go l.transport.CloseIdleConnections()
-	}
 	l.transport = tr
 }
 
@@ -166,7 +189,7 @@ func (l *HttpLocation) RoundTrip(req request.Request) (*http.Response, error) {
 	}
 
 	// Read the body while keeping this location's limits in mind. This reader controls the maximum bytes
-	// to read into memory and disk. This reader returns anerror if the total request size exceeds the
+	// to read into memory and disk. This reader returns an error if the total request size exceeds the
 	// prefefined MaxSizeBytes. This can occur if we got chunked request, in this case ContentLength would be set to -1
 	// and the reader would be unbounded bufio in the http.Server
 	body, err := netutils.NewBodyBufferWithOptions(originalRequest.Body, netutils.BodyBufferOptions{
@@ -322,7 +345,7 @@ const (
 	DefaultMaxIdleConnsPerHost = 16
 )
 
-func parseOptions(o Options) (Options, error) {
+func setDefaults(o Options) (Options, error) {
 	if o.Limits.MaxMemBodyBytes <= 0 {
 		o.Limits.MaxMemBodyBytes = netutils.DefaultMemBufferBytes
 	}
@@ -362,7 +385,7 @@ func parseOptions(o Options) (Options, error) {
 	return o, nil
 }
 
-func newTransport(o Options) *http.Transport {
+func NewTransport(o TransportOptions) *http.Transport {
 	return &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout:   o.Timeouts.Dial,

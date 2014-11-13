@@ -103,6 +103,38 @@ func (s *CmdSuite) TestUpstreamCRUD(c *C) {
 	c.Assert(s.run("upstream", "ls"), Matches, fmt.Sprintf(".*%s.*", up))
 }
 
+func (s *CmdSuite) TestUpstreamOptions(c *C) {
+	up := "up1"
+	c.Assert(s.run(
+		"upstream", "add",
+		"-id", up,
+		// Timeouts
+		"-readTimeout", "1s", "-dialTimeout", "2s", "-handshakeTimeout", "3s",
+		// Keep Alive parameters
+		"-keepAlivePeriod", "4s", "-maxIdleConns", "5",
+	),
+		Matches, OK)
+
+	u, err := s.backend.GetUpstream(up)
+	c.Assert(err, IsNil)
+	c.Assert(u.Options.Timeouts.Read, Equals, "1s")
+	c.Assert(u.Options.Timeouts.Dial, Equals, "2s")
+	c.Assert(u.Options.Timeouts.TlsHandshake, Equals, "3s")
+
+	c.Assert(u.Options.KeepAlive.Period, Equals, "4s")
+	c.Assert(u.Options.KeepAlive.MaxIdleConnsPerHost, Equals, 5)
+}
+
+func (s *CmdSuite) TestUpstreamUpdateOptions(c *C) {
+	up := "up1"
+	c.Assert(s.run("upstream", "add", "-id", up), Matches, OK)
+	s.run("upstream", "set_options", "-id", up, "-dialTimeout", "20s")
+
+	u, err := s.backend.GetUpstream(up)
+	c.Assert(err, IsNil)
+	c.Assert(u.Options.Timeouts.Dial, Equals, "20s")
+}
+
 func (s *CmdSuite) TestUpstreamAutoId(c *C) {
 	c.Assert(s.run("upstream", "add"), Matches, OK)
 }
@@ -156,10 +188,6 @@ func (s *CmdSuite) TestLocationOptions(c *C) {
 	c.Assert(s.run(
 		"location", "add",
 		"-host", h, "-id", loc, "-up", up, "-path", path,
-		// Timeouts
-		"-readTimeout", "1s", "-dialTimeout", "2s", "-handshakeTimeout", "3s",
-		// Keep Alive parameters
-		"-keepAlivePeriod", "4s", "-maxIdleConns", "5",
 		// Limits
 		"-maxMemBodyKB", "6", "-maxBodyKB", "7",
 		// Misc parameters
@@ -174,12 +202,6 @@ func (s *CmdSuite) TestLocationOptions(c *C) {
 
 	l, err := s.backend.GetLocation(h, loc)
 	c.Assert(err, IsNil)
-	c.Assert(l.Options.Timeouts.Read, Equals, "1s")
-	c.Assert(l.Options.Timeouts.Dial, Equals, "2s")
-	c.Assert(l.Options.Timeouts.TlsHandshake, Equals, "3s")
-
-	c.Assert(l.Options.KeepAlive.Period, Equals, "4s")
-	c.Assert(l.Options.KeepAlive.MaxIdleConnsPerHost, Equals, 5)
 
 	c.Assert(l.Options.Limits.MaxMemBodyBytes, Equals, int64(6*1024))
 	c.Assert(l.Options.Limits.MaxBodyBytes, Equals, int64(7*1024))
@@ -199,11 +221,11 @@ func (s *CmdSuite) TestLocationUpdateOptions(c *C) {
 	loc := "loc"
 	path := "/path"
 	c.Assert(s.run("location", "add", "-host", h, "-id", loc, "-up", up, "-path", path), Matches, OK)
-	s.run("location", "set_options", "-host", h, "-id", loc, "-dialTimeout", "20s")
+	s.run("location", "set_options", "-host", h, "-id", loc, "-maxMemBodyKB", "123456")
 
 	l, err := s.backend.GetLocation(h, loc)
 	c.Assert(err, IsNil)
-	c.Assert(l.Options.Timeouts.Dial, Equals, "20s")
+	c.Assert(l.Options.Limits.MaxMemBodyBytes, Equals, int64(123456*1024))
 }
 
 func (s *CmdSuite) TestReadKeyPair(c *C) {

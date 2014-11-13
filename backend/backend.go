@@ -43,6 +43,7 @@ type Backend interface {
 
 	GetUpstreams() ([]*Upstream, error)
 	AddUpstream(*Upstream) (*Upstream, error)
+	UpdateUpstreamOptions(upId string, o UpstreamOptions) (*Upstream, error)
 	GetUpstream(id string) (*Upstream, error)
 	DeleteUpstream(id string) error
 
@@ -165,22 +166,6 @@ type Location struct {
 	Stats RoundTripStats
 }
 
-type LocationTimeouts struct {
-	// Socket read timeout (before we receive the first reply header)
-	Read string
-	// Socket connect timeout
-	Dial string
-	// TLS handshake timeout
-	TlsHandshake string
-}
-
-type LocationKeepAlive struct {
-	// Keepalive period
-	Period string
-	// How many idle connections will be kept per host
-	MaxIdleConnsPerHost int
-}
-
 // Limits contains various limits one can supply for a location.
 type LocationLimits struct {
 	MaxMemBodyBytes int64 // Maximum size to keep in memory before buffering to disk
@@ -189,9 +174,6 @@ type LocationLimits struct {
 
 // Additional options to control this location, such as timeouts
 type LocationOptions struct {
-	Timeouts LocationTimeouts
-	// Controls KeepAlive settins for backend servers
-	KeepAlive LocationKeepAlive
 	// Limits contains various limits one can supply for a location.
 	Limits LocationLimits
 	// Predicate that defines when requests are allowed to failover
@@ -200,14 +182,6 @@ type LocationOptions struct {
 	Hostname string
 	// In this case appends new forward info to the existing header
 	TrustForwardHeader bool
-}
-
-// Wrapper that contains information about this middleware backend-specific data used for serialization/deserialization
-type MiddlewareInstance struct {
-	Id         string
-	Priority   int
-	Type       string
-	Middleware plugin.Middleware
 }
 
 func NewAddress(network, address string) (*Address, error) {
@@ -273,31 +247,6 @@ func parseLocationOptions(l LocationOptions) (*httploc.Options, error) {
 	o := &httploc.Options{}
 	var err error
 
-	// Connection timeouts
-	if len(l.Timeouts.Read) != 0 {
-		if o.Timeouts.Read, err = time.ParseDuration(l.Timeouts.Read); err != nil {
-			return nil, fmt.Errorf("invalid read timeout: %s", err)
-		}
-	}
-	if len(l.Timeouts.Dial) != 0 {
-		if o.Timeouts.Dial, err = time.ParseDuration(l.Timeouts.Dial); err != nil {
-			return nil, fmt.Errorf("invalid dial timeout: %s", err)
-		}
-	}
-	if len(l.Timeouts.TlsHandshake) != 0 {
-		if o.Timeouts.TlsHandshake, err = time.ParseDuration(l.Timeouts.TlsHandshake); err != nil {
-			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
-		}
-	}
-
-	// Keep Alive parameters
-	if len(l.KeepAlive.Period) != 0 {
-		if o.KeepAlive.Period, err = time.ParseDuration(l.KeepAlive.Period); err != nil {
-			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
-		}
-	}
-	o.KeepAlive.MaxIdleConnsPerHost = l.KeepAlive.MaxIdleConnsPerHost
-
 	// Location-specific limits
 	o.Limits.MaxMemBodyBytes = l.Limits.MaxMemBodyBytes
 	o.Limits.MaxBodyBytes = l.Limits.MaxBodyBytes
@@ -330,18 +279,68 @@ func (l *Location) GetUniqueId() LocationKey {
 	return LocationKey{Hostname: l.Hostname, Id: l.Id}
 }
 
+type UpstreamTimeouts struct {
+	// Socket read timeout (before we receive the first reply header)
+	Read string
+	// Socket connect timeout
+	Dial string
+	// TLS handshake timeout
+	TlsHandshake string
+}
+
+type UpstreamKeepAlive struct {
+	// Keepalive period
+	Period string
+	// How many idle connections will be kept per host
+	MaxIdleConnsPerHost int
+}
+
+// Additional options to control this location, such as timeouts
+type UpstreamOptions struct {
+	Timeouts UpstreamTimeouts
+	// Controls KeepAlive settins for backend servers
+	KeepAlive UpstreamKeepAlive
+}
+
+func (u *UpstreamOptions) Equals(o UpstreamOptions) bool {
+	return (u.Timeouts.Read == o.Timeouts.Read &&
+		u.Timeouts.Dial == o.Timeouts.Dial &&
+		u.Timeouts.TlsHandshake == o.Timeouts.TlsHandshake &&
+		u.KeepAlive.Period == o.KeepAlive.Period &&
+		u.KeepAlive.MaxIdleConnsPerHost == o.KeepAlive.MaxIdleConnsPerHost)
+}
+
+// Wrapper that contains information about this middleware backend-specific data used for serialization/deserialization
+type MiddlewareInstance struct {
+	Id         string
+	Priority   int
+	Type       string
+	Middleware plugin.Middleware
+}
+
 // Upstream is a collection of endpoints. Each location is assigned an upstream. Changing assigned upstream
 // of the location gracefully redirects the traffic to the new endpoints of the upstream.
 type Upstream struct {
 	Id        string
 	Endpoints []*Endpoint
+	Options   UpstreamOptions
 }
 
-func NewUpstream(id string) (*Upstream, error) {
+// NewUpstreamWithOptions creates a new instance of the upstream object
+func NewUpstreamWithOptions(id string, o UpstreamOptions) (*Upstream, error) {
+	if _, err := parseUpstreamOptions(o); err != nil {
+		return nil, err
+	}
 	return &Upstream{
 		Id:        id,
 		Endpoints: []*Endpoint{},
+		Options:   o,
 	}, nil
+}
+
+// NewUpstream creates a new instance of the upstream object with default options applied
+func NewUpstream(id string) (*Upstream, error) {
+	return NewUpstreamWithOptions(id, UpstreamOptions{})
 }
 
 func (u *Upstream) String() string {
@@ -354,6 +353,40 @@ func (u *Upstream) GetId() string {
 
 func (u *Upstream) GetUniqueId() UpstreamKey {
 	return UpstreamKey{Id: u.Id}
+}
+
+func (u *Upstream) GetTransportOptions() (*httploc.TransportOptions, error) {
+	return parseUpstreamOptions(u.Options)
+}
+
+func parseUpstreamOptions(o UpstreamOptions) (*httploc.TransportOptions, error) {
+	t := &httploc.TransportOptions{}
+	var err error
+	// Connection timeouts
+	if len(o.Timeouts.Read) != 0 {
+		if t.Timeouts.Read, err = time.ParseDuration(o.Timeouts.Read); err != nil {
+			return nil, fmt.Errorf("invalid read timeout: %s", err)
+		}
+	}
+	if len(o.Timeouts.Dial) != 0 {
+		if t.Timeouts.Dial, err = time.ParseDuration(o.Timeouts.Dial); err != nil {
+			return nil, fmt.Errorf("invalid dial timeout: %s", err)
+		}
+	}
+	if len(o.Timeouts.TlsHandshake) != 0 {
+		if t.Timeouts.TlsHandshake, err = time.ParseDuration(o.Timeouts.TlsHandshake); err != nil {
+			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
+		}
+	}
+
+	// Keep Alive parameters
+	if len(o.KeepAlive.Period) != 0 {
+		if t.KeepAlive.Period, err = time.ParseDuration(o.KeepAlive.Period); err != nil {
+			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
+		}
+	}
+	t.KeepAlive.MaxIdleConnsPerHost = o.KeepAlive.MaxIdleConnsPerHost
+	return t, nil
 }
 
 // Endpoint is a final destination of the request
