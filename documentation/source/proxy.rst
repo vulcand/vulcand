@@ -193,7 +193,7 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 
 .. code-block:: etcd
 
- # Set host keypair
+ # Set keypair
  etcdctl set /vulcand/hosts/localhost/keypair '{...}'
 
 .. code-block:: cli
@@ -203,9 +203,9 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 .. code-block:: api
 
  curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/keypair\
-      -d '{...}'
+      -d '{"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key"}'
 
-Etcd and API options require keypair in a special format. This format is explained in `Secrets`_ section of this document.
+.. note:: When setting keypair via Etcd you need to encrypt keypair. This is explained in `TLS`_ section of this document.
 
 **Location options**
 
@@ -390,12 +390,13 @@ Circuit breaker observes requests statistics and checks the stats against specia
    :align:   left
 
 In case if condition matches, CB activates the fallback scenario: returns the response code or redirects the request to another location. 
-Here's the transiton schema for the Circuit breaker:
+
+**Circuit Breaker states**
+
+CB provides a set of explicit states and transitions explained below:
 
 .. figure::  _static/img/CBFSM.png
    :align:   left
-
-Here's the schema explained.
 
 - Initial state is ``Standby``. CB observes the statistics and does not modify the request.
 - In case if condition matches, CB enters ``Tripped`` state, where it responds with predefines code or redirects to another location.
@@ -408,234 +409,314 @@ Here's the schema explained.
 - CB can execute the special HTTP callback when going from ``Recovering`` to ``Standby`` state
 
 
+**Conditions**
+
+CB defines a simple language that allows us to specify simple conditions that watch the stats for a location:
+
+.. code-block:: javascript
+
+ NetworkErrorRatio() > 0.5      // watch error ratio over 10 second sliding widndow for a location
+ LatencyAtQuantileMS(50.0) > 50 // watch latency at quantile in milliseconds.
+ ResponseCodeRatio(500, 600, 0, 600) > 0.5 // ratio of response codes in range [500-600) to  [0-600)
+
+.. note::  Quantiles should be provided as floats - don't forget to add .0 to hint it as float
+
+**Response fallback**
+
+Response fallback will tell CB to reply with a predefined response instead of forwarding the request to the upstream
+
+.. code-block:: javascript
+
+ {
+    "Type": "response", 
+    "Action": {
+       "ContentType": "text/plain",
+       "StatusCode": 400, 
+       "Body": "Come back later"
+    }
+ }
+
+**Redirect fallback**
+
+Redirect fallback will redirect the request to another location.
+
+.. note::  It won't work for locations not defined in the Vulcand config.
+
+.. code-block:: javascript
+
+ {
+    "Type": "redirect", 
+    "Action": {
+       "URL": "https://example.com/fallback"
+    }
+ }
 
 
+**Webhook Action**
 
-Vulcanctl
----------
+Circuit breaker can notify extenral sources on it's state transitions, e.g. it can create a pager duty incident by issuing a webhook:
 
-Vulcanctl is a command line tool that provides a convenient way to confugure Vulcand processes.
+.. code-block:: javascript
 
-Secrets
-~~~~~~~
+ {
+  "Body": {
+      "client": "Sample Monitoring Service",
+      "client_url": "https://example.com",
+      "description": "FAILURE for production/HTTP on machine srv01.acme.com",
+      "event_type": "trigger",
+      "incident_key": "srv01/HTTP",
+      "service_key": "-pager-duty-service-key"
+  },
+  "Headers": {
+      "Content-Type": [
+          "application/json"
+      ]
+  },
+  "Method": "POST",
+  "URL": "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
+ }
 
-Secret storage is required to work with TLS certificates, as they are encrypted when stored in the backends.
 
-**Seal Key**
+**Setup**
 
-Seal key is a secret key used to read and write encrypted data. 
+Circuit breaker setup is can be done via Etcd, command line or API:
 
-.. code-block:: sh
+.. code-block:: etcd
 
- # generates a new secret key
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/cbreaker/cb1 '{
+              "Id":"cb1",
+              "Priority":1,
+              "Type":"cbreaker",
+              "Middleware":{
+                 "Condition":"NetworkErrorRatio() > 0.5",
+                 "Fallback":"{\"Type\": \"response\", \"Action\": {\"StatusCode\": 400, \"Body\": \"Come back later\"}}",
+                 "FallbackDuration": 10000000000,
+                 "RecoveryDuration": 10000000000,
+                 "CheckPeriod": 100000000
+              }
+            }'
+
+.. code-block:: cli
+
+ vulcanctl cbreaker add \
+                   --host=localhost \
+                   --location=loc1 \
+                   --condition="NetworkErrorRatio() > 0.5" \
+                   --fallback='{"Type": "response", "Action": {"StatusCode": 400, "Body": "Come back later"}}'
+
+
+.. code-block:: api
+
+ curl -X POST -H "Content-Type: application/json"\
+      http://localhost:8182/v1/hosts/localhost/locations/loc1/middlewares/cbreaker\
+      -d '{
+              "Id":"cb1",
+              "Priority":1,
+              "Type":"cbreaker",
+              "Middleware":{
+                 "Condition":"NetworkErrorRatio() > 0.5",
+                 "Fallback":"{\"Type\": \"response\", \"Action\": {\"StatusCode\": 400, \"Body\": \"Come back later\"}}",
+                 "FallbackDuration": 10000000000,
+                 "RecoveryDuration": 10000000000,
+                 "CheckPeriod": 100000000
+              }
+            }'
+
+
+TLS
+---
+
+Vulcand supports HTTPS via `SNI <http://en.wikipedia.org/wiki/Server_Name_Indication>`_, certificate management and multiple HTTPS instances. 
+This sections below contain all the steps required to enable TLS support in Vulcand
+
+
+Managing certificates
+~~~~~~~~~~~~~~~~~~~~~
+
+Vulcand encrypts certificates when storing them in the backends and uses `Nacl secretbox <https://godoc.org/code.google.com/p/go.crypto/nacl/secretbox>`_ to seal the data. 
+The running server acts as an encryption/decryption point when reading and writing certificates.
+
+This special key has to be generated by Vulcand using command line utility:
+
+**Setting up seal key**
+
+.. code-block:: bash 
+
  $ vulcanctl secret new_key
 
-This key can be passed to encrypt the certificates via CLI and to the running vulcand instance to access the storage.
+Once we got the key, we can pass it to the running daemon.
 
-.. note::  Only keys generated by vulcanctl will work!
+.. code-block:: bash
 
-**Sealing TLS Certs**
+ $ vulcand -sealKey="the-seal-key"
 
-This tool will read the cert and key and output the json version with the encrypted data
-
-.. code-block:: sh
-
- # reads the private key and certificate and returns back the encrypted version that can be passed to etcd
- $ vulcanctl secret seal_keypair -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 .. note:: Add space before command to avoid leaking seal key in bash history, or use ``HISTIGNORE``
 
+**Setting host keypair**
 
-**Setting certificates**
+Setting certificate via etcd is slightly different from CLI and API:
 
-This command will read the cert and key and update the certificate
+.. code-block:: etcd
 
-.. code-block:: sh
+ # Read the private key and certificate and returns back the encrypted version that can be passed to etcd
+ $ vulcanctl secret seal_keypair -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
- $ vulcanctl host set_keypair -host <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ # Once we got the certificate sealed, we can pass it to the Etcd:
+ etcdctl set /vulcand/hosts/mailgun.com/keypair '{...}'
 
-Status & Top
-~~~~~~~~~~~~~
-
-Displays the realtime stats about this Vulcand instance.
-
-.. code-block:: sh
-
- $ vulcanctl status
-
-  Id       Hostname      Path                        Reqs/sec     Failures % 
-  loc1     localhost     TrieRoute("GET", "/")       0.0          0.00
-  loc2     localhost     TrieRoute("GET", "/v1")     0.0          0.00
-  loc3     localhost     TrieRoute("GET", "/v2")     0.0          0.00
-  loc4     localhost     TrieRoute("GET", "/v3")     0.0          0.00
-
-
-``vulcanctl top`` acts like a standard linux ``top`` command, refreshing top active locations every second.
-
-.. code-block:: sh
- 
- $ vulcanctl top
-
-
-Log
-~~~
-
-Change the real time logging output by using ``set_severity`` command:
-
-.. code-block:: sh
-
-  vulcanctl log set_severity -s=INFO
-  OK: Severity has been updated to INFO
-
-You can check the current logging seveirty by using ``get_severity`` command:
-
-.. code-block:: sh
-
-  vulcanctl log get_severity
-  OK: severity: INFO
-
-
-Host
-~~~~
-
-Host operations
-
-.. code-block:: sh
-
- # Show all hosts configuration
- $ vulcanctl host ls
-
- # Add host with name 'example.com'
- $ vulcanctl host add --name example.com
-
- # Show host configuration
- $ vulcanctl host show --name example.com
-
- # Remove host with name 'example.com'
- $ vulcanctl host rm --name example.com
+.. code-block:: cli
 
  # Connect to Vulcand Update the TLS certificate.
- $ vulcanctl host cet_cert -host 'example.com' -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ # In this case we don't need to supply seal key, as in this case the CLI talks to the Vulcand directly
+ $ vulcanctl host set_keypair -host <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+
+.. code-block:: api
+
+ # In this case we don't need to supply seal key, as in this case the CLI talks to the Vulcand directly
+ curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/keypair\
+      -d '{"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key-string"}'
+
+.. note::  To update the certificate in the live mode just repeat the steps with the new certificate, vulcand will gracefully reload the config.
 
 
-Upstream
-~~~~~~~~
-
-Add or remove upstreams
-
-.. code-block:: sh
-
- # Show all upstreams
- $ vulcanctl upstream ls
-
- # Add upstream  with id 'u1'
- $ vulcanctl upstream add --id u1
-
- # Adds upstream with auto generated id
- $ vulcanctl upstream add 
-
- # Remove upstream with id 'u1'
- $ vulcanctl upstream rm --id u1
-
- # "Drain" - wait till there are no more active connections from the endpoints of the upstream 'u1'
- # or timeout after 10 seconds if there are remaining connections
- $ vulcanctl upstream drain -id u1 -timeout 10
-
-
-Endpoint
-~~~~~~~~
-
-Endpoint command adds or removed endpoints to the upstream.
-
-.. code-block:: sh
-
- # add endpoint with id 'e2' and url 'http://localhost:5002' to upstream with id 'u1'
- $ vulcanctl endpoint add --id e1 --up u1 --url http://localhost:5000 
-
- # in case if id is omitted, etcd will auto generate it
- $ vulcanctl endpoint add --up u1 --url http://localhost:5001 
-
- # removed endpoint with id 'e1' from upstream 'u1'
- $ vulcanctl endpoint rm --up u1 --id e1 
-
-
-Location
-~~~~~~~~
-
-Add or remove location to the host
-
-.. code-block:: sh
-
- # show location config
- $ vulcanctl location show --host example.com --id loc1
-
- # add location with id 'id1' to host 'example.com', use path '/hello' and upstream 'u1'
- $ vulcanctl location add --host example.com --id loc1 --path /hello --up u1 
-
- # add location with auto generated id to host 'example.com', use path '/hello2' and upstream 'u1'
- $ vulcanctl location add --host example.com --path /hello2 --up u1 
-
- # remove location with id 'loc1' from host 'example.com'
- $ vulcanctl location rm --host example.com --id loc1 
-
- # update upstream of the location 'loc1' in host 'example.com' to be 'u2'
- # this redirects the traffic gracefully from endpoints in the previous upstream
- # to endpoints of the upstream 'u2', see drain for connection draining
- $ vulcanctl location set_upstream --host example.com --id loc1 --up u2
-
- # update location 'loc1' options
- $ vulcanctl location set_options -id 'loc1' -host 'example.com' \
-   -readTimeout 1s \
-   -dialTimeout 2s \
-   -handshakeTimeout 3s \
-   -keepAlivePeriod 30s \
-   -maxIdleConns 10 \
-   -maxMemBodyKB 30 \
-   -maxBodyKB 12345 \
-   -failoverPredicate 'IsNetworkError && AttemptsLe(1)' \
-   -forwardHost 'host.com' \
-   -trustForwardHeader 'no'
-
-Rate limit
-~~~~~~~~~~
-
-Rate add or removes rate limit restrictions on the location
-
-.. code-block:: sh
-
- # limit access per client ip to 10 requests per second in 
- # location 'loc1' in host 'example.com'
- $ vulcanctl ratelimit add --variable client.ip --host example.com --loc loc1 --requests 10
-
- # limit access per custom http header value 'X-Account-Id' to 100 requests per second 
- # to location 'loc1' in host 'example.com'
- $ vulcanctl ratelimit add --variable request.header.X-Account-Id --host example.com --loc loc1 --requests 10
-
- # remove rate limit restriction with id 'r1' from host 'example.com' location 'loc1'
- $ vulcanctl ratelimit rm --id r1  --host example.com --loc 'loc1'
-
-Connection limit
+HTTPS listeners
 ~~~~~~~~~~~~~~~~
 
-Control simultaneous connections for a location.
+Once we have the certificate set, we can create HTTPS listeners for the host:
 
-.. code-block:: sh
+.. code-block:: etcd
 
- # limit access per client ip to 10 simultaneous connections for
- # location 'loc1' in host 'example.com'
- $ vulcanctl connlimit add --id c1 -host example.com -loc loc1 -connections 10
+ # Add http listener accepting requests on 127.0.0.1:8183
+ etcdctl set /vulcand/hosts/example.com/listeners/ls1\
+            '{"Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
 
- # limit access per custom http header value 'X-Account-Id' to 100 simultaneous connections
- # to location 'loc1' in host 'example.com'
- $ vulcanctl connlimit add --variable request.header.X-Account-Id --host example.com --loc loc1 --connections 10
+.. code-block:: cli
 
- # remove connection limit restriction with id 'c1' from host 'example.com' location 'loc1'
- $ vulcanctl connlimit rm --id c1  --host example.com --loc 'loc1'
+ # Add http listener accepting requests on 127.0.0.1:80
+ vulcanctl listener add --id ls1 --host example.com --proto=https --net=tcp -addr=127.0.0.1:8080
+
+
+.. code-block:: api
+
+ # Add http listener accepting requests on 127.0.0.1:8183
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/example.com/listeners\
+      -d '{"Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
+
+
+SNI
+~~~
+
+Not all clients support SNI, or sometimes host name is not available. In this case you can set the `default` certificate that will be returned in case if the SNI is not available:
+
+.. code-block:: etcd
+
+ # Set example.com as default host returned in case if SNI is not available
+ etcdctl set /vulcand/hosts/example.com/options '{"Default": true}'
+
+
+Metrics
+--------
+
+Metrics are provided for locations and endpoints:
+
+.. code-block:: javascript
+
+ {
+   "Verdict":{
+      "IsBad":false,    // Verdict will specify if there's something wrong with the endpoint
+      "Anomalies":null  // Anomalies can be populated if Vulcand detects something unusual
+   },
+   "Counters":{             // Counters in a rolling time window
+      "Period":10000000000, // Measuring period in ns
+      "NetErrors":6,        // Network errors
+      "Total":78,           // Total requests
+      "StatusCodes":[
+         {
+            "Code":400,     // Status codes recorded
+            "Count":7      
+         },
+         {
+            "Code":429,
+            "Count":67
+         }
+      ]
+   },
+   "LatencyBrackets":[ // Latency brackets recorded for the endpoint or location
+      {
+         "Quantile":99,
+         "Value":172000  // microsecond resolution
+      },
+      {
+         "Quantile":99.9,
+         "Value":229000
+      }
+   ]
+ }
+
+
+Vulcand provides real-time metrics via API and command line.
+
+.. code-block:: etcd
+
+ # top acts like a standard linux top command, refreshing top active locations every second.
+ vulcanctl top
+
+.. code-block:: api
+
+ # top locations
+ curl http://localhost:8182/v1/hosts/top/locations?limit=100
+
+ # top endpoints
+ curl http://localhost:8182/v1/upstreams/top/endpoints?limit=100
+
+.. code-block:: cli
+
+ # top acts like a standard linux top command, refreshing top active locations every second.
+ vulcanctl top
+
+Logging
+-------
+
+Vulcand supports logging levels:
+
+.. code-block:: bash
+ 
+ INFO  # all output
+ WARN  # warnings and errors only (default)
+ ERROR # errors only
+
+You can change the real time logging output by using ``set_severity`` command:
+
+.. code-block:: etcd
+
+  vulcanctl log set_severity -s=INFO
+  
+.. code-block:: api
+
+  curl -X PUT http://localhost:8182/v1/log/severity -F severity=INFO
+
+.. code-block:: cli
+
+  # vulcanctl log set_severity -s=INFO
+
+You can check current severity using ``get_severity`` command:
+
+.. code-block:: etcd
+
+  vulcanctl log get_severity
+  
+.. code-block:: api
+
+  curl http://localhost:8182/v1/log/severity
+
+.. code-block:: cli
+
+  # vulcanctl log get_severity
 
 
 Process management
 ------------------
-
 
 Startup and configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -764,7 +845,7 @@ Starting the daemon:
 
 .. code-block:: sh
 
- docker run -p 8182:8182 -p 8181:8181 mailgun/vulcand /opt/vulcan/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
+ docker run -d -p 8182:8182 -p 8181:8181 mailgun/vulcand /go/bin/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
 
 
 Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.

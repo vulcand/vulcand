@@ -14,7 +14,6 @@ It uses Etcd as a configuration backend, so changes to configuration take effect
 
    quickstart
    proxy
-   tls
    middlewares
    api
    library
