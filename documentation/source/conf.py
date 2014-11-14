@@ -223,6 +223,6 @@ from pygments.lexers import PhpLexer, TextLexer
 from pygments.lexers.shell import BashLexer
 lexers['php'] = PhpLexer(startinline=True)
 lexers['url'] = TextLexer()
-lexers['bash_etcd'] = BashLexer()
-lexers['bash_api'] = BashLexer()
-lexers['bash_cli'] = BashLexer()
+lexers['etcd'] = BashLexer()
+lexers['api'] = BashLexer()
+lexers['cli'] = BashLexer()

@@ -33,7 +33,7 @@ var samples = {
     },
 
     show: function () {
-        this.change($.cookie('samples_code_language') || 'bash_etcd');
+        this.change($.cookie('samples_code_language') || 'etcd');
     },
 
     change: function (to, from) {
@@ -49,7 +49,7 @@ var samples = {
         var old_top = $(some_elem).offset().top;
 
         this.hide();
-        this.showSamples(to || 'bash_etcd');
+        this.showSamples(to || 'etcd');
 
         // calculate change in offset and scroll the difference
         // (for better user experience)

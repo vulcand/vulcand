@@ -25,16 +25,10 @@ Location
 Hosts contain one or several locations. Each location defines a path - simply a regular expression that will be matched against request's url.
 Location contains link to an upstream and vulcand will use the endpoints from this upstream to serve the request.
 
-.. figure::  _static/img/coreos/vulcan-diagram.png
-   :align:   center
-
-   Location ``loc1`` will serve the request ``curl http://example.com/search`` because it matches the path ``/search`` and host ``example.com``
-
 Upstream
 ~~~~~~~~
 Upstream is a collection of endpoints. Upstream can be assigned to multiple locations at the same time. 
 This is convenient as sometimes one endpoint serves multiple purposes and locations.
-
 
 Endpoint
 ~~~~~~~~
@@ -42,13 +36,15 @@ Endpoint is a final destination of the incoming request, each endpoint is define
 
 Middleware
 ~~~~~~~~~~
-
 Vulcand supports pluggable middlewares. Middlewares can intercept or transform the request to any location. Examples of the supported middlewares are rate limits and connection limits.
 You can add or remove middlewares using command line, API or directly via backends.
 
+Circuit Breaker
+~~~~~~~~~~~~~~~
+Circuit breakers are special type of middlewares that observe various metrics for a particular location and can activate failover scenario whenever the condition matches  e.g. error rate exceeds the threshold.
+
 Secret storage
 ~~~~~~~~~~~~~~
-
 Vulcand supports secret storage - running process acts like encryption/decryption service every time it reads and writes sensitive data, e.g. TLS certificates to the backend.
 To use this feature, users generate ``sealKey`` using command line utility and pass this key to the process for encryption and decryption of the data in the backends.
 
@@ -58,77 +54,60 @@ Failover predicates
 Sometimes it is handy to retry the request on error. The good question is what constitues an error? Sometimes it's a read/write timeout, and somethimes it's a special error code. 
 Failover predicates are expressions that define when the request can be failed over, e.g.  ``IsNetworkError() && Attempts <= 2``
 
-* ``IsNetworkError()`` - failover on network error
-* ``Attempts <= (1)`` - allows only 1 failover attempt. If you omit this, failover will go into endless loop
-* ``RequestMethod() == "GET"`` - allows failover for GET requests only
-* ``ResponseCode() == 408`` - allows failover on 408 HTTP response code
+.. code-block:: bash
 
-.. warning::  if you omit `AttemptsLe`, failover will go into endless loop
+   IsNetworkError()         # failover on network error
+   Attempts() <= 1          # allows only 1 failover attempt
+   RequestMethod() == "GET" # failover for GET requests only
+   ResponseCode() == 408    # failover on 408 HTTP response code
 
-
-Etcd
-----
-
-Vulcan supports reading and updating configuration based on the changes in Etcd. 
-Vulcans watch etcd prefix that is supplied when running an instance and configure themselves.
-
-.. note::  All examples bellow assume that Vulcand is configured to listen on ``/vulcand`` prefix, which is a default prefix.
+.. warning::  if you omit `Attempts`, failover will go into endless loop
 
 
-Quickstart
-~~~~~~~~~~
+Configuration
+-------------
 
-This will get you up and running in a moment:
+Vulcand can be configured via Etcd, API or command line tool - ``vulcanctl``. You can switch between different configuration examples using the samples switch.
 
-.. code-block:: sh
-
- # Upsert upstream and add an endpoint to it
- etcdctl set /vulcand/upstreams/up1/endpoints/e1 http://localhost:5000
-
- # Upsert a host "localhost" and add a location to it that matches path "/home" and uses endpoints from upstream "up1"
- etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'TrieRoute("/home")'
- etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
 
 
 Upstreams and endpoints
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Upstream is a collection of endpoints serving a request. Adding and removing endpoints to the used upstream will change the traffic in real-time.
+.. figure::  _static/img/VulcanUpstream.png
+   :align:   left
 
-.. code-block:: sh
+Upstream is a collection of endpoints. Vulcand load-balances requests within the upstream and keeps the connection pool to every endpoint.
+Locations using the same upstream will share the connections. 
+
+Adding and removing endpoints to the used upstream will change the traffic in real-time, removing the upstream will lead to graceful drain off of the connections.
+
+.. code-block:: etcd
 
  # Upsert upstream and add an endpoint to it
  etcdctl set /vulcand/upstreams/up1/endpoints/e1 http://localhost:5000
 
 
-Hosts and locations
-~~~~~~~~~~~~~~~~~~~
+.. code-block:: cli
 
-**Minimal setup**
+ # Add upstream and endpoint
+ vulcanctl upstream add -id up1
+ vulcanctl endpoint add -id e1 -up up1 -url http://localhost:5000
 
-Minimal location setup needs a path and an existing upstream to start accepting requests. 
-You don't need to declare host explicitly, as it always a part of the location path, in this case it's ``localhost``
 
-.. code-block:: sh
+.. code-block:: api
 
- # Upsert a host "localhost" and add a location to it that matches path "/home" and uses endpoints from upstream "up1"
- etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'TrieRoute("/home")'
- etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
+ #create upstream and endpoint
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/upstreams\
+      -d '{"Id":"up1"}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/upstreams/up1/endpoints\
+      -d '{"Id":"e1","Url":"http://localhost:5001","UpstreamId":"up1"}'
 
-**Host Certificate**
 
-Certificates are stored as encrypted JSON dictionaries. Updating a certificate will gracefully reload it for all running HTTP servers.
+**Upstream options**
 
-.. code-block:: sh
-
- # Set host certificate
- etcdctl set /vulcand/hosts/localhost/keypair '{...}'
-
-Learn how to generate JSON representation of the certificate by reading `Secrets`_ section of this document.
-
-**Location options**
-
-Location options are represented as JSON dictionary. 
+Upstreams define the configuration options to the endpoints, such as the amount of idle connections and timeouts.
+Upstream options are represented as JSON dictionary. 
 
 .. code-block:: javascript
 
@@ -141,77 +120,293 @@ Location options are represented as JSON dictionary.
    "KeepAlive": {
       "Period":              "4s",  // Keepalive period for idle connections
       "MaxIdleConnsPerHost": 3,     // How many idle connections will be kept per host
-   },
+   }
+ }
+
+One can update the options any time, that will initiate graceful reload of the underlying settings in Vulcand.
+
+.. code-block:: etcd
+
+ etcdctl set /vulcand/upstreams/u1/options '{"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}'
+
+.. code-block:: cli
+
+ vulcanctl upstream set_options -id up1 \
+          -readTimeout=1s -dialTimeout=2s -handshakeTimeout=3s\
+          -keepAlivePeriod=4s -maxIdleConns=128
+
+
+.. code-block:: api
+
+ curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/upstreams/up1/options\
+      -d '{"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}'
+
+
+**Endpoint heartbeat**
+
+Heartbeat allows to automatically de-register the endpoint when it crashes or wishes to be de-registered. 
+Endpoint can heartbeat it's presense, and once the heartbeat is stopped, Vulcand will remove the endpoint from the rotation.
+
+.. code-block:: bash
+
+ # add  the endpoint to the upstream u1 for 5 seconds
+ etcdctl set --ttl=5 /vulcand/upstreams/u1/endpoints/e1 http://localhost:5000
+
+
+
+Hosts and locations
+~~~~~~~~~~~~~~~~~~~
+
+.. figure::  _static/img/VulcanLocation.png
+   :align:   left
+
+
+Request is first matched agains a host and finally redirected to a location. Location is matched by a path and optionally method.
+It is recommended to specify a location per API method, e.g. ``TrieRoute("POST", "/v1/users")``.
+
+Location needs a path and an existing upstream to start accepting requests.
+You don't need to declare host explicitly, as it always a part of the location path, in this case it's ``localhost``
+
+.. code-block:: etcd
+
+ # add host and location
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'TrieRoute("/home")'
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
+
+.. code-block:: cli
+
+ # add host and location
+ vulcanctl host add -name localhost
+ vulcanctl location add -host=localhost -id=loc1 -up=up1 -path='TrieRoute("/home")'
+
+.. code-block:: api
+
+ # add host and location
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts\ 
+      -d '{"Name":"localhost"}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations\
+      -d '{"Hostname":"localhost","Id":"loc2","Upstream":{"Id":"up1"},"Path":"TrieRoute(\"/home\")"}'
+
+**TLS Certificates**
+
+Certificates are stored as encrypted JSON dictionaries. Updating a certificate will gracefully reload it for all running HTTP servers.
+
+.. code-block:: etcd
+
+ # Set host keypair
+ etcdctl set /vulcand/hosts/localhost/keypair '{...}'
+
+.. code-block:: cli
+
+ vulcanctl host set_keypair --privateKey=/path/key --cert=/path/cert
+
+.. code-block:: api
+
+ curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/keypair\
+      -d '{...}'
+
+Etcd and API options require keypair in a special format. This format is explained in `Secrets`_ section of this document.
+
+**Location options**
+
+Location options are represented as JSON dictionary. Location specifies various limits, forwarding and failover settings.
+
+.. code-block:: javascript
+
+ {
    "Limits": LocationLimits{
      "MaxMemBodyBytes": 12,  // Maximum request body size to keep in memory before buffering to disk
      "MaxBodyBytes": 400,    // Maximum request body size to allow for this location
    },
-   "FailoverPredicate":  "IsNetworkError && AttemptsLe(1)", // Predicate that defines when requests are allowed to failover
-   "Hostname":           "host1", // Host to set in forwarding headers
-   "TrustForwardHeader": true, // Time provider (useful for testing purposes)
+   "FailoverPredicate":  "IsNetworkError() && Attempts() <= 1", // Predicate that defines when requests are allowed to failover
+   "Hostname":           "host1",                               // Host to set in forwarding headers
+   "TrustForwardHeader": true,                                  // Time provider (useful for testing purposes)
  }
 
+Setting location options upates the limits and parameters for the newly arriving requests in real-time.
 
-.. code-block:: sh
+.. code-block:: etcd
 
- # example of setting a failover predicate via options
- etcdctl set /vulcand/hosts/localhost/locations/loc1/options '{"FailoverPredicate":"(IsNetworkError || ResponseCodeEq(503)) && AttemptsLe(2)"}'
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/options\
+         '{"FailoverPredicate":"(IsNetworkError() || ResponseCode() == 503) && Attempts() <= 2"}'
 
-**Listeners**
+.. code-block:: cli
 
-Listeners allow attaching and detaching sockets on various interfaces and networks without restarts:
+ vulcanctl location set_options\
+         -host=localhost -id=loc1\
+         -maxMemBodyKB=6 -maxBodyKB=7\
+         -failoverPredicate='IsNetworkError()'\
+         -trustForwardHeader\
+         -forwardHost=host1
 
-.. code-block:: sh
+.. code-block:: api
 
- # Add http listener accepting requests on localhpost:8183
- etcdctl set /vulcand/hosts/mailgun.com/listeners/l1 '{"Protocol":"http", "Address":{"Network":"tcp", "Address":"localhost:8183"}}'
-
- # Add https listener accepting requests on localhpost:8184
- etcdctl set /vulcand/hosts/mailgun.com/listeners/l1 '{"Protocol":"https", "Address":{"Network":"tcp", "Address":"localhost:8184"}}'
-
- # Add http listener accepting requests on a unix socket
- etcdctl set /vulcand/hosts/mailgun.com/listeners/l1 '{"Protocol":"http", "Address":{"Network":"unix", "Address": "/tmp/vd.sock"}}'
+ curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations/loc1/options\
+      -d '{"FailoverPredicate": "Attempts() <= 3"}'
 
 
 **Switching upstreams**
 
 Updating upstream gracefully re-routes the traffic to the new endpoints assigned to this upstream:
 
-.. code-block:: sh
-
- # create a new upstream with endpoint http://localhost:5003
- etcdctl set /vulcand/upstreams/up2/endpoints/e3 http://localhost:5003
+.. code-block:: etcd
 
  # redirect the traffic of the location "loc1" to the endpoints of the upstream "up2"
  etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up2
 
+.. code-block:: cli
 
-.. note::  you can add and remove endpoints to the existing upstream, and vulcan will start redirecting the traffic to them automatically:
+ # redirect the traffic of the location "loc1" to the endpoints of the upstream "up2"
+ vulcanctl location set_upstream -host=localhost -id=loc1 -up=up2
 
-.. code-block:: sh
+.. code-block:: api
 
- # Add a new endpoint to the existing upstream
- etcdctl set /vulcand/upstreams/up1/endpoints/e2 http://localhost:5001
+ # redirect the traffic of the location "loc1" to the endpoints of the upstream "up2"
+ curl -X PUT http://localhost:8182/v1/hosts/localhost/locations/loc1 -F upstream=up2
+
+.. note::  you can add and remove endpoints to the existing upstream, and vulcan will start redirecting the traffic to them automatically
+
+Listeners
+~~~~~~~~~
+.. figure::  _static/img/VulcanListener.png
+   :align:   left
+
+Listeners allow attaching and detaching sockets on various interfaces and networks to multiple hosts. 
+Hosts can have multiple listeners attached and share the same listener.
+
+.. code-block:: javascript
+
+ {
+    "Protocol":"http",            // 'http' or 'https'
+    "Address":{
+       "Network":"tcp",           // 'tcp' or 'unix'
+       "Address":"localhost:8183" // 'host:port' or '/path/to.socket'
+    }
+ }
+
+.. code-block:: etcd
+
+ # Add http listener accepting requests on 127.0.0.1:8183
+ etcdctl set /vulcand/hosts/example.com/listeners/ls1\
+            '{"Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
+
+.. code-block:: cli
+
+ # Add http listener accepting requests on 127.0.0.1:80
+ vulcanctl listener add --id ls1 --host example.com --proto=http --net=tcp -addr=127.0.0.1:8080
 
 
-Limits
-~~~~~~
+.. code-block:: api
 
-Vulcan supports setting rate and connection limits.
+ # Add http listener accepting requests on 127.0.0.1:8183
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/example.com/listeners\
+      -d '{"Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
 
-.. note::  Notice the priority in the examples below -  middlewares with lower priorities will be executed earlier.
 
-.. code-block:: sh
+Middlewares
+~~~~~~~~~~~
+
+.. figure::  _static/img/VulcanMiddleware.png
+   :align:   left
+
+Middlewares are allowed to observe, modify and intercept http requests and responses. Vulcand provides several middlewares. 
+Users can write their own middlewares in Go.
+
+To specify execution order of the middlewares, one can define the priority. Middlewares with smaller priority values will be executed first.
+
+Rate Limits
+~~~~~~~~~~~
+
+Vulcan supports controlling request rates. Rate can be checked against different request parameters and is set up via limiting variable.
+
+.. code-block:: bash
+   
+   client.ip                       # client ip
+   request.header.X-Special-Header # request header
+
+Adding and removing middlewares will modify the location behavior in real time. One can set expiring middlewares as well.
+
+.. code-block:: etcd
 
  # Update or set rate limit the request to location "loc1" to 1 request per second per client ip 
  # with bursts up to 3 requests per second.
- etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/ratelimit/rl1 '{"Type": "ratelimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/ratelimit/rl1\
+        '{"Priority": 0, "Type": "ratelimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
 
 
-.. code-block:: sh
+.. code-block:: cli
 
- # Update or set the connection limit to 3 simultaneous connections per client ip at a time
- etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/connlimit/rl1 '{"Type": "connlimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
+ # Update or set rate limit the request to location "loc1" to 1 request per second per client ip 
+ # with bursts up to 3 requests per second.
+ vulcanctl ratelimit add -id=rl1 -host=localhost -location=loc1 -requests=1 -burst=3 -period=1 --priority=0
+
+
+.. code-block:: api
+
+ # Update or set rate limit the request to location "loc1" to 1 request per second per client ip 
+ # with bursts up to 3 requests per second.
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations/loc1/middlewares/ratelimit\
+      -d '{"Priority": 0, "Type": "ratelimit", "Id": "rl1", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
+
+
+
+Connection Limits
+~~~~~~~~~~~~~~~~~
+
+Connection limits control the amount of simultaneous connections per location. Locations re-use the same variables as rate limits.
+
+.. code-block:: etcd
+
+ # limit the amount of connections per location to 16 per client ip
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/connlimit/cl1\
+        '{"Priority": 0, "Type": "connlimit", "Middleware":{"Connections":16, "Variable": "client.ip"}}'
+
+
+.. code-block:: cli
+
+ # limit the amount of connections per location to 16 per client ip
+ vulcanctl connlimit add -id=cl1 -host=localhost -location=loc1 -connections=1 --priority=0 --variable=client.ip
+
+
+.. code-block:: api
+
+ # limit the amount of connections per location to 16 per client ip
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations/loc1/middlewares/connlimit\
+      -d '{"Priority": 0, "Type": "connlimit", "Middleware":{"Connections":16, "Variable": "client.ip"}}'
+
+
+
+Circuit Breakers
+~~~~~~~~~~~~~~~~
+
+.. figure::  _static/img/CircuitStandby.png
+   :align:   left
+
+Circuit breaker is a special middleware that is designed to provide a fail-over action in case if service has degraded. 
+It is very helpful to prevent cascading failures - where the failure of the one service leads to failure of another.
+Circuit breaker observes requests statistics and checks the stats against special error condition.
+
+.. figure::  _static/img/CircuitTripped.png
+   :align:   left
+
+In case if condition matches, CB activates the fallback scenario: returns the response code or redirects the request to another location. 
+Here's the transiton schema for the Circuit breaker:
+
+.. figure::  _static/img/CBFSM.png
+   :align:   left
+
+Here's the schema explained.
+
+- Initial state is ``Standby``. CB observes the statistics and does not modify the request.
+- In case if condition matches, CB enters ``Tripped`` state, where it responds with predefines code or redirects to another location.
+- CB can execute the special HTTP callback when going from ``Standby`` to ``Tripped`` state
+- CB sets a special timer that defines how long does it spend in the ``Tripped`` state
+- Once ``Tripped`` timer expires, CB enters ``Recovering`` state and resets all stats
+- In ``Recovering`` state Vulcand will start routing the portion of the traffic linearly increasing it over the period specified in ``Recovering`` timer.
+- In case if the condition matches in ``Recovering`` state, CB enters ``Tripped`` state again
+- In case if the condition does not match and recovery timer expries, CB enters ``Standby`` state.
+- CB can execute the special HTTP callback when going from ``Recovering`` to ``Standby`` state
+
 
 
 
