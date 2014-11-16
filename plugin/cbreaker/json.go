@@ -135,3 +135,16 @@ func webhookFromJSON(v []byte) (*circuitbreaker.WebhookSideEffect, error) {
 			Body:    body,
 		})
 }
+
+func toBytes(v interface{}) ([]byte, error) {
+	switch val := v.(type) {
+	case string:
+		return []byte(val), nil
+	case []byte:
+		return val, nil
+	case map[string]interface{}:
+		return json.Marshal(val)
+	default:
+		return nil, fmt.Errorf("unsupported value type: %T", v)
+	}
+}
