@@ -489,7 +489,7 @@ Circuit breaker setup is can be done via Etcd, command line or API:
               "Type":"cbreaker",
               "Middleware":{
                  "Condition":"NetworkErrorRatio() > 0.5",
-                 "Fallback":"{\"Type\": \"response\", \"Action\": {\"StatusCode\": 400, \"Body\": \"Come back later\"}}",
+                 "Fallback":{"Type": "response", "Action": {"StatusCode": 400, "Body": "Come back later"}},
                  "FallbackDuration": 10000000000,
                  "RecoveryDuration": 10000000000,
                  "CheckPeriod": 100000000
