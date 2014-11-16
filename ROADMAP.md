@@ -51,5 +51,6 @@ Support consistent semVer releases via Github
 * Centralized metrics collection
 * Rate limiting with pluggable backends
 * Pluggable caching - Cassandra
+* Integration with Kubernetes
 
 
