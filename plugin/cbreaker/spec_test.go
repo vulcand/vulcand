@@ -1,6 +1,7 @@
 package cbreaker
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -20,6 +21,83 @@ var _ = Suite(&SpecSuite{})
 // Make sure the spec is compatible and will be accepted by middleware registry
 func (s *SpecSuite) TestSpecIsOK(c *C) {
 	c.Assert(plugin.NewRegistry().AddSpec(GetSpec()), IsNil)
+}
+
+func (s *SpecSuite) TestNewCircuitBreakerFromJSON(c *C) {
+	r := plugin.NewRegistry()
+	c.Assert(r.AddSpec(GetSpec()), IsNil)
+
+	bytes := []byte(`{
+                 "Condition":"LatencyAtQuantileMS(50.0) < 20",
+                 "Fallback":{"Type": "response", "Action": {"StatusCode": 400, "Body": "Come back later"}},
+                 "OnTripped": {"Type": "webhook", "Action": {"URL": "http://localhost", "Method": "GET"}},
+                 "OnStandby": {"Type": "webhook", "Action": {"URL": "http://localhost", "Method": "POST"}},
+                 "FallbackDuration": 10000000000,
+                 "RecoveryDuration": 10000000000,
+                 "CheckPeriod": 100000000}`)
+
+	spec := r.GetSpec(GetSpec().Type)
+	c.Assert(spec, NotNil)
+
+	out, err := spec.FromJSON(bytes)
+	c.Assert(err, IsNil)
+	c.Assert(out, NotNil)
+
+	spec2 := out.(*Spec)
+	c.Assert(spec2.Fallback, NotNil)
+	c.Assert(spec2.OnTripped, NotNil)
+	c.Assert(spec2.OnStandby, NotNil)
+}
+
+func (s *SpecSuite) TestNewCircuitBreakerFromJSONDefaults(c *C) {
+	r := plugin.NewRegistry()
+	c.Assert(r.AddSpec(GetSpec()), IsNil)
+
+	bytes := []byte(`{
+                 "Condition":"LatencyAtQuantileMS(50.0) < 20",
+                 "Fallback":{"Type": "response", "Action": {"StatusCode": 400, "Body": "Come back later"}}}`)
+
+	spec := r.GetSpec(GetSpec().Type)
+	c.Assert(spec, NotNil)
+
+	out, err := spec.FromJSON(bytes)
+	c.Assert(err, IsNil)
+	c.Assert(out, NotNil)
+
+	spec2 := out.(*Spec)
+	c.Assert(spec2.Fallback, NotNil)
+	c.Assert(spec2.OnTripped, IsNil)
+	c.Assert(spec2.OnStandby, IsNil)
+}
+
+func (s *SpecSuite) TestNewCircuitBreakerSerializationCycle(c *C) {
+	cl, err := NewSpec(
+		`LatencyAtQuantileMS(50.0) < 20`,
+		`{"Type": "response", "Action": {"StatusCode": 400, "Body": "Come back later"}}`,
+		`{"Type": "webhook", "Action": {"URL": "http://localhost", "Method": "POST", "Form": {"Key": ["Val"]}}}`,
+		`{"Type": "webhook", "Action": {"URL": "http://localhost", "Method": "POST", "Form": {"Key": ["Val"]}}}`,
+		defaultFallbackDuration,
+		defaultRecoveryDuration,
+		defaultCheckPeriod,
+	)
+
+	bytes, err := json.Marshal(cl)
+	c.Assert(err, IsNil)
+
+	r := plugin.NewRegistry()
+	c.Assert(r.AddSpec(GetSpec()), IsNil)
+
+	spec := r.GetSpec(GetSpec().Type)
+	c.Assert(spec, NotNil)
+
+	out, err := spec.FromJSON(bytes)
+	c.Assert(err, IsNil)
+	c.Assert(out, NotNil)
+
+	spec2 := out.(*Spec)
+	c.Assert(spec2.Fallback, NotNil)
+	c.Assert(spec2.OnTripped, NotNil)
+	c.Assert(spec2.OnStandby, NotNil)
 }
 
 func (s *SpecSuite) TestNewCircuitBreakerSuccess(c *C) {

@@ -52,12 +52,12 @@ type Spec struct {
 	// Condition is a JSON dictionary formula to set circuit breaker in "Tripped" state
 	Condition string
 	// Fallback is a JSON dictionary with fallback action, such as response or redirect
-	Fallback string
+	Fallback interface{}
 
 	// OnTripped defines JSON dict with action executed after (Standby -> Tripped) transition takes place
-	OnTripped string
+	OnTripped interface{}
 	// OnStandby defines JSON dict with action executed after (Recovering -> Standby) transition takes place)
-	OnStandby string
+	OnStandby interface{}
 
 	// FallbackDuration defines time period for circuit breaker to activate fallback scenario for all requests
 	FallbackDuration time.Duration
@@ -82,21 +82,35 @@ func parseSpec(spec *Spec) (*Params, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := actionFromJSON([]byte(spec.Fallback))
+
+	b, err := toBytes(spec.Fallback)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := actionFromJSON(b)
 	if err != nil {
 		return nil, err
 	}
 	var onTripped, onStandby circuitbreaker.SideEffect
-	if len(spec.OnTripped) != 0 {
-		v, err := sideEffectFromJSON([]byte(spec.OnTripped))
+	if spec.OnTripped != nil {
+		b, err := toBytes(spec.OnTripped)
+		if err != nil {
+			return nil, err
+		}
+		v, err := sideEffectFromJSON(b)
 		if err != nil {
 			return nil, err
 		}
 		onTripped = v
 	}
 
-	if len(spec.OnStandby) != 0 {
-		v, err := sideEffectFromJSON([]byte(spec.OnStandby))
+	if spec.OnStandby != nil {
+		b, err := toBytes(spec.OnStandby)
+		if err != nil {
+			return nil, err
+		}
+		v, err := sideEffectFromJSON(b)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +141,7 @@ func (c *Spec) NewMiddleware() (middleware.Middleware, error) {
 }
 
 // NewSpec check parameters and returns new specification for the middleware
-func NewSpec(condition, fallback, onTripped, onStandby string, fallbackDuration, recoveryDuration, checkPeriod time.Duration) (*Spec, error) {
+func NewSpec(condition string, fallback, onTripped, onStandby interface{}, fallbackDuration, recoveryDuration, checkPeriod time.Duration) (*Spec, error) {
 	spec := &Spec{
 		Condition:        condition,
 		Fallback:         fallback,
