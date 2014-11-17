@@ -1,7 +1,9 @@
 Documentation
 -------------
 
-Vulcand is a reverse proxy that simplifies HTTP API management and operations. 
+Vulcand is a reverse proxy for HTTP API management and microservices.
+
+It is inspired by ideas in `Hystrix <https://github.com/Netflix/Hystrix>`_ 
 
 It uses Etcd as a configuration backend, so changes to configuration take effect immediately without restarting the service.
 
