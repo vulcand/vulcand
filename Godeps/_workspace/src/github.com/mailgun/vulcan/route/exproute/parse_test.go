@@ -36,6 +36,16 @@ func (s *TrieSuite) TestParseSuccess(c *C) {
 			"GET",
 		},
 		{
+			`TrieRoute("POST", "/helloworld%2F")`,
+			`http://google.com/helloworld%2F`,
+			"POST",
+		},
+		{
+			`TrieRoute("POST", "/helloworld/<name>")`,
+			`http://google.com/helloworld/%2F`,
+			"POST",
+		},
+		{
 			`RegexpRoute("/helloworld")`,
 			`http://google.com/helloworld`,
 			"GET",

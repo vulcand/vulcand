@@ -26,6 +26,25 @@ func (s *NetUtilsSuite) TestParseBadUrl(c *C) {
 	}
 }
 
+// Make sure parseUrl is strict enough not to accept total garbage
+func (s *NetUtilsSuite) TestURLRawPath(c *C) {
+	vals := []struct {
+		URL      string
+		Expected string
+	}{
+		{"http://google.com/", "/"},
+		{"http://google.com/a?q=b", "/a"},
+		{"http://google.com/%2Fvalue/hello", "/%2Fvalue/hello"},
+		{"/home", "/home"},
+		{"/home%2F", "/home%2F"},
+	}
+	for _, v := range vals {
+		out, err := RawPath(v.URL)
+		c.Assert(err, IsNil)
+		c.Assert(out, Equals, v.Expected)
+	}
+}
+
 //Just to make sure we don't panic, return err and not
 //username and pass and cover the function
 func (s *NetUtilsSuite) TestParseBadHeaders(c *C) {

@@ -313,7 +313,7 @@ func makeTrie(c *C, path string, location location.Location) (*trie, *constMatch
 func makeReq(url string) request.Request {
 	u := netutils.MustParseUrl(url)
 	return &request.BaseRequest{
-		HttpRequest: &http.Request{URL: u},
+		HttpRequest: &http.Request{URL: u, RequestURI: url},
 	}
 }
 
