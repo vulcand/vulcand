@@ -20,6 +20,30 @@ func CopyUrl(in *url.URL) *url.URL {
 	return out
 }
 
+// RawPath returns escaped url path section
+func RawPath(in string) (string, error) {
+	u, err := url.ParseRequestURI(in)
+	if err != nil {
+		return "", err
+	}
+	if u.Opaque != "" {
+		return u.Opaque, nil
+	}
+	// This is local URL, has no host, return as-is
+	if u.Host == "" {
+		return in, nil
+	}
+	vals := strings.SplitN(in, u.Host, 2)
+	if len(vals) != 2 {
+		return "", fmt.Errorf("failed to parse url")
+	}
+	idx := strings.IndexRune(vals[1], '?')
+	if idx == -1 {
+		return vals[1], nil
+	}
+	return vals[1][:idx], nil
+}
+
 // Copies http headers from source to destination
 // does not overide, but adds multiple headers
 func CopyHeaders(dst, src http.Header) {

@@ -40,6 +40,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// In case if it's redirect error, try the request one more time, but with different URL
 		r.URL = e.URL
 		r.Host = e.URL.Host
+		r.RequestURI = e.URL.String()
 		if err := p.proxyRequest(w, r); err != nil {
 			p.replyError(err, w, r)
 		}

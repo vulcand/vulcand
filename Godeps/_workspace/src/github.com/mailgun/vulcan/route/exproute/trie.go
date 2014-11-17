@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 )
 
@@ -64,7 +65,10 @@ func (p *trie) match(r request.Request) location.Location {
 		return nil
 	}
 
-	path := r.GetHttpRequest().URL.Path
+	path, err := netutils.RawPath(r.GetHttpRequest().RequestURI)
+	if err != nil {
+		return nil
+	}
 	if len(path) == 0 {
 		path = "/"
 	}
