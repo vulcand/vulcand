@@ -86,7 +86,7 @@ func (s *RewriteSuite) TestRewriteMatch(c *C) {
 	c.Assert(response, IsNil)
 	c.Assert(err, IsNil)
 
-	c.Assert(string(ri.newPath), Equals, "/bar")
+	c.Assert(request.HttpRequest.URL.String(), Equals, "/bar")
 }
 
 func (s *RewriteSuite) TestRewriteNoMatch(c *C) {
@@ -103,5 +103,114 @@ func (s *RewriteSuite) TestRewriteNoMatch(c *C) {
 	c.Assert(response, IsNil)
 	c.Assert(err, IsNil)
 
-	c.Assert(string(ri.newPath), Equals, "/fooo/bar")
+	c.Assert(request.HttpRequest.URL.String(), Equals, "/fooo/bar")
+}
+
+func (s *RewriteSuite) TestRewriteSubstituteHeader(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.Header.Add("X-Header", "baz")
+	request.HttpRequest.URL = &url.URL{}
+	request.HttpRequest.URL.Path = "/foo/bar"
+
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2`)
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(request.HttpRequest.URL.String(), Equals, "/foo/baz/bar")
+}
+
+func (s *RewriteSuite) TestRewriteSubstituteMultipleHeaders(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.Header.Add("X-Header", "baz")
+	request.HttpRequest.Header.Add("Y-Header", "bam")
+	request.HttpRequest.URL = &url.URL{}
+	request.HttpRequest.URL.Path = "/foo/bar"
+
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "Y-Header"}}`)
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(request.HttpRequest.URL.String(), Equals, "/foo/baz/bar/bam")
+}
+
+func (s *RewriteSuite) TestRewriteSubstituteSameHeaderMultipleTimes(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.Header.Add("X-Header", "baz")
+	request.HttpRequest.URL = &url.URL{}
+	request.HttpRequest.URL.Path = "/foo/bar"
+
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "X-Header"}}`)
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(request.HttpRequest.URL.String(), Equals, "/foo/baz/bar/baz")
+}
+
+func (s *RewriteSuite) TestRewriteSubstituteUnknownHeader(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.URL = &url.URL{}
+	request.HttpRequest.URL.Path = "/foo/bar"
+
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2`)
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(request.HttpRequest.URL.String(), Equals, "/foo//bar")
+}
+
+func (s *RewriteSuite) TestRewriteUnknownVariable(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.URL = &url.URL{}
+	request.HttpRequest.URL.Path = "/foo/bar"
+
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", "/$1/{{.Unknown}}/$2")
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, NotNil)
+}
+
+func (s *RewriteSuite) TestRewriteHTTPSToHTTP(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.URL, _ = url.Parse("https://foo/bar")
+
+	ri, err := NewRewriteInstance("^https://(foo)/(bar)$", "http://$1/$2")
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	response, err := ri.ProcessRequest(request)
+	c.Assert(response, IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(request.HttpRequest.URL.String(), Equals, "http://foo/bar")
 }
