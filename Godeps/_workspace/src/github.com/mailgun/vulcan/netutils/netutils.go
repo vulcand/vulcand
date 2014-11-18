@@ -26,22 +26,23 @@ func RawPath(in string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	path := ""
 	if u.Opaque != "" {
-		return u.Opaque, nil
+		path = u.Opaque
+	} else if u.Host == "" {
+		path = in
+	} else {
+		vals := strings.SplitN(in, u.Host, 2)
+		if len(vals) != 2 {
+			return "", fmt.Errorf("failed to parse url")
+		}
+		path = vals[1]
 	}
-	// This is local URL, has no host, return as-is
-	if u.Host == "" {
-		return in, nil
-	}
-	vals := strings.SplitN(in, u.Host, 2)
-	if len(vals) != 2 {
-		return "", fmt.Errorf("failed to parse url")
-	}
-	idx := strings.IndexRune(vals[1], '?')
+	idx := strings.IndexRune(path, '?')
 	if idx == -1 {
-		return vals[1], nil
+		return path, nil
 	}
-	return vals[1][:idx], nil
+	return path[:idx], nil
 }
 
 // Copies http headers from source to destination
