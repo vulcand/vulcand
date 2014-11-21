@@ -1,9 +1,11 @@
 package rewrite
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
@@ -213,4 +215,24 @@ func (s *RewriteSuite) TestRewriteHTTPSToHTTP(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(request.HttpRequest.URL.String(), Equals, "http://foo/bar")
+}
+
+func (s *RewriteSuite) TestRewriteResponseBody(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.Header.Add("X-Header", "bar")
+	request.HttpRequest.URL, _ = url.Parse("http://foo")
+
+	attempt := &BaseAttempt{}
+	attempt.Response = &http.Response{}
+	attempt.Response.Body = ioutil.NopCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
+
+	ri, err := NewRewriteInstance("", "")
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	ri.ProcessResponse(request, attempt)
+	newBody, _ := ioutil.ReadAll(attempt.Response.Body)
+	c.Assert(`{"foo": "bar"}`, Equals, string(newBody))
 }

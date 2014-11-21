@@ -1,15 +1,16 @@
 package rewrite
 
 import (
-	"bytes"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
-	"text/template"
+	"strings"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/template"
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -43,42 +44,44 @@ func NewRewriteInstance(regex, replacement string) (*RewriteInstance, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &RewriteInstance{regexp: re, replacement: replacement}, nil
+	return &RewriteInstance{re, replacement}, nil
 }
 
-func (rewrite *RewriteInstance) ProcessRequest(r Request) (*http.Response, error) {
+func (rewrite *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, error) {
 	oldURL := r.GetHttpRequest().URL.String()
 
 	// apply a rewrite regexp to the URL
 	newURL := rewrite.regexp.ReplaceAllString(oldURL, rewrite.replacement)
 
-	// then make a template out of the new URL to replace any variables
-	// that may be in there
-	t, err := template.New("t").Parse(newURL)
+	// replace any variables that may be in there
+	newURL, err := template.Apply(newURL, template.Data{r.GetHttpRequest()})
 	if err != nil {
 		return nil, err
 	}
 
-	// template data includes http.Request object making all its properties/methods
-	// available inside replacement string
-	context := struct{ Request *http.Request }{r.GetHttpRequest()}
-
-	var b bytes.Buffer
-	if err := t.Execute(&b, context); err != nil {
-		return nil, err
-	}
-
 	// parse the rewritten URL and replace request URL with it
-	parsedURL, err := url.Parse(b.String())
+	parsedURL, err := url.Parse(newURL)
 	if err != nil {
 		return nil, err
 	}
 
 	r.GetHttpRequest().URL = parsedURL
+
 	return nil, nil
 }
 
-func (*RewriteInstance) ProcessResponse(r Request, a Attempt) {
+func (*RewriteInstance) ProcessResponse(r request.Request, a request.Attempt) {
+	body, err := ioutil.ReadAll(a.GetResponse().Body)
+	if err != nil {
+		return
+	}
+
+	newBody, err := template.Apply(string(body), template.Data{r.GetHttpRequest()})
+	if err != nil {
+		return
+	}
+
+	a.GetResponse().Body = ioutil.NopCloser(strings.NewReader(newBody))
 }
 
 func FromOther(r Rewrite) (plugin.Middleware, error) {
