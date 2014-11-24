@@ -71,7 +71,7 @@ func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, er
 		return nil, err
 	}
 
-	if rw.redirect == true {
+	if rw.redirect {
 		return nil, &errors.RedirectError{URL: parsedURL}
 	}
 
@@ -80,7 +80,7 @@ func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, er
 }
 
 func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt) {
-	if rw.rewriteBody != true {
+	if !rw.rewriteBody {
 		return
 	}
 
