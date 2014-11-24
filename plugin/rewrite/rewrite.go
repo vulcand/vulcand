@@ -79,18 +79,11 @@ func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt)
 	}
 
 	body := a.GetResponse().Body
-	var err error
 
-	// the original body should be closed only if template was successfully executed,
-	// e.g. neither panic nor normal error has happened during template processing
-	defer func() {
-		if r := recover(); r == nil && err == nil {
-			body.Close()
-		}
-	}()
+	defer body.Close()
 
 	newBody := &bytes.Buffer{}
-	if err = template.Apply(body, newBody, r.GetHttpRequest()); err != nil {
+	if err := template.Apply(body, newBody, r.GetHttpRequest()); err != nil {
 		return
 	}
 
