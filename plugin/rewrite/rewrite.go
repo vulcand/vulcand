@@ -9,8 +9,10 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/template"
+
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -28,33 +30,35 @@ func GetSpec() *plugin.MiddlewareSpec {
 type Rewrite struct {
 	Regexp      string
 	Replacement string
+	RewriteBody bool
 }
 
 type RewriteInstance struct {
 	regexp      *regexp.Regexp
 	replacement string
+	rewriteBody bool
 }
 
-func (r *RewriteInstance) NewMiddleware() (middleware.Middleware, error) {
-	return r, nil
-}
-
-func NewRewriteInstance(regex, replacement string) (*RewriteInstance, error) {
+func NewRewriteInstance(regex, replacement string, rewriteBody bool) (*RewriteInstance, error) {
 	re, err := regexp.Compile(regex)
 	if err != nil {
 		return nil, err
 	}
-	return &RewriteInstance{re, replacement}, nil
+	return &RewriteInstance{re, replacement, rewriteBody}, nil
 }
 
-func (rewrite *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, error) {
+func (rw *RewriteInstance) NewMiddleware() (middleware.Middleware, error) {
+	return rw, nil
+}
+
+func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, error) {
 	oldURL := r.GetHttpRequest().URL.String()
 
 	// apply a rewrite regexp to the URL
-	newURL := rewrite.regexp.ReplaceAllString(oldURL, rewrite.replacement)
+	newURL := rw.regexp.ReplaceAllString(oldURL, rw.replacement)
 
 	// replace any variables that may be in there
-	newURL, err := template.Apply(newURL, template.Data{r.GetHttpRequest()})
+	newURL, err := template.Apply(newURL, r.GetHttpRequest())
 	if err != nil {
 		return nil, err
 	}
@@ -70,31 +74,50 @@ func (rewrite *RewriteInstance) ProcessRequest(r request.Request) (*http.Respons
 	return nil, nil
 }
 
-func (*RewriteInstance) ProcessResponse(r request.Request, a request.Attempt) {
+func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt) {
+	if rw.rewriteBody != true {
+		return
+	}
+
 	body, err := ioutil.ReadAll(a.GetResponse().Body)
 	if err != nil {
 		return
 	}
 
-	newBody, err := template.Apply(string(body), template.Data{r.GetHttpRequest()})
+	newBody, err := template.Apply(string(body), r.GetHttpRequest())
 	if err != nil {
 		return
 	}
 
-	a.GetResponse().Body = ioutil.NopCloser(strings.NewReader(newBody))
+	bodyBuffer, err := netutils.NewBodyBuffer(strings.NewReader(newBody))
+	if err != nil {
+		return
+	}
+
+	a.GetResponse().Body = bodyBuffer
 }
 
-func FromOther(r Rewrite) (plugin.Middleware, error) {
-	return NewRewriteInstance(r.Regexp, r.Replacement)
+func FromOther(rw Rewrite) (plugin.Middleware, error) {
+	return NewRewriteInstance(rw.Regexp, rw.Replacement, rw.RewriteBody)
 }
 
 func FromCli(c *cli.Context) (plugin.Middleware, error) {
-	return NewRewriteInstance(c.String("regexp"), c.String("replacement"))
+	return NewRewriteInstance(c.String("regexp"), c.String("replacement"), c.Bool("rewriteBody"))
 }
 
 func CliFlags() []cli.Flag {
 	return []cli.Flag{
-		cli.StringFlag{Name: "regexp", Usage: "regex to match against http request path"},
-		cli.StringFlag{Name: "replacement", Usage: "replacement text into which regex expansions are inserted"},
+		cli.StringFlag{
+			Name:  "regexp",
+			Usage: "regex to match against http request path",
+		},
+		cli.StringFlag{
+			Name:  "replacement",
+			Usage: "replacement text into which regex expansions are inserted",
+		},
+		cli.BoolFlag{
+			Name:  "rewriteBody",
+			Usage: "if provided, response body is treated as as template and all variables in it are replaced",
+		},
 	}
 }

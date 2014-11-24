@@ -8,23 +8,23 @@ import (
 	"text/template"
 )
 
-// Data represents template data that is available to use in templates.
-type Data struct {
+// data represents template data that is available to use in templates.
+type data struct {
 	Request *http.Request
 }
 
 // Apply takes a template string in the http://golang.org/pkg/text/template/ format and
-// returns a new string with data applied to the original string.
+// returns a new string with request variables applied to the original string.
 //
 // In case of any error the original string is returned.
-func Apply(original string, data Data) (string, error) {
+func Apply(original string, request *http.Request) (string, error) {
 	t, err := template.New("t").Parse(original)
 	if err != nil {
 		return original, err
 	}
 
 	var b bytes.Buffer
-	if err := t.Execute(&b, data); err != nil {
+	if err := t.Execute(&b, data{request}); err != nil {
 		return original, err
 	}
 

@@ -28,7 +28,7 @@ func (s *RewriteSuite) TestSpecIsOK(c *C) {
 }
 
 func (s *RewriteSuite) TestNewRewriteSuccess(c *C) {
-	ri, err := NewRewriteInstance("^/foo(.*)", "$1")
+	ri, err := NewRewriteInstance("^/foo(.*)", "$1", false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -39,15 +39,15 @@ func (s *RewriteSuite) TestNewRewriteSuccess(c *C) {
 
 func (s *RewriteSuite) TestNewRewriteBadParams(c *C) {
 	// Bad regex
-	_, err := NewRewriteInstance("[", "")
+	_, err := NewRewriteInstance("[", "", false)
 	c.Assert(err, NotNil)
 }
 
 func (s *RewriteSuite) TestNewRewriteFromOther(c *C) {
-	ri, err := NewRewriteInstance("^/foo(.*)", "$1")
+	ri, err := NewRewriteInstance("^/foo(.*)", "$1", false)
 	c.Assert(err, IsNil)
 
-	r := Rewrite{"^/foo(.*)", "$1"}
+	r := Rewrite{"^/foo(.*)", "$1", false}
 
 	out, err := FromOther(r)
 	c.Assert(err, IsNil)
@@ -68,9 +68,10 @@ func (s *RewriteSuite) TestNewRewriteFromCliOk(c *C) {
 		re, _ := regexp.Compile("^/foo(.*)")
 		c.Assert(ri.regexp.String(), Equals, re.String())
 		c.Assert(ri.replacement, Equals, "$1")
+		c.Assert(ri.rewriteBody, Equals, true)
 	}
 	app.Flags = CliFlags()
-	app.Run([]string{"test", "--regexp=^/foo(.*)", "--replacement=$1"})
+	app.Run([]string{"test", "--regexp=^/foo(.*)", "--replacement=$1", "--rewriteBody"})
 	c.Assert(executed, Equals, true)
 }
 
@@ -80,7 +81,7 @@ func (s *RewriteSuite) TestRewriteMatch(c *C) {
 	request.HttpRequest.URL = &url.URL{}
 	request.HttpRequest.URL.Path = "/foo/bar"
 
-	ri, err := NewRewriteInstance("^/foo(.*)", "$1")
+	ri, err := NewRewriteInstance("^/foo(.*)", "$1", false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -97,7 +98,7 @@ func (s *RewriteSuite) TestRewriteNoMatch(c *C) {
 	request.HttpRequest.URL = &url.URL{}
 	request.HttpRequest.URL.Path = "/fooo/bar"
 
-	ri, err := NewRewriteInstance("^/foo/(.*)", "/$1")
+	ri, err := NewRewriteInstance("^/foo/(.*)", "/$1", false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -116,7 +117,7 @@ func (s *RewriteSuite) TestRewriteSubstituteHeader(c *C) {
 	request.HttpRequest.URL = &url.URL{}
 	request.HttpRequest.URL.Path = "/foo/bar"
 
-	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2`)
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2`, false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -136,7 +137,8 @@ func (s *RewriteSuite) TestRewriteSubstituteMultipleHeaders(c *C) {
 	request.HttpRequest.URL = &url.URL{}
 	request.HttpRequest.URL.Path = "/foo/bar"
 
-	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "Y-Header"}}`)
+	ri, err := NewRewriteInstance(
+		"^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "Y-Header"}}`, false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -155,7 +157,8 @@ func (s *RewriteSuite) TestRewriteSubstituteSameHeaderMultipleTimes(c *C) {
 	request.HttpRequest.URL = &url.URL{}
 	request.HttpRequest.URL.Path = "/foo/bar"
 
-	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "X-Header"}}`)
+	ri, err := NewRewriteInstance(
+		"^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "X-Header"}}`, false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -173,7 +176,7 @@ func (s *RewriteSuite) TestRewriteSubstituteUnknownHeader(c *C) {
 	request.HttpRequest.URL = &url.URL{}
 	request.HttpRequest.URL.Path = "/foo/bar"
 
-	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2`)
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", `/$1/{{.Request.Header.Get "X-Header"}}/$2`, false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -191,7 +194,7 @@ func (s *RewriteSuite) TestRewriteUnknownVariable(c *C) {
 	request.HttpRequest.URL = &url.URL{}
 	request.HttpRequest.URL.Path = "/foo/bar"
 
-	ri, err := NewRewriteInstance("^/(foo)/(bar)$", "/$1/{{.Unknown}}/$2")
+	ri, err := NewRewriteInstance("^/(foo)/(bar)$", "/$1/{{.Unknown}}/$2", false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -206,7 +209,7 @@ func (s *RewriteSuite) TestRewriteHTTPSToHTTP(c *C) {
 	request.HttpRequest.Header = make(http.Header)
 	request.HttpRequest.URL, _ = url.Parse("https://foo/bar")
 
-	ri, err := NewRewriteInstance("^https://(foo)/(bar)$", "http://$1/$2")
+	ri, err := NewRewriteInstance("^https://(foo)/(bar)$", "http://$1/$2", false)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
@@ -228,11 +231,31 @@ func (s *RewriteSuite) TestRewriteResponseBody(c *C) {
 	attempt.Response = &http.Response{}
 	attempt.Response.Body = ioutil.NopCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
 
-	ri, err := NewRewriteInstance("", "")
+	ri, err := NewRewriteInstance("", "", true)
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
 	ri.ProcessResponse(request, attempt)
 	newBody, _ := ioutil.ReadAll(attempt.Response.Body)
 	c.Assert(`{"foo": "bar"}`, Equals, string(newBody))
+}
+
+func (s *RewriteSuite) TestNotRewriteResponseBody(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.Header.Add("X-Header", "bar")
+	request.HttpRequest.URL, _ = url.Parse("http://foo")
+
+	attempt := &BaseAttempt{}
+	attempt.Response = &http.Response{}
+	attempt.Response.Body = ioutil.NopCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
+
+	ri, err := NewRewriteInstance("", "", false)
+	c.Assert(ri, NotNil)
+	c.Assert(err, IsNil)
+
+	ri.ProcessResponse(request, attempt)
+	newBody, _ := ioutil.ReadAll(attempt.Response.Body)
+	c.Assert(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`, Equals, string(newBody))
 }
