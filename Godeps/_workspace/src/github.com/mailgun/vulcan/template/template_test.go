@@ -1,7 +1,9 @@
 package template
 
 import (
+	"bytes"
 	"net/http"
+	"strings"
 	"testing"
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -20,35 +22,38 @@ func (s *TemplateSuite) TestTemplateOkay(c *C) {
 	request, _ := http.NewRequest("GET", "http://foo", nil)
 	request.Header.Add("X-Header", "bar")
 
-	new, err := Apply(`foo {{.Request.Header.Get "X-Header"}}`, request)
+	out := &bytes.Buffer{}
+	err := Apply(strings.NewReader(`foo {{.Request.Header.Get "X-Header"}}`), out, request)
 	c.Assert(err, IsNil)
-	c.Assert(new, Equals, "foo bar")
+	c.Assert(out.String(), Equals, "foo bar")
 }
 
 func (s *TemplateSuite) TestBadTemplate(c *C) {
 	request, _ := http.NewRequest("GET", "http://foo", nil)
 	request.Header.Add("X-Header", "bar")
 
-	old := `foo {{.Request.Header.Get "X-Header"`
-	new, err := Apply(old, request)
+	out := &bytes.Buffer{}
+	err := Apply(strings.NewReader(`foo {{.Request.Header.Get "X-Header"`), out, request)
 	c.Assert(err, NotNil)
-	c.Assert(new, Equals, old)
+	c.Assert(out.String(), Equals, "")
 }
 
 func (s *TemplateSuite) TestNoVariables(c *C) {
 	request, _ := http.NewRequest("GET", "http://foo", nil)
 	request.Header.Add("X-Header", "bar")
 
-	new, err := Apply(`foo baz`, request)
+	out := &bytes.Buffer{}
+	err := Apply(strings.NewReader(`foo baz`), out, request)
 	c.Assert(err, IsNil)
-	c.Assert(new, Equals, "foo baz")
+	c.Assert(out.String(), Equals, "foo baz")
 }
 
 func (s *TemplateSuite) TestNonexistentVariable(c *C) {
 	request, _ := http.NewRequest("GET", "http://foo", nil)
 	request.Header.Add("X-Header", "bar")
 
-	new, err := Apply(`foo {{.Request.Header.Get "Y-Header"}}`, request)
+	out := &bytes.Buffer{}
+	err := Apply(strings.NewReader(`foo {{.Request.Header.Get "Y-Header"}}`), out, request)
 	c.Assert(err, IsNil)
-	c.Assert(new, Equals, "foo ")
+	c.Assert(out.String(), Equals, "foo ")
 }

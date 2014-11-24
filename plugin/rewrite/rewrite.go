@@ -1,15 +1,14 @@
 package rewrite
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/template"
 
@@ -58,13 +57,13 @@ func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, er
 	newURL := rw.regexp.ReplaceAllString(oldURL, rw.replacement)
 
 	// replace any variables that may be in there
-	newURL, err := template.Apply(newURL, r.GetHttpRequest())
-	if err != nil {
+	rewrittenURL := &bytes.Buffer{}
+	if err := template.ApplyString(newURL, rewrittenURL, r.GetHttpRequest()); err != nil {
 		return nil, err
 	}
 
 	// parse the rewritten URL and replace request URL with it
-	parsedURL, err := url.Parse(newURL)
+	parsedURL, err := url.Parse(rewrittenURL.String())
 	if err != nil {
 		return nil, err
 	}
@@ -79,22 +78,23 @@ func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt)
 		return
 	}
 
-	body, err := ioutil.ReadAll(a.GetResponse().Body)
-	if err != nil {
+	body := a.GetResponse().Body
+	var err error
+
+	// the original body should be closed only if template was successfully executed,
+	// e.g. neither panic nor normal error has happened during template processing
+	defer func() {
+		if r := recover(); r == nil && err == nil {
+			body.Close()
+		}
+	}()
+
+	newBody := &bytes.Buffer{}
+	if err = template.Apply(body, newBody, r.GetHttpRequest()); err != nil {
 		return
 	}
 
-	newBody, err := template.Apply(string(body), r.GetHttpRequest())
-	if err != nil {
-		return
-	}
-
-	bodyBuffer, err := netutils.NewBodyBuffer(strings.NewReader(newBody))
-	if err != nil {
-		return
-	}
-
-	a.GetResponse().Body = bodyBuffer
+	a.GetResponse().Body = ioutil.NopCloser(newBody)
 }
 
 func FromOther(rw Rewrite) (plugin.Middleware, error) {

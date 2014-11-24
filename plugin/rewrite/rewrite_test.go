@@ -1,6 +1,7 @@
 package rewrite
 
 import (
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -258,4 +259,55 @@ func (s *RewriteSuite) TestNotRewriteResponseBody(c *C) {
 	ri.ProcessResponse(request, attempt)
 	newBody, _ := ioutil.ReadAll(attempt.Response.Body)
 	c.Assert(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`, Equals, string(newBody))
+}
+
+// Verify that if templating succeeds, the old body is closed.
+func (s *RewriteSuite) TestRewriteTemplateSuccessCloseBody(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.Header.Add("X-Header", "bar")
+	request.HttpRequest.URL, _ = url.Parse("http://foo")
+
+	attempt := &BaseAttempt{}
+	attempt.Response = &http.Response{}
+	body := newTestCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
+	attempt.Response.Body = body
+
+	ri, _ := NewRewriteInstance("", "", true)
+	ri.ProcessResponse(request, attempt)
+	c.Assert(body.Closed, Equals, true)
+}
+
+// Verify that if templating fails, the old body remains open.
+func (s *RewriteSuite) TestRewriteTemplateFailNotCloseBody(c *C) {
+	request := &BaseRequest{}
+	request.HttpRequest = &http.Request{}
+	request.HttpRequest.Header = make(http.Header)
+	request.HttpRequest.Header.Add("X-Header", "bar")
+	request.HttpRequest.URL, _ = url.Parse("http://foo")
+
+	attempt := &BaseAttempt{}
+	attempt.Response = &http.Response{}
+	body := newTestCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header""}`))
+	attempt.Response.Body = body
+
+	ri, _ := NewRewriteInstance("", "", true)
+	ri.ProcessResponse(request, attempt)
+	c.Assert(body.Closed, Equals, false)
+}
+
+// testCloser is a ReadCloser that allows to learn whether it was closed.
+type testCloser struct {
+	io.Reader
+	Closed bool
+}
+
+func newTestCloser(r io.Reader) *testCloser {
+	return &testCloser{r, false}
+}
+
+func (c *testCloser) Close() error {
+	c.Closed = true
+	return nil
 }

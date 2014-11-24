@@ -3,7 +3,8 @@
 package template
 
 import (
-	"bytes"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"text/template"
 )
@@ -13,20 +14,33 @@ type data struct {
 	Request *http.Request
 }
 
-// Apply takes a template string in the http://golang.org/pkg/text/template/ format and
-// returns a new string with request variables applied to the original string.
+// Apply reads a template string from the provided reader, applies variables
+// from the provided request object to it and writes the result into
+// the provided writer.
 //
-// In case of any error the original string is returned.
-func Apply(original string, request *http.Request) (string, error) {
-	t, err := template.New("t").Parse(original)
+// Template is standard Go's http://golang.org/pkg/text/template/.
+func Apply(in io.Reader, out io.Writer, request *http.Request) error {
+	body, err := ioutil.ReadAll(in)
 	if err != nil {
-		return original, err
+		return err
 	}
 
-	var b bytes.Buffer
-	if err := t.Execute(&b, data{request}); err != nil {
-		return original, err
+	return ApplyString(string(body), out, request)
+}
+
+// ApplyString applies variables from the provided request object to the provided
+// template string and writes the result into the provided writer.
+//
+// Template is standard Go's http://golang.org/pkg/text/template/.
+func ApplyString(in string, out io.Writer, request *http.Request) error {
+	t, err := template.New("t").Parse(in)
+	if err != nil {
+		return err
 	}
 
-	return b.String(), nil
+	if err = t.Execute(out, data{request}); err != nil {
+		return err
+	}
+
+	return nil
 }
