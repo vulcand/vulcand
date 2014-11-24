@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/template"
@@ -30,20 +31,22 @@ type Rewrite struct {
 	Regexp      string
 	Replacement string
 	RewriteBody bool
+	Redirect    bool
 }
 
 type RewriteInstance struct {
 	regexp      *regexp.Regexp
 	replacement string
 	rewriteBody bool
+	redirect    bool
 }
 
-func NewRewriteInstance(regex, replacement string, rewriteBody bool) (*RewriteInstance, error) {
+func NewRewriteInstance(regex, replacement string, rewriteBody, redirect bool) (*RewriteInstance, error) {
 	re, err := regexp.Compile(regex)
 	if err != nil {
 		return nil, err
 	}
-	return &RewriteInstance{re, replacement, rewriteBody}, nil
+	return &RewriteInstance{re, replacement, rewriteBody, redirect}, nil
 }
 
 func (rw *RewriteInstance) NewMiddleware() (middleware.Middleware, error) {
@@ -68,8 +71,11 @@ func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, er
 		return nil, err
 	}
 
-	r.GetHttpRequest().URL = parsedURL
+	if rw.redirect == true {
+		return nil, &errors.RedirectError{URL: parsedURL}
+	}
 
+	r.GetHttpRequest().URL = parsedURL
 	return nil, nil
 }
 
@@ -91,11 +97,11 @@ func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt)
 }
 
 func FromOther(rw Rewrite) (plugin.Middleware, error) {
-	return NewRewriteInstance(rw.Regexp, rw.Replacement, rw.RewriteBody)
+	return NewRewriteInstance(rw.Regexp, rw.Replacement, rw.RewriteBody, rw.Redirect)
 }
 
 func FromCli(c *cli.Context) (plugin.Middleware, error) {
-	return NewRewriteInstance(c.String("regexp"), c.String("replacement"), c.Bool("rewriteBody"))
+	return NewRewriteInstance(c.String("regexp"), c.String("replacement"), c.Bool("rewriteBody"), c.Bool("redirect"))
 }
 
 func CliFlags() []cli.Flag {
@@ -111,6 +117,10 @@ func CliFlags() []cli.Flag {
 		cli.BoolFlag{
 			Name:  "rewriteBody",
 			Usage: "if provided, response body is treated as as template and all variables in it are replaced",
+		},
+		cli.BoolFlag{
+			Name:  "redirect",
+			Usage: "if provided, request is redirected to the rewritten URL",
 		},
 	}
 }
