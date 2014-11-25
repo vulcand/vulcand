@@ -1,12 +1,18 @@
 package rewrite
 
 import (
+	"bytes"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"regexp"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/template"
+
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -24,47 +30,97 @@ func GetSpec() *plugin.MiddlewareSpec {
 type Rewrite struct {
 	Regexp      string
 	Replacement string
+	RewriteBody bool
+	Redirect    bool
 }
 
 type RewriteInstance struct {
 	regexp      *regexp.Regexp
 	replacement string
-	newPath     []byte
+	rewriteBody bool
+	redirect    bool
 }
 
-func (r *RewriteInstance) NewMiddleware() (middleware.Middleware, error) {
-	return r, nil
-}
-
-func NewRewriteInstance(regex, replacement string) (*RewriteInstance, error) {
+func NewRewriteInstance(regex, replacement string, rewriteBody, redirect bool) (*RewriteInstance, error) {
 	re, err := regexp.Compile(regex)
 	if err != nil {
 		return nil, err
 	}
-	return &RewriteInstance{regexp: re, replacement: replacement}, nil
+	return &RewriteInstance{re, replacement, rewriteBody, redirect}, nil
 }
 
-func (rewrite *RewriteInstance) ProcessRequest(r Request) (*http.Response, error) {
-	oldPath := r.GetHttpRequest().URL.Path
-	rewrite.newPath = rewrite.regexp.ReplaceAll([]byte(oldPath), []byte(rewrite.replacement))
-	r.GetHttpRequest().URL.Path = string(rewrite.newPath)
+func (rw *RewriteInstance) NewMiddleware() (middleware.Middleware, error) {
+	return rw, nil
+}
+
+func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, error) {
+	oldURL := r.GetHttpRequest().URL.String()
+
+	// apply a rewrite regexp to the URL
+	newURL := rw.regexp.ReplaceAllString(oldURL, rw.replacement)
+
+	// replace any variables that may be in there
+	rewrittenURL := &bytes.Buffer{}
+	if err := template.ApplyString(newURL, rewrittenURL, r.GetHttpRequest()); err != nil {
+		return nil, err
+	}
+
+	// parse the rewritten URL and replace request URL with it
+	parsedURL, err := url.Parse(rewrittenURL.String())
+	if err != nil {
+		return nil, err
+	}
+
+	if rw.redirect {
+		return nil, &errors.RedirectError{URL: parsedURL}
+	}
+
+	r.GetHttpRequest().URL = parsedURL
 	return nil, nil
 }
 
-func (*RewriteInstance) ProcessResponse(r Request, a Attempt) {
+func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt) {
+	if !rw.rewriteBody {
+		return
+	}
+
+	body := a.GetResponse().Body
+
+	defer body.Close()
+
+	newBody := &bytes.Buffer{}
+	if err := template.Apply(body, newBody, r.GetHttpRequest()); err != nil {
+		return
+	}
+
+	a.GetResponse().Body = ioutil.NopCloser(newBody)
 }
 
-func FromOther(r Rewrite) (plugin.Middleware, error) {
-	return NewRewriteInstance(r.Regexp, r.Replacement)
+func FromOther(rw Rewrite) (plugin.Middleware, error) {
+	return NewRewriteInstance(rw.Regexp, rw.Replacement, rw.RewriteBody, rw.Redirect)
 }
 
 func FromCli(c *cli.Context) (plugin.Middleware, error) {
-	return NewRewriteInstance(c.String("regexp"), c.String("replacement"))
+	return NewRewriteInstance(c.String("regexp"), c.String("replacement"), c.Bool("rewriteBody"), c.Bool("redirect"))
 }
 
 func CliFlags() []cli.Flag {
 	return []cli.Flag{
-		cli.StringFlag{Name: "regexp", Usage: "regex to match against http request path"},
-		cli.StringFlag{Name: "replacement", Usage: "replacement text into which regex expansions are inserted"},
+		cli.StringFlag{
+			Name:  "regexp",
+			Usage: "regex to match against http request path",
+		},
+		cli.StringFlag{
+			Name:  "replacement",
+			Usage: "replacement text into which regex expansions are inserted",
+		},
+		cli.BoolFlag{
+			Name:  "rewriteBody",
+			Usage: "if provided, response body is treated as as template and all variables in it are replaced",
+		},
+		cli.BoolFlag{
+			Name:  "redirect",
+			Usage: "if provided, request is redirected to the rewritten URL",
+		},
 	}
 }
