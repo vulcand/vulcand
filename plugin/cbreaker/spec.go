@@ -98,11 +98,13 @@ func parseSpec(spec *Spec) (*Params, error) {
 		if err != nil {
 			return nil, err
 		}
-		v, err := sideEffectFromJSON(b)
-		if err != nil {
-			return nil, err
+		if len(b) != 0 {
+			v, err := sideEffectFromJSON(b)
+			if err != nil {
+				return nil, err
+			}
+			onTripped = v
 		}
-		onTripped = v
 	}
 
 	if spec.OnStandby != nil {
@@ -110,11 +112,13 @@ func parseSpec(spec *Spec) (*Params, error) {
 		if err != nil {
 			return nil, err
 		}
-		v, err := sideEffectFromJSON(b)
-		if err != nil {
-			return nil, err
+		if len(b) != 0 {
+			v, err := sideEffectFromJSON(b)
+			if err != nil {
+				return nil, err
+			}
+			onStandby = v
 		}
-		onStandby = v
 	}
 
 	return &Params{
