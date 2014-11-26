@@ -2,11 +2,13 @@ package rewrite
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
@@ -18,20 +20,24 @@ import (
 
 const Type = "rewrite"
 
-func GetSpec() *plugin.MiddlewareSpec {
-	return &plugin.MiddlewareSpec{
-		Type:      Type,
-		FromOther: FromOther,
-		FromCli:   FromCli,
-		CliFlags:  CliFlags(),
-	}
-}
-
 type Rewrite struct {
 	Regexp      string
 	Replacement string
 	RewriteBody bool
 	Redirect    bool
+}
+
+func NewRewrite(regex, replacement string, rewriteBody, redirect bool) (*Rewrite, error) {
+	return &Rewrite{regex, replacement, rewriteBody, redirect}, nil
+}
+
+func (rw *Rewrite) NewMiddleware() (middleware.Middleware, error) {
+	return NewRewriteInstance(rw)
+}
+
+func (rw *Rewrite) String() string {
+	return fmt.Sprintf("regexp=%v, replacement=%v, rewriteBody=%v, redirect=%v",
+		rw.Regexp, rw.Replacement, rw.RewriteBody, rw.Redirect)
 }
 
 type RewriteInstance struct {
@@ -41,20 +47,16 @@ type RewriteInstance struct {
 	redirect    bool
 }
 
-func NewRewriteInstance(regex, replacement string, rewriteBody, redirect bool) (*RewriteInstance, error) {
-	re, err := regexp.Compile(regex)
+func NewRewriteInstance(spec *Rewrite) (*RewriteInstance, error) {
+	re, err := regexp.Compile(spec.Regexp)
 	if err != nil {
 		return nil, err
 	}
-	return &RewriteInstance{re, replacement, rewriteBody, redirect}, nil
-}
-
-func (rw *RewriteInstance) NewMiddleware() (middleware.Middleware, error) {
-	return rw, nil
+	return &RewriteInstance{re, spec.Replacement, spec.RewriteBody, spec.Redirect}, nil
 }
 
 func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, error) {
-	oldURL := r.GetHttpRequest().URL.String()
+	oldURL := netutils.RawURL(r.GetHttpRequest())
 
 	// apply a rewrite regexp to the URL
 	newURL := rw.regexp.ReplaceAllString(oldURL, rw.replacement)
@@ -97,11 +99,20 @@ func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt)
 }
 
 func FromOther(rw Rewrite) (plugin.Middleware, error) {
-	return NewRewriteInstance(rw.Regexp, rw.Replacement, rw.RewriteBody, rw.Redirect)
+	return NewRewrite(rw.Regexp, rw.Replacement, rw.RewriteBody, rw.Redirect)
 }
 
 func FromCli(c *cli.Context) (plugin.Middleware, error) {
-	return NewRewriteInstance(c.String("regexp"), c.String("replacement"), c.Bool("rewriteBody"), c.Bool("redirect"))
+	return NewRewrite(c.String("regexp"), c.String("replacement"), c.Bool("rewriteBody"), c.Bool("redirect"))
+}
+
+func GetSpec() *plugin.MiddlewareSpec {
+	return &plugin.MiddlewareSpec{
+		Type:      Type,
+		FromOther: FromOther,
+		FromCli:   FromCli,
+		CliFlags:  CliFlags(),
+	}
 }
 
 func CliFlags() []cli.Flag {

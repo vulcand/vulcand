@@ -45,6 +45,12 @@ func RawPath(in string) (string, error) {
 	return path[:idx], nil
 }
 
+// RawURL returns URL built out of the provided request's Request-URI, to avoid un-escaping.
+// Note: it assumes that scheme and host for the provided request's URL are defined.
+func RawURL(request *http.Request) string {
+	return strings.Join([]string{request.URL.Scheme, "://", request.URL.Host, request.RequestURI}, "")
+}
+
 // Copies http headers from source to destination
 // does not overide, but adds multiple headers
 func CopyHeaders(dst, src http.Header) {
