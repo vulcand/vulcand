@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/mailgun/vulcand",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.3",
 	"Packages": [
 		"./..."
 	],
