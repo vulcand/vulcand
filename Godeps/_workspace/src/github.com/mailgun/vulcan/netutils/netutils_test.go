@@ -1,10 +1,11 @@
 package netutils
 
 import (
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"net/http"
 	"net/url"
 	"testing"
+
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestUtils(t *testing.T) { TestingT(t) }
@@ -44,6 +45,11 @@ func (s *NetUtilsSuite) TestURLRawPath(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(out, Equals, v.Expected)
 	}
+}
+
+func (s *NetUtilsSuite) TestRawURL(c *C) {
+	request := &http.Request{URL: &url.URL{Scheme: "http", Host: "localhost:8080"}, RequestURI: "/foo/bar"}
+	c.Assert("http://localhost:8080/foo/bar", Equals, RawURL(request))
 }
 
 //Just to make sure we don't panic, return err and not
