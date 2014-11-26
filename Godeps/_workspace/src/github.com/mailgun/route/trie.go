@@ -1,46 +1,75 @@
-package exproute
+package route
 
 import (
+	"bytes"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
-
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 )
 
 // Regular expression to match url parameters
 var reParam *regexp.Regexp
 
 func init() {
-	reParam = regexp.MustCompile("^<([^/]+)>")
+	reParam = regexp.MustCompile("^<([^>]+)>")
 }
 
 // Trie http://en.wikipedia.org/wiki/Trie for url matching with support of named parameters
 type trie struct {
 	root *trieNode
+	// mapper takes the request and returns sequence that can be matched
+	mapper requestMapper
+}
+
+func (t *trie) canChain(o matcher) bool {
+	_, ok := o.(*trie)
+	return ok
+}
+
+func (t *trie) chain(o matcher) (matcher, error) {
+	to, ok := o.(*trie)
+	if !ok {
+		return nil, fmt.Errorf("can chain only with other trie")
+	}
+	m := t.root.findMatchNode()
+	m.matches = nil
+	m.children = []*trieNode{to.root}
+	t.root.setLevel(-1)
+	return &trie{
+		root:   t.root,
+		mapper: newSeqMapper(t.mapper, to.mapper),
+	}, nil
+}
+
+func (t *trie) String() string {
+	return fmt.Sprintf("trieMatcher()")
 }
 
 // Takes the expression with url and the node that corresponds to this expression and returns parsed trie
-func parseTrie(expression string, reqMatcher matcher) (*trie, error) {
+func newTrieMatcher(expression string, mapper requestMapper, result *match) (*trie, error) {
 	t := &trie{
-		root: &trieNode{},
+		mapper: mapper,
 	}
+	t.root = &trieNode{trie: t}
 	if len(expression) == 0 {
 		return nil, fmt.Errorf("Empty URL expression")
 	}
-	err := t.root.parseExpression(-1, expression, reqMatcher)
+	err := t.root.parseExpression(-1, expression, result)
 	if err != nil {
 		return nil, err
 	}
 	return t, nil
 }
 
+func (t *trie) setMatch(result *match) {
+	t.root.setMatch(result)
+}
+
 // Tries can merge with other tries
 func (t *trie) canMerge(m matcher) bool {
-	_, ok := m.(*trie)
-	return ok
+	ot, ok := m.(*trie)
+	return ok && t.mapper.equivalent(ot.mapper) != nil
 }
 
 // Merge takes the other trie and modifies itself to match the passed trie as well.
@@ -51,31 +80,29 @@ func (p *trie) merge(m matcher) (matcher, error) {
 	if !ok {
 		return nil, fmt.Errorf("Can't merge %T and %T", p, m)
 	}
+	mapper := p.mapper.equivalent(other.mapper)
+	if mapper == nil {
+		return nil, fmt.Errorf("Can't merge %T and %T", p, m)
+	}
+
 	root, err := p.root.merge(other.root)
 	if err != nil {
 		return nil, err
 	}
-	return &trie{root: root}, nil
+	return &trie{root: root, mapper: mapper}, nil
 }
 
 // Takes the request and returns the location if the request path matches any of it's paths
 // returns nil if none of the requests matches
-func (p *trie) match(r request.Request) location.Location {
+func (p *trie) match(r *http.Request) *match {
 	if p.root == nil {
 		return nil
 	}
-
-	path, err := netutils.RawPath(r.GetHttpRequest().RequestURI)
-	if err != nil {
-		return nil
-	}
-	if len(path) == 0 {
-		path = "/"
-	}
-	return p.root.match(-1, path, r)
+	return p.root.match(p.mapper.newIter(r))
 }
 
 type trieNode struct {
+	trie *trie
 	// Matching character, can be empty in case if it's a root node
 	// or node with a pattern matcher
 	char byte
@@ -84,11 +111,45 @@ type trieNode struct {
 	// If present, means that this node is a pattern matcher
 	patternMatcher patternMatcher
 	// If present it means this node contains potential match for a request, and this is a leaf node.
-	requestMatchers []matcher
+	matches []*match
+	// For chained tries matching different parts of the request levels would increase for next chained trie nodes
+	level int
+}
+
+func (e *trieNode) setMatch(m *match) {
+	n := e.findMatchNode()
+	n.matches = []*match{m}
+}
+
+func (e *trieNode) setLevel(level int) {
+	if e.isRoot() {
+		level++
+	}
+	e.level = level
+	if len(e.matches) != 0 {
+		return
+	}
+	// Check for the match in child nodes
+	for _, c := range e.children {
+		c.setLevel(level)
+	}
+}
+
+func (e *trieNode) findMatchNode() *trieNode {
+	if len(e.matches) != 0 {
+		return e
+	}
+	// Check for the match in child nodes
+	for _, c := range e.children {
+		if n := c.findMatchNode(); n != nil {
+			return n
+		}
+	}
+	return nil
 }
 
 func (e *trieNode) isMatching() bool {
-	return len(e.requestMatchers) != 0
+	return len(e.matches) != 0
 }
 
 func (e *trieNode) isRoot() bool {
@@ -111,16 +172,17 @@ func (e *trieNode) String() string {
 		self = fmt.Sprintf("%c", e.char)
 	}
 	if e.isMatching() {
-		return fmt.Sprintf("match(%s)", self)
+		return fmt.Sprintf("match(%d:%s)", e.level, self)
 	} else if e.isRoot() {
-		return fmt.Sprintf("root")
+		return fmt.Sprintf("root(%d)", e.level)
 	} else {
-		return fmt.Sprintf("node(%s)", self)
+		return fmt.Sprintf("node(%d:%s)", e.level, self)
 	}
 }
 
 func (e *trieNode) equals(o *trieNode) bool {
-	return (e.char == o.char) &&
+	return (e.level == o.level) && // we can merge nodes that are on the same level to avoid merges for different subtrie parts
+		(e.char == o.char) && // chars are equal
 		(e.patternMatcher == nil && o.patternMatcher == nil) || // both nodes have no matchers
 		((e.patternMatcher != nil && o.patternMatcher != nil) && e.patternMatcher.equals(o.patternMatcher)) // both nodes have equal matchers
 }
@@ -159,17 +221,19 @@ func (e *trieNode) merge(o *trieNode) (*trieNode, error) {
 	}
 
 	return &trieNode{
-		char:            e.char,
-		children:        children,
-		patternMatcher:  e.patternMatcher,
-		requestMatchers: append(e.requestMatchers, o.requestMatchers...),
+		level:          e.level,
+		trie:           e.trie,
+		char:           e.char,
+		children:       children,
+		patternMatcher: e.patternMatcher,
+		matches:        append(e.matches, o.matches...),
 	}, nil
 }
 
-func (p *trieNode) parseExpression(offset int, pattern string, requestMatcher matcher) error {
+func (p *trieNode) parseExpression(offset int, pattern string, m *match) error {
 	// We are the last element, so we are the matching node
 	if offset >= len(pattern)-1 {
-		p.requestMatchers = []matcher{requestMatcher}
+		p.matches = []*match{m}
 		return nil
 	}
 
@@ -181,41 +245,15 @@ func (p *trieNode) parseExpression(offset int, pattern string, requestMatcher ma
 	}
 	// Matcher was found
 	if patternMatcher != nil {
-		node := &trieNode{patternMatcher: patternMatcher}
+		node := &trieNode{patternMatcher: patternMatcher, trie: p.trie}
 		p.children = []*trieNode{node}
-		return node.parseExpression(newOffset-1, pattern, requestMatcher)
+		return node.parseExpression(newOffset-1, pattern, m)
 	} else {
 		// Matcher was not found, next node is just a character
-		node := &trieNode{char: pattern[offset+1]}
+		node := &trieNode{char: pattern[offset+1], trie: p.trie}
 		p.children = []*trieNode{node}
-		return node.parseExpression(offset+1, pattern, requestMatcher)
+		return node.parseExpression(offset+1, pattern, m)
 	}
-}
-
-func mergeLeafs(a *trieNode, b *trieNode) (*trieNode, error) {
-	if len(a.children) != 0 || len(b.children) != 0 {
-		return nil, fmt.Errorf("Can't merge matching nodes with children")
-	}
-	matchers := make([]matcher, 0, len(a.requestMatchers)+len(b.requestMatchers))
-	matchers = append(matchers, a.requestMatchers...)
-	matchers = append(matchers, b.requestMatchers...)
-	return &trieNode{
-		char:            a.char,
-		children:        a.children,
-		patternMatcher:  a.patternMatcher,
-		requestMatchers: matchers,
-	}, nil
-}
-
-func mergeWithLeaf(base *trieNode, leaf *trieNode) (*trieNode, error) {
-	n := &trieNode{
-		char:            base.char,
-		children:        make([]*trieNode, len(base.children)),
-		patternMatcher:  base.patternMatcher,
-		requestMatchers: leaf.requestMatchers,
-	}
-	copy(n.children, base.children)
-	return n, nil
 }
 
 func parsePatternMatcher(offset int, pattern string) (patternMatcher, int, error) {
@@ -239,8 +277,7 @@ func parsePatternMatcher(offset int, pattern string) (patternMatcher, int, error
 		matcherType = "string"
 		matcherArgs = values
 	}
-
-	matcher, err := makePathMatcher(matcherType, matcherArgs)
+	matcher, err := makeMatcher(matcherType, matcherArgs)
 	if err != nil {
 		return nil, offset, err
 	}
@@ -254,12 +291,12 @@ type matchResult struct {
 
 type patternMatcher interface {
 	getName() string
-	match(offset int, path string) (*matchResult, int)
+	match(i *charIter) bool
 	equals(other patternMatcher) bool
 	String() string
 }
 
-func makePathMatcher(matcherType string, matcherArgs []string) (patternMatcher, error) {
+func makeMatcher(matcherType string, matcherArgs []string) (patternMatcher, error) {
 	switch matcherType {
 	case "string":
 		return newStringMatcher(matcherArgs)
@@ -286,9 +323,9 @@ func (s *stringMatcher) getName() string {
 	return s.name
 }
 
-func (s *stringMatcher) match(offset int, path string) (*matchResult, int) {
-	value, offset := grabValue(offset, path)
-	return &matchResult{matcher: s, value: value}, offset
+func (s *stringMatcher) match(i *charIter) bool {
+	s.grabValue(i)
+	return true
 }
 
 func (s *stringMatcher) equals(other patternMatcher) bool {
@@ -296,51 +333,86 @@ func (s *stringMatcher) equals(other patternMatcher) bool {
 	return ok && other.getName() == s.getName()
 }
 
-func (e *trieNode) matchNode(offset int, path string) (bool, int) {
-	// We are out of bounds
-	if offset > len(path)-1 {
-		return false, -1
-	}
-	if offset == -1 || (e.isCharMatcher() && e.char == path[offset]) {
-		return true, offset + 1
-	}
-	if e.isPatternMatcher() {
-		result, newOffset := e.patternMatcher.match(offset, path)
-		if result != nil {
-			return true, newOffset
+func (s *stringMatcher) grabValue(i *charIter) {
+	for {
+		c, sep, ok := i.next()
+		if !ok {
+			return
+		}
+		if c == sep {
+			i.pushBack()
+			return
 		}
 	}
-	return false, -1
 }
 
-func (e *trieNode) match(offset int, path string, r request.Request) location.Location {
-	matched, newOffset := e.matchNode(offset, path)
-	if !matched {
+func (e *trieNode) matchNode(i *charIter) bool {
+	if i.level() != e.level {
+		return false
+	}
+	if e.isRoot() {
+		return true
+	}
+	if e.isPatternMatcher() {
+		return e.patternMatcher.match(i)
+	}
+	c, _, ok := i.next()
+	if !ok {
+		// we have reached the end
+		return false
+	}
+	if c != e.char {
+		// no match, so don't consume the character
+		i.pushBack()
+		return false
+	}
+	return true
+}
+
+func (e *trieNode) match(i *charIter) *match {
+	if !e.matchNode(i) {
 		return nil
 	}
 	// This is a leaf node and we are at the last character of the pattern
-	if len(e.requestMatchers) != 0 && newOffset == len(path) {
-		for _, matcher := range e.requestMatchers {
-			if l := matcher.match(r); l != nil {
-				return l
-			}
-		}
+	if len(e.matches) != 0 && i.isEnd() {
+		return e.matches[0]
 	}
 	// Check for the match in child nodes
 	for _, c := range e.children {
-		if loc := c.match(newOffset, path, r); loc != nil {
-			return loc
+		p := i.position()
+		if match := c.match(i); match != nil {
+			return match
 		}
+		i.setPosition(p)
+	}
+	// Child nodes did not match and we at the boundary
+	if len(e.matches) != 0 && i.level() > e.level {
+		return e.matches[0]
 	}
 	return nil
 }
 
-// Grabs value until separator or next string
-func grabValue(offset int, path string) (string, int) {
-	rest := path[offset:]
-	index := strings.Index(rest, "/")
-	if index == -1 {
-		return rest, len(path)
+// printTrie is useful for debugging and test purposes, it outputs the formatted
+// represenation of the trie
+func printTrie(t *trie) string {
+	return printTrieNode(t.root)
+}
+
+func printTrieNode(e *trieNode) string {
+	out := &bytes.Buffer{}
+	printTrieNodeInner(out, e, 0)
+	return out.String()
+}
+
+func printTrieNodeInner(b *bytes.Buffer, e *trieNode, offset int) {
+	if offset == 0 {
+		fmt.Fprintf(b, "\n")
 	}
-	return rest[:index], offset + index
+	padding := strings.Repeat(" ", offset)
+	fmt.Fprintf(b, "%s%s\n", padding, e.String())
+	if len(e.children) != 0 {
+		for _, c := range e.children {
+			printTrieNodeInner(b, c, offset+1)
+		}
+	}
 }

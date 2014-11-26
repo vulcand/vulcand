@@ -65,7 +65,7 @@ func newLocation(m *MuxServer, loc *backend.Location, up *upstream) (*location, 
 	hloc.GetObserverChain().Upsert(PerfMon, m.perfMon)
 
 	// Add the location to the router
-	if err := router.AddLocation(convertPath(loc.Path), hloc); err != nil {
+	if err := router.AddLocation(loc.Path, hloc); err != nil {
 		return nil, err
 	}
 
@@ -171,5 +171,5 @@ func (l *location) remove() error {
 	}
 	l.m.perfMon.deleteLocation(l.loc.GetUniqueId())
 	l.up.deleteLocation(l.loc.GetUniqueId())
-	return router.RemoveLocationById(l.hloc.GetId())
+	return router.RemoveLocationByExpression(l.loc.Path)
 }

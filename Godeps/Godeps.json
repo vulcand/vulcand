@@ -68,6 +68,10 @@
 			"Rev": "cb0bff91a7ab7cf7571e661ff883fc997bc554a3"
 		},
 		{
+			"ImportPath": "github.com/mailgun/route",
+			"Rev": "ba019ca92cec60c97eb23e5c678086da613a4a7e"
+		},
+		{
 			"ImportPath": "github.com/mailgun/scroll",
 			"Rev": "d4523b134d810b718cb0676af469a44b487bc3fe"
 		},
@@ -81,8 +85,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-235-gf1ce6b8",
-			"Rev": "f1ce6b87e5c58dfc5e98a481ee57daf4829483bb"
+			"Comment": "v0.1-237-g1b1ae90",
+			"Rev": "1b1ae90ab8ccba598a14858c172a6d169707d578"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
