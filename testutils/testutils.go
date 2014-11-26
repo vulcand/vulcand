@@ -63,8 +63,12 @@ func setDefaults(o LocOpts) LocOpts {
 	return o
 }
 
-func MakeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *backend.Location) *backend.MiddlewareInstance {
-	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
+func MakeRateLimit(id string, rate int64, variable string, burst int64, periodSeconds int64, loc *backend.Location) *backend.MiddlewareInstance {
+	rl, err := ratelimit.FromOther(ratelimit.RateLimit{
+		PeriodSeconds: periodSeconds,
+		Requests: rate,
+		Burst: burst,
+		Variable: variable})
 	if err != nil {
 		panic(err)
 	}
