@@ -48,7 +48,7 @@ Secret storage
 Vulcand supports secret storage - running process acts like encryption/decryption service every time it reads and writes sensitive data, e.g. TLS certificates to the backend.
 To use this feature, users generate ``sealKey`` using command line utility and pass this key to the process for encryption and decryption of the data in the backends.
 
-Failover predicates
+Failover Predicates
 ~~~~~~~~~~~~~~~~~~~
 
 Sometimes it is handy to retry the request on error. The good question is what constitues an error? Sometimes it's a read/write timeout, and somethimes it's a special error code. 
@@ -64,11 +64,24 @@ Failover predicates are expressions that define when the request can be failed o
 .. warning::  if you omit `Attempts`, failover will go into endless loop
 
 
+Route
+~~~~~
+
+Route is a simple routing language for matching http requests with Go syntax: ``Method("POST") && Path("/path")``, here are a couple of examples:
+
+.. code-block:: go
+
+   Path("/v1/users/<user>")              // Match by path with trie syntax
+   Method("POST") && Path("/v1/users")   // Match by method and path with trie syntax
+
+   PathRegexp("/v1/users/.*")                                 // Match by path with regexp syntax
+   MethodRegexp("DELETE|GET") && PathRegexp("/v1/users/.*")   // Match by method and path with regexp syntax
+
+
 Configuration
 -------------
 
 Vulcand can be configured via Etcd, API or command line tool - ``vulcanctl``. You can switch between different configuration examples using the samples switch.
-
 
 
 Upstreams and endpoints
@@ -153,7 +166,6 @@ Endpoint can heartbeat it's presense, and once the heartbeat is stopped, Vulcand
  etcdctl set --ttl=5 /vulcand/upstreams/u1/endpoints/e1 http://localhost:5000
 
 
-
 Hosts and locations
 ~~~~~~~~~~~~~~~~~~~
 
@@ -162,7 +174,7 @@ Hosts and locations
 
 
 Request is first matched agains a host and finally redirected to a location. Location is matched by a path and optionally method.
-It is recommended to specify a location per API method, e.g. ``TrieRoute("POST", "/v1/users")``.
+It is recommended to specify a location per API method, e.g. ``Method("POST") && Path("/v1/users")``.
 
 Location needs a path and an existing upstream to start accepting requests.
 You don't need to declare host explicitly, as it always a part of the location path, in this case it's ``localhost``
@@ -170,14 +182,14 @@ You don't need to declare host explicitly, as it always a part of the location p
 .. code-block:: etcd
 
  # add host and location
- etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'TrieRoute("/home")'
+ etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'Path("/home")'
  etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
 
 .. code-block:: cli
 
  # add host and location
  vulcanctl host add -name localhost
- vulcanctl location add -host=localhost -id=loc1 -up=up1 -path='TrieRoute("/home")'
+ vulcanctl location add -host=localhost -id=loc1 -up=up1 -path='Path("/home")'
 
 .. code-block:: api
 
@@ -185,7 +197,8 @@ You don't need to declare host explicitly, as it always a part of the location p
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts\ 
       -d '{"Name":"localhost"}'
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations\
-      -d '{"Hostname":"localhost","Id":"loc2","Upstream":{"Id":"up1"},"Path":"TrieRoute(\"/home\")"}'
+      -d '{"Hostname":"localhost","Id":"loc2","Upstream":{"Id":"up1"},"Path":"Path(\"/home\")"}'
+
 
 **TLS Certificates**
 
@@ -265,6 +278,73 @@ Updating upstream gracefully re-routes the traffic to the new endpoints assigned
  curl -X PUT http://localhost:8182/v1/hosts/localhost/locations/loc1 -F upstream=up2
 
 .. note::  you can add and remove endpoints to the existing upstream, and vulcan will start redirecting the traffic to them automatically
+
+
+Routing Language
+~~~~~~~~~~~~~~~~
+
+Vulcand uses a special type of a routing language to match requests - called ``route`` and implemented as a `standalone library <https://github.com/mailgun/route>`_
+
+It uses Go syntax to route http requests by by hostname, method, path and headers:
+
+.. code-block:: go
+
+   Matcher("value")          // matches value using trie
+   Matcher("<string>.value") // uses trie-based matching for a.value and b.value
+   MatcherRegexp(".*value")  // uses regexp-based matching
+
+Host matcher:
+
+.. code-block:: go
+
+  Host("<subdomain>.localhost") // trie-based matcher for a.localhost, b.localhost, etc.
+  HostRegexp(".*localhost")     // regexp based matcher
+
+.. note:: As long as locations are currently specified under hosts, it's not possible to use ``Host`` matcher, however it will be changed soon.
+
+Path matcher:
+
+.. code-block:: go
+
+  Path("/hello/<value>")   // trie-based matcher for raw request path
+  PathRegexp("/hello/.*")  // regexp-based matcher for raw request path
+
+Method matcher:
+
+.. code-block:: go
+
+  Method("GET")            // trie-based matcher for request method
+  MethodRegexp("POST|PUT") // regexp based matcher for request method
+
+Header matcher:
+
+.. code-block:: go
+
+  Header("Content-Type", "application/<subtype>") // trie-based matcher for headers
+  HeaderRegexp("Content-Type", "application/.*")  // regexp based matcher for headers
+
+Matchers can be combined using ``&&`` operator:
+
+.. code-block:: go
+
+  Host("localhost") && Method("POST") && Path("/v1")
+
+Vulcan will join the trie-based matchers into one trie matcher when possible, for example:
+
+.. code-block:: go
+
+  Host("localhost") && Method("POST") && Path("/v1")
+  Host("localhost") && Method("GET") && Path("/v2")
+
+Will be combined into one trie for performance. If you add a third route:
+
+.. code-block:: go
+
+  Host("localhost") && Method("GET") && PathRegexp("/v2/.*")
+
+It wont be joined ito the trie, and would be matched separately instead.
+
+.. warning:: Vulcan can not merge regexp-based routes into efficient structure, so if you have hundreds/thousands of locations, use trie-based routes!
 
 Listeners
 ~~~~~~~~~
