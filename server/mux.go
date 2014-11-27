@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
@@ -420,15 +419,11 @@ func (m *MuxServer) getRouter(hostname string) *exproute.ExpRouter {
 }
 
 func (m *MuxServer) getLocation(hostname string, locationId string) *httploc.HttpLocation {
-	router := m.getRouter(hostname)
-	if router == nil {
+	l, ok := m.locations[backend.LocationKey{Hostname: hostname, Id: locationId}]
+	if !ok {
 		return nil
 	}
-	ilo := router.GetLocationById(locationId)
-	if ilo == nil {
-		return nil
-	}
-	return ilo.(*httploc.HttpLocation)
+	return l.hloc
 }
 
 func (m *MuxServer) upsertLocation(host *backend.Host, loc *backend.Location) (*location, error) {
@@ -581,14 +576,6 @@ const (
 	Metrics = "_metrics"
 	PerfMon = "_perfMon"
 )
-
-// convertPath changes strings to structured format /hello -> RegexpRoute("/hello") and leaves structured strings unchanged.
-func convertPath(in string) string {
-	if !strings.Contains(in, exproute.TrieRouteFn) && !strings.Contains(in, exproute.RegexpRouteFn) {
-		return fmt.Sprintf(`%s(%#v)`, exproute.RegexpRouteFn, in)
-	}
-	return in
-}
 
 func parseOptions(o Options) Options {
 	if o.MetricsClient == nil {
