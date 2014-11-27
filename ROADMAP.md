@@ -18,7 +18,6 @@ Support consistent semVer releases via Github
 ### Routing
 
 * Move to front-end and backend from hosts and locations
-* Implement flexible routing language for matching hosts, headers, and paths
 * Support pods/consistent hash-based routing
 * Fan-In, Fan-Out support
 
