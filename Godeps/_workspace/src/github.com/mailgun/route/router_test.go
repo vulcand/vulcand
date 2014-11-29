@@ -266,6 +266,28 @@ func (s *RouteSuite) TestMatchCases(c *C) {
 			},
 		},
 		{
+			name: "Match by regexp method",
+			routes: []route{
+				route{`MethodRegexp("POST|PUT") && Path("/r1")`, "m1"},
+				route{`MethodRegexp("GET") && Path("/r1")`, "m2"},
+			},
+			expected: 2,
+			tries: []try{
+				try{
+					r:     req{url: "http://h1/r1", method: "POST"},
+					match: "m1",
+				},
+				try{
+					r:     req{url: "http://h1/r1", method: "PUT"},
+					match: "m1",
+				},
+				try{
+					r:     req{url: "http://h2/r1", method: "GET"},
+					match: "m2",
+				},
+			},
+		},
+		{
 			name: "Match by method, path and hostname and header",
 			routes: []route{
 				route{`Host("h1") && Method("POST") && Path("/r1")`, "m1"},

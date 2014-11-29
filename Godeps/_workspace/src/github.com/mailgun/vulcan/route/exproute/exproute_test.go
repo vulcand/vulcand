@@ -26,13 +26,15 @@ func (s *RouteSuite) TestConvertPath(c *C) {
 		{"/hello", `PathRegexp("/hello")`},
 		{`TrieRoute("/hello")`, `Path("/hello")`},
 		{`TrieRoute("POST", "/hello")`, `Method("POST") && Path("/hello")`},
+		{`TrieRoute("POST", "PUT", "/v2/path")`, `MethodRegexp("POST|PUT") && Path("/v2/path")`},
 		{`RegexpRoute("/hello")`, `PathRegexp("/hello")`},
 		{`RegexpRoute("POST", "/hello")`, `Method("POST") && PathRegexp("/hello")`},
+		{`RegexpRoute("POST", "PUT", "/v2/path")`, `MethodRegexp("POST|PUT") && PathRegexp("/v2/path")`},
 		{`Path("/hello")`, `Path("/hello")`},
 	}
 	for i, t := range tc {
 		comment := Commentf("tc%d", i)
-		c.Assert(convertPath(t.in), Equals, t.out, comment)
+		c.Assert(FromLegacy(t.in), Equals, t.out, comment)
 	}
 }
 

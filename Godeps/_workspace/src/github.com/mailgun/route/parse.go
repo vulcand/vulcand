@@ -6,6 +6,12 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/predicate"
 )
 
+// IsValid checks whether expression is valid
+func IsValid(expr string) bool {
+	_, err := parse(expr, &match{})
+	return err == nil
+}
+
 func parse(expression string, result *match) (matcher, error) {
 	p, err := predicate.NewParser(predicate.Def{
 		Functions: map[string]interface{}{
@@ -15,7 +21,8 @@ func parse(expression string, result *match) (matcher, error) {
 			"Path":       pathTrieMatcher,
 			"PathRegexp": pathRegexpMatcher,
 
-			"Method": methodTrieMatcher,
+			"Method":       methodTrieMatcher,
+			"MethodRegexp": methodRegexpMatcher,
 
 			"Header":       headerTrieMatcher,
 			"HeaderRegexp": headerRegexpMatcher,
