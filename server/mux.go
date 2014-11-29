@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/mailgun/vulcand/engine"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
@@ -11,21 +13,19 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
-
-	"github.com/mailgun/vulcand/backend"
 )
 
 // MuxServer is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
 type MuxServer struct {
 	// Debugging id
 	id int
+
 	// Each listener address has a server associated with it
-	servers map[backend.Address]*server
+	servers map[engine.Address]*server
 
-	// Each upstream holds a transport and list of associated locations
-	upstreams map[backend.UpstreamKey]*upstream
+	backends map[engine.BackendKey]*backend
 
-	locations map[backend.LocationKey]*location
+	frontends map[engine.FrontendKey]*frontend
 
 	// Options hold parameters that are used to initialize http servers
 	options Options
@@ -36,8 +36,8 @@ type MuxServer struct {
 	// Read write mutex for serlialized operations
 	mtx *sync.RWMutex
 
-	// Host routers will be shared between mulitple listeners
-	hostRouters map[string]*exproute.ExpRouter
+	// Router will be shared between mulitple listeners
+	router *exproute.Router
 
 	// Current server stats
 	state muxState
@@ -53,8 +53,8 @@ func (m *MuxServer) String() string {
 	return fmt.Sprintf("MuxServer(%d, %v)", m.id, m.state)
 }
 
-func NewMuxServerWithOptions(id int, o Options) (*MuxServer, error) {
-	o = parseOptions(o)
+func NewMuxServer(id int, o Options) (*MuxServer, error) {
+	o = setDefaults(o)
 	return &MuxServer{
 		id:          id,
 		hostRouters: make(map[string]*exproute.ExpRouter),
@@ -577,7 +577,7 @@ const (
 	PerfMon = "_perfMon"
 )
 
-func parseOptions(o Options) Options {
+func setDefaults(o Options) Options {
 	if o.MetricsClient == nil {
 		o.MetricsClient = metrics.NewNop()
 	}

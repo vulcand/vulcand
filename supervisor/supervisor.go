@@ -8,7 +8,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 
-	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/server"
 )
 
@@ -32,8 +32,8 @@ type Supervisor struct {
 	// timeProvider is used to mock time in tests
 	timeProvider timetools.TimeProvider
 
-	// backend is used for reading initial configuration
-	backend backend.Backend
+	// engine is used for reading configuration details
+	engine engine.Engine
 
 	// errorC is a channel will be used to notify the calling party of the errors.
 	errorC chan error
@@ -52,16 +52,12 @@ type Options struct {
 	Files        []*server.FileDescriptor
 }
 
-func NewSupervisor(newSrv server.NewServerFn, backend backend.Backend, errorC chan error) (s *Supervisor) {
-	return NewSupervisorWithOptions(newSrv, backend, errorC, Options{})
-}
-
-func NewSupervisorWithOptions(newSrv server.NewServerFn, backend backend.Backend, errorC chan error, options Options) (s *Supervisor) {
+func New(newSrv server.NewServerFn, engine engine.Engine, errorC chan error, options Options) (s *Supervisor) {
 	return &Supervisor{
 		wg:       &sync.WaitGroup{},
 		mtx:      &sync.RWMutex{},
 		newSrv:   newSrv,
-		backend:  backend,
+		engine:   engine,
 		options:  parseOptions(options),
 		errorC:   errorC,
 		restartC: make(chan error),

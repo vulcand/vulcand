@@ -7,47 +7,47 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
 
-	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/engine"
 )
 
-type location struct {
+type frontend struct {
 	m    *MuxServer
-	loc  backend.Location
+	loc  engine.Frontend
 	hloc *httploc.HttpLocation
-	up   *upstream
+	b    *backend
 }
 
-func (l *location) getLB() *roundrobin.RoundRobin {
+func (l *frontend) getLB() *roundrobin.RoundRobin {
 	return l.hloc.GetLoadBalancer().(*roundrobin.RoundRobin)
 }
 
-func (l *location) updateUpstream(up *upstream) error {
+func (l *frontend) updateUpstream(up *upstream) error {
 	oldup := l.up
 	l.up = up
 
 	// Switching upstreams, set the new transport and perform switch
 	if up.up.Id != oldup.up.Id {
-		oldup.deleteLocation(l.loc.GetUniqueId())
-		up.addLocation(l.loc.GetUniqueId(), l)
+		oldup.deleteFrontend(l.loc.GetUniqueId())
+		up.addFrontend(l.loc.GetUniqueId(), l)
 		l.hloc.SetTransport(up.t)
 	}
 
 	return l.syncEndpoints()
 }
 
-func newLocation(m *MuxServer, loc *backend.Location, up *upstream) (*location, error) {
+func newFrontend(m *MuxServer, loc *backend.Frontend, up *upstream) (*frontend, error) {
 	router := m.getRouter(loc.Hostname)
 	if router == nil {
 		return nil, fmt.Errorf("router not found for %s", loc.Hostname)
 	}
 
-	// Create a load balancer that handles all the endpoints within the given location
+	// Create a load balancer that handles all the endpoints within the given frontend
 	rr, err := roundrobin.NewRoundRobin()
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a http location
+	// Create a http frontend
 	options, err := loc.GetOptions()
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func newLocation(m *MuxServer, loc *backend.Location, up *upstream) (*location, 
 
 	// Use the transport from the upstream
 	options.Transport = up.t
-	hloc, err := httploc.NewLocationWithOptions(loc.Id, rr, *options)
+	hloc, err := httploc.NewFrontendWithOptions(loc.Id, rr, *options)
 	if err != nil {
 		return nil, err
 	}
@@ -64,12 +64,12 @@ func newLocation(m *MuxServer, loc *backend.Location, up *upstream) (*location, 
 	hloc.GetObserverChain().Upsert(Metrics, NewReporter(m.options.MetricsClient, loc.Id))
 	hloc.GetObserverChain().Upsert(PerfMon, m.perfMon)
 
-	// Add the location to the router
-	if err := router.AddLocation(loc.Path, hloc); err != nil {
+	// Add the frontend to the router
+	if err := router.AddFrontend(loc.Path, hloc); err != nil {
 		return nil, err
 	}
 
-	l := &location{
+	l := &frontend{
 		hloc: hloc,
 		loc:  *loc,
 		m:    m,
@@ -83,18 +83,18 @@ func newLocation(m *MuxServer, loc *backend.Location, up *upstream) (*location, 
 		}
 	}
 
-	// Once the location added, configure all endpoints
+	// Once the frontend added, configure all endpoints
 	if err := l.syncEndpoints(); err != nil {
 		return nil, err
 	}
 
-	// Link the location and the upstream
-	up.addLocation(l.loc.GetUniqueId(), l)
+	// Link the frontend and the upstream
+	up.addFrontend(l.loc.GetUniqueId(), l)
 
 	return l, nil
 }
 
-func (l *location) syncEndpoints() error {
+func (l *frontend) syncEndpoints() error {
 	rr := l.getLB()
 	if rr == nil {
 		return fmt.Errorf("%v lb not found", l.loc)
@@ -141,7 +141,7 @@ func (l *location) syncEndpoints() error {
 	return nil
 }
 
-func (l *location) upsertMiddleware(mi *backend.MiddlewareInstance) error {
+func (l *frontend) upsertMiddleware(mi *backend.MiddlewareInstance) error {
 	instance, err := mi.Middleware.NewMiddleware()
 	if err != nil {
 		return err
@@ -150,11 +150,11 @@ func (l *location) upsertMiddleware(mi *backend.MiddlewareInstance) error {
 	return nil
 }
 
-func (l *location) deleteMiddleware(mType, mId string) error {
+func (l *frontend) deleteMiddleware(mType, mId string) error {
 	return l.hloc.GetMiddlewareChain().Remove(fmt.Sprintf("%s.%s", mType, mId))
 }
 
-func (l *location) updateOptions(loc *backend.Location) error {
+func (l *frontend) updateOptions(loc *backend.Frontend) error {
 	l.loc = *loc
 	options, err := loc.GetOptions()
 	if err != nil {
@@ -164,12 +164,12 @@ func (l *location) updateOptions(loc *backend.Location) error {
 	return l.hloc.SetOptions(*options)
 }
 
-func (l *location) remove() error {
+func (l *frontend) remove() error {
 	router := l.m.getRouter(l.loc.Hostname)
 	if router == nil {
 		return fmt.Errorf("router for %s not found", l.loc.Hostname)
 	}
-	l.m.perfMon.deleteLocation(l.loc.GetUniqueId())
-	l.up.deleteLocation(l.loc.GetUniqueId())
-	return router.RemoveLocationByExpression(l.loc.Path)
+	l.m.perfMon.deleteFrontend(l.loc.GetUniqueId())
+	l.up.deleteFrontend(l.loc.GetUniqueId())
+	return router.RemoveFrontendByExpression(l.loc.Path)
 }

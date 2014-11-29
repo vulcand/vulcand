@@ -28,6 +28,12 @@ test-package: clean
 test-package-with-etcd: clean
 	${ETCD_FLAGS} go test -v ./$(p)
 
+test-grep-etcdng: clean
+	${ETCD_FLAGS} go test -v ./engine/etcdng -check.f=$(e)
+
+test-grep-package: clean
+	go test -v ./$(p) -check.f=$(e)
+
 cover-package: clean
 	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out

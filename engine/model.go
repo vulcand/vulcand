@@ -1,5 +1,5 @@
 // Package model defines interfaces and structures controlling the proxy configuration.
-package model
+package engine
 
 import (
 	"crypto/subtle"
@@ -17,63 +17,18 @@ import (
 	"github.com/mailgun/vulcand/plugin"
 )
 
-type NewEngineFn func() (Engine, error)
-
-// Engine means storage engine
-type Engine interface {
-	GetHosts() ([]Host, error)
-	AddHost(Host) (Host, error)
-	GetHost(HostKey) (Host, error)
-	DeleteHost(HostKey) error
-	UpdateHostKeyPair(key HostKey, keyPair KeyPair) (Host, error)
-
-	AddListener(HostKey, Listener) (Listener, error)
-	DeleteListener(ListenerKey) error
-
-	AddFrontend(Frontend) (Frontend, error)
-	GetFrontend(FrontendKey) (Frontend, error)
-	UpdateFrontendOptions(FrontendKey, FrontendOptions) (Frontend, error)
-	UpdateFrontendBackend(FrontendKey, BackendKey) (Frontend, error)
-	DeleteFrontend(FrontendKey) error
-
-	AddMiddleware(FrontendKey, Middleware) (Middleware, error)
-	GetMiddleware(MiddlewareKey) (Middleware, error)
-	UpdateMiddleware(MiddlewareKey, m Middleware) (Middleware, error)
-	DeleteMiddleware(MiddlewareKey) error
-
-	GetBackends() ([]Backend, error)
-	AddBackend(Backend) (Backend, error)
-	UpdateBackendOptions(BackendKey, o BackendOptions) (Backend, error)
-	GetBackend(BackendKey) (Backend, error)
-	DeleteBackend(BackendKey) error
-
-	AddServer(BackendKey, Server) (Server, error)
-	GetServer(ServerKey) (Server, error)
-	DeleteServer(ServerKey) error
-
-	// Subscribe is an entry point for getting the configuration changes as well as the initial configuration.
-	// It should be a blocking function generating events from change.go to the changes channel.
-	Subscribe(events chan interface{}, cancel chan bool) error
-
-	// GetRegistry returns registry with the supported plugins.
-	GetRegistry() *plugin.Registry
-
-	// Close
-	Close()
-}
-
-// StatsProvider provides realtime stats abount endpoints, upstreams and locations
+// StatsProvider provides realtime stats abount endpoints, backends and locations
 type StatsProvider interface {
 	FrontendStats(FrontendKey) (*RoundTripStats, error)
 	ServerStats(ServerKey) (*RoundTripStats, error)
 	BackendStats(BackendKey) (*RoundTripStats, error)
 
 	// TopFrontends returns locations sorted by criteria (faulty, slow, most used)
-	// if hostname or upstreamId is present, will filter out locations for that host or upstreamId
+	// if hostname or backendId is present, will filter out locations for that host or backendId
 	TopFrontends(*BackendKey) ([]*Frontend, error)
 
 	// TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
-	// if upsrtreamId is not empty, will filter out endpoints for that upstreamId
+	// if backendId is not empty, will filter out endpoints for that backendId
 	TopServers(*BackendKey) ([]*Server, error)
 }
 
@@ -105,12 +60,12 @@ type Address struct {
 }
 
 type ListenerKey struct {
-	Id   string
-	Host string
+	HostKey HostKey
+	Id      string
 }
 
 func (l ListenerKey) String() string {
-	return fmt.Sprintf("%s.%s", l.Host, l.Id)
+	return fmt.Sprintf("%s.%s", l.HostKey, l.Id)
 }
 
 // Listener specifies the listening point - the network and interface for each host. Host can have multiple interfaces.
@@ -131,6 +86,7 @@ func (a *Address) Equals(o Address) bool {
 }
 
 type HostOptions struct {
+	KeyPair *KeyPair
 	Default bool
 }
 
@@ -145,18 +101,17 @@ func (h HostKey) String() string {
 // Incoming requests are matched by their hostname first. Hostname is defined by incoming 'Host' header.
 // E.g. curl http://example.com/alice will be matched by the host example.com first.
 type Host struct {
-	Name      string
-	KeyPair   *KeyPair
-	Options   HostOptions
-	Listeners []*Listener `json:"omitempty"`
+	Name    string
+	Options HostOptions
 }
 
-func NewHost(name string) (*Host, error) {
+func NewHost(name string, options HostOptions) (*Host, error) {
 	if name == "" {
 		return nil, fmt.Errorf("Hostname can not be empty")
 	}
 	return &Host{
-		Name: name,
+		Name:    name,
+		Options: options,
 	}, nil
 }
 
@@ -171,28 +126,30 @@ func (h *Host) GetId() string {
 // Frontend is connected to a backend and vulcand will use the servers from this backend.
 type Frontend struct {
 	Id        string
-	Route     string
+	Type      string
 	BackendId string
 
-	Backend     *Backend      `json:"omitempty"`
-	Middlewares []*Middleware `json:"omitempty"`
+	Settings interface{} `json:",omitempty"`
+}
 
-	Options FrontendOptions
+type HTTPFrontendSettings struct {
+	Route   string
+	Options HTTPFrontendOptions
 
 	// Stats holds combined stats from all endpoints in the location
-	Stats RoundTripStats
+	Stats *RoundTripStats `json:",omitempty"`
 }
 
 // Limits contains various limits one can supply for a location.
-type FrontendLimits struct {
+type HTTPFrontendLimits struct {
 	MaxMemBodyBytes int64 // Maximum size to keep in memory before buffering to disk
 	MaxBodyBytes    int64 // Maximum size of a request body in bytes
 }
 
 // Additional options to control this location, such as timeouts
-type FrontendOptions struct {
+type HTTPFrontendOptions struct {
 	// Limits contains various limits one can supply for a location.
-	Limits FrontendLimits
+	Limits HTTPFrontendLimits
 	// Predicate that defines when requests are allowed to failover
 	FailoverPredicate string
 	// Used in forwarding headers
@@ -232,34 +189,29 @@ func NewListener(id, protocol, network, address string) (*Listener, error) {
 	}, nil
 }
 
-func NewFrontend(id, route, backendId string) (*Frontend, error) {
-	return NewFrontendWithOptions(id, route, backendId, FrontendOptions{})
-}
-
-func NewFrontendWithOptions(id, route, backendId string, options FrontendOptions) (*Frontend, error) {
-	if len(route) == 0 || len(id) == 0 || len(backendId) == 0 {
+func NewHTTPFrontend(id, backendId string, settings HTTPFrontendSettings) (*Frontend, error) {
+	if len(id) == 0 || len(backendId) == 0 {
 		return nil, fmt.Errorf("supply valid  route, id, and backendId")
 	}
 
 	// Make sure location path is a valid route expression
-	if exproute.IsValid(route) {
+	if !exproute.IsValid(settings.Route) {
 		return nil, fmt.Errorf("route should be a valid route expression")
 	}
 
-	if _, err := parseFrontendOptions(options); err != nil {
+	if _, err := frontendOptions(settings.Options); err != nil {
 		return nil, err
 	}
 
 	return &Frontend{
-		Path:        path,
-		Id:          id,
-		Backend:     &Backend{Id: upstreamId, Servers: []*Server{}},
-		Middlewares: []*MiddlewareInstance{},
-		Options:     options,
+		Id:        id,
+		BackendId: backendId,
+		Type:      HTTP,
+		Settings:  settings,
 	}, nil
 }
 
-func parseFrontendOptions(l FrontendOptions) (*httploc.Options, error) {
+func frontendOptions(l HTTPFrontendOptions) (*httploc.Options, error) {
 	o := &httploc.Options{}
 	var err error
 
@@ -279,12 +231,16 @@ func parseFrontendOptions(l FrontendOptions) (*httploc.Options, error) {
 	return o, nil
 }
 
-func (l *Frontend) GetOptions() (*httploc.Options, error) {
-	return parseFrontendOptions(l.Options)
+func (f *Frontend) HTTPSettings() HTTPFrontendSettings {
+	return (f.Settings).(HTTPFrontendSettings)
+}
+
+func (l HTTPFrontendSettings) GetOptions() (*httploc.Options, error) {
+	return frontendOptions(l.Options)
 }
 
 func (f *Frontend) String() string {
-	return fmt.Sprintf("Frontend(%s, %s, %s)", f.Id, f.Route, f.Backend)
+	return fmt.Sprintf("Frontend(%v, %v, %v, %v)", f.Type, f.Id, f.BackendId)
 }
 
 func (l *Frontend) GetId() string {
@@ -295,45 +251,43 @@ func (l *Frontend) GetKey() FrontendKey {
 	return FrontendKey{Id: l.Id}
 }
 
-type BackendTimeouts struct {
+type HTTPBackendTimeouts struct {
 	// Socket read timeout (before we receive the first reply header)
 	Read string
 	// Socket connect timeout
 	Dial string
 	// TLS handshake timeout
-	TlsHandshake string
+	TLSHandshake string
 }
 
-type BackendKeepAlive struct {
+type HTTPBackendKeepAlive struct {
 	// Keepalive period
 	Period string
 	// How many idle connections will be kept per host
 	MaxIdleConnsPerHost int
 }
 
-// Additional options to control this location, such as timeouts
-type BackendOptions struct {
-	Timeouts BackendTimeouts
+type HTTPBackendSettings struct {
+	Timeouts HTTPBackendTimeouts
 	// Controls KeepAlive settins for backend servers
-	KeepAlive BackendKeepAlive
+	KeepAlive HTTPBackendKeepAlive
 }
 
-func (u *BackendOptions) Equals(o BackendOptions) bool {
-	return (u.Timeouts.Read == o.Timeouts.Read &&
-		u.Timeouts.Dial == o.Timeouts.Dial &&
-		u.Timeouts.TlsHandshake == o.Timeouts.TlsHandshake &&
-		u.KeepAlive.Period == o.KeepAlive.Period &&
-		u.KeepAlive.MaxIdleConnsPerHost == o.KeepAlive.MaxIdleConnsPerHost)
+func (s *HTTPBackendSettings) Equals(o HTTPBackendSettings) bool {
+	return (s.Timeouts.Read == o.Timeouts.Read &&
+		s.Timeouts.Dial == o.Timeouts.Dial &&
+		s.Timeouts.TLSHandshake == o.Timeouts.TLSHandshake &&
+		s.KeepAlive.Period == o.KeepAlive.Period &&
+		s.KeepAlive.MaxIdleConnsPerHost == o.KeepAlive.MaxIdleConnsPerHost)
 }
 
 type MiddlewareKey struct {
-	Frontend FrontendKey
-	Id       string
-	Type     string
+	FrontendKey FrontendKey
+	Id          string
 }
 
 func (m MiddlewareKey) String() string {
-	return fmt.Sprintf("%v.%v.%v", m.Frontend, m.Type, m.Id)
+	return fmt.Sprintf("%v.%v", m.FrontendKey, m.Id)
 }
 
 // Middleware contains information about this middleware backend-specific data used for serialization/deserialization
@@ -344,75 +298,69 @@ type Middleware struct {
 	Middleware plugin.Middleware
 }
 
-// Backend is a collection of endpoints. Each location is assigned an upstream. Changing assigned upstream
-// of the location gracefully redirects the traffic to the new endpoints of the upstream.
+// Backend is a collection of endpoints. Each location is assigned an backend. Changing assigned backend
+// of the location gracefully redirects the traffic to the new endpoints of the backend.
 type Backend struct {
-	Id      string
-	Options BackendOptions
-
-	Servers []*Server `json:"omitempty"`
+	Id       string
+	Type     string
+	Settings interface{}
 }
 
-// NewBackendWithOptions creates a new instance of the upstream object
-func NewBackendWithOptions(id string, o BackendOptions) (*Backend, error) {
-	if _, err := parseBackendOptions(o); err != nil {
+// NewBackend creates a new instance of the backend object
+func NewHTTPBackend(id string, s HTTPBackendSettings) (*Backend, error) {
+	if _, err := transportOptions(s); err != nil {
 		return nil, err
 	}
 	return &Backend{
-		Id:      id,
-		Servers: []*Server{},
-		Options: o,
+		Id:       id,
+		Type:     HTTP,
+		Settings: s,
 	}, nil
 }
 
-// NewBackend creates a new instance of the upstream object with default options applied
-func NewBackend(id string) (*Backend, error) {
-	return NewBackendWithOptions(id, BackendOptions{})
+func (b *Backend) String() string {
+	return fmt.Sprintf("Backend(id=%s)", b.Id)
 }
 
-func (u *Backend) String() string {
-	return fmt.Sprintf("Backend(id=%s)", u.Id)
+func (b *Backend) GetId() string {
+	return b.Id
 }
 
-func (u *Backend) GetId() string {
-	return u.Id
+func (b *Backend) GetUniqueId() BackendKey {
+	return BackendKey{Id: b.Id}
 }
 
-func (u *Backend) GetUniqueId() BackendKey {
-	return BackendKey{Id: u.Id}
+func (b *Backend) GetTransportOptions() (*httploc.TransportOptions, error) {
+	return transportOptions(b.Settings.(HTTPBackendSettings))
 }
 
-func (u *Backend) GetTransportOptions() (*httploc.TransportOptions, error) {
-	return parseBackendOptions(u.Options)
-}
-
-func parseBackendOptions(o BackendOptions) (*httploc.TransportOptions, error) {
+func transportOptions(s HTTPBackendSettings) (*httploc.TransportOptions, error) {
 	t := &httploc.TransportOptions{}
 	var err error
 	// Connection timeouts
-	if len(o.Timeouts.Read) != 0 {
-		if t.Timeouts.Read, err = time.ParseDuration(o.Timeouts.Read); err != nil {
+	if len(s.Timeouts.Read) != 0 {
+		if t.Timeouts.Read, err = time.ParseDuration(s.Timeouts.Read); err != nil {
 			return nil, fmt.Errorf("invalid read timeout: %s", err)
 		}
 	}
-	if len(o.Timeouts.Dial) != 0 {
-		if t.Timeouts.Dial, err = time.ParseDuration(o.Timeouts.Dial); err != nil {
+	if len(s.Timeouts.Dial) != 0 {
+		if t.Timeouts.Dial, err = time.ParseDuration(s.Timeouts.Dial); err != nil {
 			return nil, fmt.Errorf("invalid dial timeout: %s", err)
 		}
 	}
-	if len(o.Timeouts.TlsHandshake) != 0 {
-		if t.Timeouts.TlsHandshake, err = time.ParseDuration(o.Timeouts.TlsHandshake); err != nil {
+	if len(s.Timeouts.TLSHandshake) != 0 {
+		if t.Timeouts.TlsHandshake, err = time.ParseDuration(s.Timeouts.TLSHandshake); err != nil {
 			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
 		}
 	}
 
 	// Keep Alive parameters
-	if len(o.KeepAlive.Period) != 0 {
-		if t.KeepAlive.Period, err = time.ParseDuration(o.KeepAlive.Period); err != nil {
+	if len(s.KeepAlive.Period) != 0 {
+		if t.KeepAlive.Period, err = time.ParseDuration(s.KeepAlive.Period); err != nil {
 			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
 		}
 	}
-	t.KeepAlive.MaxIdleConnsPerHost = o.KeepAlive.MaxIdleConnsPerHost
+	t.KeepAlive.MaxIdleConnsPerHost = s.KeepAlive.MaxIdleConnsPerHost
 	return t, nil
 }
 
@@ -420,33 +368,25 @@ func parseBackendOptions(o BackendOptions) (*httploc.TransportOptions, error) {
 type Server struct {
 	Id    string
 	URL   string
-	Stats RoundTripStats
+	Stats *RoundTripStats `json:",omitempty"`
 }
 
-func NewServer(upstreamId, id, url string) (*Server, error) {
-	if upstreamId == "" {
-		return nil, fmt.Errorf("upstream id can not be empty")
-	}
+func NewServer(id, url string) (*Server, error) {
 	if _, err := netutils.ParseUrl(url); err != nil {
 		return nil, fmt.Errorf("endpoint url '%s' is not valid", url)
 	}
 	return &Server{
-		BackendId: upstreamId,
-		Id:        id,
-		Url:       url,
+		Id:  id,
+		URL: url,
 	}, nil
 }
 
 func (e *Server) String() string {
-	return fmt.Sprintf("Server(%s, %s, %s, %s)", e.Id, e.BackendId, e.Url, e.Stats)
+	return fmt.Sprintf("HTTPServer(%s, %s, %s)", e.Id, e.URL, e.Stats)
 }
 
 func (e *Server) GetId() string {
 	return e.Id
-}
-
-func (e *Server) GetUniqueId() ServerKey {
-	return ServerKey{BackendId: e.BackendId, Id: e.Id}
 }
 
 type LatencyBrackets []Bracket
@@ -463,7 +403,7 @@ func (l LatencyBrackets) GetQuantile(q float64) (*Bracket, error) {
 	return nil, fmt.Errorf("quantile %f not found", q)
 }
 
-// RoundTrip stats contain real time statistics about performance of Server or Frontend
+// RoundTripStats contain real time statistics about performance of Server or Frontend
 // such as latency, processed and failed requests.
 type RoundTripStats struct {
 	Verdict         Verdict
@@ -613,17 +553,17 @@ type FrontendKey struct {
 	Id string
 }
 
-func (l FrontendKey) String() string {
-	return fmt.Sprintf("%s.%s", l.Id)
+func (f FrontendKey) String() string {
+	return f.Id
 }
 
 type ServerKey struct {
-	Backend BackendKey
-	Id      string
+	BackendKey BackendKey
+	Id         string
 }
 
 func (e ServerKey) String() string {
-	return fmt.Sprintf("%v.%v", e.Backend, e.Id)
+	return fmt.Sprintf("%v.%v", e.BackendKey, e.Id)
 }
 
 func ParseServerKey(v string) (*ServerKey, error) {
@@ -631,7 +571,7 @@ func ParseServerKey(v string) (*ServerKey, error) {
 	if len(out) != 2 {
 		return nil, fmt.Errorf("invalid id: '%s'", v)
 	}
-	return &ServerKey{Backend: BackendKey{Id: out[0]}, Id: out[1]}, nil
+	return &ServerKey{BackendKey: BackendKey{Id: out[0]}, Id: out[1]}, nil
 }
 
 func MustParseServerKey(v string) ServerKey {

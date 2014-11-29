@@ -6,36 +6,34 @@ import (
 	"os"
 	"time"
 
+	"github.com/mailgun/vulcand/engine"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/backend"
 )
 
 type Server interface {
-	backend.StatsProvider
+	engine.StatsProvider
 
-	UpsertHost(host *backend.Host) error
-	DeleteHost(hostname string) error
-	UpdateHostKeyPair(hostname string, keyPair *backend.KeyPair) error
+	UpsertHost(engine.Host) error
+	DeleteHost(engine.HostKey) error
 
-	AddHostListener(host *backend.Host, l *backend.Listener) error
-	DeleteHostListener(host *backend.Host, listenerId string) error
+	UpsertListener(engine.HostKey, engine.Listener) error
+	DeleteListener(engine.ListenerKey) error
 
-	UpsertLocation(host *backend.Host, loc *backend.Location) error
-	DeleteLocation(host *backend.Host, locationId string) error
+	UpsertFrontend(engine.Frontend, time.Duration) error
+	DeleteFrontend(engine.FrontendKey) error
 
-	UpsertUpstream(u *backend.Upstream) error
-	DeleteUpstream(upstreamId string) error
+	UpsertMiddleware(engine.FrontendKey, engine.Middleware, time.Duration) error
+	DeleteMiddleware(engine.MiddlewareKey) error
 
-	UpdateLocationUpstream(host *backend.Host, loc *backend.Location) error
-	UpdateLocationPath(host *backend.Host, loc *backend.Location, path string) error
-	UpdateLocationOptions(host *backend.Host, loc *backend.Location) error
+	UpsertBackend(engine.Backend) error
+	DeleteBackend(engine.BackendKey) error
 
-	UpsertLocationMiddleware(host *backend.Host, loc *backend.Location, mi *backend.MiddlewareInstance) error
-	DeleteLocationMiddleware(host *backend.Host, loc *backend.Location, mType, mId string) error
-
-	UpsertEndpoint(upstream *backend.Upstream, e *backend.Endpoint) error
-	DeleteEndpoint(upstream *backend.Upstream, endpointId string) error
+	GetServers(engine.BackendKey) ([]engine.Server, error)
+	GetServer(engine.ServerKey) (*engine.Server, error)
+	UpsertServer(engine.BackendKey, engine.Server, time.Duration) error
+	DeleteServer(engine.ServerKey) error
 
 	// TakeFiles takes file descriptors representing sockets in listening state to start serving on them
 	// instead of binding. This is nessesary if the child process needs to inherit sockets from the parent
@@ -56,7 +54,7 @@ type Options struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	MaxHeaderBytes  int
-	DefaultListener *backend.Listener
+	DefaultListener *engine.Listener
 	Files           []*FileDescriptor
 	TimeProvider    timetools.TimeProvider
 }
@@ -64,7 +62,7 @@ type Options struct {
 type NewServerFn func(id int) (Server, error)
 
 type FileDescriptor struct {
-	Address backend.Address
+	Address engine.Address
 	File    *os.File
 }
 
