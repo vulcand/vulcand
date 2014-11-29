@@ -4,110 +4,135 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
-	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 )
 
 var lastId int64
 
-type LocOpts struct {
-	UpId     string
-	Hostname string
-	Addr     string
-	URL      string
-	LocId    string
-}
-
-func nextId(prefix string) string {
+func UID(prefix string) string {
 	return fmt.Sprintf("%s%d", prefix, atomic.AddInt64(&lastId, 1))
 }
 
-func MakeLocation(o LocOpts) (*backend.Location, *backend.Host) {
-	o = setDefaults(o)
-	host := &backend.Host{
-		Name: o.Hostname,
-		Listeners: []*backend.Listener{
-			&backend.Listener{
-				Protocol: backend.HTTP,
-				Address:  backend.Address{Network: "tcp", Address: o.Addr},
-			},
-		},
-	}
-	upstream := &backend.Upstream{
-		Id: o.UpId,
-		Endpoints: []*backend.Endpoint{
-			{
-				UpstreamId: o.UpId,
-				Id:         o.URL,
-				Url:        o.URL,
-			},
-		},
-	}
-	location := &backend.Location{
-		Hostname: host.Name,
-		Path:     fmt.Sprintf("/%s", o.LocId),
-		Id:       o.LocId,
-		Upstream: upstream,
-	}
-	return location, host
+type Batch struct {
+	Route    string
+	Addr     string
+	URL      string
+	Protocol string
+	Host     string
+	KeyPair  *engine.KeyPair
 }
 
-func setDefaults(o LocOpts) LocOpts {
-	if o.UpId == "" {
-		o.UpId = nextId("up")
-	}
-	if o.LocId == "" {
-		o.LocId = nextId("loc")
-	}
-	return o
+type BatchVal struct {
+	H engine.Host
+
+	L  engine.Listener
+	LK engine.ListenerKey
+
+	F  engine.Frontend
+	FK engine.FrontendKey
+
+	B  engine.Backend
+	BK engine.BackendKey
+
+	S  engine.Server
+	SK engine.ServerKey
 }
 
-func MakeRateLimit(id string, rate int64, variable string, burst int64, periodSeconds int64, loc *backend.Location) *backend.MiddlewareInstance {
-	rl, err := ratelimit.FromOther(ratelimit.RateLimit{
-		PeriodSeconds: periodSeconds,
-		Requests: rate,
-		Burst: burst,
-		Variable: variable})
+func MakeURL(l engine.Listener, path string) string {
+	return fmt.Sprintf("%s://%s%s", l.Protocol, l.Address.Address, path)
+}
+
+func (b BatchVal) FrontendURL(path string) string {
+	return MakeURL(b.L, path)
+}
+
+func MakeBatch(b Batch) BatchVal {
+	if b.Host == "" {
+		b.Host = "localhost"
+	}
+	if b.Protocol == "" {
+		b.Protocol = engine.HTTP
+	}
+	h := MakeHost(b.Host, b.KeyPair)
+	bk := MakeBackend()
+	l := MakeListener(b.Addr, b.Protocol)
+	f := MakeFrontend(b.Route, bk.Id)
+	s := MakeServer(b.URL)
+	return BatchVal{
+		H: h,
+
+		L:  l,
+		LK: engine.ListenerKey{Id: l.Id},
+
+		F:  f,
+		FK: engine.FrontendKey{Id: f.Id},
+
+		B:  bk,
+		BK: engine.BackendKey{Id: bk.Id},
+
+		S:  s,
+		SK: engine.ServerKey{BackendKey: engine.BackendKey{Id: bk.Id}, Id: s.Id},
+	}
+}
+
+func MakeHost(name string, keyPair *engine.KeyPair) engine.Host {
+	return engine.Host{
+		Name:     name,
+		Settings: engine.HostSettings{KeyPair: keyPair},
+	}
+}
+
+func MakeListener(addr string, protocol string) engine.Listener {
+	l, err := engine.NewListener(UID("listener"), protocol, engine.TCP, addr)
 	if err != nil {
 		panic(err)
 	}
-	return &backend.MiddlewareInstance{
+	return *l
+}
+
+func MakeFrontend(route string, backendId string) engine.Frontend {
+	f, err := engine.NewHTTPFrontend(UID("frontend"), backendId, route, engine.HTTPFrontendSettings{})
+	if err != nil {
+		panic(err)
+	}
+	return *f
+}
+
+func MakeBackend() engine.Backend {
+	b, err := engine.NewHTTPBackend(UID("backend"), engine.HTTPBackendSettings{})
+	if err != nil {
+		panic(err)
+	}
+	return *b
+}
+
+func MakeServer(url string) engine.Server {
+	s, err := engine.NewServer(UID("server"), url)
+	if err != nil {
+		panic(err)
+	}
+	return *s
+}
+
+func MakeRateLimit(id string, rate int64, variable string, burst int64, periodSeconds int64) engine.Middleware {
+	rl, err := ratelimit.FromOther(ratelimit.RateLimit{
+		PeriodSeconds: periodSeconds,
+		Requests:      rate,
+		Burst:         burst,
+		Variable:      variable})
+	if err != nil {
+		panic(err)
+	}
+	return engine.Middleware{
 		Type:       "ratelimit",
 		Id:         id,
 		Middleware: rl,
 	}
 }
 
-func MakeURL(loc *backend.Location, l *backend.Listener) string {
-	return fmt.Sprintf("%s://%s%s", l.Protocol, l.Address.Address, loc.Path)
-}
-
-func EndpointsEq(a []*roundrobin.WeightedEndpoint, b []*backend.Endpoint) bool {
-	x, y := map[string]bool{}, map[string]bool{}
-	for _, e := range a {
-		x[e.GetUrl().String()] = true
-	}
-
-	for _, e := range b {
-		y[e.Url] = true
-	}
-
-	if len(x) != len(y) {
-		return false
-	}
-
-	for k, _ := range x {
-		_, ok := y[k]
-		if !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func NewTestKeyPair() *backend.KeyPair {
-	return &backend.KeyPair{
+func NewTestKeyPair() *engine.KeyPair {
+	return &engine.KeyPair{
 		Key:  LocalhostKey,
 		Cert: LocalhostCert,
 	}

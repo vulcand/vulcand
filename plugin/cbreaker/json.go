@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/circuitbreaker"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/cbreaker"
 )
 
 type rawAction struct {
@@ -34,7 +33,7 @@ type rawWebhook struct {
 	Body    json.RawMessage
 }
 
-func actionFromJSON(v []byte) (middleware.Middleware, error) {
+func actionFromJSON(v []byte) (http.Handler, error) {
 	var a *rawAction
 	err := json.Unmarshal(v, &a)
 	if err != nil {
@@ -49,7 +48,7 @@ func actionFromJSON(v []byte) (middleware.Middleware, error) {
 	return nil, fmt.Errorf("unsupported action: '%s' expected 'redirect' or 'reply'", a.Action)
 }
 
-func sideEffectFromJSON(v []byte) (circuitbreaker.SideEffect, error) {
+func sideEffectFromJSON(v []byte) (cbreaker.SideEffect, error) {
 	var a *rawAction
 	err := json.Unmarshal(v, &a)
 	if err != nil {
@@ -62,16 +61,16 @@ func sideEffectFromJSON(v []byte) (circuitbreaker.SideEffect, error) {
 	return nil, fmt.Errorf("unsupported action: '%s' expected 'webhook'", a.Action)
 }
 
-func redirectFromJSON(v []byte) (*circuitbreaker.RedirectFallback, error) {
-	var r *circuitbreaker.Redirect
+func redirectFromJSON(v []byte) (*cbreaker.RedirectFallback, error) {
+	var r *cbreaker.Redirect
 	err := json.Unmarshal(v, &r)
 	if err != nil {
 		return nil, err
 	}
-	return circuitbreaker.NewRedirectFallback(*r)
+	return cbreaker.NewRedirectFallback(*r)
 }
 
-func responseFromJSON(v []byte) (*circuitbreaker.ResponseFallback, error) {
+func responseFromJSON(v []byte) (*cbreaker.ResponseFallback, error) {
 	var r *rawResponse
 	err := json.Unmarshal(v, &r)
 	if err != nil {
@@ -81,8 +80,8 @@ func responseFromJSON(v []byte) (*circuitbreaker.ResponseFallback, error) {
 	if err != nil {
 		return nil, err
 	}
-	return circuitbreaker.NewResponseFallback(
-		circuitbreaker.Response{
+	return cbreaker.NewResponseFallback(
+		cbreaker.Response{
 			StatusCode:  r.StatusCode,
 			Body:        b,
 			ContentType: r.ContentType,
@@ -111,7 +110,7 @@ func responseBodyFromJSON(v []byte) ([]byte, error) {
 	return nil, fmt.Errorf("expected string, bytes or object")
 }
 
-func webhookFromJSON(v []byte) (*circuitbreaker.WebhookSideEffect, error) {
+func webhookFromJSON(v []byte) (*cbreaker.WebhookSideEffect, error) {
 	var w *rawWebhook
 	if err := json.Unmarshal(v, &w); err != nil {
 		return nil, err
@@ -126,8 +125,8 @@ func webhookFromJSON(v []byte) (*circuitbreaker.WebhookSideEffect, error) {
 		}
 	}
 
-	return circuitbreaker.NewWebhookSideEffect(
-		circuitbreaker.Webhook{
+	return cbreaker.NewWebhookSideEffect(
+		cbreaker.Webhook{
 			URL:     w.URL,
 			Method:  w.Method,
 			Headers: w.Headers,

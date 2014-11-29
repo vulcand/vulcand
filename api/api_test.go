@@ -7,20 +7,21 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/backend/membackend"
+	"github.com/mailgun/vulcand/engine"
+	"github.com/mailgun/vulcand/engine/memng"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
-	"github.com/mailgun/vulcand/server"
+	"github.com/mailgun/vulcand/proxy"
 	"github.com/mailgun/vulcand/supervisor"
 	"github.com/mailgun/vulcand/testutils"
+
+	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestApi(t *testing.T) { TestingT(t) }
 
 type ApiSuite struct {
-	backend    Backend
+	ng         engine.Engine
 	testServer *httptest.Server
 	client     *Client
 }
@@ -32,16 +33,16 @@ func (s *ApiSuite) SetUpSuite(c *C) {
 }
 
 func (s *ApiSuite) SetUpTest(c *C) {
-	newServer := func(id int) (server.Server, error) {
-		return server.NewMuxServerWithOptions(id, server.Options{})
+	newProxy := func(id int) (proxy.Proxy, error) {
+		return proxy.New(id, proxy.Options{})
 	}
 
-	s.backend = membackend.NewMemBackend(registry.GetRegistry())
+	s.ng = memng.New(registry.GetRegistry())
 
-	sv := supervisor.NewSupervisor(newServer, s.backend, make(chan error))
+	sv := supervisor.New(newProxy, s.ng, make(chan error), supervisor.Options{})
 
 	app := scroll.NewApp()
-	InitProxyController(s.backend, sv, app)
+	InitProxyController(s.ng, sv, app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 	s.client = NewClient(s.testServer.URL, registry.GetRegistry())
 }
@@ -56,7 +57,7 @@ func (s *ApiSuite) TestStatus(c *C) {
 
 func (s *ApiSuite) TestSeverity(c *C) {
 	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarn, log.SeverityError} {
-		_, err := s.client.UpdateLogSeverity(sev)
+		err := s.client.UpdateLogSeverity(sev)
 		c.Assert(err, IsNil)
 		out, err := s.client.GetLogSeverity()
 		c.Assert(err, IsNil)
@@ -65,53 +66,41 @@ func (s *ApiSuite) TestSeverity(c *C) {
 }
 
 func (s *ApiSuite) TestInvalidSeverity(c *C) {
-	_, err := s.client.UpdateLogSeverity(-1)
+	err := s.client.UpdateLogSeverity(-1)
 	c.Assert(err, NotNil)
 }
 
 func (s *ApiSuite) TestNotFoundHandler(c *C) {
 	_, err := s.client.Get(s.client.endpoint("blabla"), nil)
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	c.Assert(err, FitsTypeOf, &engine.NotFoundError{})
 }
 
 func (s *ApiSuite) TestHostCRUD(c *C) {
-	host, err := s.client.AddHost("localhost")
-	c.Assert(err, IsNil)
-	c.Assert(host.Name, Equals, "localhost")
+	host := engine.Host{Name: "localhost"}
+	c.Assert(s.client.UpsertHost(host), IsNil)
+
+	hosts, _ := s.ng.GetHosts()
+	c.Assert(len(hosts), Equals, 1)
 
 	hosts, err := s.client.GetHosts()
 	c.Assert(hosts, NotNil)
 	c.Assert(err, IsNil)
 	c.Assert(hosts[0].Name, Equals, "localhost")
 
-	h, err := s.client.GetHost(host.Name)
+	out, err := s.client.GetHost(engine.HostKey{Name: host.Name})
 	c.Assert(err, IsNil)
-	c.Assert(h.Name, Equals, host.Name)
+	c.Assert(out.Name, Equals, host.Name)
 
-	_, err = s.client.UpdateHostKeyPair(host.Name, testutils.NewTestKeyPair())
+	host.Settings.KeyPair = testutils.NewTestKeyPair()
+	c.Assert(s.client.UpsertHost(host), IsNil)
+
+	out, err = s.ng.GetHost(engine.HostKey{Name: host.Name})
+	c.Assert(out.Settings.KeyPair, DeepEquals, host.Settings.KeyPair)
+
+	err = s.client.DeleteHost(engine.HostKey{Name: host.Name})
 	c.Assert(err, IsNil)
 
-	hosts, _ = s.backend.GetHosts()
-	c.Assert(hosts[0].KeyPair, DeepEquals, testutils.NewTestKeyPair())
-
-	listener := &Listener{Id: "1", Protocol: HTTP, Address: Address{"tcp", "localhost:31000"}}
-	_, err = s.client.AddHostListener(host.Name, listener)
-	c.Assert(err, IsNil)
-	hosts, _ = s.backend.GetHosts()
-	c.Assert(hosts[0].Listeners, DeepEquals, []*Listener{listener})
-
-	status, err := s.client.DeleteHostListener(host.Name, "1")
-	c.Assert(err, IsNil)
-	c.Assert(status, NotNil)
-
-	hosts, _ = s.backend.GetHosts()
-	c.Assert(hosts[0].Listeners, DeepEquals, []*Listener{})
-
-	status, err = s.client.DeleteHost("localhost")
-	c.Assert(err, IsNil)
-	c.Assert(status, NotNil)
-
-	hosts, _ = s.backend.GetHosts()
+	hosts, _ = s.ng.GetHosts()
 	c.Assert(len(hosts), Equals, 0)
 
 	hosts, err = s.client.GetHosts()
@@ -119,233 +108,181 @@ func (s *ApiSuite) TestHostCRUD(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *ApiSuite) TestAddHostTwice(c *C) {
-	_, err := s.client.AddHost("localhost")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddHost("localhost")
-	c.Assert(err, FitsTypeOf, &AlreadyExistsError{})
+func (s *ApiSuite) TestHostDeleteBad(c *C) {
+	err := s.client.DeleteHost(engine.HostKey{Name: "localhost"})
+	c.Assert(err, FitsTypeOf, &engine.NotFoundError{})
 }
 
-func (s *ApiSuite) TestDeleteHostNotFound(c *C) {
-	_, err := s.client.DeleteHost("localhost")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+func (s *ApiSuite) TestBackendCRUD(c *C) {
+	b, err := engine.NewHTTPBackend("b1", engine.HTTPBackendSettings{})
+	c.Assert(err, IsNil)
+
+	c.Assert(s.client.UpsertBackend(*b), IsNil)
+
+	bs, _ := s.ng.GetBackends()
+	c.Assert(len(bs), Equals, 1)
+	c.Assert(bs[0], DeepEquals, *b)
+
+	bs, err = s.client.GetBackends()
+	c.Assert(bs, NotNil)
+	c.Assert(err, IsNil)
+	c.Assert(bs[0], DeepEquals, *b)
+
+	bk := engine.BackendKey{Id: b.Id}
+	out, err := s.client.GetBackend(bk)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, b)
+
+	settings := b.HTTPSettings()
+	settings.Timeouts.Read = "1s"
+	b.Settings = settings
+	c.Assert(s.client.UpsertBackend(*b), IsNil)
+
+	out, err = s.client.GetBackend(bk)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, b)
+
+	err = s.client.DeleteBackend(bk)
+	c.Assert(err, IsNil)
+
+	out, err = s.client.GetBackend(bk)
+	c.Assert(err, FitsTypeOf, &engine.NotFoundError{})
 }
 
-func (s *ApiSuite) TestUpstreamCRUD(c *C) {
-	up, err := s.client.AddUpstream("up1")
-	c.Assert(err, IsNil)
-	c.Assert(up.Id, Equals, "up1")
-
-	out, err := s.client.GetUpstream("up1")
-	c.Assert(err, IsNil)
-	c.Assert(out, NotNil)
-	c.Assert(out.Id, Equals, "up1")
-
-	ups, err := s.client.GetUpstreams()
-	c.Assert(err, IsNil)
-	c.Assert(ups[0].Id, Equals, "up1")
-
-	e, err := s.client.AddEndpoint("up1", "e1", "http://localhost:5000")
-	c.Assert(err, IsNil)
-	c.Assert(e.Id, Equals, "e1")
-
-	_, err = s.client.DeleteEndpoint("up1", "e1")
+func (s *ApiSuite) TestServerCRUD(c *C) {
+	b, err := engine.NewHTTPBackend("b1", engine.HTTPBackendSettings{})
 	c.Assert(err, IsNil)
 
-	_, err = s.client.UpdateUpstreamOptions("up1", UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "1s"}})
+	c.Assert(s.client.UpsertBackend(*b), IsNil)
+
+	srv := engine.Server{Id: "srv1", URL: "http://localhost:5000"}
+
+	bk := engine.BackendKey{Id: b.Id}
+	c.Assert(s.client.UpsertServer(bk, srv, 0), IsNil)
+
+	srvs, _ := s.ng.GetServers(bk)
+	c.Assert(len(srvs), Equals, 1)
+	c.Assert(srvs[0], DeepEquals, srv)
+
+	srvs, err = s.client.GetServers(bk)
+	c.Assert(srvs, NotNil)
+	c.Assert(len(srvs), Equals, 1)
+	c.Assert(srvs[0], DeepEquals, srv)
+
+	sk := engine.ServerKey{Id: srv.Id, BackendKey: bk}
+	out, err := s.client.GetServer(sk)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, &srv)
+
+	srv.URL = "http://localhost:5001"
+	c.Assert(s.client.UpsertServer(bk, srv, 0), IsNil)
+
+	out, err = s.client.GetServer(sk)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, &srv)
+
+	err = s.client.DeleteServer(sk)
 	c.Assert(err, IsNil)
 
-	// Make sure changes have taken effect
-	out, err = s.client.GetUpstream("up1")
-	c.Assert(err, IsNil)
-	c.Assert(out.Options.Timeouts.Dial, Equals, "1s")
-
-	_, err = s.client.DeleteUpstream("up1")
-	c.Assert(err, IsNil)
-
-	ups, err = s.client.GetUpstreams()
-	c.Assert(err, IsNil)
-	c.Assert(len(ups), Equals, 0)
+	out, err = s.client.GetServer(sk)
+	c.Assert(err, FitsTypeOf, &engine.NotFoundError{})
 }
 
-func (s *ApiSuite) TestAddUpstreamWithOptions(c *C) {
-	up, err := s.client.AddUpstreamWithOptions("up1", UpstreamOptions{Timeouts: UpstreamTimeouts{Dial: "1s"}})
+func (s *ApiSuite) TestFrontendCRUD(c *C) {
+	b, err := engine.NewHTTPBackend("b1", engine.HTTPBackendSettings{})
 	c.Assert(err, IsNil)
-	c.Assert(up.Id, Equals, "up1")
 
-	out, err := s.client.GetUpstream("up1")
+	c.Assert(s.client.UpsertBackend(*b), IsNil)
+
+	f, err := engine.NewHTTPFrontend("f1", b.Id, `Path("/")`, engine.HTTPFrontendSettings{})
 	c.Assert(err, IsNil)
-	c.Assert(out.Options.Timeouts.Dial, Equals, "1s")
+	fk := engine.FrontendKey{Id: f.Id}
+
+	c.Assert(s.client.UpsertFrontend(*f, 0), IsNil)
+
+	fs, err := s.client.GetFrontends()
+	c.Assert(err, IsNil)
+	c.Assert(fs[0], DeepEquals, *f)
+
+	out, err := s.client.GetFrontend(fk)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, f)
+
+	settings := f.HTTPSettings()
+	settings.Hostname = `localhost`
+	f.Settings = settings
+	f.Route = `Path("/v2")`
+
+	c.Assert(s.client.UpsertFrontend(*f, 0), IsNil)
+
+	c.Assert(s.client.DeleteFrontend(fk), IsNil)
+
+	out, err = s.client.GetFrontend(fk)
+	c.Assert(err, FitsTypeOf, &engine.NotFoundError{})
 }
 
-func (s *ApiSuite) TestUpstreamHostTwice(c *C) {
-	_, err := s.client.AddUpstream("up1")
+func (s *ApiSuite) TestListenerCRUD(c *C) {
+	l := engine.Listener{Id: "l1", Address: engine.Address{Network: "tcp", Address: "localhost:1300"}, Protocol: engine.HTTP}
+
+	c.Assert(s.client.UpsertListener(l), IsNil)
+
+	ls, err := s.client.GetListeners()
 	c.Assert(err, IsNil)
+	c.Assert(ls[0], DeepEquals, l)
 
-	_, err = s.client.AddUpstream("up1")
-	c.Assert(err, FitsTypeOf, &AlreadyExistsError{})
-}
-
-func (s *ApiSuite) TestDeleteUpstreamNotFound(c *C) {
-	_, err := s.client.DeleteUpstream("where")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
-}
-
-func (s *ApiSuite) TestGetUpstreamNotFound(c *C) {
-	_, err := s.client.GetUpstream("where")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
-}
-
-func (s *ApiSuite) TestLocationCRUD(c *C) {
-	_, err := s.client.AddUpstream("up1")
+	lk := engine.ListenerKey{Id: l.Id}
+	out, err := s.client.GetListener(lk)
 	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, &l)
 
-	_, err = s.client.AddEndpoint("up1", "e1", "http://localhost:5000")
-	c.Assert(err, IsNil)
+	c.Assert(s.client.DeleteListener(lk), IsNil)
 
-	_, err = s.client.AddHost("localhost")
-	c.Assert(err, IsNil)
-
-	loc, err := s.client.AddLocationWithOptions("localhost", "la", "/home", "up1", LocationOptions{Hostname: "somehost"})
-	c.Assert(err, IsNil)
-	c.Assert(loc, NotNil)
-	c.Assert(loc.Hostname, Equals, "localhost")
-	c.Assert(loc.Id, Equals, "la")
-	c.Assert(loc.Path, Equals, "/home")
-	c.Assert(loc.Upstream.Id, Equals, "up1")
-	c.Assert(loc.Options.Hostname, Equals, "somehost")
-
-	// Update location upstream
-	_, err = s.client.AddUpstream("up2")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.UpdateLocationUpstream("localhost", "la", "up2")
-	c.Assert(err, IsNil)
-
-	// Make sure changes have taken effect
-	h, err := s.client.GetHost("localhost")
-	c.Assert(err, IsNil)
-	c.Assert(h.Locations[0].Upstream.Id, Equals, "up2")
-
-	// Delete a location
-	_, err = s.client.DeleteLocation("localhost", "la")
-	c.Assert(err, IsNil)
-
-	// Check the result
-	h, err = s.client.GetHost("localhost")
-	c.Assert(err, IsNil)
-	c.Assert(len(h.Locations), Equals, 0)
-}
-
-func (s *ApiSuite) TestLocationUpdateOptions(c *C) {
-	_, err := s.client.AddUpstream("up1")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddEndpoint("up1", "e1", "http://localhost:5000")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddHost("localhost")
-	c.Assert(err, IsNil)
-
-	loc, err := s.client.AddLocationWithOptions("localhost", "la", "/home", "up1", LocationOptions{Hostname: "somehost"})
-	c.Assert(err, IsNil)
-	c.Assert(loc, NotNil)
-
-	// Update location upstream
-	_, err = s.client.AddUpstream("up2")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.UpdateLocationOptions("localhost", "la", LocationOptions{Hostname: "somehost2"})
-	c.Assert(err, IsNil)
-
-	// Make sure changes have taken effect
-	l, err := s.client.GetLocation("localhost", "la")
-	c.Assert(err, IsNil)
-	c.Assert(l.Options.Hostname, Equals, "somehost2")
-}
-
-func (s *ApiSuite) TestAddLocationTwice(c *C) {
-	_, err := s.client.AddUpstream("up1")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddEndpoint("up1", "e1", "http://localhost:5000")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddHost("localhost")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddLocation("localhost", "la", "/home", "up1")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddLocation("localhost", "la", "/home", "up1")
-	c.Assert(err, FitsTypeOf, &AlreadyExistsError{})
-}
-
-func (s *ApiSuite) TestAddLocationNoHost(c *C) {
-	_, err := s.client.AddLocation("localhost", "la", "/home", "up1")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
-}
-
-func (s *ApiSuite) TestAddLocationNoUpstream(c *C) {
-	_, err := s.client.AddHost("localhost")
-	c.Assert(err, IsNil)
-
-	_, err = s.client.AddLocation("localhost", "la", "/home", "up1")
-	c.Assert(err, FitsTypeOf, &NotFoundError{})
+	out, err = s.client.GetListener(lk)
+	c.Assert(err, FitsTypeOf, &engine.NotFoundError{})
 }
 
 func (s *ApiSuite) TestMiddlewareCRUD(c *C) {
-	_, err := s.client.AddUpstream("up1")
+	b, err := engine.NewHTTPBackend("b1", engine.HTTPBackendSettings{})
 	c.Assert(err, IsNil)
 
-	_, err = s.client.AddHost("localhost")
-	c.Assert(err, IsNil)
+	c.Assert(s.client.UpsertBackend(*b), IsNil)
 
-	loc, err := s.client.AddLocation("localhost", "la", "/home", "up1")
+	f, err := engine.NewHTTPFrontend("f1", b.Id, `Path("/")`, engine.HTTPFrontendSettings{})
 	c.Assert(err, IsNil)
-	c.Assert(loc, NotNil)
+	fk := engine.FrontendKey{Id: f.Id}
 
-	cl := s.makeConnLimit("c1", 10, "client.ip", 2, loc)
-	out, err := s.client.AddMiddleware(registry.GetRegistry().GetSpec(cl.Type), loc.Hostname, loc.Id, cl)
-	c.Assert(err, IsNil)
-	c.Assert(out, NotNil)
-	c.Assert(out.Id, Equals, cl.Id)
-	c.Assert(out.Priority, Equals, cl.Priority)
+	c.Assert(s.client.UpsertFrontend(*f, 0), IsNil)
 
-	hosts, err := s.client.GetHosts()
-	c.Assert(err, IsNil)
-	m := hosts[0].Locations[0].Middlewares[0]
-	c.Assert(m.Id, Equals, cl.Id)
-	c.Assert(m.Type, Equals, cl.Type)
-	c.Assert(m.Priority, Equals, cl.Priority)
+	cl := s.makeConnLimit("c1", 10, "client.ip", 2, f)
+	c.Assert(s.client.UpsertMiddleware(fk, cl, 0), IsNil)
 
-	cl2 := s.makeConnLimit("c1", 10, "client.ip", 3, loc)
-	out, err = s.client.UpdateMiddleware(registry.GetRegistry().GetSpec(cl.Type), loc.Hostname, loc.Id, cl2)
+	ms, err := s.client.GetMiddlewares(fk)
 	c.Assert(err, IsNil)
-	c.Assert(out, NotNil)
-	c.Assert(out.Id, Equals, cl2.Id)
-	c.Assert(out.Priority, Equals, cl2.Priority)
+	c.Assert(ms[0], DeepEquals, cl)
 
-	status, err := s.client.DeleteMiddleware(registry.GetRegistry().GetSpec(cl.Type), loc.Hostname, loc.Id, cl.Id)
+	cl = s.makeConnLimit("c1", 10, "client.ip", 3, f)
+	c.Assert(s.client.UpsertMiddleware(fk, cl, 0), IsNil)
+
+	mk := engine.MiddlewareKey{Id: cl.Id, FrontendKey: fk}
+	v, err := s.client.GetMiddleware(mk)
 	c.Assert(err, IsNil)
-	c.Assert(status, NotNil)
+	c.Assert(v, DeepEquals, &cl)
+
+	c.Assert(s.client.DeleteMiddleware(mk), IsNil)
+
+	_, err = s.client.GetMiddleware(mk)
+	c.Assert(err, FitsTypeOf, &engine.NotFoundError{})
+
 }
 
-func (s *ApiSuite) TestGetHosts(c *C) {
-	hosts, err := s.client.GetHosts()
-	c.Assert(err, IsNil)
-	c.Assert(hosts, NotNil)
-}
-
-func (s *ApiSuite) makeConnLimit(id string, connections int64, variable string, priority int, loc *Location) *MiddlewareInstance {
-	rl, err := connlimit.NewConnLimit(connections, variable)
+func (s *ApiSuite) makeConnLimit(id string, connections int64, variable string, priority int, f *engine.Frontend) engine.Middleware {
+	cl, err := connlimit.NewConnLimit(connections, variable)
 	if err != nil {
 		panic(err)
 	}
-	return &MiddlewareInstance{
+	return engine.Middleware{
 		Type:       "connlimit",
 		Id:         id,
-		Middleware: rl,
+		Middleware: cl,
 	}
 }

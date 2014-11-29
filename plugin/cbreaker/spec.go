@@ -26,13 +26,11 @@ package cbreaker
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/cbreaker"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/circuitbreaker"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -69,30 +67,17 @@ type Spec struct {
 	CheckPeriod time.Duration
 }
 
-// Params to instantiate circuit breaker middleware instance
-type Params struct {
-	Condition threshold.Predicate
-	Fallback  middleware.Middleware
-	Options   circuitbreaker.Options
-}
-
-// parseSpec validates specification and returns parameters used to instantiate CBreaker instance
-func parseSpec(spec *Spec) (*Params, error) {
-	c, err := circuitbreaker.ParseExpression(spec.Condition)
-	if err != nil {
-		return nil, err
-	}
-
+func fromSpec(spec *Spec, next http.Handler) (*cbreaker.CircuitBreaker, error) {
 	b, err := toBytes(spec.Fallback)
 	if err != nil {
 		return nil, err
 	}
 
-	f, err := actionFromJSON(b)
+	fallback, err := actionFromJSON(b)
 	if err != nil {
 		return nil, err
 	}
-	var onTripped, onStandby circuitbreaker.SideEffect
+	var onTripped, onStandby cbreaker.SideEffect
 	if spec.OnTripped != nil {
 		b, err := toBytes(spec.OnTripped)
 		if err != nil {
@@ -121,27 +106,18 @@ func parseSpec(spec *Spec) (*Params, error) {
 		}
 	}
 
-	return &Params{
-		Condition: c,
-		Fallback:  f,
-		Options: circuitbreaker.Options{
-			FallbackDuration: spec.FallbackDuration,
-			RecoveryDuration: spec.RecoveryDuration,
-			TimeProvider:     &timetools.RealTime{},
-			OnTripped:        onTripped,
-			OnStandby:        onStandby,
-			CheckPeriod:      spec.CheckPeriod,
-		},
-	}, nil
+	return cbreaker.New(next, spec.Condition,
+		cbreaker.Fallback(fallback),
+		cbreaker.FallbackDuration(spec.FallbackDuration),
+		cbreaker.RecoveryDuration(spec.RecoveryDuration),
+		cbreaker.OnTripped(onTripped),
+		cbreaker.OnStandby(onStandby),
+		cbreaker.CheckPeriod(spec.CheckPeriod))
 }
 
 // NewMiddleware vulcan library compatible middleware
-func (c *Spec) NewMiddleware() (middleware.Middleware, error) {
-	p, err := parseSpec(c)
-	if err != nil {
-		return nil, err
-	}
-	return circuitbreaker.New(p.Condition, p.Fallback, p.Options)
+func (c *Spec) NewHandler(next http.Handler) (http.Handler, error) {
+	return fromSpec(c, next)
 }
 
 // NewSpec check parameters and returns new specification for the middleware
@@ -155,7 +131,7 @@ func NewSpec(condition string, fallback, onTripped, onStandby interface{}, fallb
 		FallbackDuration: fallbackDuration,
 		CheckPeriod:      checkPeriod,
 	}
-	if _, err := parseSpec(spec); err != nil {
+	if _, err := fromSpec(spec, nil); err != nil {
 		return nil, err
 	}
 	return spec, nil

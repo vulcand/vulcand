@@ -22,12 +22,16 @@ func NewMux() *Mux {
 
 // Handle adds http handler for route expression
 func (m *Mux) Handle(expr string, handler http.Handler) error {
-	return m.router.AddRoute(expr, handler)
+	return m.router.UpsertRoute(expr, handler)
 }
 
 // Handle adds http handler function for route expression
 func (m *Mux) HandleFunc(expr string, handler func(http.ResponseWriter, *http.Request)) error {
 	return m.Handle(expr, http.HandlerFunc(handler))
+}
+
+func (m *Mux) Remove(expr string) error {
+	return m.router.RemoveRoute(expr)
 }
 
 // ServeHTTP routes the request and passes it to handler

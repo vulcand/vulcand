@@ -7,18 +7,18 @@
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
-			"Comment": "null-218",
-			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+			"Comment": "null-223",
+			"Rev": "31393df5baea9ed8d6778396e7f3896070ea5c04"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/poly1305",
-			"Comment": "null-218",
-			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+			"Comment": "null-223",
+			"Rev": "31393df5baea9ed8d6778396e7f3896070ea5c04"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/salsa20/salsa",
-			"Comment": "null-218",
-			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+			"Comment": "null-223",
+			"Rev": "31393df5baea9ed8d6778396e7f3896070ea5c04"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
@@ -30,16 +30,16 @@
 		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.2.0-22-g687db20",
-			"Rev": "687db20fc379d1686465a28e9959707cd1acc990"
+			"Comment": "1.2.0-26-gf7ebb76",
+			"Rev": "f7ebb761e83e21225d1d8954fde853bf8edd46c4"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
-			"Rev": "708054d61e5a2918b9f4e9700000ee611dcf03f5"
+			"Rev": "14f550f51af52180c2eefed15e5fd18d63c0a64a"
 		},
 		{
 			"ImportPath": "github.com/gorilla/mux",
-			"Rev": "e718e932ee606838744df844eb75064959eb74bc"
+			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
 		},
 		{
 			"ImportPath": "github.com/mailgun/go-etcd/etcd",
@@ -47,8 +47,12 @@
 			"Rev": "248e96a4ad7adfa23b531eb2d8e80d9050c33d24"
 		},
 		{
+			"ImportPath": "github.com/mailgun/iptools",
+			"Rev": "fac48f4f8a866e6fd74ecd4cc74f01fe36e6ef9c"
+		},
+		{
 			"ImportPath": "github.com/mailgun/log",
-			"Rev": "5dc398f9fd1471fbdfa776258249cee93f3c6296"
+			"Rev": "f8a6374c6c52a902ca0bc2fae177ad5ca0982e4f"
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",
@@ -64,33 +68,68 @@
 			"Rev": "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
 		},
 		{
+			"ImportPath": "github.com/mailgun/multibuf",
+			"Rev": "22cedde644395b0b798017493b9b950485619b87"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/cbreaker",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/connlimit",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/forward",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/memmetrics",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/ratelimit",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/roundrobin",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/stream",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/testutils",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
+			"ImportPath": "github.com/mailgun/oxy/utils",
+			"Rev": "2777ef9456ac782bd9fefe0049e27432ae0abd16"
+		},
+		{
 			"ImportPath": "github.com/mailgun/predicate",
 			"Rev": "cb0bff91a7ab7cf7571e661ff883fc997bc554a3"
 		},
 		{
 			"ImportPath": "github.com/mailgun/route",
-			"Rev": "15adb2383cc2f19763cd7b156eae9855c4afe7a6"
+			"Rev": "85cf368efd247dabbcc2e53272ef4276f94a87c4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/scroll",
-			"Rev": "d4523b134d810b718cb0676af469a44b487bc3fe"
+			"Rev": "317658eba466b17afed1522ea303f0e7ceeda18f"
 		},
 		{
 			"ImportPath": "github.com/mailgun/timetools",
-			"Rev": "b58360a5e3baf228ddec99b0f5c37953c0b60542"
+			"Rev": "7e6055773c5137efbeb3bd2410d705fe10ab6bfd"
 		},
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
 			"Rev": "51994f8e1aad271eb214e725379dde8bd4c90acf"
 		},
 		{
-			"ImportPath": "github.com/mailgun/vulcan",
-			"Comment": "v0.1-244-g961decf",
-			"Rev": "961decfd08c4460fb7cd0001e1b100e6cce31435"
-		},
-		{
 			"ImportPath": "gopkg.in/check.v1",
-			"Rev": "5b76b26efe7f426789852e983fbde4de62c42282"
+			"Rev": "91ae5f88a67b14891cfd43895b01164f6c120420"
 		}
 	]
 }

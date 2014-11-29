@@ -3,10 +3,10 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends
@@ -42,8 +42,7 @@ func (ms *MiddlewareSpec) FromJSON(data []byte) (Middleware, error) {
 }
 
 type Middleware interface {
-	// Returns vulcan library compatible middleware
-	NewMiddleware() (middleware.Middleware, error)
+	NewHandler(http.Handler) (http.Handler, error)
 }
 
 // Reader constructs the middleware from the CLI interface

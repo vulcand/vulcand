@@ -44,7 +44,7 @@ func GetIntField(r *http.Request, fieldName string) (int, error) {
 	}
 	intField, err := strconv.Atoi(stringField)
 	if err != nil {
-		return 0, err
+		return 0, InvalidFormatError{fieldName, stringField}
 	}
 	return intField, nil
 }
@@ -55,12 +55,25 @@ func GetIntField(r *http.Request, fieldName string) (int, error) {
 func GetTimestampField(r *http.Request, fieldName string) (time.Time, error) {
 	if _, ok := r.Form[fieldName]; !ok {
 		return time.Now(), MissingFieldError{fieldName}
-	} else {
-		parsedTime, err := time.Parse(time.RFC1123, r.FormValue(fieldName))
-		if err != nil {
-			log.Infof("Failed to convert timestamp %v: %v", r.FormValue(fieldName), err)
-			return time.Now(), InvalidFormatError{fieldName, r.FormValue(fieldName)}
-		}
-		return parsedTime, nil
 	}
+	parsedTime, err := time.Parse(time.RFC1123, r.FormValue(fieldName))
+	if err != nil {
+		log.Infof("Failed to convert timestamp %v: %v", r.FormValue(fieldName), err)
+		return time.Now(), InvalidFormatError{fieldName, r.FormValue(fieldName)}
+	}
+	return parsedTime, nil
+}
+
+// GetDurationField retrieves a request field as a time.Duration, which is not allowed to be negative.
+// Returns `MissingFieldError` if requested field is missing.
+func GetDurationField(r *http.Request, fieldName string) (time.Duration, error) {
+	s, err := GetStringField(r, fieldName)
+	if err != nil {
+		return 0, err
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d < 0 {
+		return 0, InvalidFormatError{fieldName, s}
+	}
+	return d, nil
 }

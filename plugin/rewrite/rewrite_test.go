@@ -1,17 +1,18 @@
 package rewrite
 
 import (
-	"io"
-	"io/ioutil"
+	/*	"io"
+		"io/ioutil"
+
+		"strings"
+	*/
 	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"regexp"
-	"strings"
 	"testing"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/plugin"
 )
@@ -34,14 +35,14 @@ func (s *RewriteSuite) TestNewRewriteSuccess(c *C) {
 	c.Assert(ri, NotNil)
 	c.Assert(err, IsNil)
 
-	out, err := ri.NewMiddleware()
+	out, err := ri.NewHandler(nil)
 	c.Assert(out, NotNil)
 	c.Assert(err, IsNil)
 }
 
 func (s *RewriteSuite) TestNewRewriteBadParams(c *C) {
 	// Bad regex
-	_, err := NewRewriteInstance(&Rewrite{"[", "", false, false})
+	_, err := newRewriteHandler(nil, &Rewrite{"[", "", false, false})
 	c.Assert(err, NotNil)
 }
 
@@ -56,7 +57,7 @@ func (s *RewriteSuite) TestNewRewriteFromOther(c *C) {
 	c.Assert(out, DeepEquals, ri)
 }
 
-func (s *RewriteSuite) TestNewRewriteFromCliOk(c *C) {
+func (s *RewriteSuite) TestNewRewriteFromCLIOK(c *C) {
 	app := cli.NewApp()
 	app.Name = "test"
 	executed := false
@@ -79,243 +80,234 @@ func (s *RewriteSuite) TestNewRewriteFromCliOk(c *C) {
 }
 
 func (s *RewriteSuite) TestRewriteMatch(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(&Rewrite{"^http://localhost/foo(.*)", "http://localhost$1", false, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/foo(.*)", "http://localhost$1", false, false})
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, IsNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-	c.Assert(request.HttpRequest.URL.String(), Equals, "http://localhost/bar")
+	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/bar")
 }
 
 func (s *RewriteSuite) TestRewriteNoMatch(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/fooo/bar"
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(&Rewrite{"^http://localhost/foo/(.*)", "http://localhost/$1", false, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/foo/(.*)", "http://localhost$1", false, false})
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, IsNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-	c.Assert(request.HttpRequest.URL.String(), Equals, "http://localhost/fooo/bar")
+	re, _, err := testutils.Get(srv.URL+"/fooo/bar", testutils.Host("localhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/fooo/bar")
 }
 
-func (s *RewriteSuite) TestRewriteSubstituteHeader(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.Header.Add("X-Header", "baz")
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+func (s *RewriteSuite) TestHeaderVar(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(
+	rh, err := newRewriteHandler(handler,
 		&Rewrite{"^http://localhost/(foo)/(bar)$", `http://localhost/$1/{{.Request.Header.Get "X-Header"}}/$2`, false, false})
-	c.Assert(ri, NotNil)
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, IsNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-	c.Assert(request.HttpRequest.URL.String(), Equals, "http://localhost/foo/baz/bar")
+	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"), testutils.Header("X-Header", "baz"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/foo/baz/bar")
 }
 
-func (s *RewriteSuite) TestRewriteSubstituteMultipleHeaders(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.Header.Add("X-Header", "baz")
-	request.HttpRequest.Header.Add("Y-Header", "bam")
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+func (s *RewriteSuite) TestMultipleHeaders(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(
-		&Rewrite{"^http://localhost/(foo)/(bar)$", `http://localhost/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "Y-Header"}}`, false, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler,
+		&Rewrite{
+			"^http://localhost/(foo)/(bar)$",
+			`http://localhost/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "Y-Header"}}`, false, false})
+
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, IsNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-	c.Assert(request.HttpRequest.URL.String(), Equals, "http://localhost/foo/baz/bar/bam")
+	re, _, err := testutils.Get(srv.URL+"/foo/bar",
+		testutils.Host("localhost"), testutils.Header("X-Header", "baz"), testutils.Header("Y-Header", "bam"))
+
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/foo/baz/bar/bam")
 }
 
-func (s *RewriteSuite) TestRewriteSubstituteSameHeaderMultipleTimes(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.Header.Add("X-Header", "baz")
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+func (s *RewriteSuite) TestSameHeaderMulti(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(
-		&Rewrite{"^http://localhost/(foo)/(bar)$", `http://localhost/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "X-Header"}}`, false, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler,
+		&Rewrite{
+			"^http://localhost/(foo)/(bar)$",
+			`http://localhost/$1/{{.Request.Header.Get "X-Header"}}/$2/{{.Request.Header.Get "X-Header"}}`, false, false})
+
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, IsNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-	c.Assert(request.HttpRequest.URL.String(), Equals, "http://localhost/foo/baz/bar/baz")
+	re, _, err := testutils.Get(srv.URL+"/foo/bar",
+		testutils.Host("localhost"), testutils.Header("X-Header", "baz"))
+
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/foo/baz/bar/baz")
 }
 
-func (s *RewriteSuite) TestRewriteSubstituteUnknownHeader(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+func (s *RewriteSuite) TestUnknownHeader(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(
+	rh, err := newRewriteHandler(handler,
 		&Rewrite{"^http://localhost/(foo)/(bar)$", `http://localhost/$1/{{.Request.Header.Get "X-Header"}}/$2`, false, false})
-	c.Assert(ri, NotNil)
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, IsNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-	c.Assert(request.HttpRequest.URL.String(), Equals, "http://localhost/foo//bar")
+	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/foo//bar")
 }
 
-func (s *RewriteSuite) TestRewriteUnknownVariable(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+func (s *RewriteSuite) TestUnknownVar(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(&Rewrite{"^http://localhost/(foo)/(bar)$", "http://localhost/$1/{{.Unknown}}/$2", false, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler,
+		&Rewrite{"^http://localhost/(foo)/(bar)$", `http://localhost/$1/{{.Bad}}/$2`, false, false})
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, NotNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
+
+	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusInternalServerError)
 }
 
-func (s *RewriteSuite) TestRewriteHTTPSToHTTP(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.URL = &url.URL{Scheme: "https", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+func (s *RewriteSuite) TestRewriteScheme(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(&Rewrite{"^https://localhost/(foo)/(bar)$", "http://localhost/$1/$2", false, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler, &Rewrite{"^https://localhost/(foo)/(bar)$", "http://localhost/$1/$2", false, false})
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, IsNil)
+	srv := httptest.NewUnstartedServer(rh)
+	srv.StartTLS()
+	defer srv.Close()
 
-	c.Assert(request.HttpRequest.URL.String(), Equals, "http://localhost/foo/bar")
+	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/foo/bar")
 }
 
 func (s *RewriteSuite) TestRedirect(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.Header.Add("X-Header", "baz")
-	request.HttpRequest.URL = &url.URL{Scheme: "http", Host: "localhost"}
-	request.HttpRequest.RequestURI = "/foo/bar"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello"))
+	})
 
-	ri, err := NewRewriteInstance(
-		&Rewrite{"^http://localhost/(foo)/(bar)$", `http://localhost/$1/{{.Request.Header.Get "X-Header"}}/$2`, false, true})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/(foo)/(bar)", "http://localhost/$2", false, true})
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	response, err := ri.ProcessRequest(request)
-	c.Assert(response, IsNil)
-	c.Assert(err, NotNil)
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-	redirectError, ok := err.(*errors.RedirectError)
-	c.Assert(ok, Equals, true)
-	c.Assert(redirectError.URL.String(), Equals, "http://localhost/foo/baz/bar")
+	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
+	c.Assert(re.StatusCode, Equals, http.StatusFound)
+	c.Assert(re.Header.Get("Location"), Equals, "http://localhost/bar")
 }
 
 func (s *RewriteSuite) TestRewriteResponseBody(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.Header.Add("X-Header", "bar")
-	request.HttpRequest.URL, _ = url.Parse("http://foo")
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
+	})
 
-	attempt := &BaseAttempt{}
-	attempt.Response = &http.Response{}
-	attempt.Response.Body = ioutil.NopCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
-
-	ri, err := NewRewriteInstance(&Rewrite{"", "", true, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler, &Rewrite{"", "", true, false})
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	ri.ProcessResponse(request, attempt)
-	newBody, _ := ioutil.ReadAll(attempt.Response.Body)
-	c.Assert(`{"foo": "bar"}`, Equals, string(newBody))
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
+
+	re, body, err := testutils.Get(srv.URL,
+		testutils.Host("localhost"),
+		testutils.Header("X-Header", "bar"))
+
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(body), Equals, `{"foo": "bar"}`)
 }
 
-func (s *RewriteSuite) TestNotRewriteResponseBody(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.Header.Add("X-Header", "bar")
-	request.HttpRequest.URL, _ = url.Parse("http://foo")
+func (s *RewriteSuite) TestDontRewriteResponseBody(c *C) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
+	})
 
-	attempt := &BaseAttempt{}
-	attempt.Response = &http.Response{}
-	attempt.Response.Body = ioutil.NopCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
-
-	ri, err := NewRewriteInstance(&Rewrite{"", "", false, false})
-	c.Assert(ri, NotNil)
+	rh, err := newRewriteHandler(handler, &Rewrite{"", "", false, false})
+	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
-	ri.ProcessResponse(request, attempt)
-	newBody, _ := ioutil.ReadAll(attempt.Response.Body)
-	c.Assert(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`, Equals, string(newBody))
-}
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
 
-func (s *RewriteSuite) TestRewriteCloseBody(c *C) {
-	request := &BaseRequest{}
-	request.HttpRequest = &http.Request{}
-	request.HttpRequest.Header = make(http.Header)
-	request.HttpRequest.Header.Add("X-Header", "bar")
-	request.HttpRequest.URL, _ = url.Parse("http://foo")
+	re, body, err := testutils.Get(srv.URL,
+		testutils.Host("localhost"),
+		testutils.Header("X-Header", "bar"))
 
-	attempt := &BaseAttempt{}
-	attempt.Response = &http.Response{}
-	body := newTestCloser(strings.NewReader(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
-	attempt.Response.Body = body
-
-	ri, _ := NewRewriteInstance(&Rewrite{"", "", true, false})
-	ri.ProcessResponse(request, attempt)
-	c.Assert(body.Closed, Equals, true)
-}
-
-// testCloser is a ReadCloser that allows to learn whether it was closed.
-type testCloser struct {
-	io.Reader
-	Closed bool
-}
-
-func newTestCloser(r io.Reader) *testCloser {
-	return &testCloser{r, false}
-}
-
-func (c *testCloser) Close() error {
-	c.Closed = true
-	return nil
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(body), Equals, `{"foo": "{{.Request.Header.Get "X-Header"}}"}`)
 }

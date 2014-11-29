@@ -3,7 +3,7 @@ package secret
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/engine"
 )
 
 type sealedValue struct {
@@ -30,7 +30,7 @@ func SealedValueFromJSON(bytes []byte) (*SealedBytes, error) {
 	return &v.Value, nil
 }
 
-func SealKeyPairToJSON(box *Box, keyPair *backend.KeyPair) ([]byte, error) {
+func SealKeyPairToJSON(box *Box, keyPair *engine.KeyPair) ([]byte, error) {
 	bytes, err := json.Marshal(keyPair)
 	if err != nil {
 		return nil, fmt.Errorf("failed to JSON encode certificate: %s", bytes)

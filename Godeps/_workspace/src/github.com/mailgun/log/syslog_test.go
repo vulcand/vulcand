@@ -37,17 +37,17 @@ func (s *SysLogSuite) TestNewSysLoggerError(c *C) {
 }
 
 func (s *SysLogSuite) TestInfo(c *C) {
-	s.logger.Info("test message")
+	s.logger.Infof("test message")
 }
 
 func (s *SysLogSuite) TestWarning(c *C) {
-	s.logger.Warning("test message")
+	s.logger.Warningf("test message")
 }
 
 func (s *SysLogSuite) TestError(c *C) {
-	s.logger.Error("test message")
+	s.logger.Errorf("test message")
 }
 
 func (s *SysLogSuite) TestFatal(c *C) {
-	s.logger.Fatal("test message")
+	s.logger.Fatalf("test message")
 }

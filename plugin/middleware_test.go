@@ -3,7 +3,8 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"net/http"
+
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"testing"
 )
@@ -100,7 +101,7 @@ type TestMiddleware struct {
 	Field string
 }
 
-func (*TestMiddleware) NewMiddleware() (middleware.Middleware, error) {
+func (*TestMiddleware) NewHandler(http.Handler) (http.Handler, error) {
 	return nil, nil
 }
 

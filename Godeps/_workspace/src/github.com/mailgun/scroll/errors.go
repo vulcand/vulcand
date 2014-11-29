@@ -27,7 +27,7 @@ type InvalidFormatError struct {
 }
 
 func (e InvalidFormatError) Error() string {
-	return fmt.Sprintf("Invalid %v format: %v", e.Field, e.Value)
+	return fmt.Sprintf("Invalid format for parameter %v: %v", e.Field, e.Value)
 }
 
 type InvalidParameterError struct {

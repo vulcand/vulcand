@@ -6,36 +6,41 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/backend/membackend"
+
+	"github.com/mailgun/vulcand/engine"
+	"github.com/mailgun/vulcand/engine/memng"
 	"github.com/mailgun/vulcand/plugin/registry"
-	"github.com/mailgun/vulcand/server"
+	"github.com/mailgun/vulcand/proxy"
 	. "github.com/mailgun/vulcand/testutils"
 )
 
 func TestSupervisor(t *testing.T) { TestingT(t) }
 
+func newProxy(id int) (proxy.Proxy, error) {
+	return proxy.New(id, proxy.Options{})
+}
+
 type SupervisorSuite struct {
-	tm     *timetools.FreezedTime
+	clock  *timetools.FreezedTime
 	errorC chan error
 	sv     *Supervisor
-	b      *membackend.MemBackend
+	ng     *memng.Mem
 }
 
 func (s *SupervisorSuite) SetUpTest(c *C) {
-
-	s.b = membackend.NewMemBackend(registry.GetRegistry())
+	s.ng = memng.New(registry.GetRegistry()).(*memng.Mem)
 
 	s.errorC = make(chan error)
 
-	s.tm = &timetools.FreezedTime{
+	s.clock = &timetools.FreezedTime{
 		CurrentTime: time.Date(2012, 3, 4, 5, 6, 7, 0, time.UTC),
 	}
 
-	s.sv = NewSupervisorWithOptions(newServer, s.b, s.errorC, Options{TimeProvider: s.tm})
+	s.sv = New(newProxy, s.ng, s.errorC, Options{Clock: s.clock})
 }
 
 func (s *SupervisorSuite) TearDownTest(c *C) {
@@ -44,125 +49,126 @@ func (s *SupervisorSuite) TearDownTest(c *C) {
 
 var _ = Suite(&SupervisorSuite{})
 
+func (s *SupervisorSuite) SetUpSuite(c *C) {
+	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+}
+
 func (s *SupervisorSuite) TestStartStopEmpty(c *C) {
 	s.sv.Start()
 	fmt.Println("Stop")
 }
 
 func (s *SupervisorSuite) TestInitFromExistingConfig(c *C) {
-	e := NewTestResponder("Hi, I'm endpoint")
+	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
+	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
 
-	_, err := s.b.AddUpstream(l.Upstream)
-	c.Assert(err, IsNil)
+	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
+	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
-	_, err = s.b.AddHost(h)
-	c.Assert(err, IsNil)
+	c.Assert(s.sv.Start(), IsNil)
 
-	_, err = s.b.AddLocation(l)
-	c.Assert(err, IsNil)
+	time.Sleep(10 * time.Millisecond)
 
-	s.sv.Start()
-
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
 func (s *SupervisorSuite) TestInitOnTheFly(c *C) {
-	e := NewTestResponder("Hi, I'm endpoint")
+	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
 
 	s.sv.Start()
 
-	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
+	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
 
-	s.b.ChangesC <- &LocationAdded{
-		Host:     h,
-		Location: l,
-	}
+	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
+	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+	time.Sleep(10 * time.Millisecond)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
 func (s *SupervisorSuite) TestGracefulShutdown(c *C) {
-	e := NewTestResponder("Hi, I'm endpoint")
+	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
 
 	s.sv.Start()
 
-	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
+	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
 
-	s.b.ChangesC <- &LocationAdded{
-		Host:     h,
-		Location: l,
-	}
+	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
+	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
-	close(s.b.ErrorsC)
+	time.Sleep(10 * time.Millisecond)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+	close(s.ng.ErrorsC)
 }
 
 func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
-	e := NewTestResponder("Hi, I'm endpoint")
+	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
+	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
 
-	_, err := s.b.AddUpstream(l.Upstream)
-	c.Assert(err, IsNil)
-
-	_, err = s.b.AddHost(h)
-	c.Assert(err, IsNil)
-
-	_, err = s.b.AddLocation(l)
-	c.Assert(err, IsNil)
+	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
+	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
 	s.sv.Start()
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
-	s.b.ErrorsC <- fmt.Errorf("restart")
+	time.Sleep(10 * time.Millisecond)
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+	s.ng.ErrorsC <- fmt.Errorf("restart")
+
+	time.Sleep(10 * time.Millisecond)
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
 func (s *SupervisorSuite) TestTransferFiles(c *C) {
-	e := NewTestResponder("Hi, I'm endpoint")
+	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	l, h := MakeLocation(LocOpts{Hostname: "localhost", Addr: "localhost:33000", URL: e.URL})
+	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
 
-	_, err := s.b.AddUpstream(l.Upstream)
-	c.Assert(err, IsNil)
-
-	_, err = s.b.AddHost(h)
-	c.Assert(err, IsNil)
-
-	_, err = s.b.AddLocation(l)
-	c.Assert(err, IsNil)
+	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
+	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
+	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
 	s.sv.Start()
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+	time.Sleep(10 * time.Millisecond)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 
 	files, err := s.sv.GetFiles()
 	c.Assert(err, IsNil)
 
 	errorC := make(chan error)
 
-	sv2 := NewSupervisorWithOptions(newServer, s.b, errorC, Options{TimeProvider: s.tm, Files: files})
+	sv2 := New(newProxy, s.ng, errorC, Options{Clock: s.clock, Files: files})
 	sv2.Start()
 	s.sv.Stop(true)
 
-	c.Assert(GETResponse(c, MakeURL(l, h.Listeners[0]), Opts{}), Equals, "Hi, I'm endpoint")
+	time.Sleep(10 * time.Millisecond)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
-func GETResponse(c *C, url string, opts Opts) string {
-	response, body, err := GET(url, opts)
+func GETResponse(c *C, url string, opts ...testutils.ReqOption) string {
+	response, body, err := testutils.Get(url, opts...)
 	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	return string(body)
-}
-
-func newServer(id int) (server.Server, error) {
-	return server.NewMuxServerWithOptions(id, server.Options{})
 }

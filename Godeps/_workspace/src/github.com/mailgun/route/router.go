@@ -64,6 +64,9 @@ type Router interface {
 	// RemoveRoute removes a route for a given expression
 	RemoveRoute(string) error
 
+	// UpsertRoute updates an existing route or adds a new route by given expression
+	UpsertRoute(string, interface{}) error
+
 	// Route takes a request and matches it against requests, returns matched route in case if found, nil if there's no matching route or error in case of internal error.
 	Route(*http.Request) (interface{}, error)
 }
@@ -107,6 +110,28 @@ func (e *router) AddRoute(expr string, val interface{}) error {
 	e.routes[expr] = result
 	if err := e.compile(); err != nil {
 		delete(e.routes, expr)
+		return err
+	}
+	return nil
+}
+
+func (e *router) UpsertRoute(expr string, val interface{}) error {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+
+	result := &match{val: val}
+	if _, err := parse(expr, result); err != nil {
+		return err
+	}
+	prev, existed := e.routes[expr]
+
+	e.routes[expr] = result
+	if err := e.compile(); err != nil {
+		if existed {
+			e.routes[expr] = prev
+		} else {
+			delete(e.routes, expr)
+		}
 		return err
 	}
 	return nil

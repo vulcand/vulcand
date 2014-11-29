@@ -16,22 +16,38 @@ func NewConsoleLogger(config *LogConfig) (Logger, error) {
 	return &writerLogger{w: os.Stdout}, nil
 }
 
-func (l *writerLogger) Info(message string) {
-	l.print(SeverityInfo, message)
+func (l *writerLogger) infof(depth int, format string, args ...interface{}) {
+	infof(depth, l.w, l.format(format), args...)
 }
 
-func (l *writerLogger) Warning(message string) {
-	l.print(SeverityWarn, message)
+func (l *writerLogger) warningf(depth int, format string, args ...interface{}) {
+	warningf(depth, l.w, l.format(format), args...)
 }
 
-func (l *writerLogger) Error(message string) {
-	l.print(SeverityError, message)
+func (l *writerLogger) errorf(depth int, format string, args ...interface{}) {
+	errorf(depth, l.w, l.format(format), args...)
 }
 
-func (l *writerLogger) Fatal(message string) {
-	l.print(SeverityFatal, message)
+func (l *writerLogger) fatalf(depth int, format string, args ...interface{}) {
+	fatalf(depth, l.w, l.format(format), args...)
 }
 
-func (l *writerLogger) print(sev Severity, message string) {
-	fmt.Fprintf(l.w, "%v %v: %v\n", sev, time.Now().UTC().Format(time.StampMilli), message)
+func (l *writerLogger) Infof(format string, args ...interface{}) {
+	l.infof(1, format, args...)
+}
+
+func (l *writerLogger) Warningf(format string, args ...interface{}) {
+	l.warningf(1, format, args...)
+}
+
+func (l *writerLogger) Errorf(format string, args ...interface{}) {
+	l.errorf(1, format, args...)
+}
+
+func (l *writerLogger) Fatalf(format string, args ...interface{}) {
+	l.fatalf(1, format, args...)
+}
+
+func (l *writerLogger) format(format string) string {
+	return fmt.Sprintf("%v: %v\n", time.Now().UTC().Format(time.StampMilli), format)
 }
