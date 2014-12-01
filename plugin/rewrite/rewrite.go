@@ -8,10 +8,11 @@ import (
 	"net/url"
 	"regexp"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/template"
 
@@ -87,11 +88,11 @@ func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt)
 	}
 
 	body := a.GetResponse().Body
-
 	defer body.Close()
 
 	newBody := &bytes.Buffer{}
 	if err := template.Apply(body, newBody, r.GetHttpRequest()); err != nil {
+		log.Errorf("Failed to rewrite response body: %v", err)
 		return
 	}
 
