@@ -1,8 +1,5 @@
 /*
-Expression based request router, supports functions and combinations of functions in form
-
 see http://godoc.org/github.com/mailgun/route for documentation on the language
-
 */
 package exproute
 
@@ -58,29 +55,37 @@ func convertPath(in string) string {
 	if !strings.Contains(in, "(") {
 		return fmt.Sprintf(`PathRegexp(%#v)`, in)
 	}
-	// Regexp Route with one parameter
-	match := regexp.MustCompile(`RegexpRoute\(\s*("[^"]+")\s*\)`).FindStringSubmatch(in)
-	if len(match) == 2 {
-		return fmt.Sprintf("PathRegexp(%s)", match[1])
+	fn, args, matched := extractFunction(in)
+	if !matched {
+		return in
 	}
-
-	// Regexp route with two parameters
-	match = regexp.MustCompile(`RegexpRoute\(\s*("[^"]+")\s*,\s*("[^"]+")\s*\)`).FindStringSubmatch(in)
-	if len(match) == 3 {
-		return fmt.Sprintf("Method(%s) && PathRegexp(%s)", match[1], match[2])
+	pathMatcher := ""
+	if fn == "TrieRoute" {
+		pathMatcher = "Path"
+	} else {
+		pathMatcher = "PathRegexp"
 	}
-
-	// Trie route with one parameter
-	match = regexp.MustCompile(`TrieRoute\(\s*("[^"]+")\s*\)`).FindStringSubmatch(in)
-	if len(match) == 2 {
-		return fmt.Sprintf("Path(%s)", match[1])
+	if len(args) == 1 {
+		return fmt.Sprintf(`%s("%s")`, pathMatcher, args[0])
 	}
-
-	// Trie route with two parameters
-	match = regexp.MustCompile(`TrieRoute\(\s*("[^"]+")\s*,\s*("[^"]+")\s*\)`).FindStringSubmatch(in)
-	if len(match) == 3 {
-		return fmt.Sprintf("Method(%s) && Path(%s)", match[1], match[2])
+	if len(args) == 2 {
+		return fmt.Sprintf(`Method("%s") && %s("%s")`, args[0], pathMatcher, args[1])
 	}
+	path := args[len(args)-1]
+	methods := args[0 : len(args)-1]
+	return fmt.Sprintf(`MethodRegexp("%s") && %s("%s")`, strings.Join(methods, "|"), pathMatcher, path)
+}
 
-	return in
+func extractFunction(f string) (string, []string, bool) {
+	match := regexp.MustCompile(`(TrieRoute|RegexpRoute)\(([^\(\)]+)\)`).FindStringSubmatch(f)
+	if len(match) != 3 {
+		return "", nil, false
+	}
+	fn := match[1]
+	args := strings.Split(match[2], ",")
+	arguments := make([]string, len(args))
+	for i, a := range args {
+		arguments[i] = strings.Trim(a, " ,\"")
+	}
+	return fn, arguments, true
 }

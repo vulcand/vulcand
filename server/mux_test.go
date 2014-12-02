@@ -532,9 +532,9 @@ func (s *ServerSuite) TestUpdateRateLimit(c *C) {
 	// Make sure connection limit and rate limit are here as well
 	chain := loc.GetMiddlewareChain()
 	limiter := chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
-	c.Assert(limiter.GetRate().Units, Equals, int64(100))
-	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(10))
-	c.Assert(limiter.GetBurst(), Equals, int64(200))
+	rs1 := tokenbucket.NewRateSet()
+	rs1.Add(10*time.Second, 100, 200)
+	c.Assert(limiter.DefaultRates(), DeepEquals, rs1)
 
 	// Update the rate limit
 	rl = MakeRateLimit("rl1", 12, "client.ip", 20, 3, l)
@@ -542,9 +542,9 @@ func (s *ServerSuite) TestUpdateRateLimit(c *C) {
 
 	// Make sure the changes have taken place
 	limiter = chain.Get("ratelimit.rl1").(*tokenbucket.TokenLimiter)
-	c.Assert(limiter.GetRate().Units, Equals, int64(12))
-	c.Assert(limiter.GetRate().Period, Equals, time.Second*time.Duration(3))
-	c.Assert(limiter.GetBurst(), Equals, int64(20))
+	rs2 := tokenbucket.NewRateSet()
+	rs2.Add(3*time.Second, 12, 20)
+	c.Assert(limiter.DefaultRates(), DeepEquals, rs2)
 }
 
 func (s *ServerSuite) TestRateLimitCRUD(c *C) {

@@ -632,7 +632,6 @@ func (s *EtcdBackendSuite) TestLocationRateLimitCRUD(c *C) {
 		Middleware: m,
 	})
 
-	m.Middleware.(*ratelimit.RateLimit).Burst = 100
 	_, err = s.backend.UpdateLocationMiddleware(loc.Hostname, loc.Id, m)
 	c.Assert(err, IsNil)
 	s.expectChanges(c, &LocationMiddlewareUpdated{
@@ -782,8 +781,12 @@ func (s *EtcdBackendSuite) makeLocation(id string, path string, host *Host, up *
 	return s.makeLocationWithOptions(id, path, host, up, LocationOptions{})
 }
 
-func (s *EtcdBackendSuite) makeRateLimit(id string, rate int, variable string, burst int64, periodSeconds int, loc *Location) *MiddlewareInstance {
-	rl, err := ratelimit.NewRateLimit(rate, variable, burst, periodSeconds)
+func (s *EtcdBackendSuite) makeRateLimit(id string, rate int64, variable string, burst int64, periodSeconds int64, loc *Location) *MiddlewareInstance {
+	rl, err := ratelimit.FromOther(ratelimit.RateLimit{
+		PeriodSeconds: periodSeconds,
+		Requests: rate,
+		Burst: burst,
+		Variable: variable})
 	if err != nil {
 		panic(err)
 	}
