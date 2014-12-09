@@ -227,6 +227,18 @@ func (s *TrieSuite) TestMergeAndMatchCases(c *C) {
 			"http://google.com/v2/domains/domain1",
 			"/v2/domains/<string:name>",
 		},
+		// Int matcher, match
+		{
+			[]string{"/v<int:version>/domains/<string:name>"},
+			"http://google.com/v42/domains/domain1",
+			"/v<int:version>/domains/<string:name>",
+		},
+		// Int matcher, no match
+		{
+			[]string{"/v<int:version>/domains/<string:name>", "/<string:version>/domains/<string:name>"},
+			"http://google.com/v42abc/domains/domain1",
+			"/<string:version>/domains/<string:name>",
+		},
 		// Different combinations of named parameters
 		{
 			[]string{"/v1/domains/<domain>", "/v2/users/<user>/mailboxes/<mbx>"},

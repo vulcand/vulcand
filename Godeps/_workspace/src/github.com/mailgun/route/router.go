@@ -20,7 +20,8 @@ Path matcher:
 
 Method matcher:
 
-  Method("GET") // trie-based matcher for request method
+  Method("GET")            // trie-based matcher for request method
+  MethodRegexp("POST|PUT") // regexp based matcher for request method
 
 Header matcher:
 

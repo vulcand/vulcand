@@ -29,6 +29,10 @@ func methodTrieMatcher(method string) (matcher, error) {
 	return newTrieMatcher(method, &methodMapper{}, &match{})
 }
 
+func methodRegexpMatcher(method string) (matcher, error) {
+	return newRegexpMatcher(method, &methodMapper{}, &match{})
+}
+
 func pathTrieMatcher(path string) (matcher, error) {
 	return newTrieMatcher(path, &pathMapper{}, &match{})
 }

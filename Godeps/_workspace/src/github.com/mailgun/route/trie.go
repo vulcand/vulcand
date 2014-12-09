@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // Regular expression to match url parameters
@@ -300,13 +301,15 @@ func makeMatcher(matcherType string, matcherArgs []string) (patternMatcher, erro
 	switch matcherType {
 	case "string":
 		return newStringMatcher(matcherArgs)
+	case "int":
+		return newIntMatcher(matcherArgs)
 	}
-	return nil, fmt.Errorf("Unsupported matcher: %s", matcherType)
+	return nil, fmt.Errorf("unsupported matcher: %s", matcherType)
 }
 
 func newStringMatcher(args []string) (patternMatcher, error) {
 	if len(args) != 1 {
-		return nil, fmt.Errorf("Expected only one parameter - variable name, got %s", args)
+		return nil, fmt.Errorf("expected only one parameter - variable name, got: %s", args)
 	}
 	return &stringMatcher{name: args[0]}, nil
 }
@@ -344,6 +347,61 @@ func (s *stringMatcher) grabValue(i *charIter) {
 			return
 		}
 	}
+}
+
+func newIntMatcher(args []string) (patternMatcher, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("expected only one parameter - variable name, got: %s", args)
+	}
+	return &intMatcher{name: args[0]}, nil
+}
+
+type intMatcher struct {
+	name string
+}
+
+func (s *intMatcher) String() string {
+	return fmt.Sprintf("<int:%s>", s.name)
+}
+
+func (s *intMatcher) getName() string {
+	return s.name
+}
+
+func (s *intMatcher) match(iter *charIter) bool {
+	// count stores amount of consumed characters so we know how many push
+	// backs to do in case there is no match
+	var count int
+
+	for {
+		c, sep, ok := iter.next()
+		count++
+
+		// if the current character is not a number:
+		//  - it's either a separator that means it's a match
+		//  - it's some other character that means it's not a match
+		if !unicode.IsDigit(rune(c)) {
+			if c == sep {
+				iter.pushBack()
+				return true
+			} else {
+				for i := 0; i < count; i++ {
+					iter.pushBack()
+				}
+				return false
+			}
+		}
+
+		// if it's the end of the string, it's a match
+		if !ok {
+			return true
+		}
+	}
+}
+
+func (s *intMatcher) equals(other patternMatcher) bool {
+	_, ok := other.(*intMatcher)
+	return ok && other.getName() == s.getName()
 }
 
 func (e *trieNode) matchNode(i *charIter) bool {
