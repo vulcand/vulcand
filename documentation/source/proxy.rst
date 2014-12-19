@@ -211,7 +211,7 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 
 .. code-block:: cli
 
- vulcanctl host set_keypair --privateKey=/path/key --cert=/path/cert
+ vulcanctl host set_keypair -name <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 .. code-block:: api
 
@@ -649,7 +649,7 @@ Setting certificate via etcd is slightly different from CLI and API:
 
  # Connect to Vulcand Update the TLS certificate.
  # In this case we don't need to supply seal key, as in this case the CLI talks to the Vulcand directly
- $ vulcanctl host set_keypair -host <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ $ vulcanctl host set_keypair -name <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 .. code-block:: api
 
