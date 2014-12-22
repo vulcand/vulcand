@@ -1,3 +1,8 @@
+News
+====
+
+Upcoming changes: https://github.com/mailgun/vulcand/pull/136
+
 Vulcand
 =======
 
