@@ -2,11 +2,11 @@ package roundrobin
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/timetools"
+	. "github.com/mailgun/vulcan/endpoint"
+	. "github.com/mailgun/vulcan/metrics"
+	. "github.com/mailgun/vulcan/request"
+	. "gopkg.in/check.v1"
 	"testing"
 	"time"
 )

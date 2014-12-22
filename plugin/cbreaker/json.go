@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/circuitbreaker"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcan/circuitbreaker"
+	"github.com/mailgun/vulcan/middleware"
 )
 
 type rawAction struct {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/codegangsta/cli"
+	"github.com/mailgun/vulcan/middleware"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends

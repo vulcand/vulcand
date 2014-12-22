@@ -3,8 +3,8 @@ package server
 import (
 	"fmt"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/metrics"
+	"github.com/mailgun/vulcan/request"
 )
 
 // Reporter reports real time metrics to the Statsd client

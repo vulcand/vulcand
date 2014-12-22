@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcan/netutils"
 )
 
 // Request is a rapper around http request that provides more info about http.Request

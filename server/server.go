@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/metrics"
+	"github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/backend"
 )
 

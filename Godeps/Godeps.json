@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/mailgun/vulcand",
+	"ImportPath": "github.com/BTBurke/vulcand",
 	"GoVersion": "go1.3.1",
 	"Packages": [
 		"./..."
@@ -87,6 +87,46 @@
 			"ImportPath": "github.com/mailgun/vulcan",
 			"Comment": "v0.1-244-g961decf",
 			"Rev": "961decfd08c4460fb7cd0001e1b100e6cce31435"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/anomaly",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/api",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/backend",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/plugin",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/secret",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/server",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/service",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/supervisor",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/testutils",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/vulcanctl/command",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

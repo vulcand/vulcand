@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"

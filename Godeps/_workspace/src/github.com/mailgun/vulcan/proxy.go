@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
+	"github.com/mailgun/log"
+	"github.com/mailgun/vulcan/errors"
+	"github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcan/route"
 )
 
 type Proxy struct {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcan/metrics"
 	"github.com/mailgun/vulcand/backend"
 )
 

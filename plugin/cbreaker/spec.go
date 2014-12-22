@@ -28,11 +28,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/circuitbreaker"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
+	"github.com/codegangsta/cli"
+	"github.com/mailgun/timetools"
+	"github.com/mailgun/vulcan/circuitbreaker"
+	"github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcan/threshold"
 	"github.com/mailgun/vulcand/plugin"
 )
 

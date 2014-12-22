@@ -2,8 +2,8 @@
 package route
 
 import (
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	. "github.com/mailgun/vulcan/location"
+	. "github.com/mailgun/vulcan/request"
 )
 
 // Router matches incoming request to a specific location

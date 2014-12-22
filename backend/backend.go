@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
+	"github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcan/threshold"
 	"github.com/mailgun/vulcand/plugin"
 )
 

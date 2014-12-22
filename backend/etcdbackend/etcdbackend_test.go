@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/go-etcd/etcd"
+	"github.com/mailgun/log"
+	"github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/secret"
+	. "gopkg.in/check.v1"
 
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
@@ -784,9 +784,9 @@ func (s *EtcdBackendSuite) makeLocation(id string, path string, host *Host, up *
 func (s *EtcdBackendSuite) makeRateLimit(id string, rate int64, variable string, burst int64, periodSeconds int64, loc *Location) *MiddlewareInstance {
 	rl, err := ratelimit.FromOther(ratelimit.RateLimit{
 		PeriodSeconds: periodSeconds,
-		Requests: rate,
-		Burst: burst,
-		Variable: variable})
+		Requests:      rate,
+		Burst:         burst,
+		Variable:      variable})
 	if err != nil {
 		panic(err)
 	}

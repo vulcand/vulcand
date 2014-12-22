@@ -3,9 +3,9 @@ package server
 import (
 	"fmt"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/log"
+	"github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/mailgun/vulcan/location/httploc"
 
 	"github.com/mailgun/vulcand/backend"
 )

@@ -5,10 +5,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/log"
+	"github.com/mailgun/timetools"
+	"github.com/mailgun/vulcan/metrics"
+	"github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/backend"
 )
 

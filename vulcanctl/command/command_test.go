@@ -8,9 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/log"
+	"github.com/mailgun/scroll"
 	"github.com/mailgun/vulcand/api"
 	. "github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/membackend"
@@ -19,6 +18,7 @@ import (
 	"github.com/mailgun/vulcand/server"
 	"github.com/mailgun/vulcand/supervisor"
 	"github.com/mailgun/vulcand/testutils"
+	. "gopkg.in/check.v1"
 )
 
 const OK = ".*OK.*"

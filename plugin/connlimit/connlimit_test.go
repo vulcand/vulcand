@@ -1,9 +1,9 @@
 package connlimit
 
 import (
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/plugin"
+	. "gopkg.in/check.v1"
 	"testing"
 )
 

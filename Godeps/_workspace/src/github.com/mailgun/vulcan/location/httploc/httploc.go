@@ -9,16 +9,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/log"
+	"github.com/mailgun/timetools"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
+	"github.com/mailgun/vulcan/endpoint"
+	"github.com/mailgun/vulcan/errors"
+	"github.com/mailgun/vulcan/loadbalance"
+	"github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcan/threshold"
 )
 
 // Location with built in failover and load balancing support

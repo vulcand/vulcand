@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	"github.com/mailgun/go-etcd/etcd"
+	"github.com/mailgun/log"
+	"github.com/mailgun/manners"
+	"github.com/mailgun/scroll"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
+	"github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/api"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/backend/etcdbackend"

@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
+	"github.com/mailgun/log"
+	"github.com/mailgun/metrics"
+	"github.com/mailgun/timetools"
+	"github.com/mailgun/vulcan/location/httploc"
+	"github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcan/route"
+	"github.com/mailgun/vulcan/route/exproute"
 
 	"github.com/mailgun/vulcand/backend"
 )

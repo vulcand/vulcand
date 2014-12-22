@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/log"
+	"github.com/mailgun/timetools"
 )
 
 // ratioController allows passing portions traffic back to the endpoints,

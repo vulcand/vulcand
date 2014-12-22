@@ -3,8 +3,8 @@ package limit
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcan/middleware"
+	"github.com/mailgun/vulcan/request"
 	"strings"
 )
 

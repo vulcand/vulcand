@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/mailgun/vulcan/loadbalance/roundrobin"
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 )
@@ -66,9 +66,9 @@ func setDefaults(o LocOpts) LocOpts {
 func MakeRateLimit(id string, rate int64, variable string, burst int64, periodSeconds int64, loc *backend.Location) *backend.MiddlewareInstance {
 	rl, err := ratelimit.FromOther(ratelimit.RateLimit{
 		PeriodSeconds: periodSeconds,
-		Requests: rate,
-		Burst: burst,
-		Variable: variable})
+		Requests:      rate,
+		Burst:         burst,
+		Variable:      variable})
 	if err != nil {
 		panic(err)
 	}

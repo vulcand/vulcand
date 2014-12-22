@@ -13,7 +13,7 @@ import (
 	"github.com/mailgun/vulcand/backend"
 	"github.com/mailgun/vulcand/plugin"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/log"
 )
 
 const CurrentVersion = "v1"

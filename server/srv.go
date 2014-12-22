@@ -6,11 +6,11 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	"github.com/mailgun/log"
+	"github.com/mailgun/manners"
+	"github.com/mailgun/vulcan"
+	"github.com/mailgun/vulcan/route"
+	"github.com/mailgun/vulcan/route/hostroute"
 	"github.com/mailgun/vulcand/backend"
 )
 

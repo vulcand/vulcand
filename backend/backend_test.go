@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 
 	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/plugin/connlimit"

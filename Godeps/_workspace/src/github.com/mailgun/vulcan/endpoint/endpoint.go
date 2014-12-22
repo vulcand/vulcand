@@ -4,7 +4,7 @@ package endpoint
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/mailgun/vulcan/netutils"
 	"net/url"
 )
 
