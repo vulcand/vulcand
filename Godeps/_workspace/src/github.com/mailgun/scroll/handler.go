@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
 // Response objects that apps' handlers are advised to return.

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/mailgun/vulcan/loadbalance/roundrobin"
-	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin/ratelimit"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/loadbalance/roundrobin"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/ratelimit"
 )
 
 var lastId int64

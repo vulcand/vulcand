@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/mailgun/log"
-	"github.com/mailgun/metrics"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/vulcan/location/httploc"
-	"github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcan/route"
-	"github.com/mailgun/vulcan/route/exproute"
-
-	"github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location/httploc"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/exproute"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
 )
 
 // MuxServer is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates

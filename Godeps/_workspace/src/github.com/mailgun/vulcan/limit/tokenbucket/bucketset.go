@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"sort"
 )
 

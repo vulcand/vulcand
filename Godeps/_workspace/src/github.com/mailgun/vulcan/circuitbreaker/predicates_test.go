@@ -3,8 +3,8 @@ package circuitbreaker
 import (
 	"time"
 
-	"github.com/mailgun/vulcan/request"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type PredicatesSuite struct {

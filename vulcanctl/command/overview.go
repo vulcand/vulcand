@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/buger/goterm"
-	"github.com/mailgun/log"
-	"github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
 )
 
 func locationsOverview(locations []*backend.Location) string {

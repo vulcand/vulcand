@@ -129,6 +129,14 @@
 			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
 		},
 		{
+			"ImportPath": "golang.org/x/crypto/poly1305",
+			"Rev": "a7ead6ddf06233883deca151dffaef2effbf498f"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
+			"Rev": "a7ead6ddf06233883deca151dffaef2effbf498f"
+		},
+		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "5b76b26efe7f426789852e983fbde4de62c42282"
 		}

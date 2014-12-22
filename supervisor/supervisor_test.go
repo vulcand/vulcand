@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcan/testutils"
-	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/backend/membackend"
-	"github.com/mailgun/vulcand/plugin/registry"
-	"github.com/mailgun/vulcand/server"
-	. "github.com/mailgun/vulcand/testutils"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend/membackend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/registry"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/server"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/testutils"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestSupervisor(t *testing.T) { TestingT(t) }

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/vulcan/endpoint"
-	"github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcan/request"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 )
 
 type FailRateMeter interface {

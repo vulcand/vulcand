@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 )
 
 const UndefinedDelay = -1

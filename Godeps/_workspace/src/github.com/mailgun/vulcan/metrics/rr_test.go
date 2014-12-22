@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/vulcan/request"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type RRSuite struct {

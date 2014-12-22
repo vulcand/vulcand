@@ -2,11 +2,11 @@ package connlimit
 
 import (
 	"fmt"
-	"github.com/codegangsta/cli"
-	"github.com/mailgun/vulcan/limit"
-	"github.com/mailgun/vulcan/limit/connlimit"
-	"github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/connlimit"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
 )
 
 const Type = "connlimit"

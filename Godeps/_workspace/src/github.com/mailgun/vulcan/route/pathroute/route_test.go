@@ -2,11 +2,11 @@ package pathroute
 
 import (
 	"fmt"
-	. "github.com/mailgun/vulcan/location"
-	. "github.com/mailgun/vulcan/netutils"
-	. "github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcan/testutils"
-	. "gopkg.in/check.v1"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"net/http"
 	"testing"
 )

@@ -3,9 +3,9 @@ package hostroute
 
 import (
 	"fmt"
-	. "github.com/mailgun/vulcan/location"
-	. "github.com/mailgun/vulcan/request"
-	. "github.com/mailgun/vulcan/route"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
 	"strings"
 	"sync"
 )

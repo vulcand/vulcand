@@ -12,15 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/go-etcd/etcd"
-	"github.com/mailgun/log"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/secret"
-	. "gopkg.in/check.v1"
-
-	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin/ratelimit"
-	. "github.com/mailgun/vulcand/plugin/registry"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/ratelimit"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/registry"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/secret"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestEtcdBackend(t *testing.T) { TestingT(t) }

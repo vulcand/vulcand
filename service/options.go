@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/go-etcd/etcd"
-	"github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
 type Options struct {

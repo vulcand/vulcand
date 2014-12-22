@@ -3,7 +3,7 @@ package secret
 import (
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestSecret(t *testing.T) { TestingT(t) }

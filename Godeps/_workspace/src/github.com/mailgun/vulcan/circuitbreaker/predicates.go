@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/log"
-	"github.com/mailgun/predicate"
-	"github.com/mailgun/vulcan/metrics"
-	"github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcan/threshold"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/predicate"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
 )
 
 // MustParseExpresison calls ParseExpression and panics if expression is incorrect, for use in tests

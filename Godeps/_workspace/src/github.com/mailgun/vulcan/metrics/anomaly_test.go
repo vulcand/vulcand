@@ -3,7 +3,7 @@ package metrics
 import (
 	"time"
 
-	. "gopkg.in/check.v1"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type AnomalySuite struct {

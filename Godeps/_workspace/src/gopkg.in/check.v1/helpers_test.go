@@ -4,7 +4,7 @@
 package check_test
 
 import (
-	"gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"os"
 	"reflect"
 	"runtime"

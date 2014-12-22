@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestTemplate(t *testing.T) { TestingT(t) }

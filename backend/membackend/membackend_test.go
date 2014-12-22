@@ -1,11 +1,11 @@
 package membackend
 
 import (
-	"github.com/mailgun/log"
-	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin/ratelimit"
-	. "github.com/mailgun/vulcand/plugin/registry"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/ratelimit"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/registry"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"testing"
 )
 

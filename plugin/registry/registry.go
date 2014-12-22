@@ -2,11 +2,11 @@
 package registry
 
 import (
-	"github.com/mailgun/vulcand/plugin"
-	"github.com/mailgun/vulcand/plugin/cbreaker"
-	"github.com/mailgun/vulcand/plugin/connlimit"
-	"github.com/mailgun/vulcand/plugin/ratelimit"
-	"github.com/mailgun/vulcand/plugin/rewrite"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/cbreaker"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/connlimit"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/ratelimit"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/rewrite"
 )
 
 func GetRegistry() *plugin.Registry {

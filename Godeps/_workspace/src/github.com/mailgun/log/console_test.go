@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	. "gopkg.in/check.v1"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type ConsoleLogSuite struct {

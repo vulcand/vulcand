@@ -8,13 +8,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mailgun/go-etcd/etcd"
-	"github.com/mailgun/log"
-
-	"github.com/mailgun/vulcan/endpoint"
-	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin"
-	"github.com/mailgun/vulcand/secret"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/secret"
 )
 
 type EtcdBackend struct {

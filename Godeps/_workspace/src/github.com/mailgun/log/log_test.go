@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestModel(t *testing.T) { TestingT(t) }

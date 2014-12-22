@@ -3,8 +3,8 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mailgun/vulcan/middleware"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"testing"
 )
 

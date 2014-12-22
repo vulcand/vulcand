@@ -2,8 +2,8 @@
 package location
 
 import (
-	"github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcan/request"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"net/http"
 )
 

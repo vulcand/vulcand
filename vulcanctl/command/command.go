@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/api"
-	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin"
-	"github.com/mailgun/vulcand/secret"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/api"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/secret"
 )
 
 type Command struct {

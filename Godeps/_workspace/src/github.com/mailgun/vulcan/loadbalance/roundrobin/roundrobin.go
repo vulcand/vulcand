@@ -3,12 +3,12 @@ package roundrobin
 
 import (
 	"fmt"
-	"github.com/mailgun/log"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/vulcan/endpoint"
-	"github.com/mailgun/vulcan/metrics"
-	"github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcan/request"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"net/http"
 	"net/url"
 	"sync"

@@ -3,8 +3,8 @@ package membackend
 
 import (
 	"fmt"
-	. "github.com/mailgun/vulcand/backend"
-	. "github.com/mailgun/vulcand/plugin"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
 	"sync/atomic"
 )
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/codahale/hdrhistogram"
-	"github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codahale/hdrhistogram"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 )
 
 type Histogram interface {

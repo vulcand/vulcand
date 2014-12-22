@@ -6,12 +6,12 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/mailgun/log"
-	"github.com/mailgun/manners"
-	"github.com/mailgun/vulcan"
-	"github.com/mailgun/vulcan/route"
-	"github.com/mailgun/vulcan/route/hostroute"
-	"github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route/hostroute"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
 )
 
 // server contains all that is necessary to run the HTTP(s) server. server does not work on its own,

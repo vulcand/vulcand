@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/codegangsta/cli"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/vulcan/limit"
-	"github.com/mailgun/vulcan/limit/tokenbucket"
-	"github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
 )
 
 // Spec is an entry point of a plugin and will be called to register this middleware plugin withing vulcand

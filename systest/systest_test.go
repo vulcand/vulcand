@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/go-etcd/etcd"
-	"github.com/mailgun/log"
-	. "github.com/mailgun/vulcan/testutils"
-	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/secret"
-	. "github.com/mailgun/vulcand/testutils"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/secret"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/testutils"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestVulcandWithEtcd(t *testing.T) { TestingT(t) }

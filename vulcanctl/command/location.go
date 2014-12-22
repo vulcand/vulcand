@@ -1,8 +1,8 @@
 package command
 
 import (
-	"github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
 )
 
 func NewLocationCommand(cmd *Command) cli.Command {

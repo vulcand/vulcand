@@ -10,10 +10,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin"
-
-	"github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
 )
 
 const CurrentVersion = "v1"

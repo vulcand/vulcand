@@ -1,11 +1,11 @@
 package vulcan
 
 import (
-	"github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcan/location"
-	. "github.com/mailgun/vulcan/route"
-	. "github.com/mailgun/vulcan/testutils"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/location"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/route"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/testutils"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"net/http"
 	"net/http/httptest"
 	"time"

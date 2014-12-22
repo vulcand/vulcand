@@ -31,13 +31,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mailgun/log"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/vulcan/endpoint"
-	"github.com/mailgun/vulcan/metrics"
-	"github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcan/threshold"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/endpoint"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/metrics"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/threshold"
 )
 
 // cbState is the state of the circuit breaker

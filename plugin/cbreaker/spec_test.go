@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/plugin"
-	. "gopkg.in/check.v1"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestCL(t *testing.T) { TestingT(t) }

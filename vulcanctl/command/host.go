@@ -3,7 +3,7 @@ package command
 import (
 	"fmt"
 
-	"github.com/codegangsta/cli"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 )
 
 func NewHostCommand(cmd *Command) cli.Command {

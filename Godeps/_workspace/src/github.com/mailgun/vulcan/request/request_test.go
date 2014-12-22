@@ -1,7 +1,7 @@
 package request
 
 import (
-	. "gopkg.in/check.v1"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"net/http"
 	"testing"
 )

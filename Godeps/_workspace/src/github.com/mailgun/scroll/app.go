@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/mailgun/log"
-	"github.com/mailgun/manners"
-	"github.com/mailgun/metrics"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 )
 
 const (
