@@ -145,39 +145,35 @@ func infof(depth int, w io.Writer, format string, args ...interface{}) {
 	if currentSeverity.Gt(SeverityInfo) {
 		return
 	}
-	message := makeMessage(depth+1, SeverityInfo, format, args...)
-	w.Write([]byte(message))
+	writeMessage(depth+1, w, SeverityInfo, format, args...)
 }
 
 func warningf(depth int, w io.Writer, format string, args ...interface{}) {
 	if currentSeverity.Gt(SeverityWarn) {
 		return
 	}
-	message := makeMessage(depth+1, SeverityWarn, format, args...)
-	w.Write([]byte(message))
+	writeMessage(depth+1, w, SeverityWarn, format, args...)
 }
 
 func errorf(depth int, w io.Writer, format string, args ...interface{}) {
 	if currentSeverity.Gt(SeverityError) {
 		return
 	}
-	message := makeMessage(depth+1, SeverityError, format, args...)
-	w.Write([]byte(message))
+	writeMessage(depth+1, w, SeverityError, format, args...)
 }
 
 func fatalf(depth int, w io.Writer, format string, args ...interface{}) {
 	if currentSeverity.Gt(SeverityFatal) {
 		return
 	}
-	message := makeMessage(depth+1, SeverityFatal, format, args...)
+	writeMessage(depth+1, w, SeverityFatal, format, args...)
 	stacks := stackTraces()
-	w.Write([]byte(message))
-	w.Write([]byte(stacks))
+	io.WriteString(w, stacks)
 }
 
-func makeMessage(depth int, sev Severity, format string, args ...interface{}) string {
+func writeMessage(depth int, w io.Writer, sev Severity, format string, args ...interface{}) {
 	file, line := callerInfo(depth + 1)
-	return fmt.Sprintf("%s PID:%d [%s:%d] %s", sev, pid, file, line, fmt.Sprintf(format, args...))
+	io.WriteString(w, fmt.Sprintf("%s PID:%d [%s:%d] %s", sev, pid, file, line, fmt.Sprintf(format, args...)))
 }
 
 // Return stack traces of all the running goroutines.
