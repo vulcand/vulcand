@@ -52,7 +52,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/log",
-			"Rev": "f8a6374c6c52a902ca0bc2fae177ad5ca0982e4f"
+			"Rev": "5c9edd8d4a5026e64e3435dff4a4555fe966ea20"
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",
@@ -117,7 +117,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/scroll",
-			"Rev": "317658eba466b17afed1522ea303f0e7ceeda18f"
+			"Rev": "7a9601e5b8fe01837d1c66e1adefc5956ba59174"
 		},
 		{
 			"ImportPath": "github.com/mailgun/timetools",

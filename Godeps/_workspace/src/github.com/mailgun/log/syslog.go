@@ -1,6 +1,7 @@
 package log
 
 import (
+	"io"
 	"log/syslog"
 	"os"
 	"path/filepath"
@@ -44,34 +45,29 @@ func getAppName() string {
 	return filepath.Base(os.Args[0])
 }
 
-func (l *sysLogger) infof(depth int, format string, args ...interface{}) {
-	infof(depth, l.info, format, args...)
-}
-
-func (l *sysLogger) warningf(depth int, format string, args ...interface{}) {
-	warningf(depth, l.warn, format, args...)
-}
-
-func (l *sysLogger) errorf(depth int, format string, args ...interface{}) {
-	errorf(depth, l.err, format, args...)
-}
-
-func (l *sysLogger) fatalf(depth int, format string, args ...interface{}) {
-	fatalf(depth, l.err, format, args...)
+func (l *sysLogger) Writer(sev Severity) io.Writer {
+	switch sev {
+	case SeverityInfo:
+		return l.info
+	case SeverityWarn:
+		return l.warn
+	default:
+		return l.err
+	}
 }
 
 func (l *sysLogger) Infof(format string, args ...interface{}) {
-	l.infof(1, format, args...)
+	infof(1, l.Writer(SeverityInfo), format, args...)
 }
 
 func (l *sysLogger) Warningf(format string, args ...interface{}) {
-	l.warningf(1, format, args...)
+	warningf(1, l.Writer(SeverityWarn), format, args...)
 }
 
 func (l *sysLogger) Errorf(format string, args ...interface{}) {
-	l.errorf(1, format, args...)
+	errorf(1, l.Writer(SeverityError), format, args...)
 }
 
 func (l *sysLogger) Fatalf(format string, args ...interface{}) {
-	l.fatalf(1, format, args...)
+	fatalf(1, l.Writer(SeverityFatal), format, args...)
 }

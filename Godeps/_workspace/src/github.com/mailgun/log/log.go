@@ -70,10 +70,7 @@ type Logger interface {
 	Errorf(format string, args ...interface{})
 	Fatalf(format string, args ...interface{})
 
-	infof(depth int, format string, args ...interface{})
-	warningf(depth int, format string, args ...interface{})
-	errorf(depth int, format string, args ...interface{})
-	fatalf(depth int, format string, args ...interface{})
+	Writer(Severity) io.Writer
 }
 
 // Logging configuration to be passed to all loggers during initialization.
@@ -125,23 +122,23 @@ func GetLogger() Logger {
 
 // Infof logs to the INFO log.
 func Infof(format string, args ...interface{}) {
-	logger.infof(1, format, args...)
+	infof(1, logger.info, format, args...)
 }
 
 // Warningf logs to the WARNING and INFO logs.
 func Warningf(format string, args ...interface{}) {
-	logger.warningf(1, format, args...)
+	warningf(1, logger.warn, format, args...)
 }
 
 // Errorf logs to the ERROR, WARNING, and INFO logs.
 func Errorf(format string, args ...interface{}) {
-	logger.errorf(1, format, args...)
+	errorf(1, logger.warn, format, args...)
 }
 
 // Fatalf logs to the FATAL, ERROR, WARNING, and INFO logs,
 // including a stack trace of all running goroutines, then calls os.Exit(255).
 func Fatalf(format string, args ...interface{}) {
-	logger.fatalf(1, format, args...)
+	fatalf(1, logger.fatal, format, args...)
 }
 
 func infof(depth int, w io.Writer, format string, args ...interface{}) {
@@ -192,7 +189,7 @@ func stackTraces() string {
 
 // Return a file name and a line number.
 func callerInfo(depth int) (string, int) {
-	_, file, line, ok := runtimeCaller(depth + 2) // number of frames to the user's call.
+	_, file, line, ok := runtimeCaller(depth + 1) // number of frames to the user's call.
 
 	if !ok {
 		file = "unknown"

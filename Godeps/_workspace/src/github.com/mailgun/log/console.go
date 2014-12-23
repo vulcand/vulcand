@@ -16,38 +16,29 @@ func NewConsoleLogger(config *LogConfig) (Logger, error) {
 	return &writerLogger{w: os.Stdout}, nil
 }
 
-func (l *writerLogger) infof(depth int, format string, args ...interface{}) {
-	infof(depth, l.w, l.format(format), args...)
+func (l *writerLogger) Writer(sev Severity) io.Writer {
+	return l
 }
 
-func (l *writerLogger) warningf(depth int, format string, args ...interface{}) {
-	warningf(depth, l.w, l.format(format), args...)
-}
-
-func (l *writerLogger) errorf(depth int, format string, args ...interface{}) {
-	errorf(depth, l.w, l.format(format), args...)
-}
-
-func (l *writerLogger) fatalf(depth int, format string, args ...interface{}) {
-	fatalf(depth, l.w, l.format(format), args...)
+func (l *writerLogger) Write(val []byte) (int, error) {
+	return io.WriteString(
+		l.w,
+		fmt.Sprintf("%v: %v\n", time.Now().UTC().Format(time.StampMilli),
+			string(val)))
 }
 
 func (l *writerLogger) Infof(format string, args ...interface{}) {
-	l.infof(1, format, args...)
+	infof(1, l, format, args...)
 }
 
 func (l *writerLogger) Warningf(format string, args ...interface{}) {
-	l.warningf(1, format, args...)
+	warningf(1, l, format, args...)
 }
 
 func (l *writerLogger) Errorf(format string, args ...interface{}) {
-	l.errorf(1, format, args...)
+	errorf(1, l, format, args...)
 }
 
 func (l *writerLogger) Fatalf(format string, args ...interface{}) {
-	l.fatalf(1, format, args...)
-}
-
-func (l *writerLogger) format(format string) string {
-	return fmt.Sprintf("%v: %v\n", time.Now().UTC().Format(time.StampMilli), format)
+	fatalf(1, l, format, args...)
 }

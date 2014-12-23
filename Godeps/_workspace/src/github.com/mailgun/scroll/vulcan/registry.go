@@ -116,7 +116,6 @@ func (r *Registry) RegisterServer(e *Endpoint) error {
 	return nil
 }
 
-// RegisterLocation registers a provided location in vulcan.
 func (r *Registry) RegisterFrontend(l *Location) error {
 	fk := fmt.Sprintf(frontendKey, l.Host, l.ID)
 
