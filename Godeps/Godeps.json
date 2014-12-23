@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/mailgun/vulcand",
+	"ImportPath": "github.com/BTBurke/vulcand",
 	"GoVersion": "go1.3.1",
 	"Packages": [
 		"./..."
@@ -7,18 +7,18 @@
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
-			"Comment": "null-218",
-			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+			"Comment": "null-236",
+			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/poly1305",
-			"Comment": "null-218",
-			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+			"Comment": "null-236",
+			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/salsa20/salsa",
-			"Comment": "null-218",
-			"Rev": "f3cebac2bd11c2bf03c15bfa4c66688ad02a0a40"
+			"Comment": "null-236",
+			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
@@ -87,6 +87,54 @@
 			"ImportPath": "github.com/mailgun/vulcan",
 			"Comment": "v0.1-244-g961decf",
 			"Rev": "961decfd08c4460fb7cd0001e1b100e6cce31435"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/anomaly",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/api",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/backend",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/plugin",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/secret",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/server",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/service",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/supervisor",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/testutils",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "github.com/mailgun/vulcand/vulcanctl/command",
+			"Rev": "abc9a1523c38a4dfb19398df69d63adf67e4ec88"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/poly1305",
+			"Rev": "a7ead6ddf06233883deca151dffaef2effbf498f"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
+			"Rev": "a7ead6ddf06233883deca151dffaef2effbf498f"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

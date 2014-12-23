@@ -12,15 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"github.com/mailgun/vulcand/secret"
-
-	. "github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/plugin/ratelimit"
-	. "github.com/mailgun/vulcand/plugin/registry"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/backend"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/ratelimit"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/plugin/registry"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcand/secret"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestEtcdBackend(t *testing.T) { TestingT(t) }
@@ -784,9 +783,9 @@ func (s *EtcdBackendSuite) makeLocation(id string, path string, host *Host, up *
 func (s *EtcdBackendSuite) makeRateLimit(id string, rate int64, variable string, burst int64, periodSeconds int64, loc *Location) *MiddlewareInstance {
 	rl, err := ratelimit.FromOther(ratelimit.RateLimit{
 		PeriodSeconds: periodSeconds,
-		Requests: rate,
-		Burst: burst,
-		Variable: variable})
+		Requests:      rate,
+		Burst:         burst,
+		Variable:      variable})
 	if err != nil {
 		panic(err)
 	}

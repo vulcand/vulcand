@@ -3,8 +3,8 @@ package testutils
 import (
 	"net/http/httptest"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 )
 
 // TestApp wraps a regular app adding features that can be used in unit tests.

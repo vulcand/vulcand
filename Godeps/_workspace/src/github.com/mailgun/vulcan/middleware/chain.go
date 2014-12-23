@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"fmt"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	. "github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"sort"
 	"sync"
 )

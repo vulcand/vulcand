@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/predicate"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/mailgun/predicate"
 )
 
 // Parses expression in the go language into Failover predicates

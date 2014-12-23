@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codahale/hdrhistogram"
+	"github.com/BTBurke/vulcand/Godeps/_workspace/src/github.com/codahale/hdrhistogram"
 )
 
 func TestValueAtQuantile(t *testing.T) {
