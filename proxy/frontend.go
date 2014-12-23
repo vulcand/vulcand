@@ -126,7 +126,7 @@ func (f *frontend) rebuild() error {
 	}
 
 	// Create a load balancer
-	rr, err := roundrobin.New(rp)
+	rr, err := roundrobin.New(watcher)
 	if err != nil {
 		return err
 	}
