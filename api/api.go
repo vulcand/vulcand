@@ -26,6 +26,7 @@ func InitProxyController(ng engine.Engine, stats engine.StatsProvider, app *scro
 
 	app.SetNotFoundHandler(c.handleError)
 
+	app.AddHandler(scroll.Spec{Path: "/v1/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
 	app.AddHandler(scroll.Spec{Path: "/v2/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
 
 	app.AddHandler(scroll.Spec{Path: "/v2/log/severity", Methods: []string{"GET"}, Handler: c.getLogSeverity})

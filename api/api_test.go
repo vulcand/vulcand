@@ -1,10 +1,12 @@
 package api
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	oxytest "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 
 	"github.com/mailgun/vulcand/engine"
@@ -53,6 +55,13 @@ func (s *ApiSuite) TearDownTest(c *C) {
 
 func (s *ApiSuite) TestStatus(c *C) {
 	c.Assert(s.client.GetStatus(), IsNil)
+}
+
+func (s *ApiSuite) TestStatusV1(c *C) {
+	re, body, err := oxytest.Get(s.testServer.URL + "/v1/status")
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(body), Equals, `{"Status":"ok"}`)
 }
 
 func (s *ApiSuite) TestSeverity(c *C) {
