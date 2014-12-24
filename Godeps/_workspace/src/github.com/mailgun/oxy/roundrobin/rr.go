@@ -148,7 +148,13 @@ func (rr *RoundRobin) UpsertServer(u *url.URL, options ...serverSetter) error {
 	}
 
 	if s, _ := rr.findServerByURL(u); s != nil {
-		return fmt.Errorf("server %v already exists", u)
+		for _, o := range options {
+			if err := o(s); err != nil {
+				return err
+			}
+		}
+		rr.resetState()
+		return nil
 	}
 
 	srv := &server{url: utils.CopyURL(u)}

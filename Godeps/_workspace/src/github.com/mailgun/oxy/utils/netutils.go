@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -27,6 +28,48 @@ func (p *ProxyWriter) Flush() {
 	if f, ok := p.W.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+func NewBufferWriter(w io.WriteCloser) *BufferWriter {
+	return &BufferWriter{
+		W: w,
+		H: make(http.Header),
+	}
+}
+
+type BufferWriter struct {
+	H    http.Header
+	Code int
+	W    io.WriteCloser
+}
+
+func (b *BufferWriter) Close() error {
+	return b.W.Close()
+}
+
+func (b *BufferWriter) Header() http.Header {
+	return b.H
+}
+
+func (b *BufferWriter) Write(buf []byte) (int, error) {
+	return b.W.Write(buf)
+}
+
+// WriteHeader sets rw.Code.
+func (b *BufferWriter) WriteHeader(code int) {
+	b.Code = code
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (*nopWriteCloser) Close() error { return nil }
+
+// NopCloser returns a WriteCloser with a no-op Close method wrapping
+// the provided Writer w.
+func NopWriteCloser(w io.Writer) io.WriteCloser {
+	return &nopWriteCloser{w}
 }
 
 // CopyURL provides update safe copy by avoiding shallow copying User field

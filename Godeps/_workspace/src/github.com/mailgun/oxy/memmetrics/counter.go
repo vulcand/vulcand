@@ -63,6 +63,7 @@ func (c *RollingCounter) Append(o *RollingCounter) error {
 }
 
 func (c *RollingCounter) Clone() *RollingCounter {
+	c.cleanup()
 	other := &RollingCounter{
 		resolution:  c.resolution,
 		values:      make([]int, len(c.values)),

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"io"
 	"net"
 	"net/http"
 )
@@ -22,6 +23,8 @@ func (e *StdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request, err err
 		} else {
 			statusCode = http.StatusBadGateway
 		}
+	} else if err == io.EOF {
+		statusCode = http.StatusBadGateway
 	}
 	w.WriteHeader(statusCode)
 	w.Write([]byte(http.StatusText(statusCode)))

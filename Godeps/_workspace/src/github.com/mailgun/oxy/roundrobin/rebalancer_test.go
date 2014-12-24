@@ -130,6 +130,9 @@ func (s *RBSuite) TestRebalancerRecovery(c *C) {
 	c.Assert(rb.servers[0].curWeight, Equals, 1)
 	c.Assert(rb.servers[1].curWeight, Equals, FSMMaxWeight)
 
+	c.Assert(lb.servers[0].weight, Equals, 1)
+	c.Assert(lb.servers[1].weight, Equals, FSMMaxWeight)
+
 	// server a is now recovering, the weights should go back to the original state
 	rb.servers[0].meter.(*testMeter).rating = 0
 
@@ -141,6 +144,10 @@ func (s *RBSuite) TestRebalancerRecovery(c *C) {
 
 	c.Assert(rb.servers[0].curWeight, Equals, 1)
 	c.Assert(rb.servers[1].curWeight, Equals, 1)
+
+	// Make sure we have applied the weights to the inner load balancer
+	c.Assert(lb.servers[0].weight, Equals, 1)
+	c.Assert(lb.servers[1].weight, Equals, 1)
 }
 
 // Test scenario when increaing the weight on good endpoints made it worse
@@ -291,13 +298,13 @@ func (s *RBSuite) TestRebalancerLive(c *C) {
 	defer a.Close()
 	defer b.Close()
 
-	fwd, err := forward.New(forward.Logger(s.log))
+	fwd, err := forward.New()
 	c.Assert(err, IsNil)
 
 	lb, err := New(fwd)
 	c.Assert(err, IsNil)
 
-	rb, err := NewRebalancer(lb, RebalancerLogger(s.log), RebalancerBackoff(time.Millisecond), RebalancerClock(s.clock))
+	rb, err := NewRebalancer(lb, RebalancerBackoff(time.Millisecond), RebalancerClock(s.clock))
 	c.Assert(err, IsNil)
 
 	rb.UpsertServer(testutils.ParseURI(a.URL))
@@ -307,9 +314,11 @@ func (s *RBSuite) TestRebalancerLive(c *C) {
 	proxy := httptest.NewServer(rb)
 	defer proxy.Close()
 
-	for i := 0; i < 100; i += 1 {
+	for i := 0; i < 1000; i += 1 {
 		testutils.Get(proxy.URL)
-		s.clock.CurrentTime = s.clock.CurrentTime.Add(rb.backoffDuration + time.Second)
+		if i%10 == 0 {
+			s.clock.CurrentTime = s.clock.CurrentTime.Add(rb.backoffDuration + time.Second)
+		}
 	}
 
 	// load balancer changed weights

@@ -103,7 +103,7 @@ func NewRebalancer(handler balancerHandler, opts ...rbOptSetter) (*Rebalancer, e
 			return &codeMeter{
 				r:     rc,
 				codeS: http.StatusInternalServerError,
-				codeE: http.StatusGatewayTimeout,
+				codeE: http.StatusGatewayTimeout + 1,
 			}, nil
 		}
 	}
@@ -247,6 +247,7 @@ func (rb *Rebalancer) adjustWeights() {
 
 func (rb *Rebalancer) applyWeights() {
 	for _, srv := range rb.servers {
+		rb.log.Infof("upsert server %v, weight %v", srv.url, srv.curWeight)
 		rb.next.UpsertServer(srv.url, Weight(srv.curWeight))
 	}
 }
@@ -304,6 +305,9 @@ func (rb *Rebalancer) markServers() bool {
 			srv.good = false
 		}
 	}
+	if len(g) != 0 && len(b) != 0 {
+		rb.log.Infof("bad: %v good: %v, ratings: %v", b, g, rb.ratings)
+	}
 	return len(g) != 0 && len(b) != 0
 }
 
@@ -323,6 +327,7 @@ func (rb *Rebalancer) convergeWeights() bool {
 		return false
 	}
 	rb.normalizeWeights()
+	rb.applyWeights()
 	return true
 }
 

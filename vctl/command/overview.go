@@ -14,7 +14,7 @@ import (
 
 func frontendsOverview(frontends []engine.Frontend) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "Id\tRoute\tReqs/sec\t95ile [ms]\t99ile [ms]\tStatus codes %%%%\tNet. errors %%%%\n")
+	fmt.Fprint(t, "Id\tRoute\tR/sec\t50ile[ms]\t95ile[ms]\t99ile[ms]\tStatus codes %%\tNet. errors %%\n")
 
 	if len(frontends) == 0 {
 		return t.String()
@@ -27,7 +27,7 @@ func frontendsOverview(frontends []engine.Frontend) string {
 
 func serversOverview(servers []engine.Server) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "Id\tUrl\tReqs/sec\t95ile [ms]\t99ile [ms]\tStatus codes %%%%\tNet. errors %%%%\tAnomalies\n")
+	fmt.Fprint(t, "Id\tURL\tReqs/sec\t50ile[ms]\t95ile[ms]\t99ile[ms]\tStatus codes %%\tNet. errors %%\tMessages\n")
 
 	for _, e := range servers {
 		serverOverview(t, e)
@@ -38,10 +38,11 @@ func serversOverview(servers []engine.Server) string {
 func frontendOverview(w io.Writer, l engine.Frontend) {
 	s := l.Stats
 
-	fmt.Fprintf(w, "%s\t%s\t%0.1f\t%0.3f\t%0.3f\t%s\t%s\n",
+	fmt.Fprintf(w, "%s\t%s\t%0.1f\t%0.2f\t%0.2f\t%0.2f\t%s\t%s\n",
 		l.Id,
 		l.Route,
 		s.RequestsPerSecond(),
+		latencyAtQuantile(50.0, s),
 		latencyAtQuantile(95.0, s),
 		latencyAtQuantile(99.0, s),
 		statusCodesToString(s),
@@ -57,10 +58,11 @@ func serverOverview(w io.Writer, srv engine.Server) {
 		anomalies = fmt.Sprintf("%v", s.Verdict.Anomalies)
 	}
 
-	fmt.Fprintf(w, "%s\t%s\t%0.1f\t%0.3f\t%0.3f\t%s\t%s\t%s\n",
+	fmt.Fprintf(w, "%s\t%s\t%0.1f\t%0.2f\t%0.2f\t%0.2f\t%s\t%s\t%s\n",
 		srv.Id,
 		srv.URL,
 		s.RequestsPerSecond(),
+		latencyAtQuantile(50.0, s),
 		latencyAtQuantile(95.0, s),
 		latencyAtQuantile(99.0, s),
 		statusCodesToString(s),

@@ -136,13 +136,39 @@ func (s *RRSuite) TestUpsertSame(c *C) {
 	lb, err := New(fwd)
 	c.Assert(err, IsNil)
 
-	lb.UpsertServer(testutils.ParseURI(a.URL))
-	lb.UpsertServer(testutils.ParseURI(a.URL))
+	c.Assert(lb.UpsertServer(testutils.ParseURI(a.URL)), IsNil)
+	c.Assert(lb.UpsertServer(testutils.ParseURI(a.URL)), IsNil)
 
 	proxy := httptest.NewServer(lb)
 	defer proxy.Close()
 
 	c.Assert(seq(c, proxy.URL, 3), DeepEquals, []string{"a", "a", "a"})
+}
+
+func (s *RRSuite) TestUpsertWeight(c *C) {
+	a := testutils.NewResponder("a")
+	defer a.Close()
+
+	b := testutils.NewResponder("b")
+	defer b.Close()
+
+	fwd, err := forward.New()
+	c.Assert(err, IsNil)
+
+	lb, err := New(fwd)
+	c.Assert(err, IsNil)
+
+	c.Assert(lb.UpsertServer(testutils.ParseURI(a.URL)), IsNil)
+	c.Assert(lb.UpsertServer(testutils.ParseURI(b.URL)), IsNil)
+
+	proxy := httptest.NewServer(lb)
+	defer proxy.Close()
+
+	c.Assert(seq(c, proxy.URL, 3), DeepEquals, []string{"a", "b", "a"})
+
+	c.Assert(lb.UpsertServer(testutils.ParseURI(b.URL), Weight(3)), IsNil)
+
+	c.Assert(seq(c, proxy.URL, 4), DeepEquals, []string{"b", "b", "a", "b"})
 }
 
 func (s *RRSuite) TestWeighted(c *C) {
