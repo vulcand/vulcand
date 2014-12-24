@@ -82,26 +82,55 @@ func (mx *mux) topFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
 }
 
 func (mx *mux) topServers(key *engine.BackendKey) ([]engine.Server, error) {
-	servers := []engine.Server{}
+	metrics := map[string]*sval{}
 	for _, f := range mx.frontends {
 		if key != nil && key.Id != f.backend.backend.Id {
 			continue
 		}
 		for _, s := range f.backend.servers {
-			u, err := url.Parse(s.URL)
-			if err != nil {
+			val, ok := metrics[s.URL]
+			if !ok {
+				sval, err := newSval(s)
+				if err != nil {
+					return nil, err
+				}
+				metrics[s.URL] = sval
+				val = sval
+			}
+			if err := f.watcher.collectServerMetrics(val.m, val.u); err != nil {
 				return nil, err
 			}
-			stats, err := f.watcher.rtServerStats(u)
-			if err != nil {
-				return nil, err
-			}
-			s.Stats = stats
-			servers = append(servers, s)
 		}
+	}
+	servers := make([]engine.Server, 0, len(metrics))
+	for _, v := range metrics {
+		stats, err := engine.NewRoundTripStats(v.m)
+		if err != nil {
+			return nil, err
+		}
+		v.srv.Stats = stats
+		servers = append(servers, *v.srv)
 	}
 	sort.Stable(&serverSorter{es: servers})
 	return servers, nil
+}
+
+type sval struct {
+	u   *url.URL
+	srv *engine.Server
+	m   *memmetrics.RTMetrics
+}
+
+func newSval(s engine.Server) (*sval, error) {
+	m, err := memmetrics.NewRTMetrics()
+	if err != nil {
+		return nil, err
+	}
+	u, err := url.Parse(s.URL)
+	if err != nil {
+		return nil, err
+	}
+	return &sval{srv: &s, m: m, u: u}, nil
 }
 
 type frontendSorter struct {
