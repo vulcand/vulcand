@@ -565,7 +565,7 @@ func (n *ng) parseBackendServerChange(r *etcd.Response) (interface{}, error) {
 	sk := engine.ServerKey{BackendKey: engine.BackendKey{Id: out[1]}, Id: out[2]}
 
 	switch r.Action {
-	case setA, createA, cswapA:
+	case setA, createA:
 		srv, err := n.GetServer(sk)
 		if err != nil {
 			return nil, err
@@ -578,6 +578,8 @@ func (n *ng) parseBackendServerChange(r *etcd.Response) (interface{}, error) {
 		return &engine.ServerDeleted{
 			ServerKey: sk,
 		}, nil
+	case cswapA: // ignore compare and swap attempts
+		return nil, nil
 	}
 	return nil, fmt.Errorf("unsupported action on the server: %s", r.Action)
 }
