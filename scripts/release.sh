@@ -1,5 +1,13 @@
 #!/bin/sh -e
 
+# how to release stuff:
+#
+# launch it in docker 
+# sudo docker run -i -t -v /tmp:/tmp golang:1.3.3-onbuild /bin/bash
+# cd /tmp && curl https://raw.githubusercontent.com/mailgun/vulcand/master/scripts/release.sh > relase.sh
+# bash release.sh v0.8.0-alpha
+# /tmp/releases 
+
 VER=$1
 PROJ="vulcand"
 RELEASE_DIR="/tmp/release"
