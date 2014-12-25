@@ -146,7 +146,7 @@ func (td *tempDir) newPath() string {
 			panic("Couldn't create temporary directory: " + err.Error())
 		}
 	}
-	result := path.Join(td.path, strconv.Itoa(td.counter))
+	result := filepath.Join(td.path, strconv.Itoa(td.counter))
 	td.counter += 1
 	return result
 }

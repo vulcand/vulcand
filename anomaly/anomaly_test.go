@@ -6,7 +6,7 @@ import (
 	"time"
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	. "github.com/mailgun/vulcand/backend"
+	. "github.com/mailgun/vulcand/engine"
 )
 
 func TestAnomaly(t *testing.T) { TestingT(t) }
@@ -17,30 +17,42 @@ type AnomalySuite struct {
 var _ = Suite(&AnomalySuite{})
 
 func (s *AnomalySuite) TestMarkEmptyDoesNotCrash(c *C) {
-	var endpoints []*Endpoint
-	MarkEndpointAnomalies(endpoints)
+	var servers []Server
+	MarkServerAnomalies(servers)
 
-	var stats []*RoundTripStats
+	var stats []RoundTripStats
 	MarkAnomalies(stats)
 }
 
 func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 	tc := []struct {
-		Endpoints []*Endpoint
-		Verdicts  []Verdict
+		Servers  []Server
+		Verdicts []Verdict
 	}{
 		{
-			Endpoints: []*Endpoint{
-				&Endpoint{
-					Stats: RoundTripStats{},
+			Servers: []Server{
+				Server{
+					Stats: &RoundTripStats{
+						LatencyBrackets: []Bracket{
+							{
+								Quantile: 50,
+								Value:    time.Second,
+							},
+						},
+						Counters: Counters{
+							Period:    time.Second,
+							NetErrors: 0,
+							Total:     100,
+						},
+					},
 				},
 			},
 			Verdicts: []Verdict{{IsBad: false}},
 		},
 		{
-			Endpoints: []*Endpoint{
-				&Endpoint{
-					Stats: RoundTripStats{
+			Servers: []Server{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -54,8 +66,8 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 						},
 					},
 				},
-				&Endpoint{
-					Stats: RoundTripStats{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -73,9 +85,9 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 			Verdicts: []Verdict{{IsBad: true, Anomalies: []Anomaly{{Code: CodeNetErrorRate, Message: MessageNetErrRate}}}, {}},
 		},
 		{
-			Endpoints: []*Endpoint{
-				&Endpoint{
-					Stats: RoundTripStats{
+			Servers: []Server{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -89,8 +101,8 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 						},
 					},
 				},
-				&Endpoint{
-					Stats: RoundTripStats{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -108,9 +120,9 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 			Verdicts: []Verdict{{IsBad: true, Anomalies: []Anomaly{{Code: CodeAppErrorRate, Message: MessageAppErrRate}}}, {}},
 		},
 		{
-			Endpoints: []*Endpoint{
-				&Endpoint{
-					Stats: RoundTripStats{
+			Servers: []Server{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -124,8 +136,8 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 						},
 					},
 				},
-				&Endpoint{
-					Stats: RoundTripStats{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -143,9 +155,9 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 			Verdicts: []Verdict{{IsBad: true, Anomalies: []Anomaly{{Code: CodeAppErrorRate, Message: MessageAppErrRate}}}, {}},
 		},
 		{
-			Endpoints: []*Endpoint{
-				&Endpoint{
-					Stats: RoundTripStats{
+			Servers: []Server{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -154,8 +166,8 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 						},
 					},
 				},
-				&Endpoint{
-					Stats: RoundTripStats{
+				Server{
+					Stats: &RoundTripStats{
 						LatencyBrackets: []Bracket{
 							{
 								Quantile: 50,
@@ -169,10 +181,12 @@ func (s *AnomalySuite) TestMarkAnomalies(c *C) {
 		},
 	}
 
-	for _, t := range tc {
-		MarkEndpointAnomalies(t.Endpoints)
-		for i, e := range t.Endpoints {
-			c.Assert(e.Stats.Verdict, DeepEquals, t.Verdicts[i])
+	for i, t := range tc {
+		comment := Commentf("Test case #%d", i)
+		err := MarkServerAnomalies(t.Servers)
+		c.Assert(err, IsNil)
+		for j, e := range t.Servers {
+			c.Assert(e.Stats.Verdict, DeepEquals, t.Verdicts[j], comment)
 		}
 	}
 }

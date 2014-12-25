@@ -28,6 +28,17 @@ test-package: clean
 test-package-with-etcd: clean
 	${ETCD_FLAGS} go test -v ./$(p)
 
+update:
+	rm -rf Godeps/
+	find . -iregex .*go | xargs sed -i 's:".*Godeps/_workspace/src/:":g'
+	godep save -r ./...
+
+test-grep-etcdng: clean
+	${ETCD_FLAGS} go test -v ./engine/etcdng -check.f=$(e)
+
+test-grep-package: clean
+	go test -v ./$(p) -check.f=$(e)
+
 cover-package: clean
 	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
 	go tool cover -html=/tmp/coverage.out
@@ -39,12 +50,15 @@ cover-package-with-etcd: clean
 systest: clean install
 	${VULCAN_FLAGS} go test -v ./systest
 
+systest-grep: clean install
+	${VULCAN_FLAGS} go test -v ./systest -check.f=$(e)
+
 sloccount:
 	 find . -path ./Godeps -prune -o -name "*.go" -print0 | xargs -0 wc -l
 
 install: clean
 	go install github.com/mailgun/vulcand
-	cd vulcanctl && $(MAKE) install && cd ..
+	cd vctl && $(MAKE) install && cd ..
 
 run: install
 	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand -sealKey=${SEAL_KEY} -statsdAddr=localhost:8125 -statsdPrefix=vulcan -logSeverity=INFO

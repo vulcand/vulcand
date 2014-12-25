@@ -8,8 +8,8 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 
-	"github.com/mailgun/vulcand/backend"
-	"github.com/mailgun/vulcand/server"
+	"github.com/mailgun/vulcand/engine"
+	"github.com/mailgun/vulcand/proxy"
 )
 
 // Supervisor watches changes to the dynamic backends and applies those changes to the server in real time.
@@ -24,16 +24,16 @@ type Supervisor struct {
 	mtx *sync.RWMutex
 
 	// srv is the current active server
-	srv server.Server
+	proxy proxy.Proxy
 
-	// newSrv returns new server instance every time is called.
-	newSrv server.NewServerFn
+	// newProxy returns new server instance every time is called.
+	newProxy proxy.NewProxyFn
 
 	// timeProvider is used to mock time in tests
 	timeProvider timetools.TimeProvider
 
-	// backend is used for reading initial configuration
-	backend backend.Backend
+	// engine is used for reading configuration details
+	engine engine.Engine
 
 	// errorC is a channel will be used to notify the calling party of the errors.
 	errorC chan error
@@ -48,21 +48,17 @@ type Supervisor struct {
 }
 
 type Options struct {
-	TimeProvider timetools.TimeProvider
-	Files        []*server.FileDescriptor
+	Clock timetools.TimeProvider
+	Files []*proxy.FileDescriptor
 }
 
-func NewSupervisor(newSrv server.NewServerFn, backend backend.Backend, errorC chan error) (s *Supervisor) {
-	return NewSupervisorWithOptions(newSrv, backend, errorC, Options{})
-}
-
-func NewSupervisorWithOptions(newSrv server.NewServerFn, backend backend.Backend, errorC chan error, options Options) (s *Supervisor) {
+func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, options Options) (s *Supervisor) {
 	return &Supervisor{
 		wg:       &sync.WaitGroup{},
 		mtx:      &sync.RWMutex{},
-		newSrv:   newSrv,
-		backend:  backend,
-		options:  parseOptions(options),
+		newProxy: newProxy,
+		engine:   engine,
+		options:  setDefaults(options),
 		errorC:   errorC,
 		restartC: make(chan error),
 		closeC:   make(chan bool),
@@ -73,25 +69,25 @@ func (s *Supervisor) String() string {
 	return fmt.Sprintf("Supervisor(%v)", s.state)
 }
 
-func (s *Supervisor) getCurrentServer() server.Server {
+func (s *Supervisor) getCurrentProxy() proxy.Proxy {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
-	return s.srv
+	return s.proxy
 }
 
-func (s *Supervisor) setCurrentServer(srv server.Server) {
+func (s *Supervisor) setCurrentProxy(p proxy.Proxy) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
-	s.srv = srv
+	s.proxy = p
 }
 
-func (s *Supervisor) GetFiles() ([]*server.FileDescriptor, error) {
+func (s *Supervisor) GetFiles() ([]*proxy.FileDescriptor, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
-	if s.srv != nil {
-		return s.srv.GetFiles()
+	if s.proxy != nil {
+		return s.proxy.GetFiles()
 	}
-	return []*server.FileDescriptor{}, nil
+	return []*proxy.FileDescriptor{}, nil
 }
 
 func (s *Supervisor) setState(state supervisorState) {
@@ -100,108 +96,113 @@ func (s *Supervisor) setState(state supervisorState) {
 	s.state = state
 }
 
-func (s *Supervisor) GetLocationStats(l *backend.Location) (*backend.RoundTripStats, error) {
-	srv := s.getCurrentServer()
-	if srv != nil {
-		return srv.GetLocationStats(l)
+func (s *Supervisor) FrontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
+	p := s.getCurrentProxy()
+	if p != nil {
+		return p.FrontendStats(key)
 	}
-	return nil, fmt.Errorf("no current server")
+	return nil, fmt.Errorf("no current proxy")
 }
 
-func (s *Supervisor) GetEndpointStats(e *backend.Endpoint) (*backend.RoundTripStats, error) {
-	srv := s.getCurrentServer()
-	if srv != nil {
-		return srv.GetEndpointStats(e)
+func (s *Supervisor) ServerStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
+	p := s.getCurrentProxy()
+	if p != nil {
+		return p.ServerStats(key)
 	}
-	return nil, fmt.Errorf("no current server")
+	return nil, fmt.Errorf("no current proxy")
 }
 
-func (s *Supervisor) GetUpstreamStats(u *backend.Upstream) (*backend.RoundTripStats, error) {
-	srv := s.getCurrentServer()
-	if srv != nil {
-		return srv.GetUpstreamStats(u)
+func (s *Supervisor) BackendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
+	p := s.getCurrentProxy()
+	if p != nil {
+		return p.BackendStats(key)
 	}
-	return nil, fmt.Errorf("no current server")
+	return nil, fmt.Errorf("no current proxy")
 }
 
-func (s *Supervisor) GetTopLocations(hostname, upstreamId string) ([]*backend.Location, error) {
-	srv := s.getCurrentServer()
-	if srv != nil {
-		return srv.GetTopLocations(hostname, upstreamId)
+// TopFrontends returns locations sorted by criteria (faulty, slow, most used)
+// if hostname or backendId is present, will filter out locations for that host or backendId
+func (s *Supervisor) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
+	p := s.getCurrentProxy()
+	if p != nil {
+		return p.TopFrontends(key)
 	}
-	return nil, fmt.Errorf("no current server")
+	return nil, fmt.Errorf("no current proxy")
 }
 
-func (s *Supervisor) GetTopEndpoints(upstreamId string) ([]*backend.Endpoint, error) {
-	srv := s.getCurrentServer()
-	if srv != nil {
-		return srv.GetTopEndpoints(upstreamId)
+// TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
+// if backendId is not empty, will filter out endpoints for that backendId
+func (s *Supervisor) TopServers(key *engine.BackendKey) ([]engine.Server, error) {
+	p := s.getCurrentProxy()
+	if p != nil {
+		return p.TopServers(key)
 	}
-	return nil, fmt.Errorf("no current server")
+	return nil, fmt.Errorf("no current proxy")
 }
 
 func (s *Supervisor) init() error {
-	srv, err := s.newSrv(s.lastId)
+	proxy, err := s.newProxy(s.lastId)
 	if err != nil {
 		return err
 	}
 	s.lastId += 1
 
-	if err := initServer(s.backend, srv); err != nil {
+	if err := initProxy(s.engine, proxy); err != nil {
 		return err
 	}
 
 	// This is the first start, pass the files that could have been passed
 	// to us by the parent process
 	if s.lastId == 1 && len(s.options.Files) != 0 {
-		log.Infof("Passing files %s to %s", s.options.Files, srv)
-		if err := srv.TakeFiles(s.options.Files); err != nil {
+		log.Infof("Passing files %v to %v", s.options.Files, proxy)
+		if err := proxy.TakeFiles(s.options.Files); err != nil {
 			return err
 		}
 	}
 
-	log.Infof("%s init() initial setup done", srv)
+	log.Infof("%v init() initial setup done", proxy)
 
-	oldSrv := s.getCurrentServer()
-	if oldSrv != nil {
-		files, err := oldSrv.GetFiles()
+	oldProxy := s.getCurrentProxy()
+	if oldProxy != nil {
+		files, err := oldProxy.GetFiles()
 		if err != nil {
 			return err
 		}
-		if err := srv.TakeFiles(files); err != nil {
+		log.Infof("%v taking files from %v to %v", s, oldProxy, proxy)
+		if err := proxy.TakeFiles(files); err != nil {
 			return err
 		}
 	}
 
-	if err := srv.Start(); err != nil {
+	if err := proxy.Start(); err != nil {
 		return err
 	}
 
-	if oldSrv != nil {
+	if oldProxy != nil {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			oldSrv.Stop(true)
+			oldProxy.Stop(true)
 		}()
 	}
 
 	// Watch and configure this instance of server
-	s.setCurrentServer(srv)
+	s.setCurrentProxy(proxy)
 	changesC := make(chan interface{})
 
 	// This goroutine will connect to the backend and emit the changes to the changesC channel.
 	// In case of any error it notifies supervisor of the error by sending an error to the channel triggering reload.
 	go func() {
 		cancelC := make(chan bool)
-		if err := s.backend.WatchChanges(changesC, cancelC); err != nil {
-			log.Infof("%s backend watcher got error: '%s' will restart", srv, err)
+		if err := s.engine.Subscribe(changesC, cancelC); err != nil {
+			log.Infof("%v engine watcher got error: '%v' will restart", proxy, err)
 			close(cancelC)
 			close(changesC)
 			s.restartC <- err
 		} else {
 			close(cancelC)
 			// Graceful shutdown without restart
-			log.Infof("%s backend watcher got nil error, gracefully shutdown", srv)
+			log.Infof("%v engine watcher got nil error, gracefully shutdown", proxy)
 			s.restartC <- nil
 		}
 	}()
@@ -211,10 +212,10 @@ func (s *Supervisor) init() error {
 		for {
 			change := <-changesC
 			if change == nil {
-				log.Infof("Stop watching changes for %s", srv)
+				log.Infof("Stop watching changes for %s", proxy)
 				return
 			}
-			if err := processChange(srv, change); err != nil {
+			if err := processChange(proxy, change); err != nil {
 				log.Errorf("failed to process change %#v, err: %s", change, err)
 			}
 		}
@@ -223,7 +224,7 @@ func (s *Supervisor) init() error {
 }
 
 func (s *Supervisor) stop() {
-	srv := s.getCurrentServer()
+	srv := s.getCurrentProxy()
 	if srv != nil {
 		srv.Stop(true)
 		log.Infof("%s was stopped by supervisor", srv)
@@ -246,8 +247,8 @@ func (s *Supervisor) supervise() {
 			return
 		}
 		for {
-			s.options.TimeProvider.Sleep(retryPeriod)
-			log.Infof("supervise() restarting %s on error: %s", s.srv, err)
+			s.options.Clock.Sleep(retryPeriod)
+			log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
 			// We failed to initialize server, this error can not be recovered, so send an error and exit
 			if err := s.init(); err != nil {
 				log.Infof("Failed to initialize %s, will retry", err)
@@ -293,24 +294,73 @@ func (s *Supervisor) Stop(wait bool) {
 	}
 }
 
-// initServer reads the configuration from the backend and configures the server
-func initServer(backend backend.Backend, srv server.Server) error {
-	hosts, err := backend.GetHosts()
+// initProxy reads the configuration from the engine and configures the server
+func initProxy(ng engine.Engine, p proxy.Proxy) error {
+	hosts, err := ng.GetHosts()
 	if err != nil {
-		log.Infof("Error getting hosts: %s", err)
 		return err
 	}
 
-	if len(hosts) == 0 {
-		log.Warningf("No hosts found")
-	}
-
 	for _, h := range hosts {
-		if err := srv.UpsertHost(h); err != nil {
+		if err := p.UpsertHost(h); err != nil {
 			return err
 		}
-		for _, l := range h.Locations {
-			if err := srv.UpsertLocation(h, l); err != nil {
+	}
+
+	bs, err := ng.GetBackends()
+	if err != nil {
+		return err
+	}
+
+	for _, b := range bs {
+		if err := p.UpsertBackend(b); err != nil {
+			return err
+		}
+
+		bk := engine.BackendKey{Id: b.Id}
+		servers, err := ng.GetServers(bk)
+		if err != nil {
+			return err
+		}
+
+		for _, s := range servers {
+			if err := p.UpsertServer(bk, s); err != nil {
+				return err
+			}
+		}
+	}
+
+	ls, err := ng.GetListeners()
+	if err != nil {
+		return err
+	}
+
+	for _, l := range ls {
+		if err := p.UpsertListener(l); err != nil {
+			return err
+		}
+	}
+
+	fs, err := ng.GetFrontends()
+	if err != nil {
+		return err
+	}
+
+	if len(fs) == 0 {
+		log.Warningf("No frontends found")
+	}
+
+	for _, f := range fs {
+		if err := p.UpsertFrontend(f); err != nil {
+			return err
+		}
+		fk := engine.FrontendKey{Id: f.Id}
+		ms, err := ng.GetMiddlewares(fk)
+		if err != nil {
+			return err
+		}
+		for _, m := range ms {
+			if err := p.UpsertMiddleware(fk, m); err != nil {
 				return err
 			}
 		}
@@ -318,54 +368,47 @@ func initServer(backend backend.Backend, srv server.Server) error {
 	return nil
 }
 
-func parseOptions(o Options) Options {
-	if o.TimeProvider == nil {
-		o.TimeProvider = &timetools.RealTime{}
+func setDefaults(o Options) Options {
+	if o.Clock == nil {
+		o.Clock = &timetools.RealTime{}
 	}
 	return o
 }
 
 // processChange takes the backend change notification emitted by the backend and applies it to the server
-func processChange(s server.Server, ch interface{}) error {
+func processChange(p proxy.Proxy, ch interface{}) error {
 	switch change := ch.(type) {
-	case *backend.HostAdded:
-		return s.UpsertHost(change.Host)
-	case *backend.HostDeleted:
-		return s.DeleteHost(change.Name)
-	case *backend.HostKeyPairUpdated:
-		return s.UpdateHostKeyPair(change.Host.Name, change.Host.KeyPair)
-	case *backend.HostListenerAdded:
-		return s.AddHostListener(change.Host, change.Listener)
-	case *backend.HostListenerDeleted:
-		return s.DeleteHostListener(change.Host, change.ListenerId)
-	case *backend.LocationAdded:
-		return s.UpsertLocation(change.Host, change.Location)
-	case *backend.LocationDeleted:
-		return s.DeleteLocation(change.Host, change.LocationId)
-	case *backend.LocationUpstreamUpdated:
-		return s.UpdateLocationUpstream(change.Host, change.Location)
-	case *backend.LocationPathUpdated:
-		return s.UpdateLocationPath(change.Host, change.Location, change.Path)
-	case *backend.LocationOptionsUpdated:
-		return s.UpdateLocationOptions(change.Host, change.Location)
-	case *backend.LocationMiddlewareAdded:
-		return s.UpsertLocationMiddleware(change.Host, change.Location, change.Middleware)
-	case *backend.LocationMiddlewareUpdated:
-		return s.UpsertLocationMiddleware(change.Host, change.Location, change.Middleware)
-	case *backend.LocationMiddlewareDeleted:
-		return s.DeleteLocationMiddleware(change.Host, change.Location, change.MiddlewareType, change.MiddlewareId)
-	case *backend.UpstreamAdded:
-		return s.UpsertUpstream(change.Upstream)
-	case *backend.UpstreamDeleted:
-		return s.DeleteUpstream(change.UpstreamId)
-	case *backend.UpstreamOptionsUpdated:
-		return s.UpsertUpstream(change.Upstream)
-	case *backend.EndpointAdded:
-		return s.UpsertEndpoint(change.Upstream, change.Endpoint)
-	case *backend.EndpointUpdated:
-		return s.UpsertEndpoint(change.Upstream, change.Endpoint)
-	case *backend.EndpointDeleted:
-		return s.DeleteEndpoint(change.Upstream, change.EndpointId)
+	case *engine.HostUpserted:
+		return p.UpsertHost(change.Host)
+	case *engine.HostDeleted:
+		return p.DeleteHost(change.HostKey)
+
+	case *engine.ListenerUpserted:
+		return p.UpsertListener(change.Listener)
+
+	case *engine.ListenerDeleted:
+		return p.DeleteListener(change.ListenerKey)
+
+	case *engine.FrontendUpserted:
+		return p.UpsertFrontend(change.Frontend)
+	case *engine.FrontendDeleted:
+		return p.DeleteFrontend(change.FrontendKey)
+
+	case *engine.MiddlewareUpserted:
+		return p.UpsertMiddleware(change.FrontendKey, change.Middleware)
+
+	case *engine.MiddlewareDeleted:
+		return p.DeleteMiddleware(change.MiddlewareKey)
+
+	case *engine.BackendUpserted:
+		return p.UpsertBackend(change.Backend)
+	case *engine.BackendDeleted:
+		return p.DeleteBackend(change.BackendKey)
+
+	case *engine.ServerUpserted:
+		return p.UpsertServer(change.BackendKey, change.Server)
+	case *engine.ServerDeleted:
+		return p.DeleteServer(change.ServerKey)
 	}
 	return fmt.Errorf("unsupported change: %#v", ch)
 }

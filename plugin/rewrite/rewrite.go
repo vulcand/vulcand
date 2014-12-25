@@ -3,19 +3,15 @@ package rewrite
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/errors"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/netutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/template"
-
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -32,8 +28,8 @@ func NewRewrite(regex, replacement string, rewriteBody, redirect bool) (*Rewrite
 	return &Rewrite{regex, replacement, rewriteBody, redirect}, nil
 }
 
-func (rw *Rewrite) NewMiddleware() (middleware.Middleware, error) {
-	return NewRewriteInstance(rw)
+func (rw *Rewrite) NewHandler(next http.Handler) (http.Handler, error) {
+	return newRewriteHandler(next, rw)
 }
 
 func (rw *Rewrite) String() string {
@@ -41,62 +37,76 @@ func (rw *Rewrite) String() string {
 		rw.Regexp, rw.Replacement, rw.RewriteBody, rw.Redirect)
 }
 
-type RewriteInstance struct {
+type rewriteHandler struct {
+	next        http.Handler
+	errHandler  utils.ErrorHandler
 	regexp      *regexp.Regexp
 	replacement string
 	rewriteBody bool
 	redirect    bool
 }
 
-func NewRewriteInstance(spec *Rewrite) (*RewriteInstance, error) {
+func newRewriteHandler(next http.Handler, spec *Rewrite) (*rewriteHandler, error) {
 	re, err := regexp.Compile(spec.Regexp)
 	if err != nil {
 		return nil, err
 	}
-	return &RewriteInstance{re, spec.Replacement, spec.RewriteBody, spec.Redirect}, nil
+	return &rewriteHandler{
+		regexp:      re,
+		replacement: spec.Replacement,
+		rewriteBody: spec.RewriteBody,
+		redirect:    spec.Redirect,
+		next:        next,
+		errHandler:  utils.DefaultHandler,
+	}, nil
 }
 
-func (rw *RewriteInstance) ProcessRequest(r request.Request) (*http.Response, error) {
-	oldURL := netutils.RawURL(r.GetHttpRequest())
+func (rw *rewriteHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	oldURL := rawURL(req)
 
 	// apply a rewrite regexp to the URL
 	newURL := rw.regexp.ReplaceAllString(oldURL, rw.replacement)
 
 	// replace any variables that may be in there
 	rewrittenURL := &bytes.Buffer{}
-	if err := template.ApplyString(newURL, rewrittenURL, r.GetHttpRequest()); err != nil {
-		return nil, err
+	if err := ApplyString(newURL, rewrittenURL, req); err != nil {
+		rw.errHandler.ServeHTTP(w, req, err)
+		return
 	}
 
 	// parse the rewritten URL and replace request URL with it
 	parsedURL, err := url.Parse(rewrittenURL.String())
 	if err != nil {
-		return nil, err
-	}
-
-	if rw.redirect {
-		return nil, &errors.RedirectError{URL: parsedURL}
-	}
-
-	r.GetHttpRequest().URL = parsedURL
-	return nil, nil
-}
-
-func (rw *RewriteInstance) ProcessResponse(r request.Request, a request.Attempt) {
-	if !rw.rewriteBody {
+		rw.errHandler.ServeHTTP(w, req, err)
 		return
 	}
 
-	body := a.GetResponse().Body
-	defer body.Close()
+	if rw.redirect {
+		(&redirectHandler{u: parsedURL}).ServeHTTP(w, req)
+		return
+	}
 
+	req.URL = parsedURL
+	req.RequestURI = req.URL.Path
+
+	if !rw.rewriteBody {
+		rw.next.ServeHTTP(w, req)
+		return
+	}
+
+	bw := &bufferWriter{header: make(http.Header), buffer: &bytes.Buffer{}}
 	newBody := &bytes.Buffer{}
-	if err := template.Apply(body, newBody, r.GetHttpRequest()); err != nil {
+
+	rw.next.ServeHTTP(bw, req)
+
+	if err := Apply(bw.buffer, newBody, req); err != nil {
 		log.Errorf("Failed to rewrite response body: %v", err)
 		return
 	}
 
-	a.GetResponse().Body = ioutil.NopCloser(newBody)
+	utils.CopyHeaders(w.Header(), bw.Header())
+	w.WriteHeader(bw.code)
+	io.Copy(w, newBody)
 }
 
 func FromOther(rw Rewrite) (plugin.Middleware, error) {
@@ -135,4 +145,45 @@ func CliFlags() []cli.Flag {
 			Usage: "if provided, request is redirected to the rewritten URL",
 		},
 	}
+}
+
+func rawURL(request *http.Request) string {
+	scheme := "http"
+	if request.URL.Scheme != "" {
+		scheme = request.URL.Scheme
+	}
+	return strings.Join([]string{scheme, "://", request.Host, request.RequestURI}, "")
+}
+
+type redirectHandler struct {
+	u *url.URL
+}
+
+func (f *redirectHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Location", f.u.String())
+	w.WriteHeader(http.StatusFound)
+	w.Write([]byte(http.StatusText(http.StatusFound)))
+}
+
+type bufferWriter struct {
+	header http.Header
+	code   int
+	buffer *bytes.Buffer
+}
+
+func (b *bufferWriter) Close() error {
+	return nil
+}
+
+func (b *bufferWriter) Header() http.Header {
+	return b.header
+}
+
+func (b *bufferWriter) Write(buf []byte) (int, error) {
+	return b.buffer.Write(buf)
+}
+
+// WriteHeader sets rw.Code.
+func (b *bufferWriter) WriteHeader(code int) {
+	b.code = code
 }

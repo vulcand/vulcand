@@ -2,10 +2,11 @@ package connlimit
 
 import (
 	"fmt"
+	"net/http"
+
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/connlimit"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/connlimit"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -27,16 +28,16 @@ type ConnLimit struct {
 }
 
 // Returns vulcan library compatible middleware
-func (r *ConnLimit) NewMiddleware() (middleware.Middleware, error) {
-	mapper, err := limit.VariableToMapper(r.Variable)
+func (c *ConnLimit) NewHandler(next http.Handler) (http.Handler, error) {
+	extract, err := utils.NewExtractor(c.Variable)
 	if err != nil {
 		return nil, err
 	}
-	return connlimit.NewConnectionLimiter(mapper, r.Connections)
+	return connlimit.New(next, extract, c.Connections)
 }
 
 func NewConnLimit(connections int64, variable string) (*ConnLimit, error) {
-	if _, err := limit.VariableToMapper(variable); err != nil {
+	if _, err := utils.NewExtractor(variable); err != nil {
 		return nil, err
 	}
 	if connections < 0 {
@@ -48,8 +49,8 @@ func NewConnLimit(connections int64, variable string) (*ConnLimit, error) {
 	}, nil
 }
 
-func (cl *ConnLimit) String() string {
-	return fmt.Sprintf("connections=%d, variable=%s", cl.Connections, cl.Variable)
+func (c *ConnLimit) String() string {
+	return fmt.Sprintf("connections=%d, variable=%s", c.Connections, c.Variable)
 }
 
 func FromOther(c ConnLimit) (plugin.Middleware, error) {

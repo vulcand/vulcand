@@ -1,10 +1,11 @@
 package connlimit
 
 import (
+	"testing"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/plugin"
-	"testing"
 )
 
 func TestCL(t *testing.T) { TestingT(t) }
@@ -27,7 +28,7 @@ func (s *ConnLimitSuite) TestNewConnLimitSuccess(c *C) {
 
 	c.Assert(cl.String(), Not(Equals), "")
 
-	out, err := cl.NewMiddleware()
+	out, err := cl.NewHandler(nil)
 	c.Assert(out, NotNil)
 	c.Assert(err, IsNil)
 }

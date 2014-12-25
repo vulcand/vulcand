@@ -62,6 +62,19 @@ func (s *RouteSuite) TestBadExpression(c *C) {
 	c.Assert(out, Equals, m)
 }
 
+func (s *RouteSuite) TestUpsert(c *C) {
+	r := New()
+
+	m1, m2 := "m1", "m2"
+	c.Assert(r.UpsertRoute(`Path("/r1")`, m1), IsNil)
+	c.Assert(r.UpsertRoute(`Path("/r1")`, m2), IsNil)
+	c.Assert(r.UpsertRoute(`Path"/r1")`, m2), NotNil)
+
+	out, err := r.Route(makeReq(req{url: "http://google.com/r1"}))
+	c.Assert(err, IsNil)
+	c.Assert(out, Equals, m2)
+}
+
 func (s *RouteSuite) TestMatchCases(c *C) {
 	tc := []struct {
 		name     string

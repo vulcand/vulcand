@@ -3,14 +3,14 @@ package ratelimit
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/ratelimit"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/limit/tokenbucket"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/middleware"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -41,17 +41,17 @@ func FromOther(o RateLimit) (plugin.Middleware, error) {
 	if o.PeriodSeconds <= 0 {
 		return nil, fmt.Errorf("period seconds should be > 0, got %d", o.PeriodSeconds)
 	}
-	mapper, err := limit.VariableToMapper(o.Variable)
+	extract, err := utils.NewExtractor(o.Variable)
 	if err != nil {
 		return nil, err
 	}
-	configMapper, err := configMapperFromVar(o.RateVar)
+	extractRates, err := makeRateExtractor(o.RateVar)
 	if err != nil {
 		return nil, err
 	}
 
-	o.mapper = mapper
-	o.configMapper = configMapper
+	o.extract = extract
+	o.extractRates = extractRates
 	return &o, nil
 }
 
@@ -81,17 +81,19 @@ type RateLimit struct {
 	// process a particular request. E.g. 'request.header.X-Rates'
 	RateVar string
 
-	mapper       limit.MapperFn
-	configMapper tokenbucket.ConfigMapperFn
+	extract      utils.SourceExtractor
+	extractRates ratelimit.RateExtractor
 	clock        timetools.TimeProvider
 }
 
 // Returns vulcan library compatible middleware
-func (r *RateLimit) NewMiddleware() (middleware.Middleware, error) {
-	defaultRates := tokenbucket.NewRateSet()
-	defaultRates.Add(time.Duration(r.PeriodSeconds)*time.Second, r.Requests, r.Burst)
-
-	return tokenbucket.NewLimiter(defaultRates, 0, r.mapper, r.configMapper, r.clock)
+func (r *RateLimit) NewHandler(next http.Handler) (http.Handler, error) {
+	defaultRates := ratelimit.NewRateSet()
+	if err := defaultRates.Add(time.Duration(r.PeriodSeconds)*time.Second, r.Requests, r.Burst); err != nil {
+		return nil, err
+	}
+	return ratelimit.New(next, r.extract, defaultRates,
+		ratelimit.ExtractRates(r.extractRates), ratelimit.Clock(r.clock))
 }
 
 func (rl *RateLimit) String() string {
@@ -99,39 +101,43 @@ func (rl *RateLimit) String() string {
 		time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst, rl.Variable, rl.RateVar)
 }
 
-func configMapperFromVar(variable string) (tokenbucket.ConfigMapperFn, error) {
+func makeRateExtractor(variable string) (ratelimit.RateExtractor, error) {
 	if variable == "" {
 		return nil, nil
 	}
 
-	m, err := limit.MakeTokenMapperFromVariable(variable)
-	if err != nil {
-		return nil, err
+	if !strings.HasPrefix(variable, "request.header.") {
+		return nil, fmt.Errorf("unsupported variable format: %v", variable)
 	}
 
-	return func(r request.Request) (*tokenbucket.RateSet, error) {
-		jsonString, err := m(r)
-		if err != nil {
-			return nil, err
+	header := strings.TrimPrefix(variable, "request.header.")
+	if len(header) == 0 {
+		return nil, fmt.Errorf("Wrong header: %s", header)
+	}
+
+	return ratelimit.RateExtractorFunc(func(r *http.Request) (*ratelimit.RateSet, error) {
+		jsonString := r.Header.Get(header)
+		if jsonString == "" {
+			return nil, fmt.Errorf("empty rate header")
 		}
 
 		var specs []rateSpec
-		if err = json.Unmarshal([]byte(jsonString), &specs); err != nil {
+		if err := json.Unmarshal([]byte(jsonString), &specs); err != nil {
 			return nil, err
 		}
 
-		rateSet := tokenbucket.NewRateSet()
+		rateSet := ratelimit.NewRateSet()
 		for _, s := range specs {
 			period := time.Duration(s.PeriodSeconds) * time.Second
 			if s.Burst == 0 {
 				s.Burst = s.Requests
 			}
-			if err = rateSet.Add(period, s.Requests, s.Burst); err != nil {
+			if err := rateSet.Add(period, s.Requests, s.Burst); err != nil {
 				return nil, err
 			}
 		}
 		return rateSet, nil
-	}, nil
+	}), nil
 }
 
 // rateSpec is used to serialize token bucket rates to JSON. Note that the

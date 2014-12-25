@@ -141,7 +141,7 @@ func (s *SpecSuite) TestNewCircuitBreakerSuccess(c *C) {
 
 	c.Assert(cl.String(), Not(Equals), "")
 
-	out, err := cl.NewMiddleware()
+	out, err := cl.NewHandler(nil)
 	c.Assert(err, IsNil)
 	c.Assert(out, NotNil)
 }

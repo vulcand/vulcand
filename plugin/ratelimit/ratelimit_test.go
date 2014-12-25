@@ -3,12 +3,13 @@ package ratelimit
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/vulcan/request"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/plugin"
 )
@@ -46,7 +47,7 @@ func (s *RateLimitSuite) TestFromOther(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(fmt.Sprint(rl), Equals, "reqs/1s=1, burst=10, var=client.ip, rateVar=request.header.X-Rates")
 
-	out, err := rl.NewMiddleware()
+	out, err := rl.NewHandler(nil)
 	c.Assert(out, NotNil)
 	c.Assert(err, IsNil)
 }
@@ -63,7 +64,7 @@ func (s *RateLimitSuite) TestFromOtherNoConfigVar(c *C) {
 	c.Assert(rl, NotNil)
 	c.Assert(err, IsNil)
 
-	out, err := rl.NewMiddleware()
+	out, err := rl.NewHandler(nil)
 	c.Assert(out, NotNil)
 	c.Assert(err, IsNil)
 }
@@ -137,7 +138,7 @@ func (s *RateLimitSuite) TestFromCli(c *C) {
 		c.Assert(err, IsNil)
 
 		rl := out.(*RateLimit)
-		m, err := rl.NewMiddleware()
+		m, err := rl.NewHandler(nil)
 		c.Assert(m, NotNil)
 		c.Assert(err, IsNil)
 	}
@@ -159,32 +160,37 @@ func (s *RateLimitSuite) TestRequestProcessing(c *C) {
 			clock:         s.clock,
 		})
 
-	rli, _ := rl.NewMiddleware()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello"))
+	})
 
-	request := &request.BaseRequest{
-		HttpRequest: &http.Request{
-			RemoteAddr: "1.2.3.4",
-			Header: http.Header(map[string][]string{
-				"X-Rates": []string{`[{"PeriodSeconds": 1, "Requests": 2}]`}}),
-		},
-	}
+	rli, err := rl.NewHandler(handler)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rli)
+	defer srv.Close()
 
 	// When/Then: The configured rate is applied, which 2 request/second, note
 	// that the default rate is 1 request/second.
-	response, err := rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	hdr := testutils.Header("X-Rates", `[{"PeriodSeconds": 1, "Requests": 2}]`)
+
+	re, _, err := testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Rejected
-	c.Assert(response, NotNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, 429)
 
 	s.clock.Sleep(time.Second)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
 }
 
 func (s *RateLimitSuite) TestRequestProcessingEmptyConfig(c *C) {
@@ -199,28 +205,31 @@ func (s *RateLimitSuite) TestRequestProcessingEmptyConfig(c *C) {
 			clock:         s.clock,
 		})
 
-	rli, _ := rl.NewMiddleware()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello"))
+	})
 
-	request := &request.BaseRequest{
-		HttpRequest: &http.Request{
-			RemoteAddr: "1.2.3.4",
-			Header: http.Header(map[string][]string{
-				"X-Rates": []string{`[]`}}),
-		},
-	}
+	rli, err := rl.NewHandler(handler)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rli)
+	defer srv.Close()
 
 	// When/Then: The default rate of 1 request/second is used.
-	response, err := rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	hdr := testutils.Header("X-Rates", `[]`)
+
+	re, _, err := testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Rejected
-	c.Assert(response, NotNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, 429)
 
 	s.clock.Sleep(time.Second)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
 }
 
 func (s *RateLimitSuite) TestRequestProcessingNoHeader(c *C) {
@@ -235,26 +244,29 @@ func (s *RateLimitSuite) TestRequestProcessingNoHeader(c *C) {
 			clock:         s.clock,
 		})
 
-	rli, _ := rl.NewMiddleware()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello"))
+	})
 
-	request := &request.BaseRequest{
-		HttpRequest: &http.Request{
-			RemoteAddr: "1.2.3.4",
-		},
-	}
+	rli, err := rl.NewHandler(handler)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rli)
+	defer srv.Close()
 
 	// When/Then: The default rate of 1 request/second is used.
-	response, err := rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	re, _, err := testutils.Get(srv.URL)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Rejected
-	c.Assert(response, NotNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	re, _, err = testutils.Get(srv.URL)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, 429)
 
 	s.clock.Sleep(time.Second)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	re, _, err = testutils.Get(srv.URL)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
 }
 
 // If the rate set from the HTTP header has more then one rate for the same
@@ -271,28 +283,31 @@ func (s *RateLimitSuite) TestRequestInvalidConfig(c *C) {
 			clock:         s.clock,
 		})
 
-	rli, _ := rl.NewMiddleware()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello"))
+	})
 
-	request := &request.BaseRequest{
-		HttpRequest: &http.Request{
-			RemoteAddr: "1.2.3.4",
-			Header: http.Header(map[string][]string{
-				"X-Rates": []string{`[{"PeriodSeconds": -1, "Requests": 10}]`}}),
-		},
-	}
+	rli, err := rl.NewHandler(handler)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rli)
+	defer srv.Close()
 
 	// When/Then: The default rate of 1 request/second is used.
-	response, err := rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	hdr := testutils.Header("X-Rates", `[{"PeriodSeconds": -1, "Requests": 10}]`)
+
+	re, _, err := testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Rejected
-	c.Assert(response, NotNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, 429)
 
 	s.clock.Sleep(time.Second)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
 }
 
 // If the rate set from the HTTP header has more then one rate for the same
@@ -309,34 +324,35 @@ func (s *RateLimitSuite) TestRequestProcessingAmbiguousConfig(c *C) {
 			clock:         s.clock,
 		})
 
-	rli, _ := rl.NewMiddleware()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("hello"))
+	})
 
-	request := &request.BaseRequest{
-		HttpRequest: &http.Request{
-			RemoteAddr: "1.2.3.4",
-			Header: http.Header(map[string][]string{
-				"X-Rates": []string{`[{"PeriodSeconds": 1, "Requests": 10},
-					                  {"PeriodSeconds": 1, "Requests": 3}]`}}),
-		},
-	}
+	rli, err := rl.NewHandler(handler)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rli)
+	defer srv.Close()
 
 	// When/Then: The last of configured rates with the same period is applied,
-	// which 3 request/second, note that the default rate is 1 request/second.
-	response, err := rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	// which 2 request/second, note that the default rate is 1 request/second.
+	hdr := testutils.Header("X-Rates", `[{"PeriodSeconds": 1, "Requests": 10},
+					                  {"PeriodSeconds": 1, "Requests": 2}]`)
+
+	re, _, err := testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
-	response, err = rli.ProcessRequest(request) // Rejected
-	c.Assert(response, NotNil)
-	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, 429)
 
 	s.clock.Sleep(time.Second)
-	response, err = rli.ProcessRequest(request) // Processed
-	c.Assert(response, IsNil)
+	re, _, err = testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
 }

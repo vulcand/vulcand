@@ -1,73 +1,99 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 
 	"github.com/mailgun/vulcand/anomaly"
-	"github.com/mailgun/vulcand/backend"
+	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/plugin"
 )
 
 type ProxyController struct {
-	backend backend.Backend
-	stats   backend.StatsProvider
-	app     *scroll.App
+	ng    engine.Engine
+	stats engine.StatsProvider
+	app   *scroll.App
 }
 
-func InitProxyController(backend backend.Backend, stats backend.StatsProvider, app *scroll.App) {
-	c := &ProxyController{backend: backend, stats: stats, app: app}
+func InitProxyController(ng engine.Engine, stats engine.StatsProvider, app *scroll.App) {
+	c := &ProxyController{ng: ng, stats: stats, app: app}
 
 	app.SetNotFoundHandler(c.handleError)
 
 	app.AddHandler(scroll.Spec{Path: "/v1/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
+	app.AddHandler(scroll.Spec{Path: "/v2/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/log/severity", Methods: []string{"GET"}, Handler: c.getLogSeverity})
-	app.AddHandler(scroll.Spec{Path: "/v1/log/severity", Methods: []string{"PUT"}, Handler: c.updateLogSeverity})
+	app.AddHandler(scroll.Spec{Path: "/v2/log/severity", Methods: []string{"GET"}, Handler: c.getLogSeverity})
+	app.AddHandler(scroll.Spec{Path: "/v2/log/severity", Methods: []string{"PUT"}, Handler: c.updateLogSeverity})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"POST"}, HandlerWithBody: c.addHost})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts", Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"GET"}, Handler: c.getHost})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
+	// Hosts
+	app.AddHandler(scroll.Spec{Path: "/v2/hosts", Methods: []string{"POST"}, HandlerWithBody: c.upsertHost})
+	app.AddHandler(scroll.Spec{Path: "/v2/hosts", Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
+	app.AddHandler(scroll.Spec{Path: "/v2/hosts/{hostname}", Methods: []string{"GET"}, Handler: c.getHost})
+	app.AddHandler(scroll.Spec{Path: "/v2/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/top/locations", Methods: []string{"GET"}, Handler: c.getTopLocations})
+	// Listeners
+	app.AddHandler(scroll.Spec{Path: "/v2/listeners", Methods: []string{"GET"}, Handler: c.getListeners})
+	app.AddHandler(scroll.Spec{Path: "/v2/listeners", Methods: []string{"POST"}, HandlerWithBody: c.upsertListener})
+	app.AddHandler(scroll.Spec{Path: "/v2/listeners/{id}", Methods: []string{"GET"}, Handler: c.getListener})
+	app.AddHandler(scroll.Spec{Path: "/v2/listeners/{id}", Methods: []string{"DELETE"}, Handler: c.deleteListener})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"GET"}, Handler: c.getHostLocation})
+	// Top provides top-style realtime statistics about frontends and servers
+	app.AddHandler(scroll.Spec{Path: "/v2/top/frontends", Methods: []string{"GET"}, Handler: c.getTopFrontends})
+	app.AddHandler(scroll.Spec{Path: "/v2/top/servers", Methods: []string{"GET"}, Handler: c.getTopServers})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/keypair", Methods: []string{"PUT"}, HandlerWithBody: c.updateHostKeyPair})
+	// Frontends
+	app.AddHandler(scroll.Spec{Path: "/v2/frontends", Methods: []string{"POST"}, HandlerWithBody: c.upsertFrontend})
+	app.AddHandler(scroll.Spec{Path: "/v2/frontends/{id}", Methods: []string{"GET"}, Handler: c.getFrontend})
+	app.AddHandler(scroll.Spec{Path: "/v2/frontends", Methods: []string{"GET"}, Handler: c.getFrontends})
+	app.AddHandler(scroll.Spec{Path: "/v2/frontends/{id}", Methods: []string{"DELETE"}, Handler: c.deleteFrontend})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/listeners", Methods: []string{"POST"}, HandlerWithBody: c.addHostListener})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/listeners/{id}", Methods: []string{"DELETE"}, Handler: c.deleteHostListener})
+	// Backends
+	app.AddHandler(scroll.Spec{Path: "/v2/backends", Methods: []string{"POST"}, HandlerWithBody: c.upsertBackend})
+	app.AddHandler(scroll.Spec{Path: "/v2/backends", Methods: []string{"GET"}, Handler: c.getBackends})
+	app.AddHandler(scroll.Spec{Path: "/v2/backends/{id}", Methods: []string{"DELETE"}, Handler: c.deleteBackend})
+	app.AddHandler(scroll.Spec{Path: "/v2/backends/{id}", Methods: []string{"GET"}, Handler: c.getBackend})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams", Methods: []string{"POST"}, HandlerWithBody: c.addUpstream})
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams", Methods: []string{"GET"}, Handler: c.getUpstreams})
+	// Servers
+	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers", Methods: []string{"GET"}, Handler: c.getServers})
+	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers", Methods: []string{"POST"}, HandlerWithBody: c.upsertServer})
+	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers/{id}", Methods: []string{"GET"}, Handler: c.getServer})
+	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers/{id}", Methods: []string{"DELETE"}, Handler: c.deleteServer})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"DELETE"}, Handler: c.deleteUpstream})
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}", Methods: []string{"GET"}, Handler: c.getUpstream})
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{id}/options", Methods: []string{"PUT"}, HandlerWithBody: c.updateUpstreamOptions})
+	// Middlewares
+	c.app.AddHandler(
+		scroll.Spec{
+			Path:            fmt.Sprintf("/v2/frontends/{frontend}/middlewares"),
+			Methods:         []string{"POST"},
+			HandlerWithBody: c.upsertMiddleware,
+		})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"POST"}, HandlerWithBody: c.addLocation})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations", Methods: []string{"GET"}, Handler: c.getHostLocations})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"PUT"}, Handler: c.updateLocationUpstream})
+	c.app.AddHandler(
+		scroll.Spec{
+			Path:    fmt.Sprintf("/v2/frontends/{frontend}/middlewares/{id}"),
+			Methods: []string{"GET"},
+			Handler: c.getMiddleware,
+		})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}/options", Methods: []string{"PUT"}, HandlerWithBody: c.updateLocationOptions})
-	app.AddHandler(scroll.Spec{Path: "/v1/hosts/{hostname}/locations/{id}", Methods: []string{"DELETE"}, Handler: c.deleteLocation})
+	c.app.AddHandler(
+		scroll.Spec{
+			Path:    fmt.Sprintf("/v2/frontends/{frontend}/middlewares"),
+			Methods: []string{"GET"},
+			Handler: c.getMiddlewares,
+		})
 
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/top/endpoints", Methods: []string{"GET"}, Handler: c.getTopEndpoints})
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"POST"}, HandlerWithBody: c.addEndpoint})
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints", Methods: []string{"GET"}, Handler: c.getUpstreamEndpoints})
-	app.AddHandler(scroll.Spec{Path: "/v1/upstreams/{upstream}/endpoints/{endpoint}", Methods: []string{"DELETE"}, Handler: c.deleteEndpoint})
-
-	// Register controllers for middlewares
-	if backend.GetRegistry() != nil {
-		for _, s := range backend.GetRegistry().GetSpecs() {
-			c.registerMiddlewareHandlers(s)
-		}
-	}
+	c.app.AddHandler(
+		scroll.Spec{
+			Path:    fmt.Sprintf("/v2/frontends/{frontend}/middlewares/{id}"),
+			Methods: []string{"DELETE"},
+			Handler: c.deleteMiddleware,
+		})
 }
 
 func (c *ProxyController) handleError(w http.ResponseWriter, r *http.Request) {
@@ -96,336 +122,250 @@ func (c *ProxyController) updateLogSeverity(w http.ResponseWriter, r *http.Reque
 }
 
 func (c *ProxyController) getHosts(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	hosts, err := c.backend.GetHosts()
-
-	// This is to display the realtime stats, looks ugly.
-	for _, h := range hosts {
-		for _, l := range h.Locations {
-			if s, err := c.stats.GetLocationStats(l); err == nil {
-				l.Stats = *s
-			}
-			for _, e := range l.Upstream.Endpoints {
-				if s, err := c.stats.GetEndpointStats(e); err == nil {
-					e.Stats = *s
-				}
-			}
-		}
-	}
+	hosts, err := c.ng.GetHosts()
 	return scroll.Response{
 		"Hosts": hosts,
 	}, err
 }
 
 func (c *ProxyController) getHost(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	h, err := c.backend.GetHost(params["hostname"])
+	h, err := c.ng.GetHost(engine.HostKey{Name: params["hostname"]})
 	if err != nil {
 		return nil, formatError(err)
 	}
 	return formatResult(h, err)
 }
 
-func (c *ProxyController) getHostLocations(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	host, err := c.backend.GetHost(params["hostname"])
+func (c *ProxyController) getFrontends(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	fs, err := c.ng.GetFrontends()
 	if err != nil {
 		return nil, formatError(err)
 	}
 	return scroll.Response{
-		"Locations": host.Locations,
+		"Frontends": fs,
 	}, nil
 }
 
-func (c *ProxyController) getTopLocations(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) getTopFrontends(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	limit, err := strconv.Atoi(r.Form.Get("limit"))
 	if err != nil {
 		return nil, formatError(err)
 	}
-	locations, err := c.stats.GetTopLocations(r.Form.Get("hostname"), r.Form.Get("upstreamId"))
+	var bk *engine.BackendKey
+	if key := r.Form.Get("backendId"); key != "" {
+		bk = &engine.BackendKey{Id: key}
+	}
+	frontends, err := c.stats.TopFrontends(bk)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	if limit > 0 && limit < len(locations) {
-		locations = locations[:limit]
+	if limit > 0 && limit < len(frontends) {
+		frontends = frontends[:limit]
 	}
 	return scroll.Response{
-		"Locations": locations,
+		"Frontends": frontends,
 	}, nil
 }
 
-func (c *ProxyController) getHostLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	return formatResult(c.backend.GetLocation(params["hostname"], params["id"]))
+func (c *ProxyController) getFrontend(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	return formatResult(c.ng.GetFrontend(engine.FrontendKey{Id: params["id"]}))
 }
 
-func (c *ProxyController) addHost(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	host, err := backend.HostFromJSON(body, c.backend.GetRegistry().GetSpec)
+func (c *ProxyController) upsertHost(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	host, err := engine.HostFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	log.Infof("Add %s", host)
-	return formatResult(c.backend.AddHost(host))
+	log.Infof("Upsert %s", host)
+	return formatResult(host, c.ng.UpsertHost(*host))
 }
 
-func (c *ProxyController) addHostListener(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	listener, err := backend.ListenerFromJSON(body)
+func (c *ProxyController) getListeners(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	ls, err := c.ng.GetListeners()
+	return scroll.Response{
+		"Listeners": ls,
+	}, err
+}
+
+func (c *ProxyController) upsertListener(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	listener, err := engine.ListenerFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	log.Infof("Add %s", listener)
-	return formatResult(c.backend.AddHostListener(params["hostname"], listener))
+	log.Infof("Upsert %s", listener)
+	return formatResult(listener, c.ng.UpsertListener(*listener))
 }
 
-func (c *ProxyController) deleteHostListener(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	log.Infof("Delete Listener(id=%s) from Host(name=%s)", params["id"], params["hostname"])
-	if err := c.backend.DeleteHostListener(params["hostname"], params["id"]); err != nil {
+func (c *ProxyController) getListener(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	log.Infof("Get Listener(id=%s)", params["id"])
+	return formatResult(c.ng.GetListener(engine.ListenerKey{Id: params["id"]}))
+}
+
+func (c *ProxyController) deleteListener(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	log.Infof("Delete Listener(id=%s)", params["id"])
+	if err := c.ng.DeleteListener(engine.ListenerKey{Id: params["id"]}); err != nil {
 		return nil, formatError(err)
 	}
 	return scroll.Response{"message": "Listener deleted"}, nil
 }
 
-func (c *ProxyController) updateHostKeyPair(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	hostname := params["hostname"]
-	keyPair, err := backend.KeyPairFromJSON(body)
-	if err != nil {
-		return nil, formatError(err)
-	}
-	return formatResult(c.backend.UpdateHostKeyPair(hostname, keyPair))
-}
-
 func (c *ProxyController) deleteHost(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	hostname := params["hostname"]
 	log.Infof("Delete host: %s", hostname)
-	if err := c.backend.DeleteHost(hostname); err != nil {
+	if err := c.ng.DeleteHost(engine.HostKey{Name: hostname}); err != nil {
 		return nil, formatError(err)
 	}
 	return scroll.Response{"message": fmt.Sprintf("Host '%s' deleted", hostname)}, nil
 }
 
-func (c *ProxyController) addUpstream(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	upstream, err := backend.UpstreamFromJSON(body)
+func (c *ProxyController) upsertBackend(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	b, err := engine.BackendFromJSON(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	log.Infof("Add Upstream: %s", upstream)
-	return formatResult(c.backend.AddUpstream(upstream))
+	log.Infof("Add Backend: %s", b)
+	return formatResult(b, c.ng.UpsertBackend(*b))
 }
 
-func (c *ProxyController) updateUpstreamOptions(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	upId := params["id"]
-
-	options, err := backend.UpstreamOptionsFromJSON(body)
-	if err != nil {
+func (c *ProxyController) deleteBackend(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	backendId := params["id"]
+	log.Infof("Delete Backend(id=%s)", backendId)
+	if err := c.ng.DeleteBackend(engine.BackendKey{Id: backendId}); err != nil {
 		return nil, formatError(err)
 	}
-	return formatResult(c.backend.UpdateUpstreamOptions(upId, *options))
+	return scroll.Response{"message": "Backend deleted"}, nil
 }
 
-func (c *ProxyController) deleteUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	upstreamId := params["id"]
-	log.Infof("Delete Upstream(id=%s)", upstreamId)
-	if err := c.backend.DeleteUpstream(upstreamId); err != nil {
-		return nil, formatError(err)
-	}
-	return scroll.Response{"message": "Upstream deleted"}, nil
-}
-
-func (c *ProxyController) getUpstreams(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	upstreams, err := c.backend.GetUpstreams()
-
-	for _, u := range upstreams {
-		for _, e := range u.Endpoints {
-			if s, err := c.stats.GetEndpointStats(e); err == nil {
-				e.Stats = *s
-			}
-		}
-		anomaly.MarkEndpointAnomalies(u.Endpoints)
-	}
-
+func (c *ProxyController) getBackends(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	backends, err := c.ng.GetBackends()
 	return scroll.Response{
-		"Upstreams": upstreams,
+		"Backends": backends,
 	}, err
 }
 
-func (c *ProxyController) getUpstreamEndpoints(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	up, err := c.backend.GetUpstream(params["upstream"])
-	if err != nil {
-		return nil, formatError(err)
-	}
-	for _, e := range up.Endpoints {
-		if s, err := c.stats.GetEndpointStats(e); err == nil {
-			e.Stats = *s
-		}
-	}
-	anomaly.MarkEndpointAnomalies(up.Endpoints)
-	return scroll.Response{
-		"Endpoints": up.Endpoints,
-	}, nil
-}
-
-func (c *ProxyController) getTopEndpoints(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+func (c *ProxyController) getTopServers(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	limit, err := strconv.Atoi(r.Form.Get("limit"))
 	if err != nil {
 		return nil, formatError(err)
 	}
-	endpoints, err := c.stats.GetTopEndpoints(r.Form.Get("upstreamId"))
+	var bk *engine.BackendKey
+	if key := r.Form.Get("backendId"); key != "" {
+		bk = &engine.BackendKey{Id: key}
+	}
+	servers, err := c.stats.TopServers(bk)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	if r.Form.Get("upstreamId") != "" {
-		anomaly.MarkEndpointAnomalies(endpoints)
+	if bk != nil {
+		anomaly.MarkServerAnomalies(servers)
 	}
-	if limit > 0 && limit < len(endpoints) {
-		endpoints = endpoints[:limit]
+	if limit > 0 && limit < len(servers) {
+		servers = servers[:limit]
 	}
 	return scroll.Response{
-		"Endpoints": endpoints,
+		"Servers": servers,
 	}, nil
 }
 
-func (c *ProxyController) getUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	return formatResult(c.backend.GetUpstream(params["id"]))
+func (c *ProxyController) getBackend(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	return formatResult(c.ng.GetBackend(engine.BackendKey{Id: params["id"]}))
 }
 
-func (c *ProxyController) addLocation(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	location, err := backend.LocationFromJSON(body, c.backend.GetRegistry().GetSpec)
+func (c *ProxyController) upsertFrontend(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	frontend, ttl, err := parseFrontendPack(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	log.Infof("Add %s", location)
-	return formatResult(c.backend.AddLocation(location))
+	log.Infof("Upsert %s", frontend)
+	return formatResult(frontend, c.ng.UpsertFrontend(*frontend, ttl))
 }
 
-func (c *ProxyController) updateLocationUpstream(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	hostname := params["hostname"]
-	locationId := params["id"]
-
-	upstream, err := scroll.GetStringField(r, "upstream")
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("Update Location: %s %s set upstream", hostname, locationId, upstream)
-	if _, err := c.backend.UpdateLocationUpstream(hostname, locationId, upstream); err != nil {
+func (c *ProxyController) deleteFrontend(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	log.Infof("Delete Frontend(id=%s)", params["id"])
+	if err := c.ng.DeleteFrontend(engine.FrontendKey{Id: params["id"]}); err != nil {
 		return nil, formatError(err)
 	}
-	return scroll.Response{"message": "Location upstream updated"}, nil
+	return scroll.Response{"message": "Frontend deleted"}, nil
 }
 
-func (c *ProxyController) updateLocationOptions(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	hostname := params["hostname"]
-	locationId := params["id"]
-
-	options, err := backend.LocationOptionsFromJSON(body)
+func (c *ProxyController) upsertServer(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	backendId := params["backendId"]
+	srv, ttl, err := parseServerPack(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	return formatResult(c.backend.UpdateLocationOptions(hostname, locationId, *options))
+	bk := engine.BackendKey{Id: backendId}
+	log.Infof("Upsert %v %v", bk, srv)
+	return formatResult(srv, c.ng.UpsertServer(bk, *srv, ttl))
 }
 
-func (c *ProxyController) deleteLocation(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	log.Infof("Delete Location(id=%s) from Host(name=%s)", params["id"], params["hostname"])
-	if err := c.backend.DeleteLocation(params["hostname"], params["id"]); err != nil {
-		return nil, formatError(err)
-	}
-	return scroll.Response{"message": "Location deleted"}, nil
-}
-
-func (c *ProxyController) addEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	upstreamId := params["upstream"]
-	ep, err := backend.EndpointFromJSON(body)
+func (c *ProxyController) getServer(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	sk := engine.ServerKey{BackendKey: engine.BackendKey{Id: params["backendId"]}, Id: params["id"]}
+	log.Infof("getServer %v", sk)
+	srv, err := c.ng.GetServer(sk)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	log.Infof("Add %s to %s", ep, upstreamId)
-	return formatResult(c.backend.AddEndpoint(ep))
+	return formatResult(srv, err)
 }
 
-func (c *ProxyController) deleteEndpoint(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	upstreamId := params["upstream"]
-	id := params["endpoint"]
-
-	log.Infof("Delete Endpoint(url=%s) from Upstream(id=%s)", id, upstreamId)
-	if err := c.backend.DeleteEndpoint(upstreamId, id); err != nil {
-		return nil, scroll.GenericAPIError{Reason: err.Error()}
+func (c *ProxyController) getServers(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	srvs, err := c.ng.GetServers(engine.BackendKey{Id: params["backendId"]})
+	if err != nil {
+		return nil, formatError(err)
 	}
-	return scroll.Response{"message": "Endpoint deleted"}, nil
+	return scroll.Response{
+		"Servers": srvs,
+	}, nil
 }
 
-func (c *ProxyController) registerMiddlewareHandlers(spec *plugin.MiddlewareSpec) {
-	c.app.AddHandler(
-		scroll.Spec{
-			Path:            fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s", spec.Type),
-			Methods:         []string{"POST"},
-			HandlerWithBody: c.makeAddMiddleware(spec),
-		})
-
-	c.app.AddHandler(
-		scroll.Spec{
-			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
-			Methods: []string{"GET"},
-			Handler: c.makeGetMiddleware(spec),
-		})
-
-	c.app.AddHandler(
-		scroll.Spec{
-			Path:            fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
-			Methods:         []string{"PUT"},
-			HandlerWithBody: c.makeUpdateMiddleware(spec),
-		})
-
-	c.app.AddHandler(
-		scroll.Spec{
-			Path:    fmt.Sprintf("/v1/hosts/{hostname}/locations/{location}/middlewares/%s/{id}", spec.Type),
-			Methods: []string{"DELETE"},
-			Handler: c.makeDeleteMiddleware(spec),
-		})
-}
-
-func (c *ProxyController) makeAddMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerWithBodyFunc {
-	return func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-		hostname := params["hostname"]
-		location := params["location"]
-		m, err := backend.MiddlewareFromJSON(body, c.backend.GetRegistry().GetSpec)
-		if err != nil {
-			return nil, formatError(err)
-		}
-		return formatResult(c.backend.AddLocationMiddleware(hostname, location, m))
+func (c *ProxyController) deleteServer(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	sk := engine.ServerKey{BackendKey: engine.BackendKey{Id: params["backendId"]}, Id: params["id"]}
+	log.Infof("Delete %v", sk)
+	if err := c.ng.DeleteServer(sk); err != nil {
+		return nil, formatError(err)
 	}
+	return scroll.Response{"message": "Server deleted"}, nil
 }
 
-func (c *ProxyController) makeUpdateMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerWithBodyFunc {
-	return func(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-		hostname := params["hostname"]
-		location := params["location"]
-		m, err := backend.MiddlewareFromJSON(body, c.backend.GetRegistry().GetSpec)
-		if err != nil {
-			return nil, formatError(err)
-		}
-		return formatResult(c.backend.UpdateLocationMiddleware(hostname, location, m))
+func (c *ProxyController) upsertMiddleware(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
+	frontend := params["frontend"]
+	m, ttl, err := parseMiddlewarePack(body, c.ng.GetRegistry())
+	if err != nil {
+		return nil, formatError(err)
 	}
+	return formatResult(m, c.ng.UpsertMiddleware(engine.FrontendKey{Id: frontend}, *m, ttl))
 }
 
-func (c *ProxyController) makeGetMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-		return formatResult(c.backend.GetLocationMiddleware(params["hostname"], params["location"], spec.Type, params["id"]))
-	}
+func (c *ProxyController) getMiddleware(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	fk := engine.MiddlewareKey{Id: params["id"], FrontendKey: engine.FrontendKey{Id: params["frontend"]}}
+	return formatResult(c.ng.GetMiddleware(fk))
 }
 
-func (c *ProxyController) makeDeleteMiddleware(spec *plugin.MiddlewareSpec) scroll.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-		hostname := params["hostname"]
-		location := params["location"]
-		mId := params["id"]
-		if err := c.backend.DeleteLocationMiddleware(hostname, location, spec.Type, mId); err != nil {
-			return nil, formatError(err)
-		}
-		return scroll.Response{"message": "Middleware deleted"}, nil
+func (c *ProxyController) getMiddlewares(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	fk := engine.FrontendKey{Id: params["frontend"]}
+	out, err := c.ng.GetMiddlewares(fk)
+	if err != nil {
+		return nil, formatError(err)
 	}
+	return scroll.Response{
+		"Middlewares": out,
+	}, nil
+}
+
+func (c *ProxyController) deleteMiddleware(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
+	fk := engine.MiddlewareKey{Id: params["id"], FrontendKey: engine.FrontendKey{Id: params["frontend"]}}
+	if err := c.ng.DeleteMiddleware(fk); err != nil {
+		return nil, formatError(err)
+	}
+	return scroll.Response{"message": "Middleware deleted"}, nil
 }
 
 func formatError(e error) error {
 	switch err := e.(type) {
-	case *backend.AlreadyExistsError:
+	case *engine.AlreadyExistsError:
 		return scroll.ConflictError{Description: err.Error()}
-	case *backend.NotFoundError:
+	case *engine.NotFoundError:
 		return scroll.NotFoundError{Description: err.Error()}
 	}
 	return scroll.GenericAPIError{Reason: e.Error()}
@@ -436,4 +376,92 @@ func formatResult(in interface{}, err error) (interface{}, error) {
 		return nil, formatError(err)
 	}
 	return in, nil
+}
+
+type frontendReadPack struct {
+	Frontend json.RawMessage
+	TTL      string
+}
+
+type frontendPack struct {
+	Frontend engine.Frontend
+	TTL      string
+}
+
+type middlewareReadPack struct {
+	Middleware json.RawMessage
+	TTL        string
+}
+
+type middlewarePack struct {
+	Middleware engine.Middleware
+	TTL        string
+}
+
+type serverReadPack struct {
+	Server json.RawMessage
+	TTL    string
+}
+
+type serverPack struct {
+	Server engine.Server
+	TTL    string
+}
+
+func parseFrontendPack(v []byte) (*engine.Frontend, time.Duration, error) {
+	var fp *frontendReadPack
+	if err := json.Unmarshal(v, &fp); err != nil {
+		return nil, 0, err
+	}
+	f, err := engine.FrontendFromJSON(fp.Frontend)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var ttl time.Duration
+	if fp.TTL != "" {
+		ttl, err = time.ParseDuration(fp.TTL)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	return f, ttl, nil
+}
+
+func parseMiddlewarePack(v []byte, r *plugin.Registry) (*engine.Middleware, time.Duration, error) {
+	var mp *middlewareReadPack
+	if err := json.Unmarshal(v, &mp); err != nil {
+		return nil, 0, err
+	}
+	f, err := engine.MiddlewareFromJSON(mp.Middleware, r.GetSpec)
+	if err != nil {
+		return nil, 0, err
+	}
+	var ttl time.Duration
+	if mp.TTL != "" {
+		ttl, err = time.ParseDuration(mp.TTL)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	return f, ttl, nil
+}
+
+func parseServerPack(v []byte) (*engine.Server, time.Duration, error) {
+	var sp serverReadPack
+	if err := json.Unmarshal(v, &sp); err != nil {
+		return nil, 0, err
+	}
+	s, err := engine.ServerFromJSON(sp.Server)
+	if err != nil {
+		return nil, 0, err
+	}
+	var ttl time.Duration
+	if sp.TTL != "" {
+		ttl, err = time.ParseDuration(sp.TTL)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	return s, ttl, nil
 }
