@@ -97,8 +97,9 @@ func (b *backend) findServer(sk engine.ServerKey) (*engine.Server, bool) {
 func (b *backend) upsertServer(s engine.Server) error {
 	if i := b.indexOfServer(s.Id); i != -1 {
 		b.servers[i] = s
+	} else {
+		b.servers = append(b.servers, s)
 	}
-	b.servers = append(b.servers, s)
 	return b.updateFrontends()
 }
 

@@ -81,6 +81,26 @@ func (s *ServerSuite) TestServerCRUD(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *ServerSuite) TestServerUpsertSame(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+
+	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e.URL})
+
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(len(s.mux.backends[b.BK].servers), Equals, 1)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+}
+
 func (s *ServerSuite) TestServerDefaultListener(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
