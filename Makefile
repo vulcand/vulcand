@@ -59,6 +59,7 @@ sloccount:
 install: clean
 	go install github.com/mailgun/vulcand
 	cd vctl && $(MAKE) install && cd ..
+	cd vbundle && $(MAKE) install && cd ..
 
 run: install
 	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand -sealKey=${SEAL_KEY} -statsdAddr=localhost:8125 -statsdPrefix=vulcan -logSeverity=INFO
