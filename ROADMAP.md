@@ -3,12 +3,6 @@
 The goal of the roadmap is to provide some insight on what to expect from Vulcand in the short term
 and long term.
 
-## Short-term
-
-### Releases
-
-Support consistent semVer releases via Github
-
 ## Longer-term
 
 ### Routing
