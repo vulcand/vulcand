@@ -86,73 +86,48 @@ Example response:
 .. code-block:: json
 
  {
-   "Hosts": [
-     {
-       "Name": "localhost",
-       "Locations": [
-         {
-           "Hostname": "localhost",
-           "Path": "/home",
-           "Id": "loc1",
-           "Upstream": {
-             "Id": "up1",
-             "Endpoints": [
-               {
-                 "Id": "e1",
-                 "Url": "http://localhost:5000",
-                 "UpstreamId": "up1",
-                 "Stats": {
-                   "Successes": 0,
-                   "Failures": 0,
-                   "FailRate": 0,
-                   "PeriodSeconds": 10
-                 }
-               }
-             ]
-           },
-           "Middlewares": [
-             {
-               "Id": "rl1",
-               "Priority": 0,
-               "Type": "ratelimit",
-               "Middleware": {
-                 "PeriodSeconds": 1,
-                 "Burst": 3,
-                 "Variable": "client.ip",
-                 "Requests": 1
-               }
-             }
-           ]
+   "Hosts":[
+      {
+         "Name":"localhost",
+         "Settings":{
+            "KeyPair":null,
+            "Default":false
          }
-       ]
-     }
+      }
    ]
  }
 
 
-Add host
-++++++++
+Upsert host
+++++++++++++
 
 .. code-block:: url
 
-    POST 'application/json' /v1/hosts
+    POST 'application/json' /v2/hosts
 
 Add a host to the proxy.
 
-.. container:: ptable
+.. code-block:: json
 
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- name              Hostname      
- ================= ==========================================================
+ {
+  "Name": "localhost",                              // hostname
+  "Settings": {                                     // settings are optional
+    "KeyPair": {"Cert": "base64", Key: "base64"},   // base64 encoded key-pair certficate
+    "Default": false ,                              // default host for SNI
+  }
+ }
+
 
 Example responses:
 
 .. code-block:: json
 
  {
-   "Name": "localhost"
+  "Name": "localhost",
+  "Settings": {
+    "KeyPair": null,
+    "Default": false
+  }
  }
 
 
@@ -161,24 +136,27 @@ Delete host
 
 .. code-block:: url
 
-    DELETE /v1/hosts/<name>
+    DELETE /v2/hosts/<name>
 
 Delete a host.
 
 
-Add host listener
-++++++++++++++++++
+Listener
+~~~~~~~~
+
+Upsert listener
++++++++++++++++
 
 .. code-block:: url
 
-     POST 'application/json' /v1/hosts/<name>/listeners
+     POST 'application/json' /v2/listeners
 
-Add a location to the host. Listener parameters
+Upsert listener
 
 .. code-block:: json
 
  {
-   "Id": "", // id, will be auto-generated if omitted
+   "Id": "l1",
    "Protocol": "https", // http or https
    "Address":
      {
@@ -202,185 +180,160 @@ Example response:
  }
 
 
-Delete host listener
+Delete listener
 ++++++++++++++++++++
 
 .. code-block:: url
 
-    DELETE /v1/hosts/<name>/listeners/<listener-id>
+    DELETE /v2/listeners/<listener-id>
 
-Delete a host listener
-
-
-Set host Certificates
-+++++++++++++++++++++
-
-.. code-block:: url
-
-     POST 'application/json' /v1/hosts/<name>/keypair
-
-.. code-block:: json
-
- {
-   "Key": "", // base64 encoded key string
-   "Cert": "" // base64 encoded cert string
- }
-
-Example response:
-
-.. code-block:: json
-
- {
-   "Key": "", // base64 encoded key string
-   "Cert": "" // base64 encoded cert string
- }
+Delete anlistener
 
 
-Upstream
+Backend
 ~~~~~~~~
 
-Get upstreams
+Get backends
 +++++++++++++
 
 .. code-block:: url
 
-    GET /v1/upstreams
+    GET /v2/backends
 
 Retrieve the existing upstreams. Example response:
 
 .. code-block:: json
 
  {
-   "Upstreams": [
-     {
-       "Id": "up1",
-       "Endpoints": [
-         {
-           "Id": "e1",
-           "Url": "http://localhost:5000",
-           "UpstreamId": "up1",
-           "Stats": null
-         },
-         {
-           "Id": "e2",
-           "Url": "http://localhost:5001",
-           "UpstreamId": "up1",
-           "Stats": null
-         }
-       ]
-     }
-   ]
+  "Backends": [
+    {
+      "Id": "b1",
+      "Type": "http",
+      "Settings": {
+        "Timeouts": {
+          "Read": "",
+          "Dial": "",
+          "TLSHandshake": ""
+        },
+        "KeepAlive": {
+          "Period": "",
+          "MaxIdleConnsPerHost": 0
+        }
+      }
+    }
+  ]
  }
 
 
-Add upstream
-++++++++++++
+Upsert backend
+++++++++++++++
 
 .. code-block:: url
 
-    POST 'application/json' /v1/upstreams
+    POST 'application/json' /v2/backends
 
-Add upstream to the proxy.
 
-.. container:: ptable
+.. code-block:: json
 
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- id                Optional upstream id, will be generated if omitted.
- ================= ==========================================================
+ {
+  "Id": "b1",
+  "Type": "http",
+  "Settings": {
+    "Timeouts": {
+      "Read": "5s",
+      "Dial": "5s",
+      "TLSHandshake": "10s"
+    },
+    "KeepAlive": {
+      "Period": "30s",
+      "MaxIdleConnsPerHost": 12
+    }
+  }
+ }
 
 Example response:
 
 .. code-block:: json
 
- {"Id": "up1"}
+ {
+  "Id": "b1",
+  "Type": "http",
+  "Settings": {
+    "Timeouts": {
+      "Read": "5s",
+      "Dial": "5s",
+      "TLSHandshake": "10s"
+    },
+    "KeepAlive": {
+      "Period": "30s",
+      "MaxIdleConnsPerHost": 12
+    }
+  }
+ }
 
 
-Delete upstream
+Delete backend
 +++++++++++++++
 
 .. code-block:: url
 
-    DELETE /v1/upstreams/<id>
+    DELETE /v2/backends/<id>
 
 
-Drain connections
-+++++++++++++++++
+Server
+~~~~~~
 
-.. code-block:: url
-
-    GET /v1/upstreams/drain?timeout=3
-
-Wait till there are no more connections to any endpoints to the upstream.
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- timeout           Timeout in form `1s` for the amount of seconds to wait before time out.
- ================= ==========================================================
-
-Example response:
-
-.. code-block:: json
-
- {
-   "Connections": 0
- }
-
-
-Endpoint
-~~~~~~~~
-
-Get endpoints
+Get servers
 +++++++++++++
 
 .. code-block:: url
 
-    GET /v1/upstreams/<id>/endpoints
+    GET /v2/backends/<id>/servers
 
-Retrieve the endpoints of the upstream. Example response:
+Retrieve the servers of the backend. Example response:
 
 .. code-block:: json
 
  {
-   "Endpoints": [
-     {
-       "Id": "e1",
-       "Url": "http://localhost:5000",
-       "UpstreamId": "up1"
-     }
-   ]
+  "Servers": [
+    {
+      "Id": "srv1",
+      "URL": "http://localhost:5000"
+    },
+    {
+      "Id": "srv2",
+      "URL": "http://localhost:5003"
+    }
+  ]
  }
 
-Get endpoint
+Get server
 ++++++++++++
 
 .. code-block:: url
 
-    GET /v1/upstreams/<id>/endpoints/<endpoint-id>
+    GET /v2/backends/<id>/servers/<server-id>
 
-Retrieve the particular endpoint with id ``endpoint-id``
+Retrieve the particular server with id ``server-id``
 
-Add endpoint
+Upsert endpoint
 ++++++++++++
 
 .. code-block:: url
 
     POST /v1/upstreams/<id>/endpoints
 
-Add endpoint to the upstream. 
+Upsert server to the backend
 
-.. container:: ptable
+.. code-block:: json
 
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- id                Optional endppint id, will be generated if omitted
- url               Required valid endpoint url
- ================= ==========================================================
+ {
+  "Server": {
+    "Id": "srv1",
+    "URL": "http://localhost:5000"
+  }
+ }
+
 
 Example response:
 
@@ -389,184 +342,155 @@ Example response:
  {
    "Id": "e4",
    "Url": "http://localhost:5004",
-   "UpstreamId": "up1",
    "Stats": null
  }
 
 
-Delete endpoint
-+++++++++++++++
+Delete server
+++++++++++++++
 
 .. code-block:: url
 
-    DELETE /v1/upstreams/<id>/endpoints/<endpoint-id>
+    DELETE /v2/backends/<id>/servers/<server-id>
 
-Delete an endpoint.
+Delete a server.
 
 
-Location
+Frontend
 ~~~~~~~~
 
-Get locations
+Get frontends
 +++++++++++++
 
 .. code-block:: url
 
-    GET /v1/hosts/<hostname>/locations
+    GET /v2/frontends
 
-Retrieve the locations of the host. Example response:
+Retrieve the frontends. Example response:
 
 .. code-block:: json
 
- {
-   "Locations": [
-     {
-       "Hostname": "localhost",
-       "Path": "/home",
-       "Id": "loc1",
-       "Upstream": {
-         "Id": "up1",
-         "Endpoints": [
-           {
-             "Id": "e1",
-             "Url": "http://localhost:5000",
-             "UpstreamId": "up1",
-             "Stats": null
-           }
-         ]
-       },
-       "Middlewares": []
-     }
-   ]
- }
+{
+  "Frontends": [
+    {
+      "Id": "f1",
+      "Route": "Path(`/`)",
+      "Type": "http",
+      "BackendId": "b1",
+      "Settings": {
+        "Limits": {
+          "MaxMemBodyBytes": 0,
+          "MaxBodyBytes": 0
+        },
+        "FailoverPredicate": "",
+        "Hostname": "",
+        "TrustForwardHeader": false
+      }
+    }
+  ]
+}
 
 
-Get location
+Get frontend
 ++++++++++++
 
 .. code-block:: url
 
-    GET /v1/hosts/<hostname>/locations/<location-id>
+    GET /v2/frontends/<frontend-id>
 
-Retrieve the particular location in the host ``hostname`` with id ``location-id``
+Retrieve the particular frontend with id ``frontend-id``
 
 .. code-block:: json
 
  {
-   "Hostname": "localhost",
-   "Path": "/home",
-   "Id": "loc1",
-   "Upstream": {
-     "Id": "up1",
-     "Endpoints": [
-       {
-         "Id": "e1",
-         "Url": "http://localhost:5000",
-         "UpstreamId": "up1",
-         "Stats": null
-       }
-     ]
-   },
-   "Middlewares": [
-     {
-       "Id": "rl1",
-       "Priority": 0,
-       "Type": "ratelimit",
-       "Middleware": {
-         "PeriodSeconds": 1,
-         "Burst": 3,
-         "Variable": "client.ip",
-         "Requests": 1
-       }
-     },
-     {
-       "Id": "cl1",
-       "Priority": 0,
-       "Type": "connlimit",
-       "Middleware": {
-         "Connections": 3,
-         "Variable": "client.ip"
-       }
-     }
-   ]
+  "Id": "f1",
+  "Route": "Path(`/`)",
+  "Type": "http",
+  "BackendId": "b1",
+  "Settings": {
+    "Limits": {
+      "MaxMemBodyBytes": 0,
+      "MaxBodyBytes": 0
+    },
+    "FailoverPredicate": "",
+    "Hostname": "",
+    "TrustForwardHeader": false
+  }
  }
 
 
-Add location
-++++++++++++
+Upsert frontend
++++++++++++++++
 
 .. code-block:: url
 
-    POST 'application/json' /v1/hosts/<hostname>/locations
+    POST 'application/json' /v1/hosts/<hostname>/frontends
 
-Add a location to the host. Params:
+Add a frontend to the host. Params:
 
-.. container:: ptable
+.. code-block:: json
 
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- Id                Optional location id, will be generated if omitted.
- Path              Required regular expression for path matchng
- Upstream.Id       Required id of the existing upstream
- Hostname          Required hostname
- Options           Location options
- ================= ==========================================================
+ {
+  "Server": {
+    "Id": "f1",
+    "Route": "Path(`\/`)",
+    "Type": "http",
+    "BackendId": "b1",
+    "Settings": {
+      "Limits": {
+        "MaxMemBodyBytes": 0,
+        "MaxBodyBytes": 0
+      },
+      "FailoverPredicate": "",
+      "Hostname": "",
+      "TrustForwardHeader": false
+    }
+  }
+ }
+
 
 Example response:
 
 .. code-block:: json
 
  {
-   "Id": "loc2",
-   "Hostname": "localhost",
-   "Path": "/home",
-   "Upstream": {
-     "Id": "up1"
-   }
+  "Id": "f1",
+  "Route": "Path(`/`)",
+  "Type": "http",
+  "BackendId": "b1",
+  "Settings": {
+    "Limits": {
+      "MaxMemBodyBytes": 0,
+      "MaxBodyBytes": 0
+    },
+    "FailoverPredicate": "",
+    "Hostname": "",
+    "TrustForwardHeader": false
+  }
  }
 
 
-Delete location
+Delete frontend
 ++++++++++++++++
 
 .. code-block:: url
 
-    DELETE /v1/hosts/<hostname>/locations/<location-id>
+    DELETE /v2/frontends/<frontend-id>
 
-Delete a location.
-
-
-Update location upstream
-++++++++++++++++++++++++
-
-.. code-block:: url
-
-    PUT /v1/hosts/<hostname>/locations/<location-id>
-
-Update location's upstream. Gracefully Redirects all the traffic to the endpoints of the new upstream.
-
-
-.. container:: ptable
-
- ================= ==========================================================
- Parameter         Description
- ================= ==========================================================
- upstream          Required id of the existing upstream
- ================= ==========================================================
+Delete a frontend.
 
 
 Rate limit
 ~~~~~~~~~~
 
-Get rate limits
+Get rate limit
 +++++++++++++++
 
 .. code-block:: url
 
-    GET /v1/hosts/<hostname>/locations/<location-id>/middlewares/ratelimit/<rate-id>
+    GET /v2/frontends/<frontend-id>/middlewares/<middleware-id>
 
-Retrieve the particular rate of location in the host ``hostname`` with id ``location-id`` and rate id ``rate-id``
+Retrieve the particular rate of frontend with id ``frontend-id`` and rate id ``rate-id``
 Example response:
 
 .. code-block:: json
@@ -584,14 +508,14 @@ Example response:
  }
 
 
-Add rate limit
-++++++++++++++
+Upsert rate limit
++++++++++++++++++
 
 .. code-block:: url
 
-    POST 'application/json' /v1/hosts/<hostname>/locations/limits/rates
+    POST 'application/json' /v2/frontends/middlewares
 
-Add a rate limit to the location, will take effect immediately.
+Add a rate limit to the frontend, will take effect immediately.
 
 .. code-block:: json
 
@@ -627,46 +551,22 @@ Delete a rate limit
 
 .. code-block:: url
 
-    DELETE /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>
+    DELETE /v2/frontends/<frontend-id>/middlewares/<middleware-id>
 
-Deletes rate limit from the location.
-
-
-Update a rate limit
-+++++++++++++++++++
-
-.. code-block:: url
-
-    PUT /v1/hosts/<hostname>/locations/<location-id>/limits/rates/<rate-id>
-
-Update location's rate limit. Takes effect immdediatelly. Example response
-
-.. code-block:: json
-
- {
-   "Id": "rl1",
-   "Priority": 0,
-   "Type": "ratelimit",
-   "Middleware": {
-     "PeriodSeconds": 1,
-     "Burst": 3,
-     "Variable": "client.ip",
-     "Requests": 1
-   }
- }
+Deletes rate limit from the frontend.
 
 
 Connection limit
 ~~~~~~~~~~~~~~~~
 
-Get connection limits
-+++++++++++++++++++++
+Get connection limit
+++++++++++++++++++++
 
 .. code-block:: url
 
-    GET /v1/hosts/<hostname>/locations/<location-id>/middlewares/connlimit/<conn-id>
+    GET /v2/frontends/<frontend-id>/middlewares/<conn-id>
 
-Retrieve the particular connection limit of location in the host ``hostname`` with id ``location-id`` and connection limit id ``conn-id``. Example response:
+Retrieve the particular connection limit of frontend with id ``frontend-id`` and connection limit id ``conn-id``. Example response:
 
 .. code-block:: json
 
@@ -680,14 +580,14 @@ Retrieve the particular connection limit of location in the host ``hostname`` wi
    }
  }
 
-Add connection limit
+Upsert connection limit
 ++++++++++++++++++++
 
 .. code-block:: url
 
-    POST 'application/json' /v1/hosts/<hostname>/locations/limits/connections
+    POST 'application/json' /v2/frontends/<frontend>/middlewares
 
-Add a connection limit to the location, will take effect immediately. Example response:
+Upsert a connection limit to the frontend. Example response:
 
 .. code-block:: json
 
@@ -719,27 +619,6 @@ Delete connection limit
 
 .. code-block:: url
 
-    DELETE /v1/hosts/<hostname>/locations/<location-id>/middlewares/connlimit/<conn-id>
+    DELETE /v2/frontends/<frontend-id>/middlewares/<conn-id>
 
-Delete a connection limit from the location.
-
-Update connection limit
-+++++++++++++++++++++++
-
-.. code-block:: url
-
-    PUT /v1/hosts/<hostname>/locations/<location-id>/limits/connections/<conn-id>
-
-Update location's connection limit. Takes effect immdediatelly.
-
-.. code-block:: json
-
- {
-   "Id": "cl1",
-   "Priority": 0,
-   "Type": "connlimit",
-   "Middleware": {
-     "Connections": 3,
-     "Variable": "client.ip"
-   }
- }
+Delete a connection limit from the frontend.
