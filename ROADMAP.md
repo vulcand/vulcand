@@ -9,15 +9,10 @@ and long term.
 
 Support consistent semVer releases via Github
 
-### Bugfixes
-
-* Bugfixes/improvements in load balancing logic, circuit breakers, metrics
-
 ## Longer-term
 
 ### Routing
 
-* Move to front-end and backend from hosts and locations
 * Support pods/consistent hash-based routing
 * Fan-In, Fan-Out support
 
@@ -38,11 +33,8 @@ Support consistent semVer releases via Github
 
 ### API support
 
-* Better rewrite middleware with ability to rewrite request/response bodies
 * IP blacklists/whitelists with pluggable backends
 * Request HMAC signing/checking
-* Dynamic rate-limiting support via rate-limit middleware
-
 
 ### Clustering
 
