@@ -172,7 +172,7 @@ func (c *ProxyController) getFrontend(w http.ResponseWriter, r *http.Request, pa
 }
 
 func (c *ProxyController) upsertHost(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	host, err := engine.HostFromJSON(body)
+	host, err := parseHostPack(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -188,7 +188,7 @@ func (c *ProxyController) getListeners(w http.ResponseWriter, r *http.Request, p
 }
 
 func (c *ProxyController) upsertListener(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	listener, err := engine.ListenerFromJSON(body)
+	listener, err := parseListenerPack(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -219,11 +219,11 @@ func (c *ProxyController) deleteHost(w http.ResponseWriter, r *http.Request, par
 }
 
 func (c *ProxyController) upsertBackend(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	b, err := engine.BackendFromJSON(body)
+	b, err := parseBackendPack(body)
 	if err != nil {
 		return nil, formatError(err)
 	}
-	log.Infof("Add Backend: %s", b)
+	log.Infof("Upsert Backend: %s", b)
 	return formatResult(b, c.ng.UpsertBackend(*b))
 }
 
@@ -367,6 +367,12 @@ func formatError(e error) error {
 		return scroll.ConflictError{Description: err.Error()}
 	case *engine.NotFoundError:
 		return scroll.NotFoundError{Description: err.Error()}
+	case *engine.InvalidFormatError:
+		return scroll.InvalidParameterError{Value: err.Error()}
+	case scroll.GenericAPIError, scroll.MissingFieldError,
+		scroll.InvalidFormatError, scroll.InvalidParameterError,
+		scroll.NotFoundError, scroll.ConflictError:
+		return e
 	}
 	return scroll.GenericAPIError{Reason: e.Error()}
 }
@@ -376,6 +382,31 @@ func formatResult(in interface{}, err error) (interface{}, error) {
 		return nil, formatError(err)
 	}
 	return in, nil
+}
+
+type backendPack struct {
+	Backend engine.Backend
+}
+
+type backendReadPack struct {
+	Backend json.RawMessage
+}
+
+type hostPack struct {
+	Host engine.Host
+}
+
+type hostReadPack struct {
+	Host json.RawMessage
+}
+
+type listenerPack struct {
+	Listener engine.Listener
+	TTL      string
+}
+
+type listenerReadPack struct {
+	Listener json.RawMessage
 }
 
 type frontendReadPack struct {
@@ -408,10 +439,46 @@ type serverPack struct {
 	TTL    string
 }
 
+func parseListenerPack(v []byte) (*engine.Listener, error) {
+	var lp listenerReadPack
+	if err := json.Unmarshal(v, &lp); err != nil {
+		return nil, err
+	}
+	if len(lp.Listener) == 0 {
+		return nil, &scroll.MissingFieldError{Field: "Listener"}
+	}
+	return engine.ListenerFromJSON(lp.Listener)
+}
+
+func parseHostPack(v []byte) (*engine.Host, error) {
+	var hp hostReadPack
+	if err := json.Unmarshal(v, &hp); err != nil {
+		return nil, err
+	}
+	if len(hp.Host) == 0 {
+		return nil, &scroll.MissingFieldError{Field: "Host"}
+	}
+	return engine.HostFromJSON(hp.Host)
+}
+
+func parseBackendPack(v []byte) (*engine.Backend, error) {
+	var bp *backendReadPack
+	if err := json.Unmarshal(v, &bp); err != nil {
+		return nil, err
+	}
+	if bp == nil || len(bp.Backend) == 0 {
+		return nil, &scroll.MissingFieldError{Field: "Backend"}
+	}
+	return engine.BackendFromJSON(bp.Backend)
+}
+
 func parseFrontendPack(v []byte) (*engine.Frontend, time.Duration, error) {
-	var fp *frontendReadPack
+	var fp frontendReadPack
 	if err := json.Unmarshal(v, &fp); err != nil {
 		return nil, 0, err
+	}
+	if len(fp.Frontend) == 0 {
+		return nil, 0, &scroll.MissingFieldError{Field: "Frontend"}
 	}
 	f, err := engine.FrontendFromJSON(fp.Frontend)
 	if err != nil {
@@ -429,9 +496,12 @@ func parseFrontendPack(v []byte) (*engine.Frontend, time.Duration, error) {
 }
 
 func parseMiddlewarePack(v []byte, r *plugin.Registry) (*engine.Middleware, time.Duration, error) {
-	var mp *middlewareReadPack
+	var mp middlewareReadPack
 	if err := json.Unmarshal(v, &mp); err != nil {
 		return nil, 0, err
+	}
+	if len(mp.Middleware) == 0 {
+		return nil, 0, &scroll.MissingFieldError{Field: "Middleware"}
 	}
 	f, err := engine.MiddlewareFromJSON(mp.Middleware, r.GetSpec)
 	if err != nil {
@@ -451,6 +521,9 @@ func parseServerPack(v []byte) (*engine.Server, time.Duration, error) {
 	var sp serverReadPack
 	if err := json.Unmarshal(v, &sp); err != nil {
 		return nil, 0, err
+	}
+	if len(sp.Server) == 0 {
+		return nil, 0, &scroll.MissingFieldError{Field: "Server"}
 	}
 	s, err := engine.ServerFromJSON(sp.Server)
 	if err != nil {

@@ -493,6 +493,18 @@ func (n *NotFoundError) Error() string {
 	}
 }
 
+type InvalidFormatError struct {
+	Message string
+}
+
+func (n *InvalidFormatError) Error() string {
+	if n.Message != "" {
+		return n.Message
+	} else {
+		return "Invalid format"
+	}
+}
+
 type AlreadyExistsError struct {
 	Message string
 }
