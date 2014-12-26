@@ -12,36 +12,44 @@ Familiarizing with the glossary would help to understand the rest of this guide.
 Host
 ~~~~
 
-Incoming requests are matched by their hostname first. Hostname is defined by incoming ``Host`` header.
-E.g. ``curl http://example.com/alice`` will be matched by the host ``example.com`` first.
+Hostname is defined by incoming ``Host`` header. E.g. ``curl http://example.com/alice`` generates the following request:
+
+.. code-block:: sh
+
+ GET /alice HTTP/1.1
+ User-Agent: curl/7.35.0
+ Host: example.com
+
+
+Vulcand hosts contain associated information and settings, such as SNI options and TLS certificates.
 
 Listener
 ~~~~~~~~
-Listener is a dynamic socket that can be attached or detached to host without restart. Host can have multiple http and https listeners 
+Listener is a dynamic socket that can be attached or detached to Vulcand without restart. Vulcand can have multiple http and https listeners 
 attached to it, providing service on multiple interfaces and protocols.
 
-Location
+Frontend
 ~~~~~~~~
-Hosts contain one or several locations. Each location defines a path - simply a regular expression that will be matched against request's url.
-Location contains link to an upstream and vulcand will use the endpoints from this upstream to serve the request.
+Frontends match the requests and forward it to the backends. 
+Each frontend defines a route - a special expression that matches the request, e.g. ``Path("/v1/path")``.
+Frontends are linked to backend and Vulcand will use the servers from this backend to serve the request.
 
-Upstream
+Backend
 ~~~~~~~~
-Upstream is a collection of endpoints. Upstream can be assigned to multiple locations at the same time. 
-This is convenient as sometimes one endpoint serves multiple purposes and locations.
+Backend is a collection of servers, they control connection pools to servers and transport options, such as connection, read and write timeouts.
 
-Endpoint
+Server
 ~~~~~~~~
-Endpoint is a final destination of the incoming request, each endpoint is defined by ``<schema>://<host>:<port>``, e.g. ``http://localhost:5000``
+Server is a final destination of the incoming request, each server is defined by URL ``<schema>://<host>:<port>``, e.g. ``http://localhost:5000``.
 
 Middleware
 ~~~~~~~~~~
-Vulcand supports pluggable middlewares. Middlewares can intercept or transform the request to any location. Examples of the supported middlewares are rate limits and connection limits.
+Vulcand supports pluggable middlewares. Middlewares can intercept or transform the request to any frontend. Examples of the supported middlewares are rate limits and connection limits.
 You can add or remove middlewares using command line, API or directly via backends.
 
 Circuit Breaker
 ~~~~~~~~~~~~~~~
-Circuit breakers are special type of middlewares that observe various metrics for a particular location and can activate failover scenario whenever the condition matches  e.g. error rate exceeds the threshold.
+Circuit breakers are special type of middlewares that observe various metrics for a particular frontend and can activate failover scenario whenever the condition matches  e.g. error rate exceeds the threshold.
 
 Secret storage
 ~~~~~~~~~~~~~~
@@ -61,7 +69,7 @@ Failover predicates are expressions that define when the request can be failed o
    RequestMethod() == "GET" # failover for GET requests only
    ResponseCode() == 408    # failover on 408 HTTP response code
 
-.. warning::  if you omit `Attempts`, failover will go into endless loop
+.. warning::  if you omit `Attempts`, failover will max out after 10 attempts.
 
 
 Route
@@ -71,56 +79,62 @@ Route is a simple routing language for matching http requests with Go syntax: ``
 
 .. code-block:: go
 
+   Host("/v1/users/<user>")              // Match by host with trie syntax
+   HostRegexp(".*.example.com")          // Match by host with regexp syntax
+
    Path("/v1/users/<user>")              // Match by path with trie syntax
    Method("POST") && Path("/v1/users")   // Match by method and path with trie syntax
 
    PathRegexp("/v1/users/.*")                                 // Match by path with regexp syntax
    MethodRegexp("DELETE|GET") && PathRegexp("/v1/users/.*")   // Match by method and path with regexp syntax
 
+   Header()
+
 
 Configuration
 -------------
 
-Vulcand can be configured via Etcd, API or command line tool - ``vulcanctl``. You can switch between different configuration examples using the samples switch.
+Vulcand can be configured via Etcd, API or command line tool - ``vctl``. You can switch between different configuration examples using the samples switch.
 
 
-Upstreams and endpoints
+Backends and servers
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 .. figure::  _static/img/VulcanUpstream.png
    :align:   left
 
-Upstream is a collection of endpoints. Vulcand load-balances requests within the upstream and keeps the connection pool to every endpoint.
-Locations using the same upstream will share the connections. 
+Backend is a collection of servers. Vulcand load-balances requests within the backend and keeps the connection pool to every server.
+Frontends using the same backend will share the connections.
 
-Adding and removing endpoints to the used upstream will change the traffic in real-time, removing the upstream will lead to graceful drain off of the connections.
+Adding and removing servers to the backend will change the traffic in real-time, removing the backend will lead to graceful drain off of the connections.
 
 .. code-block:: etcd
 
- # Upsert upstream and add an endpoint to it
- etcdctl set /vulcand/upstreams/up1/endpoints/e1 http://localhost:5000
+ # Upsert backend and add a server to it
+ etcdctl set /vulcand/backends/b1/backend '{"Type": "http"}'
+ etcdctl set /vulcand/backends/b1/servers/srv1 '{"URL": "http://localhost:5000"}'
 
 
 .. code-block:: cli
 
- # Add upstream and endpoint
- vulcanctl upstream add -id up1
- vulcanctl endpoint add -id e1 -up up1 -url http://localhost:5000
+ # Upsert backend and add a server to it
+ vctl backend upsert -id b1
+ vctl server upsert -b b1 -id srv1 -url http://localhost:5000
 
 
 .. code-block:: api
 
- #create upstream and endpoint
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/upstreams\
-      -d '{"Id":"up1"}'
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/upstreams/up1/endpoints\
-      -d '{"Id":"e1","Url":"http://localhost:5001","UpstreamId":"up1"}'
+ # Upsert backend and add a server to it
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends\
+      -d '{"Id":"b", "Type":"http"}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends/b1/servers\
+      -d '{"Server": {"Id":"srv1", "URL":"http://localhost:5000"}}'
 
 
-**Upstream options**
+**Backend settings**
 
-Upstreams define the configuration options to the endpoints, such as the amount of idle connections and timeouts.
-Upstream options are represented as JSON dictionary. 
+Backends define the configuration options to the servers, such as the amount of idle connections and timeouts.
+Backend options are represented as JSON dictionary. 
 
 .. code-block:: javascript
 
@@ -128,7 +142,7 @@ Upstream options are represented as JSON dictionary.
    "Timeouts": {
       "Read":         "1s", // Socket read timeout (before we receive the first reply header)
       "Dial":         "2s", // Socket connect timeout
-      "TlsHandshake": "3s", // TLS handshake timeout
+      "TLSHandshake": "3s", // TLS handshake timeout
    },
    "KeepAlive": {
       "Period":              "4s",  // Keepalive period for idle connections
@@ -136,69 +150,143 @@ Upstream options are represented as JSON dictionary.
    }
  }
 
-One can update the options any time, that will initiate graceful reload of the underlying settings in Vulcand.
+You can update the settings at any time, that will initiate graceful reload of the underlying settings in Vulcand.
 
 .. code-block:: etcd
 
- etcdctl set /vulcand/upstreams/u1/options '{"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}'
+ etcdctl set /vulcand/backends/b1/backend '{"Type": "http", "Settings": {"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}}'
 
 .. code-block:: cli
 
- vulcanctl upstream set_options -id up1 \
+ vctl backend upsert -id b1 \
           -readTimeout=1s -dialTimeout=2s -handshakeTimeout=3s\
           -keepAlivePeriod=4s -maxIdleConns=128
 
 
 .. code-block:: api
 
- curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/upstreams/up1/options\
-      -d '{"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends\
+      -d '{"Id":"b1", "Type":"http", "Settings": {"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}}'
 
 
-**Endpoint heartbeat**
+**Server heartbeat**
 
-Heartbeat allows to automatically de-register the endpoint when it crashes or wishes to be de-registered. 
-Endpoint can heartbeat it's presense, and once the heartbeat is stopped, Vulcand will remove the endpoint from the rotation.
-
-.. code-block:: bash
-
- # add  the endpoint to the upstream u1 for 5 seconds
- etcdctl set --ttl=5 /vulcand/upstreams/u1/endpoints/e1 http://localhost:5000
-
-
-Hosts and locations
-~~~~~~~~~~~~~~~~~~~
-
-.. figure::  _static/img/VulcanLocation.png
-   :align:   left
-
-
-Request is first matched agains a host and finally redirected to a location. Location is matched by a path and optionally method.
-It is recommended to specify a location per API method, e.g. ``Method("POST") && Path("/v1/users")``.
-
-Location needs a path and an existing upstream to start accepting requests.
-You don't need to declare host explicitly, as it always a part of the location path, in this case it's ``localhost``
+Heartbeat allows to automatically de-register the server when it crashes or wishes to be de-registered. 
+Server can heartbeat it's presense, and once the heartbeat is stopped, Vulcand will gracefully remove the server from the rotation.
 
 .. code-block:: etcd
 
- # add host and location
- etcdctl set /vulcand/hosts/localhost/locations/loc1/path 'Path("/home")'
- etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up1
+ # Upsert a server with TTL 5 seconds
+ etcdctl set --ttl 5 /vulcand/backends/b1/servers/srv2 '{"URL": "http://localhost:5001"}'
+
 
 .. code-block:: cli
 
- # add host and location
- vulcanctl host add -name localhost
- vulcanctl location add -host=localhost -id=loc1 -up=up1 -path='Path("/home")'
+ # Upsert a server with TTL 5 seconds
+ vctl server upsert -b b1 -id srv2 -ttl 5s -url http://localhost:5002
+
 
 .. code-block:: api
 
- # add host and location
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts\ 
-      -d '{"Name":"localhost"}'
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations\
-      -d '{"Hostname":"localhost","Id":"loc2","Upstream":{"Id":"up1"},"Path":"Path(\"/home\")"}'
+ # Upsert a server with TTL 5 seconds
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends/b1/servers\
+      -d '{"Server": {"Id":"srv2", "URL":"http://localhost:5001"}, "TTL": "5s"}'
 
+
+Frontends
+~~~~~~~~~
+
+.. figure::  _static/img/VulcanFrontend.png
+   :align:   left
+
+
+If request matches a frontend route it is redirected to one of the servers of the associated backend.
+It is recommended to specify a frontend per API method, e.g. ``Host("api.example.com") && Method("POST") && Path("/v1/users")``.
+
+Route can be any valid route expression, e.g. ``Path("/v1/users")`` will match for all hosts and 
+``Host("api.example.com") && Path("/v1/users")`` will match only for ``api.example.com``.
+
+.. code-block:: etcd
+
+ # upsert frontend connected to backend b1 and matching path "/"
+ etcdctl set /vulcand/frontends/f1/frontend '{"Type": "http", "BackendId": "b1", "Route": "Path(`/`)"}'
+
+.. code-block:: cli
+
+ # upsert frontend connected to backend b1 and matching path "/"
+ vctl frontend upsert -id f1 -b b1 -route 'Path("/")'
+
+.. code-block:: api
+
+ # upsert frontend connected to backend b1 and matching path "/"
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends\
+       -d '{"Frontend": {"Id":"f1", "Type": "http", "BackendId": "b1", "Route": "Path(\"/\")"}}'
+
+
+**Frontend settings**
+
+Frontends control various limits, forwarding and failover settings.
+
+.. code-block:: javascript
+
+ {
+   "Limits": {
+     "MaxMemBodyBytes": 12,  // Maximum request body size to keep in memory before buffering to disk
+     "MaxBodyBytes": 400,    // Maximum request body size to allow for this frontend
+   },
+   "FailoverPredicate":  "IsNetworkError() && Attempts() <= 1", // Predicate that defines when requests are allowed to failover
+   "Hostname":           "host1",                               // Host to set in forwarding headers
+   "TrustForwardHeader": true,                                  // Time provider (useful for testing purposes)
+ }
+
+Setting frontend settings upates the limits and parameters for the newly arriving requests in real-time.
+
+.. code-block:: etcd
+
+ etcdctl set /vulcand/frontends/f1/frontend '{"Id": "f1", "Type": "http", "BackendId": "b1", "Route": "Path(`/`)", "Settings": {"FailoverPredicate":"(IsNetworkError() || ResponseCode() == 503) && Attempts() <= 2"}}'
+
+.. code-block:: cli
+
+ vctl frontend upsert\
+         -id=f1\
+         -route='Path("/")'\
+         -b=b1\
+         -maxMemBodyKB=6 -maxBodyKB=7\
+         -failoverPredicate='IsNetworkError()'\
+         -trustForwardHeader\
+         -forwardHost=host1
+
+.. code-block:: api
+
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends\
+      -d '{"Frontend": {"Id": "f1", "Type": "http", "BackendId": "b1", "Route": "Path(`/`)", "Settings": {"FailoverPredicate":"(IsNetworkError() || ResponseCode() == 503) && Attempts() <= 2"}}}'
+
+
+**Switching backends**
+
+Updating frontend's backend property gracefully re-routes the traffic to the new servers assigned to this backend:
+
+.. code-block:: etcd
+
+ # redirect the traffic of the frontend "loc1" to the servers of the backend "b2"
+ etcdctl set /vulcand/frontends/f1/frontend '{"Type": "http", "BackendId": "b2", "Route": "Path(`/`)"}'
+
+.. code-block:: cli
+
+ # redirect the traffic of the frontend "f1" to the servers of the backend "b2"
+ vctl frontend upsert -id=f1 -route='Path("/")' -b=b2
+
+.. code-block:: api
+
+ # redirect the traffic of the frontend "loc1" to the servers of the backend "up2"
+  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends -d '{"Frontend": {"Id": "f1", "Type": "http", "BackendId": "b2", "Route": "Path(`/`)"}}'
+
+.. note::  you can add and remove servers to the existing backend, and Vulcand will start redirecting the traffic to them automatically
+
+Hosts
+~~~~~
+
+One can use Host entries to specify host-related settings, such as TLS certificates and SNI options.
 
 **TLS Certificates**
 
@@ -211,73 +299,15 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 
 .. code-block:: cli
 
- vulcanctl host set_keypair -name <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ vctl host set_keypair -name <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 .. code-block:: api
 
- curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/keypair\
+ curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v2/hosts/localhost/keypair\
       -d '{"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key"}'
 
 .. note:: When setting keypair via Etcd you need to encrypt keypair. This is explained in `TLS`_ section of this document.
 
-**Location options**
-
-Location options are represented as JSON dictionary. Location specifies various limits, forwarding and failover settings.
-
-.. code-block:: javascript
-
- {
-   "Limits": LocationLimits{
-     "MaxMemBodyBytes": 12,  // Maximum request body size to keep in memory before buffering to disk
-     "MaxBodyBytes": 400,    // Maximum request body size to allow for this location
-   },
-   "FailoverPredicate":  "IsNetworkError() && Attempts() <= 1", // Predicate that defines when requests are allowed to failover
-   "Hostname":           "host1",                               // Host to set in forwarding headers
-   "TrustForwardHeader": true,                                  // Time provider (useful for testing purposes)
- }
-
-Setting location options upates the limits and parameters for the newly arriving requests in real-time.
-
-.. code-block:: etcd
-
- etcdctl set /vulcand/hosts/localhost/locations/loc1/options\
-         '{"FailoverPredicate":"(IsNetworkError() || ResponseCode() == 503) && Attempts() <= 2"}'
-
-.. code-block:: cli
-
- vulcanctl location set_options\
-         -host=localhost -id=loc1\
-         -maxMemBodyKB=6 -maxBodyKB=7\
-         -failoverPredicate='IsNetworkError()'\
-         -trustForwardHeader\
-         -forwardHost=host1
-
-.. code-block:: api
-
- curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations/loc1/options\
-      -d '{"FailoverPredicate": "Attempts() <= 3"}'
-
-
-**Switching upstreams**
-
-Updating upstream gracefully re-routes the traffic to the new endpoints assigned to this upstream:
-
-.. code-block:: etcd
-
- # redirect the traffic of the location "loc1" to the endpoints of the upstream "up2"
- etcdctl set /vulcand/hosts/localhost/locations/loc1/upstream up2
-
-.. code-block:: cli
-
- # redirect the traffic of the location "loc1" to the endpoints of the upstream "up2"
- vulcanctl location set_upstream -host=localhost -id=loc1 -up=up2
-
-.. code-block:: api
-
- # redirect the traffic of the location "loc1" to the endpoints of the upstream "up2"
- curl -X PUT http://localhost:8182/v1/hosts/localhost/locations/loc1 -F upstream=up2
-
-.. note::  you can add and remove endpoints to the existing upstream, and vulcan will start redirecting the traffic to them automatically
 
 
 Routing Language
@@ -299,8 +329,6 @@ Host matcher:
 
   Host("<subdomain>.localhost") // trie-based matcher for a.localhost, b.localhost, etc.
   HostRegexp(".*localhost")     // regexp based matcher
-
-.. note:: As long as locations are currently specified under hosts, it's not possible to use ``Host`` matcher, however it will be changed soon.
 
 Path matcher:
 
@@ -344,15 +372,15 @@ Will be combined into one trie for performance. If you add a third route:
 
 It wont be joined ito the trie, and would be matched separately instead.
 
-.. warning:: Vulcan can not merge regexp-based routes into efficient structure, so if you have hundreds/thousands of locations, use trie-based routes!
+.. warning:: Vulcan can not merge regexp-based routes into efficient structure, so if you have hundreds/thousands of frontends, use trie-based routes!
 
 Listeners
 ~~~~~~~~~
 .. figure::  _static/img/VulcanListener.png
    :align:   left
 
-Listeners allow attaching and detaching sockets on various interfaces and networks to multiple hosts. 
-Hosts can have multiple listeners attached and share the same listener.
+Listeners allow attaching and detaching sockets on various interfaces and networks.
+Vulcand can have multiple listeners attached and share the same listener.
 
 .. code-block:: javascript
 
@@ -367,20 +395,20 @@ Hosts can have multiple listeners attached and share the same listener.
 .. code-block:: etcd
 
  # Add http listener accepting requests on 127.0.0.1:8183
- etcdctl set /vulcand/hosts/example.com/listeners/ls1\
+ etcdctl set /vulcand/listeners/ls1\
             '{"Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
 
 .. code-block:: cli
 
  # Add http listener accepting requests on 127.0.0.1:80
- vulcanctl listener add --id ls1 --host example.com --proto=http --net=tcp -addr=127.0.0.1:8080
+ vctl listener upsert --id ls1 --proto=http --net=tcp -addr=127.0.0.1:8080
 
 
 .. code-block:: api
 
  # Add http listener accepting requests on 127.0.0.1:8183
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/example.com/listeners\
-      -d '{"Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
+      -d '{"Id": "ls1", "Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
 
 
 Middlewares
@@ -390,7 +418,7 @@ Middlewares
    :align:   left
 
 Middlewares are allowed to observe, modify and intercept http requests and responses. Vulcand provides several middlewares. 
-Users can write their own middlewares in Go.
+Users can write their own middlewares for Vulcand in Go.
 
 To specify execution order of the middlewares, one can define the priority. Middlewares with smaller priority values will be executed first.
 
@@ -404,55 +432,54 @@ Vulcan supports controlling request rates. Rate can be checked against different
    client.ip                       # client ip
    request.header.X-Special-Header # request header
 
-Adding and removing middlewares will modify the location behavior in real time. One can set expiring middlewares as well.
+Adding and removing middlewares will modify the frontend behavior in real time. One can set expiring middlewares as well.
 
 .. code-block:: etcd
 
- # Update or set rate limit the request to location "loc1" to 1 request per second per client ip 
+ # Update or set rate limit the request to frontend "f1" to 1 request per second per client ip 
  # with bursts up to 3 requests per second.
- etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/ratelimit/rl1\
+ etcdctl set /vulcand/frontends/f1/middlewares/rl1\
         '{"Priority": 0, "Type": "ratelimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
 
 
 .. code-block:: cli
 
- # Update or set rate limit the request to location "loc1" to 1 request per second per client ip 
+ # Update or set rate limit the request to frontend "f1" to 1 request per second per client ip 
  # with bursts up to 3 requests per second.
- vulcanctl ratelimit add -id=rl1 -host=localhost -location=loc1 -requests=1 -burst=3 -period=1 --priority=0
-
+ vctl ratelimit upsert -id=rl1 -frontend=f1 -requests=1 -burst=3 -period=1 --priority=0
 
 .. code-block:: api
 
- # Update or set rate limit the request to location "loc1" to 1 request per second per client ip 
+ # Update or set rate limit the request to frontend "f1" to 1 request per second per client ip 
  # with bursts up to 3 requests per second.
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations/loc1/middlewares/ratelimit\
-      -d '{"Priority": 0, "Type": "ratelimit", "Id": "rl1", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
+      -d '{"Middleware": {"Priority": 0, "Type": "ratelimit", "Id": "rl1", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}}'
 
 
 
 Connection Limits
 ~~~~~~~~~~~~~~~~~
 
-Connection limits control the amount of simultaneous connections per location. Locations re-use the same variables as rate limits.
+Connection limits control the amount of simultaneous connections per frontend. Frontends re-use the same variables as rate limits.
 
 .. code-block:: etcd
 
- # limit the amount of connections per location to 16 per client ip
- etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/connlimit/cl1\
+ # limit the amount of connections per frontend to 16 per client ip
+ etcdctl set /vulcand/frontends/f1/middlewares/cl1\
         '{"Priority": 0, "Type": "connlimit", "Middleware":{"Connections":16, "Variable": "client.ip"}}'
 
 
 .. code-block:: cli
 
- # limit the amount of connections per location to 16 per client ip
- vulcanctl connlimit add -id=cl1 -host=localhost -location=loc1 -connections=1 --priority=0 --variable=client.ip
+ # limit the amount of connections per frontend to 16 per client ip
+ vctl connlimit upsert -id=cl1 -frontend=f1 -connections=1 --priority=0 --variable=client.ip
 
 
 .. code-block:: api
 
- # limit the amount of connections per location to 16 per client ip
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/locations/loc1/middlewares/connlimit\
-      -d '{"Priority": 0, "Type": "connlimit", "Middleware":{"Connections":16, "Variable": "client.ip"}}'
+ # limit the amount of connections per frontend to 16 per client ip
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
+      -d '{"Middleware": {"Id": "cl1", "Priority": 0, "Type": "connlimit", "Middleware":{"Connections":16, "Variable": "client.ip"}}}'
 
 
 
@@ -469,7 +496,7 @@ Circuit breaker observes requests statistics and checks the stats against specia
 .. figure::  _static/img/CircuitTripped.png
    :align:   left
 
-In case if condition matches, CB activates the fallback scenario: returns the response code or redirects the request to another location. 
+In case if condition matches, CB activates the fallback scenario: returns the response code or redirects the request to another frontend. 
 
 **Circuit Breaker states**
 
@@ -479,7 +506,7 @@ CB provides a set of explicit states and transitions explained below:
    :align:   left
 
 - Initial state is ``Standby``. CB observes the statistics and does not modify the request.
-- In case if condition matches, CB enters ``Tripped`` state, where it responds with predefines code or redirects to another location.
+- In case if condition matches, CB enters ``Tripped`` state, where it responds with predefines code or redirects to another frontend.
 - CB can execute the special HTTP callback when going from ``Standby`` to ``Tripped`` state
 - CB sets a special timer that defines how long does it spend in the ``Tripped`` state
 - Once ``Tripped`` timer expires, CB enters ``Recovering`` state and resets all stats
@@ -491,11 +518,11 @@ CB provides a set of explicit states and transitions explained below:
 
 **Conditions**
 
-CB defines a simple language that allows us to specify simple conditions that watch the stats for a location:
+CB defines a simple language that allows us to specify simple conditions that watch the stats for a frontend:
 
 .. code-block:: javascript
 
- NetworkErrorRatio() > 0.5      // watch error ratio over 10 second sliding widndow for a location
+ NetworkErrorRatio() > 0.5      // watch error ratio over 10 second sliding widndow for a frontend
  LatencyAtQuantileMS(50.0) > 50 // watch latency at quantile in milliseconds.
  ResponseCodeRatio(500, 600, 0, 600) > 0.5 // ratio of response codes in range [500-600) to  [0-600)
 
@@ -503,7 +530,7 @@ CB defines a simple language that allows us to specify simple conditions that wa
 
 **Response fallback**
 
-Response fallback will tell CB to reply with a predefined response instead of forwarding the request to the upstream
+Response fallback will tell CB to reply with a predefined response instead of forwarding the request to the backend
 
 .. code-block:: javascript
 
@@ -518,9 +545,9 @@ Response fallback will tell CB to reply with a predefined response instead of fo
 
 **Redirect fallback**
 
-Redirect fallback will redirect the request to another location.
+Redirect fallback will redirect the request to another frontend.
 
-.. note::  It won't work for locations not defined in the Vulcand config.
+.. note::  It won't work for frontends not defined in the Vulcand config.
 
 .. code-block:: javascript
 
@@ -563,7 +590,7 @@ Circuit breaker setup is can be done via Etcd, command line or API:
 
 .. code-block:: etcd
 
- etcdctl set /vulcand/hosts/localhost/locations/loc1/middlewares/cbreaker/cb1 '{
+ etcdctl set /vulcand/frontends/f1/middlewares/cb1 '{
               "Id":"cb1",
               "Priority":1,
               "Type":"cbreaker",
@@ -578,9 +605,9 @@ Circuit breaker setup is can be done via Etcd, command line or API:
 
 .. code-block:: cli
 
- vulcanctl cbreaker add \
-                   --host=localhost \
-                   --location=loc1 \
+ vctl cbreaker upsert \
+                   --frontend=f1 \
+                   --id=cb1\
                    --condition="NetworkErrorRatio() > 0.5" \
                    --fallback='{"Type": "response", "Action": {"StatusCode": 400, "Body": "Come back later"}}'
 
@@ -588,8 +615,9 @@ Circuit breaker setup is can be done via Etcd, command line or API:
 .. code-block:: api
 
  curl -X POST -H "Content-Type: application/json"\
-      http://localhost:8182/v1/hosts/localhost/locations/loc1/middlewares/cbreaker\
+      http://localhost:8182/v2/frontends/f1/middlewares\
       -d '{
+           "Middleware": {
               "Id":"cb1",
               "Priority":1,
               "Type":"cbreaker",
@@ -600,7 +628,8 @@ Circuit breaker setup is can be done via Etcd, command line or API:
                  "RecoveryDuration": 10000000000,
                  "CheckPeriod": 100000000
               }
-            }'
+            }
+         }'
 
 
 TLS
@@ -622,14 +651,13 @@ This special key has to be generated by Vulcand using command line utility:
 
 .. code-block:: bash 
 
- $ vulcanctl secret new_key
+ $ vctl secret new_key
 
 Once we got the key, we can pass it to the running daemon.
 
 .. code-block:: bash
 
  $ vulcand -sealKey="the-seal-key"
-
 
 .. note:: Add space before command to avoid leaking seal key in bash history, or use ``HISTIGNORE``
 
@@ -640,7 +668,7 @@ Setting certificate via etcd is slightly different from CLI and API:
 .. code-block:: etcd
 
  # Read the private key and certificate and returns back the encrypted version that can be passed to etcd
- $ vulcanctl secret seal_keypair -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ $ vctl secret seal_keypair -sealKey <seal-key> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
  # Once we got the certificate sealed, we can pass it to the Etcd:
  etcdctl set /vulcand/hosts/mailgun.com/keypair '{...}'
@@ -649,13 +677,13 @@ Setting certificate via etcd is slightly different from CLI and API:
 
  # Connect to Vulcand Update the TLS certificate.
  # In this case we don't need to supply seal key, as in this case the CLI talks to the Vulcand directly
- $ vulcanctl host set_keypair -name <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
+ $ vctl host upsert -name <host> -cert=</path-to/chain.crt> -privateKey=</path-to/key>
 
 .. code-block:: api
 
  # In this case we don't need to supply seal key, as in this case the CLI talks to the Vulcand directly
- curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v1/hosts/localhost/keypair\
-      -d '{"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key-string"}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/hosts\
+      -d '{"Name": "localhost", "Settings": {"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key-string"}}'
 
 .. note::  To update the certificate in the live mode just repeat the steps with the new certificate, vulcand will gracefully reload the config.
 
@@ -668,20 +696,20 @@ Once we have the certificate set, we can create HTTPS listeners for the host:
 .. code-block:: etcd
 
  # Add http listener accepting requests on 127.0.0.1:8183
- etcdctl set /vulcand/hosts/example.com/listeners/ls1\
+ etcdctl set /vulcand/listeners/ls1\
             '{"Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
 
 .. code-block:: cli
 
  # Add http listener accepting requests on 127.0.0.1:80
- vulcanctl listener add --id ls1 --host example.com --proto=https --net=tcp -addr=127.0.0.1:8080
+ vctl listener upsert --id ls1 --proto=https --net=tcp -addr=127.0.0.1:8080
 
 
 .. code-block:: api
 
  # Add http listener accepting requests on 127.0.0.1:8183
- curl -X POST -H "Content-Type: application/json" http://localhost:8182/v1/hosts/example.com/listeners\
-      -d '{"Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
+      -d '{"Id": "ls1", "Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
 
 
 SNI
@@ -692,19 +720,19 @@ Not all clients support SNI, or sometimes host name is not available. In this ca
 .. code-block:: etcd
 
  # Set example.com as default host returned in case if SNI is not available
- etcdctl set /vulcand/hosts/example.com/options '{"Default": true}'
+ etcdctl set /vulcand/hosts/example.com/host '{"Settings": {"Default": true}}'
 
 
 Metrics
 --------
 
-Metrics are provided for locations and endpoints:
+Metrics are provided for frontends and servers:
 
 .. code-block:: javascript
 
  {
    "Verdict":{
-      "IsBad":false,    // Verdict will specify if there's something wrong with the endpoint
+      "IsBad":false,    // Verdict will specify if there's something wrong with the server
       "Anomalies":null  // Anomalies can be populated if Vulcand detects something unusual
    },
    "Counters":{             // Counters in a rolling time window
@@ -722,7 +750,7 @@ Metrics are provided for locations and endpoints:
          }
       ]
    },
-   "LatencyBrackets":[ // Latency brackets recorded for the endpoint or location
+   "LatencyBrackets":[ // Latency brackets recorded for the server or frontend
       {
          "Quantile":99,
          "Value":172000  // microsecond resolution
@@ -739,21 +767,23 @@ Vulcand provides real-time metrics via API and command line.
 
 .. code-block:: etcd
 
- # top acts like a standard linux top command, refreshing top active locations every second.
- vulcanctl top
+ # top acts like a standard linux top command, refreshing top active frontends every second.
+ vctl top
 
 .. code-block:: api
 
- # top locations
- curl http://localhost:8182/v1/hosts/top/locations?limit=100
+ # top frontends
+ curl http://localhost:8182/v2/top/frontends?limit=100
 
- # top endpoints
- curl http://localhost:8182/v1/upstreams/top/endpoints?limit=100
+ # top servers
+ curl http://localhost:8182/v2/top/servers?limit=100
 
 .. code-block:: cli
 
- # top acts like a standard linux top command, refreshing top active locations every second.
- vulcanctl top
+ # vctl top acts like a standard linux top command, refreshing top active frontends every second.
+ vctl top
+ # -b flag will show top only for frontends and servers that are associated with backend b1
+ vctl top -b b1
 
 Logging
 -------
@@ -770,7 +800,7 @@ You can change the real time logging output by using ``set_severity`` command:
 
 .. code-block:: etcd
 
-  vulcanctl log set_severity -s=INFO
+  vctl log set_severity -s=INFO
   
 .. code-block:: api
 
@@ -778,13 +808,13 @@ You can change the real time logging output by using ``set_severity`` command:
 
 .. code-block:: cli
 
-  # vulcanctl log set_severity -s=INFO
+  # vctl log set_severity -s=INFO
 
 You can check current severity using ``get_severity`` command:
 
 .. code-block:: etcd
 
-  vulcanctl log get_severity
+  vctl log get_severity
   
 .. code-block:: api
 
@@ -792,7 +822,7 @@ You can check current severity using ``get_severity`` command:
 
 .. code-block:: cli
 
-  # vulcanctl log get_severity
+  # vctl log get_severity
 
 
 Process management
@@ -810,7 +840,7 @@ Usage of vulcand
   -apiInterface="":              # apiInterface - interface for API
   -apiPort=8182                  # apiPort - port for API
 
-  -etcd=[]                       # etcd - list of etcd discovery service API endpoints
+  -etcd=[]                       # etcd - list of etcd discovery service API servers
   -etcdKey="vulcand"             # etceKey - etcd key for reading configuration
 
   -log="console"                 # log - syslog or console
@@ -819,7 +849,7 @@ Usage of vulcand
   
   
   -sealKey=""                    # sealKey is used to store encrypted data in the backend,
-                                 # use 'vulcanctl secret new_key' to create a new key.
+                                 # use 'vctl secret new_key' to create a new key.
 
   -statsdAddr="localhost:8185"   # statsdAddr - address where Vulcand will emit statsd metrics
   -statsdPrefix="vulcand"        # statsdPrefix is a prefix prepended to every metric
@@ -877,14 +907,14 @@ If you need to temporarily change the logging for a running process (e.g. to deb
 
 .. code-block:: sh
 
-  vulcanctl log set_severity -s=INFO
+  vctl log set_severity -s=INFO
   OK: Severity has been updated to INFO
 
 You can check the current logging seveirty by using ``get_severity`` command:
 
 .. code-block:: sh
 
-  vulcanctl log get_severity
+  vctl log get_severity
   OK: severity: INFO
 
 
@@ -894,7 +924,7 @@ Metrics
 
 Vulcand can emit metrics to statsd via UDP. To turn this feature on, supply ``statsdAddr`` and ``statsdPrefix`` parameters to vulcand executable.
 
-The service emits the following metrics for each location and endpoint:
+The service emits the following metrics for each frontend and server:
 
 +------------+-----------------------------------------------+
 | Metric type| Metric Name                                   |
@@ -925,31 +955,31 @@ Starting the daemon:
 
 .. code-block:: sh
 
- docker run -d -p 8182:8182 -p 8181:8181 mailgun/vulcand /go/bin/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
+ docker run -d -p 8182:8182 -p 8181:8181 mailgun/vulcand:v0.8.0-alpha /go/bin/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
 
 
 Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.
 
-Using the vulcanctl from container:
+Using the vctl from container:
 
 .. code-block:: sh
 
- docker run mailgun/vulcand /opt/vulcan/vulcanctl status  --vulcan 'http://172.17.42.1:8182'
+ docker run mailgun/vulcand:v0.8.0-alpha /opt/vulcan/vctl status  --vulcan 'http://172.17.42.1:8182'
 
 
-Make sure you've specified ``--vulcan`` flag to tell vulcanctl where the running vulcand is. We've used lxc bridge interface in the example above.
+Make sure you've specified ``--vulcan`` flag to tell vctl where the running vulcand is. We've used lxc bridge interface in the example above.
 
 
 Docker trusted build
 ~~~~~~~~~~~~~~~~~~~~~
 
-There's a trusted ``mailgun/vulcand`` build you can use, it's updated automagically.
+There's a trusted ``mailgun/vulcand`` build you can use. The recommended version is `0.8.0-alpha`.
 
 
 Manual installation
 ~~~~~~~~~~~~~~~~~~~
 
-.. note:: You have to install go>=1.3 and Etcd before installing vulcand:
+.. note:: You have to install go>=1.3.1 and Etcd before installing vulcand:
 
 Install: 
 

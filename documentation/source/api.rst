@@ -16,7 +16,7 @@ Check status
 
 .. code-block:: url
 
-     GET /v1/status
+     GET /v2/status
 
 Returns: ``200 OK``
 
@@ -37,7 +37,7 @@ Get severity
 
 .. code-block:: url
 
-     GET /v1/log/severity
+     GET /v2/log/severity
 
 Returns: ``200 OK``
 
@@ -79,7 +79,7 @@ Get hosts
 
 .. code-block:: url
 
-     GET /v1/hosts
+     GET /v2/hosts
 
 Example response:
 
