@@ -317,7 +317,7 @@ Get server
 Retrieve the particular server with id ``server-id``
 
 Upsert endpoint
-++++++++++++
++++++++++++++++
 
 .. code-block:: url
 
@@ -370,7 +370,7 @@ Retrieve the frontends. Example response:
 
 .. code-block:: json
 
-{
+ {
   "Frontends": [
     {
       "Id": "f1",
@@ -388,7 +388,7 @@ Retrieve the frontends. Example response:
       }
     }
   ]
-}
+ }
 
 
 Get frontend
@@ -581,7 +581,7 @@ Retrieve the particular connection limit of frontend with id ``frontend-id`` and
  }
 
 Upsert connection limit
-++++++++++++++++++++
++++++++++++++++++++++++
 
 .. code-block:: url
 
