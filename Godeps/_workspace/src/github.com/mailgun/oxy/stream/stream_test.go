@@ -238,3 +238,59 @@ func (s *STSuite) TestCustomErrorHandler(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(re.StatusCode, Equals, http.StatusTeapot)
 }
+
+func (s *STSuite) TestNotModified(c *C) {
+	srv := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusNotModified)
+	})
+	defer srv.Close()
+
+	// forwarder will proxy the request to whatever destination
+	fwd, err := forward.New()
+	c.Assert(err, IsNil)
+
+	// this is our redirect to server
+	rdr := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req.URL = testutils.ParseURI(srv.URL)
+		fwd.ServeHTTP(w, req)
+	})
+
+	// stream handler will forward requests to redirect
+	st, err := New(rdr, Logger(utils.NewFileLogger(os.Stdout, utils.INFO)))
+	c.Assert(err, IsNil)
+
+	proxy := httptest.NewServer(st)
+	defer proxy.Close()
+
+	re, _, err := testutils.Get(proxy.URL)
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusNotModified)
+}
+
+func (s *STSuite) TestNoBody(c *C) {
+	srv := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	defer srv.Close()
+
+	// forwarder will proxy the request to whatever destination
+	fwd, err := forward.New()
+	c.Assert(err, IsNil)
+
+	// this is our redirect to server
+	rdr := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req.URL = testutils.ParseURI(srv.URL)
+		fwd.ServeHTTP(w, req)
+	})
+
+	// stream handler will forward requests to redirect
+	st, err := New(rdr, Logger(utils.NewFileLogger(os.Stdout, utils.INFO)))
+	c.Assert(err, IsNil)
+
+	proxy := httptest.NewServer(st)
+	defer proxy.Close()
+
+	re, _, err := testutils.Get(proxy.URL)
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+}

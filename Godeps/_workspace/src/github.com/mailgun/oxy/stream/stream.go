@@ -242,19 +242,25 @@ func (s *Streamer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		s.next.ServeHTTP(b, outreq)
 
-		reader, err := writer.Reader()
-		if err != nil {
-			s.log.Errorf("failed to read response, err %v", err)
-			s.errHandler.ServeHTTP(w, req, err)
-			return
+		var reader multibuf.MultiReader
+		if b.expectBody(outreq) {
+			rdr, err := writer.Reader()
+			if err != nil {
+				s.log.Errorf("failed to read response, err %v", err)
+				s.errHandler.ServeHTTP(w, req, err)
+				return
+			}
+			defer rdr.Close()
+			reader = rdr
 		}
-		defer reader.Close()
 
 		if (s.retryPredicate == nil || attempt > DefaultMaxRetryAttempts) ||
 			!s.retryPredicate(&context{r: req, attempt: attempt, responseCode: b.code, log: s.log}) {
 			utils.CopyHeaders(w.Header(), b.Header())
 			w.WriteHeader(b.code)
-			io.Copy(w, reader)
+			if reader != nil {
+				io.Copy(w, reader)
+			}
 			return
 		}
 
@@ -296,6 +302,23 @@ type bufferWriter struct {
 	header http.Header
 	code   int
 	buffer multibuf.WriterOnce
+}
+
+// RFC2616 #4.4
+func (b *bufferWriter) expectBody(r *http.Request) bool {
+	if r.Method == "HEAD" {
+		return false
+	}
+	if (b.code >= 100 && b.code < 200) || b.code == 204 || b.code == 304 {
+		return false
+	}
+	if b.header.Get("Content-Length") == "" && b.header.Get("Transfer-Encoding") == "" {
+		return false
+	}
+	if b.header.Get("Content-Length") == "0" {
+		return false
+	}
+	return true
 }
 
 func (b *bufferWriter) Close() error {

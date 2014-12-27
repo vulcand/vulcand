@@ -169,6 +169,29 @@ func (s *ServerSuite) TestListenerCRUD(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *ServerSuite) TestServerNoBody(c *C) {
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotModified)
+	})
+	defer e.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	b := MakeBatch(Batch{
+		Addr:  "localhost:31000",
+		Route: `Path("/")`,
+		URL:   e.URL,
+	})
+
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	re, _, err := testutils.Get(b.FrontendURL("/"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusNotModified)
+}
+
 func (s *ServerSuite) TestServerHTTPS(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
