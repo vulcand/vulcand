@@ -60,8 +60,9 @@ func (cmd *Command) upsertBackendAction(c *cli.Context) {
 func (cmd *Command) deleteBackendAction(c *cli.Context) {
 	if err := cmd.client.DeleteBackend(engine.BackendKey{Id: c.String("id")}); err != nil {
 		cmd.printError(err)
+	} else {
+		cmd.printOk("backend deleted")
 	}
-	cmd.printOk("backend deleted")
 }
 
 func (cmd *Command) printBackendAction(c *cli.Context) {

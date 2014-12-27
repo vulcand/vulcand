@@ -66,12 +66,12 @@ func (c *Client) GetHost(hk engine.HostKey) (*engine.Host, error) {
 }
 
 func (c *Client) UpsertHost(h engine.Host) error {
-	_, err := c.Post(c.endpoint("hosts"), h)
+	_, err := c.Post(c.endpoint("hosts"), hostPack{Host: h})
 	return err
 }
 
 func (c *Client) UpsertListener(l engine.Listener) error {
-	_, err := c.Post(c.endpoint("listeners"), l)
+	_, err := c.Post(c.endpoint("listeners"), listenerPack{Listener: l})
 	return err
 }
 
@@ -139,7 +139,10 @@ func (c *Client) DeleteFrontend(fk engine.FrontendKey) error {
 }
 
 func (c *Client) UpsertBackend(b engine.Backend) error {
-	_, err := c.Post(c.endpoint("backends"), b)
+	if b.Id == "" {
+		return fmt.Errorf("frontend id and middleware id can not be empty")
+	}
+	_, err := c.Post(c.endpoint("backends"), backendPack{Backend: b})
 	return err
 }
 
@@ -164,6 +167,9 @@ func (c *Client) GetBackends() ([]engine.Backend, error) {
 }
 
 func (c *Client) UpsertServer(bk engine.BackendKey, srv engine.Server, ttl time.Duration) error {
+	if bk.Id == "" || srv.Id == "" {
+		return fmt.Errorf("backend id and server id can not be empty")
+	}
 	_, err := c.Post(c.endpoint("backends", bk.Id, "servers"), serverPack{Server: srv, TTL: ttl.String()})
 	return err
 }
@@ -195,6 +201,9 @@ func (c *Client) GetServer(sk engine.ServerKey) (*engine.Server, error) {
 }
 
 func (c *Client) GetServers(bk engine.BackendKey) ([]engine.Server, error) {
+	if bk.Id == "" {
+		return nil, fmt.Errorf("backend id can not be empty")
+	}
 	data, err := c.Get(c.endpoint("backends", bk.Id, "servers"), url.Values{})
 	if err != nil {
 		return nil, err
@@ -203,10 +212,16 @@ func (c *Client) GetServers(bk engine.BackendKey) ([]engine.Server, error) {
 }
 
 func (c *Client) DeleteServer(sk engine.ServerKey) error {
+	if sk.BackendKey.Id == "" {
+		return fmt.Errorf("backend id can not be empty")
+	}
 	return c.Delete(c.endpoint("backends", sk.BackendKey.Id, "servers", sk.Id))
 }
 
 func (c *Client) UpsertMiddleware(fk engine.FrontendKey, m engine.Middleware, ttl time.Duration) error {
+	if fk.Id == "" || m.Id == "" {
+		return fmt.Errorf("frontend id and middleware id can not be empty")
+	}
 	_, err := c.Post(
 		c.endpoint("frontends", fk.Id, "middlewares"), middlewarePack{Middleware: m, TTL: ttl.String()})
 	return err

@@ -50,6 +50,28 @@ func (s *EngineSuite) makeConnLimit(id, variable string, conns int64) engine.Mid
 	}
 }
 
+func (s *EngineSuite) EmptyParams(c *C) {
+	// Empty host operations
+	c.Assert(s.Engine.UpsertHost(engine.Host{}), FitsTypeOf, &engine.InvalidFormatError{})
+	c.Assert(s.Engine.DeleteHost(engine.HostKey{}), FitsTypeOf, &engine.InvalidFormatError{})
+
+	// Empty listener operations
+	c.Assert(s.Engine.UpsertListener(engine.Listener{}), FitsTypeOf, &engine.InvalidFormatError{})
+	c.Assert(s.Engine.DeleteListener(engine.ListenerKey{}), FitsTypeOf, &engine.InvalidFormatError{})
+
+	// Empty backend operations
+	c.Assert(s.Engine.UpsertBackend(engine.Backend{}), FitsTypeOf, &engine.InvalidFormatError{})
+	c.Assert(s.Engine.DeleteBackend(engine.BackendKey{}), FitsTypeOf, &engine.InvalidFormatError{})
+
+	// Empty server operations
+	c.Assert(s.Engine.UpsertServer(engine.BackendKey{}, engine.Server{}, 0), FitsTypeOf, &engine.InvalidFormatError{})
+	c.Assert(s.Engine.DeleteServer(engine.ServerKey{}), FitsTypeOf, &engine.InvalidFormatError{})
+
+	// Empty frontend operations
+	c.Assert(s.Engine.UpsertFrontend(engine.Frontend{}, 0), FitsTypeOf, &engine.InvalidFormatError{})
+	c.Assert(s.Engine.DeleteFrontend(engine.FrontendKey{}), FitsTypeOf, &engine.InvalidFormatError{})
+}
+
 func (s *EngineSuite) HostCRUD(c *C) {
 	host := engine.Host{Name: "localhost"}
 

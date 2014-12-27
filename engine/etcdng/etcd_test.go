@@ -100,6 +100,10 @@ func (s *EtcdSuite) TearDownTest(c *C) {
 	s.ng.Close()
 }
 
+func (s *EtcdSuite) TestEmptyParams(c *C) {
+	s.suite.EmptyParams(c)
+}
+
 func (s *EtcdSuite) TestHostCRUD(c *C) {
 	s.suite.HostCRUD(c)
 }

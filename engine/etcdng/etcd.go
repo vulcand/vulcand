@@ -1,5 +1,5 @@
 // package etcdng contains the implementation of the Etcd-backed engine, where all vulcand properties are implemented as directories or keys.
-// This engine is capable of watching the changes and generating events.
+// this engine is capable of watching the changes and generating events.
 package etcdng
 
 import (
@@ -104,6 +104,9 @@ func (n *ng) GetHost(key engine.HostKey) (*engine.Host, error) {
 }
 
 func (n *ng) UpsertHost(h engine.Host) error {
+	if h.Name == "" {
+		return &engine.InvalidFormatError{Message: "hostname can not be empty"}
+	}
 	hostKey := n.path("hosts", h.Name, "host")
 
 	val := host{
@@ -125,6 +128,9 @@ func (n *ng) UpsertHost(h engine.Host) error {
 }
 
 func (n *ng) DeleteHost(key engine.HostKey) error {
+	if key.Name == "" {
+		return &engine.InvalidFormatError{Message: "hostname can not be empty"}
+	}
 	return n.deleteKey(n.path("hosts", key.Name))
 }
 
@@ -157,14 +163,23 @@ func (n *ng) GetListener(key engine.ListenerKey) (*engine.Listener, error) {
 }
 
 func (n *ng) UpsertListener(listener engine.Listener) error {
+	if listener.Id == "" {
+		return &engine.InvalidFormatError{Message: "listener id can not be empty"}
+	}
 	return n.setJSONVal(n.path("listeners", listener.Id), listener, noTTL)
 }
 
 func (s *ng) DeleteListener(key engine.ListenerKey) error {
+	if key.Id == "" {
+		return &engine.InvalidFormatError{Message: "listener id can not be empty"}
+	}
 	return s.deleteKey(s.path("listeners", key.Id))
 }
 
 func (n *ng) UpsertFrontend(f engine.Frontend, ttl time.Duration) error {
+	if f.Id == "" {
+		return &engine.InvalidFormatError{Message: "frontend id can not be empty"}
+	}
 	if _, err := n.GetBackend(engine.BackendKey{Id: f.BackendId}); err != nil {
 		return err
 	}
@@ -205,6 +220,9 @@ func (n *ng) GetFrontend(key engine.FrontendKey) (*engine.Frontend, error) {
 }
 
 func (n *ng) DeleteFrontend(fk engine.FrontendKey) error {
+	if fk.Id == "" {
+		return &engine.InvalidFormatError{Message: "frontend id can not be empty"}
+	}
 	return n.deleteKey(n.path("frontends", fk.Id))
 }
 
@@ -235,10 +253,16 @@ func (n *ng) GetBackend(key engine.BackendKey) (*engine.Backend, error) {
 }
 
 func (n *ng) UpsertBackend(b engine.Backend) error {
+	if b.Id == "" {
+		return &engine.InvalidFormatError{Message: "backend id can not be empty"}
+	}
 	return n.setJSONVal(n.path("backends", b.Id, "backend"), b, noTTL)
 }
 
 func (n *ng) DeleteBackend(bk engine.BackendKey) error {
+	if bk.Id == "" {
+		return &engine.InvalidFormatError{Message: "backend id can not be empty"}
+	}
 	fs, err := n.backendUsedBy(bk)
 	if err != nil {
 		return err
@@ -276,6 +300,9 @@ func (n *ng) GetMiddleware(key engine.MiddlewareKey) (*engine.Middleware, error)
 }
 
 func (n *ng) UpsertMiddleware(fk engine.FrontendKey, m engine.Middleware, ttl time.Duration) error {
+	if fk.Id == "" || m.Id == "" {
+		return &engine.InvalidFormatError{Message: "frontend id and middleware id can not be empty"}
+	}
 	if _, err := n.GetFrontend(fk); err != nil {
 		return err
 	}
@@ -283,12 +310,15 @@ func (n *ng) UpsertMiddleware(fk engine.FrontendKey, m engine.Middleware, ttl ti
 }
 
 func (n *ng) DeleteMiddleware(mk engine.MiddlewareKey) error {
+	if mk.FrontendKey.Id == "" || mk.Id == "" {
+		return &engine.InvalidFormatError{Message: "frontend id and middleware id can not be empty"}
+	}
 	return n.deleteKey(n.path("frontends", mk.FrontendKey.Id, "middlewares", mk.Id))
 }
 
 func (n *ng) UpsertServer(bk engine.BackendKey, s engine.Server, ttl time.Duration) error {
-	if s.Id == "" {
-		return fmt.Errorf("server id can not be empty")
+	if s.Id == "" || bk.Id == "" {
+		return &engine.InvalidFormatError{Message: "backend id and server id can not be empty"}
 	}
 	if _, err := n.GetBackend(bk); err != nil {
 		return err
@@ -321,6 +351,9 @@ func (n *ng) GetServer(sk engine.ServerKey) (*engine.Server, error) {
 }
 
 func (n *ng) DeleteServer(sk engine.ServerKey) error {
+	if sk.Id == "" || sk.BackendKey.Id == "" {
+		return &engine.InvalidFormatError{Message: "backend id and server id can not be empty"}
+	}
 	return n.deleteKey(n.path("backends", sk.BackendKey.Id, "servers", sk.Id))
 }
 
