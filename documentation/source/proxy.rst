@@ -88,7 +88,8 @@ Route is a simple routing language for matching http requests with Go syntax: ``
    PathRegexp("/v1/users/.*")                                 // Match by path with regexp syntax
    MethodRegexp("DELETE|GET") && PathRegexp("/v1/users/.*")   // Match by method and path with regexp syntax
 
-   Header()
+   Header("Content-Type", "application/<subtype>")            // trie-based matcher for headers
+   HeaderRegexp("Content-Type", "application/.*")             // regexp based matcher for headers
 
 
 Configuration
@@ -126,7 +127,7 @@ Adding and removing servers to the backend will change the traffic in real-time,
 
  # Upsert backend and add a server to it
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends\
-      -d '{"Id":"b", "Type":"http"}'
+      -d '{"Backend": {"Id":"b", "Type":"http"}}'
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends/b1/servers\
       -d '{"Server": {"Id":"srv1", "URL":"http://localhost:5000"}}'
 
@@ -166,7 +167,7 @@ You can update the settings at any time, that will initiate graceful reload of t
 .. code-block:: api
 
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends\
-      -d '{"Id":"b1", "Type":"http", "Settings": {"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}}'
+      -d '{"Backend": {"Id":"b1", "Type":"http", "Settings": {"KeepAlive": {"MaxIdleConnsPerHost": 128, "Period": "4s"}}}}'
 
 
 **Server heartbeat**
@@ -303,8 +304,8 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 
 .. code-block:: api
 
- curl -X PUT -H "Content-Type: application/json" http://localhost:8182/v2/hosts/localhost/keypair\
-      -d '{"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key"}'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/hosts\
+      -d '{"Host": {"Name": "localhost", "Cert": "base64-encoded-certificate", "Key": "base64-encoded-key"}}'
 
 .. note:: When setting keypair via Etcd you need to encrypt keypair. This is explained in `TLS`_ section of this document.
 
@@ -683,7 +684,7 @@ Setting certificate via etcd is slightly different from CLI and API:
 
  # In this case we don't need to supply seal key, as in this case the CLI talks to the Vulcand directly
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/hosts\
-      -d '{"Name": "localhost", "Settings": {"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key-string"}}'
+      -d '{"Host": {"Name": "localhost", "Settings": {"Cert": "base64-encoded-certificate", "Key": "base64-encoded-key-string"}}}'
 
 .. note::  To update the certificate in the live mode just repeat the steps with the new certificate, vulcand will gracefully reload the config.
 
@@ -709,7 +710,7 @@ Once we have the certificate set, we can create HTTPS listeners for the host:
 
  # Add http listener accepting requests on 127.0.0.1:8183
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
-      -d '{"Id": "ls1", "Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
+      -d '{"Listener": {"Id": "ls1", "Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}}'
 
 
 SNI
@@ -955,7 +956,7 @@ Starting the daemon:
 
 .. code-block:: sh
 
- docker run -d -p 8182:8182 -p 8181:8181 mailgun/vulcand:v0.8.0-alpha /go/bin/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
+ docker run -d -p 8182:8182 -p 8181:8181 mailgun/vulcand:v0.8.0-alpha.1 /go/bin/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
 
 
 Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.
@@ -964,7 +965,7 @@ Using the vctl from container:
 
 .. code-block:: sh
 
- docker run mailgun/vulcand:v0.8.0-alpha /opt/vulcan/vctl status  --vulcan 'http://172.17.42.1:8182'
+ docker run mailgun/vulcand:v0.8.0-alpha.1 /opt/vulcan/vctl status  --vulcan 'http://172.17.42.1:8182'
 
 
 Make sure you've specified ``--vulcan`` flag to tell vctl where the running vulcand is. We've used lxc bridge interface in the example above.

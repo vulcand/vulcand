@@ -110,12 +110,14 @@ Add a host to the proxy.
 .. code-block:: json
 
  {
+ "Host": {
   "Name": "localhost",                              // hostname
   "Settings": {                                     // settings are optional
     "KeyPair": {"Cert": "base64", Key: "base64"},   // base64 encoded key-pair certficate
     "Default": false ,                              // default host for SNI
   }
  }
+}
 
 
 Example responses:
@@ -156,6 +158,7 @@ Upsert listener
 .. code-block:: json
 
  {
+  "Listener": {
    "Id": "l1",
    "Protocol": "https", // http or https
    "Address":
@@ -163,6 +166,7 @@ Upsert listener
         "Network":"tcp", // unix or tcp
         "Address":"localhost:8184"
      }
+  }
  }
 
 Example response:
@@ -236,18 +240,20 @@ Upsert backend
 .. code-block:: json
 
  {
-  "Id": "b1",
-  "Type": "http",
-  "Settings": {
-    "Timeouts": {
-      "Read": "5s",
-      "Dial": "5s",
-      "TLSHandshake": "10s"
-    },
-    "KeepAlive": {
-      "Period": "30s",
-      "MaxIdleConnsPerHost": 12
-    }
+ "Backend": {
+   "Id": "b1",
+   "Type": "http",
+   "Settings": {
+     "Timeouts": {
+       "Read": "5s",
+       "Dial": "5s",
+       "TLSHandshake": "10s"
+     },
+     "KeepAlive": {
+       "Period": "30s",
+       "MaxIdleConnsPerHost": 12
+     }
+   }
   }
  }
 
@@ -431,7 +437,7 @@ Add a frontend to the host. Params:
 .. code-block:: json
 
  {
-  "Server": {
+  "Frontend": {
     "Id": "f1",
     "Route": "Path(`\/`)",
     "Type": "http",
@@ -520,15 +526,17 @@ Add a rate limit to the frontend, will take effect immediately.
 .. code-block:: json
 
  {
-   "Id": "rl1",
-   "Priority": 0,
-   "Type": "ratelimit",
-   "Middleware": {
-     "PeriodSeconds": 1,
-     "Burst": 3,
-     "Variable": "client.ip",
-     "Requests": 1
-   }
+  "Middleware": {
+    "Id": "rl1",
+    "Priority": 0,
+    "Type": "ratelimit",
+    "Middleware": {
+      "PeriodSeconds": 1,
+      "Burst": 3,
+      "Variable": "client.ip",
+      "Requests": 1
+    }
+  }
  }
 
 Json parameters explained:
@@ -592,6 +600,7 @@ Upsert a connection limit to the frontend. Example response:
 .. code-block:: json
 
  {
+  "Middleware": {
    "Id": "cl1",
    "Priority": 0,
    "Type": "connlimit",
@@ -599,6 +608,7 @@ Upsert a connection limit to the frontend. Example response:
      "Connections": 3,
      "Variable": "client.ip"
    }
+  }
  }
 
 JSON parameters explained
