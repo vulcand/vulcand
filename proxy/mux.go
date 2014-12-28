@@ -288,11 +288,7 @@ func (m *mux) upsertListener(l engine.Listener) error {
 	lk := engine.ListenerKey{Id: l.Id}
 	s, exists := m.servers[lk]
 	if exists {
-		// We can not listen for different protocols on the same socket
-		if s.listener.Protocol != l.Protocol {
-			return fmt.Errorf("conflicting protocol %s and %s", s.listener.Protocol, l.Protocol)
-		}
-		return nil
+		return s.updateListener(l)
 	}
 
 	// Check if there's a listener with the same address

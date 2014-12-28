@@ -73,10 +73,12 @@ type Listener struct {
 	Protocol string
 	// Adddress specifies network (tcp or unix) and address (ip:port or path to unix socket)
 	Address Address
+	// Scope is optional expression that limits the operational scope of this listener
+	Scope string
 }
 
 func (l *Listener) String() string {
-	return fmt.Sprintf("Listener(%s, %s://%s)", l.Protocol, l.Address.Network, l.Address.Address)
+	return fmt.Sprintf("Listener(%s, %s://%s, scope=%s)", l.Protocol, l.Address.Network, l.Address.Address, l.Scope)
 }
 
 func (a *Address) Equals(o Address) bool {
