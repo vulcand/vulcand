@@ -5,19 +5,22 @@
 # launch it in docker 
 # sudo docker run -i -t -v /tmp:/tmp golang:1.3.3-onbuild /bin/bash
 # cd /tmp && curl https://raw.githubusercontent.com/mailgun/vulcand/master/scripts/release.sh > relase.sh
-# bash release.sh v0.8.0-alpha
-# /tmp/releases 
+# bash release.sh v0.8.0-alpha.2 master
+# /tmp/releases
 
 VER=$1
+BRANCH=$2
 PROJ="vulcand"
 RELEASE_DIR="/tmp/release"
 PROJ_DIR=${GOPATH}/src/github.com/mailgun/${PROJ}
+RELEASE_DESCRIPTION=$3
 
-if [ -z "$1" ]; then
-	echo "Usage: ${0} VERSION" >> /dev/stderr
+if [ $# -lt 3 ]; then
+	echo "Usage: ${0} VERSION TAG/BRANCH COMMENT" >> /dev/stderr
 	exit 255
 fi
 
+set +x
 set -u
 
 function setup_env {
@@ -32,10 +35,11 @@ function setup_env {
 	fi
 
 	pushd ${proj_dir}
-		git checkout master
 		git fetch --all
 		git reset --hard origin/master
-		git checkout $ver
+		git checkout $BRANCH
+        git tag $ver
+        git push --tags --repo https://$USERNAME:$PASSWORD@github.com/mailgun/$proj
 	popd
 }
 
@@ -52,7 +56,7 @@ function package {
 		cp ${srcdir}/${bin} ${target}
 	done
 
-	cp vulcand/README.md ${target}/README.md
+	cp ${PROJ_DIR}/README.md ${target}/README.md
 }
 
 function main {
@@ -69,14 +73,32 @@ function main {
 		TARGET="${RELEASE_DIR}/vulcand-${VER}-${GOOS}-${GOARCH}"
 		mkdir -p ${TARGET}
 		package ${TARGET} "${GOPATH}/bin"
+        cd $RELEASE_DIR
 
 		if [ ${GOOS} == "linux" ]; then
-			tar cfz ${TARGET}.tar.gz ${TARGET}
+            ARTIFACT="${TARGET}.tar.gz"
+			tar cfz ${TARGET}.tar.gz $(basename ${TARGET})
 			echo "Wrote ${TARGET}.tar.gz"
 		else
-			zip -qr ${TARGET}.zip ${TARGET}
+            ARTIFACT="${TARGET}.zip"
+			zip -qr ${TARGET}.zip $(basename ${TARGET})
 			echo "Wrote ${TARGET}.zip"
 		fi
+
+        github-release release \
+          --user mailgun \
+          --repo vulcand \
+          --tag $VER \
+          --name $VER \
+          --description $RELEASE_DESCRIPTION \
+          --pre-release
+
+       github-release upload \
+          --user mailgun \
+          --repo vulcand \
+          --tag $VER \
+          --name $(basename $ARTIFACT) \
+          --file $ARTIFACT
 	done
 }
 
