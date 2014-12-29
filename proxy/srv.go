@@ -182,6 +182,20 @@ func newTLSConfig(keyPairs map[engine.HostKey]engine.KeyPair, defaultHost string
 		config.NextProtos = []string{"http/1.1"}
 	}
 
+	// only support TLS (mitigate against POODLE exploit)
+	config.MinVersion = tls.VersionTLS10
+	// use only modern ciphers
+	config.CipherSuites = []uint16{
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	}
+
 	pairs := make(map[string]tls.Certificate, len(keyPairs))
 	for h, c := range keyPairs {
 		keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
