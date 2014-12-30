@@ -185,6 +185,22 @@ func (s *BackendSuite) TestNewServerBadParams(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *BackendSuite) TestNewListener(c *C) {
+	_, err := NewListener("id", "http", "tcp", "127.0.0.1:4000", "")
+	c.Assert(err, IsNil)
+}
+
+func (s *BackendSuite) TestNewListenerBadParams(c *C) {
+	_, err := NewListener("id", "http", "tcp", "", "")
+	c.Assert(err, NotNil)
+
+	_, err = NewListener("id", "", "tcp", "127.0.0.1:4000", "")
+	c.Assert(err, NotNil)
+
+	_, err = NewListener("id", "http", "tcp", "127.0.0.1:4000", "blabla")
+	c.Assert(err, NotNil)
+}
+
 func (s *BackendSuite) TestFrontendsFromJSON(c *C) {
 	f, err := NewHTTPFrontend("f1", "b1", `Path("/path")`, HTTPFrontendSettings{})
 	c.Assert(err, IsNil)

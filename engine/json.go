@@ -111,7 +111,7 @@ func ListenerFromJSON(in []byte, id ...string) (*Listener, error) {
 	if len(id) != 0 {
 		l.Id = id[0]
 	}
-	return NewListener(l.Id, l.Protocol, l.Address.Network, l.Address.Address)
+	return NewListener(l.Id, l.Protocol, l.Address.Network, l.Address.Address, l.Scope)
 }
 
 func ListenersFromJSON(in []byte) ([]Listener, error) {

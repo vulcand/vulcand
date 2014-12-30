@@ -165,10 +165,16 @@ func NewAddress(network, address string) (*Address, error) {
 	return &Address{Network: network, Address: address}, nil
 }
 
-func NewListener(id, protocol, network, address string) (*Listener, error) {
+func NewListener(id, protocol, network, address, scope string) (*Listener, error) {
 	protocol = strings.ToLower(protocol)
 	if protocol != HTTP && protocol != HTTPS {
 		return nil, fmt.Errorf("unsupported protocol '%s', supported protocols are http and https", protocol)
+	}
+
+	if scope != "" {
+		if !route.IsValid(scope) {
+			return nil, fmt.Errorf("Scope should be a valid route expression")
+		}
 	}
 
 	a, err := NewAddress(network, address)
@@ -177,6 +183,7 @@ func NewListener(id, protocol, network, address string) (*Listener, error) {
 	}
 
 	return &Listener{
+		Scope:    scope,
 		Id:       id,
 		Address:  *a,
 		Protocol: protocol,

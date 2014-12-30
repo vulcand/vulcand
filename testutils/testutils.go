@@ -84,7 +84,7 @@ func MakeHost(name string, keyPair *engine.KeyPair) engine.Host {
 }
 
 func MakeListener(addr string, protocol string) engine.Listener {
-	l, err := engine.NewListener(UID("listener"), protocol, engine.TCP, addr)
+	l, err := engine.NewListener(UID("listener"), protocol, engine.TCP, addr, "")
 	if err != nil {
 		panic(err)
 	}
