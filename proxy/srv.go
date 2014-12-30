@@ -86,12 +86,14 @@ func (s *srv) updateListener(l engine.Listener) error {
 	if l.Scope == s.listener.Scope {
 		return nil
 	}
+	log.Infof("%v update %v", s, &l)
 	handler, err := scopedHandler(l.Scope, s.mux.router)
 	if err != nil {
 		return err
 	}
 	s.proxy = handler
 	s.listener = l
+
 	return s.reload()
 }
 
@@ -169,16 +171,16 @@ func (s *srv) reload() error {
 		return nil
 	}
 
-	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
-	if !s.isTLS() {
-		return nil
+	var config *tls.Config
+
+	if s.isTLS() {
+		cfg, err := newTLSConfig(s.keyPairs, s.defaultHost)
+		if err != nil {
+			return err
+		}
+		config = cfg
 	}
 
-	// Otherwise, we need to generate new TLS config and spin up the new server on the same socket
-	config, err := newTLSConfig(s.keyPairs, s.defaultHost)
-	if err != nil {
-		return err
-	}
 	gracefulServer, err := s.srv.HijackListener(s.newHTTPServer(), config)
 	if err != nil {
 		return err
