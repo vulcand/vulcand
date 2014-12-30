@@ -24,7 +24,7 @@ Project info
 | documentation | https://docs.vulcand.io                                      |
 | :------------- |:-----------------------------------------------------------------|
 | status        | Used in production@Mailgun on moderate workloads.  Under active development.              |
-| blog          | http://blog.vulcand.io                                     |
+| blog          | http://blog.vulcanproxy.com                                     |
 | discussions   | https://groups.google.com/d/forum/vulcan-proxy                  |
 | roadmap       | [roadmap.md](ROADMAP.md)                  |
 
