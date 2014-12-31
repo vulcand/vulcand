@@ -169,6 +169,55 @@ func (s *ServerSuite) TestListenerCRUD(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *ServerSuite) TestListenerScope(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	b := MakeBatch(Batch{Addr: "localhost:41000", Route: `Path("/")`, URL: e.URL})
+
+	b.L.Scope = `Host("localhost")`
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+	re, _, err := testutils.Get(b.FrontendURL("/"), testutils.Host("otherhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusNotFound)
+}
+
+func (s *ServerSuite) TestListenerScopeUpdate(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	b := MakeBatch(Batch{Addr: "localhost:41000", Route: `Path("/")`, URL: e.URL})
+
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	re, body, err := testutils.Get(b.FrontendURL("/"), testutils.Host("otherhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(body), Equals, "Hi, I'm endpoint")
+
+	b.L.Scope = `Host("localhost")`
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	re, body, err = testutils.Get(b.FrontendURL("/"), testutils.Host("localhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(string(body), Equals, "Hi, I'm endpoint")
+
+	re, _, err = testutils.Get(b.FrontendURL("/"), testutils.Host("otherhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusNotFound)
+}
+
 func (s *ServerSuite) TestServerNoBody(c *C) {
 	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotModified)

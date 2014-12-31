@@ -2,6 +2,7 @@ package forward
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -247,4 +248,29 @@ func (s *FwdSuite) TestForwardedProto(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(re.StatusCode, Equals, http.StatusOK)
 	c.Assert(proto, Equals, "https")
+}
+
+func (s *FwdSuite) TestChunkedResponseConversion(c *C) {
+	srv := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
+		h := w.(http.Hijacker)
+		conn, _, _ := h.Hijack()
+		fmt.Fprintf(conn, "HTTP/1.0 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ntest\r\n5\r\ntest1\r\n5\r\ntest2\r\n0\r\n\r\n")
+		conn.Close()
+	})
+	defer srv.Close()
+
+	f, err := New()
+	c.Assert(err, IsNil)
+
+	proxy := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
+		req.URL = testutils.ParseURI(srv.URL)
+		f.ServeHTTP(w, req)
+	})
+	defer proxy.Close()
+
+	re, body, err := testutils.Get(proxy.URL)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, "testtest1test2")
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(re.Header.Get("Content-Length"), Equals, fmt.Sprintf("%d", len("testtest1test2")))
 }

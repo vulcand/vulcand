@@ -60,7 +60,7 @@ func makeUpsertMiddlewareAction(cmd *Command, spec *plugin.MiddlewareSpec) func(
 				cmd.printError(err)
 				return
 			}
-			cmd.printOk("%v upserted", spec.Type, err)
+			cmd.printOk("%v upserted", spec.Type)
 		}
 	}
 }

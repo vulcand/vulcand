@@ -123,6 +123,8 @@ func (s *CmdSuite) TestListenerCRUD(c *C) {
 	c.Assert(s.run("listener", "ls"), Matches, fmt.Sprintf(".*%v.*", "http"))
 	c.Assert(s.run("listener", "show", "-id", l), Matches, fmt.Sprintf(".*%v.*", "http"))
 	c.Assert(s.run("listener", "rm", "-id", l), Matches, OK)
+
+	c.Assert(s.run("listener", "upsert", "-id", l, "-proto", "http", "-addr", "localhost:11300", "-scope", `Host("localhost")`), Matches, OK)
 }
 
 func (s *CmdSuite) TestBackendCRUD(c *C) {

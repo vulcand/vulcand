@@ -10,6 +10,7 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
 )
 
 // srv contains all that is necessary to run the HTTP(s) server. server does not work on its own,
@@ -54,10 +55,13 @@ func newSrv(m *mux, l engine.Listener) (*srv, error) {
 			defaultHost = hk.Name
 		}
 	}
-
+	h, err := scopedHandler(l.Scope, m.router)
+	if err != nil {
+		return nil, err
+	}
 	return &srv{
 		mux:         m,
-		proxy:       m.router,
+		proxy:       h,
 		listener:    l,
 		defaultHost: defaultHost,
 		keyPairs:    keyPairs,
@@ -72,6 +76,25 @@ func (s *srv) deleteKeyPair(hk engine.HostKey) error {
 
 func (s *srv) isTLS() bool {
 	return s.listener.Protocol == engine.HTTPS
+}
+
+func (s *srv) updateListener(l engine.Listener) error {
+	// We can not listen for different protocols on the same socket
+	if s.listener.Protocol != l.Protocol {
+		return fmt.Errorf("conflicting protocol %s and %s", s.listener.Protocol, l.Protocol)
+	}
+	if l.Scope == s.listener.Scope {
+		return nil
+	}
+	log.Infof("%v update %v", s, &l)
+	handler, err := scopedHandler(l.Scope, s.mux.router)
+	if err != nil {
+		return err
+	}
+	s.proxy = handler
+	s.listener = l
+
+	return s.reload()
 }
 
 func (s *srv) upsertKeyPair(hk engine.HostKey, keyPair *engine.KeyPair) error {
@@ -148,16 +171,16 @@ func (s *srv) reload() error {
 		return nil
 	}
 
-	// in case if the TLS in not served, we dont' need to do anything as it's all done by the proxy
-	if !s.isTLS() {
-		return nil
+	var config *tls.Config
+
+	if s.isTLS() {
+		cfg, err := newTLSConfig(s.keyPairs, s.defaultHost)
+		if err != nil {
+			return err
+		}
+		config = cfg
 	}
 
-	// Otherwise, we need to generate new TLS config and spin up the new server on the same socket
-	config, err := newTLSConfig(s.keyPairs, s.defaultHost)
-	if err != nil {
-		return err
-	}
 	gracefulServer, err := s.srv.HijackListener(s.newHTTPServer(), config)
 	if err != nil {
 		return err
@@ -287,4 +310,16 @@ func (s srvState) String() string {
 		return "hijacked"
 	}
 	return "undefined"
+}
+
+func scopedHandler(scope string, proxy http.Handler) (http.Handler, error) {
+	if scope == "" {
+		return proxy, nil
+	}
+	mux := route.NewMux()
+	mux.NotFound = &NotFound{}
+	if err := mux.Handle(scope, proxy); err != nil {
+		return nil, err
+	}
+	return mux, nil
 }

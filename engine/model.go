@@ -73,10 +73,12 @@ type Listener struct {
 	Protocol string
 	// Adddress specifies network (tcp or unix) and address (ip:port or path to unix socket)
 	Address Address
+	// Scope is optional expression that limits the operational scope of this listener
+	Scope string
 }
 
 func (l *Listener) String() string {
-	return fmt.Sprintf("Listener(%s, %s://%s)", l.Protocol, l.Address.Network, l.Address.Address)
+	return fmt.Sprintf("Listener(%s, %s://%s, scope=%s)", l.Protocol, l.Address.Network, l.Address.Address, l.Scope)
 }
 
 func (a *Address) Equals(o Address) bool {
@@ -163,10 +165,16 @@ func NewAddress(network, address string) (*Address, error) {
 	return &Address{Network: network, Address: address}, nil
 }
 
-func NewListener(id, protocol, network, address string) (*Listener, error) {
+func NewListener(id, protocol, network, address, scope string) (*Listener, error) {
 	protocol = strings.ToLower(protocol)
 	if protocol != HTTP && protocol != HTTPS {
 		return nil, fmt.Errorf("unsupported protocol '%s', supported protocols are http and https", protocol)
+	}
+
+	if scope != "" {
+		if !route.IsValid(scope) {
+			return nil, fmt.Errorf("Scope should be a valid route expression")
+		}
 	}
 
 	a, err := NewAddress(network, address)
@@ -175,6 +183,7 @@ func NewListener(id, protocol, network, address string) (*Listener, error) {
 	}
 
 	return &Listener{
+		Scope:    scope,
 		Id:       id,
 		Address:  *a,
 		Protocol: protocol,

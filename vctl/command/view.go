@@ -27,7 +27,7 @@ func hostView(h *engine.Host) string {
 
 func listenersView(ls []engine.Listener) string {
 	t := goterm.NewTable(0, 10, 5, ' ', 0)
-	fmt.Fprint(t, "Id\tProtocol\tNetwork\tAddress\n")
+	fmt.Fprint(t, "Id\tProtocol\tNetwork\tAddress\tScope\n")
 
 	if len(ls) == 0 {
 		return t.String()
@@ -39,7 +39,7 @@ func listenersView(ls []engine.Listener) string {
 }
 
 func listenerView(l *engine.Listener) string {
-	return fmt.Sprintf("%s\t%s\t%s\t%s\n", l.Id, l.Protocol, l.Address.Network, l.Address.Address)
+	return fmt.Sprintf("%s\t%s\t%s\t%s\t%s\n", l.Id, l.Protocol, l.Address.Network, l.Address.Address, l.Scope)
 }
 
 func frontendsView(fs []engine.Frontend) string {
