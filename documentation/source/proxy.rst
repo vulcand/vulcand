@@ -35,11 +35,11 @@ Each frontend defines a route - a special expression that matches the request, e
 Frontends are linked to backend and Vulcand will use the servers from this backend to serve the request.
 
 Backend
-~~~~~~~~
+~~~~~~~
 Backend is a collection of servers, they control connection pools to servers and transport options, such as connection, read and write timeouts.
 
 Server
-~~~~~~~~
+~~~~~~
 Server is a final destination of the incoming request, each server is defined by URL ``<schema>://<host>:<port>``, e.g. ``http://localhost:5000``.
 
 Middleware
@@ -375,6 +375,47 @@ It wont be joined ito the trie, and would be matched separately instead.
 
 .. warning:: Vulcan can not merge regexp-based routes into efficient structure, so if you have hundreds/thousands of frontends, use trie-based routes!
 
+Host based routing
+//////////////////
+
+Vulcand does not require host-specific routing, e.g. the frontend with the following route will match all requests regardless of their hostname:
+
+.. code-block:: go
+
+  PathRegexp("/.*")
+
+.. code-block:: bash
+   
+   curl -H "Host:example.com" http://localhost/hello # works
+   curl -H "Host:hello.com" http://localhost/hello   # also works
+
+
+In case if you need Host-based routing (just as Apache's ``VHost`` or Nginx's ``Server`` names), you can use the routes:
+
+.. code-block:: go
+
+  Host("example.com") && PathRegexp("/.*")
+
+.. code-block:: bash
+   
+   curl -H "Host:example.com" http://localhost/hello # works
+   curl -H "Host:hello.com" http://localhost/hello   # not found
+
+.. note::  None of the example above does not set up hosts entries in Vulcand. You only need them when using HTTPS to supply certificates.
+
+
+Method matching
+///////////////
+
+Vulcand works better when creating a separate frontend for each HTTP method in your API:
+
+.. code-block:: go
+
+  Host("localhost") && Method("POST") && Path("/users")
+  Host("localhost") && Method("GET") && Path("/users")
+
+In this case each frontend collects separate set of realtime metrics that are different for creating and gettings users. This separation will provide separate histograms and separate load balancing logic for different request types what helps to understand the performance better.
+
 Listeners
 ~~~~~~~~~
 .. figure::  _static/img/VulcanListener.png
@@ -387,10 +428,11 @@ Vulcand can have multiple listeners attached and share the same listener.
 
  {
     "Protocol":"http",            // 'http' or 'https'
+    "Scope": "",                  // optional scope field, read below for details
     "Address":{
        "Network":"tcp",           // 'tcp' or 'unix'
        "Address":"localhost:8183" // 'host:port' or '/path/to.socket'
-    }
+    },
  }
 
 .. code-block:: etcd
@@ -410,6 +452,35 @@ Vulcand can have multiple listeners attached and share the same listener.
  # Add http listener accepting requests on 127.0.0.1:8183
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
       -d '{"Id": "ls1", "Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
+
+
+
+**Listener scopes**
+
+Listeners support scopes as the way to limit operational scope of socket. 
+Scope field uses Vulcand `Routing Language`_.
+Here's an example of Listener that only allows requests with hostname ``example.com``
+
+.. code-block:: javascript
+
+ {
+    "Protocol":"http",              // 'http' or 'https'
+    "Scope": "Host(`example.com`)", // operational scope
+    "Address":{
+       "Network":"tcp",           // 'tcp' or 'unix'
+       "Address":"0.0.0.0:8183" // 'host:port' or '/path/to.socket'
+    },
+ }
+
+E.g. if we have two frontends defined:
+
+.. code-block:: javascript
+
+ Host("example.com") && Path("/users")
+ Host("localhost") && Path("/users")
+
+
+Only first frontend is reachable for requests coming to port ``8183``.
 
 
 Middlewares
@@ -455,7 +526,6 @@ Adding and removing middlewares will modify the frontend behavior in real time. 
  # with bursts up to 3 requests per second.
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
       -d '{"Middleware": {"Priority": 0, "Type": "ratelimit", "Id": "rl1", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}}'
-
 
 
 Connection Limits
@@ -956,7 +1026,7 @@ Starting the daemon:
 
 .. code-block:: sh
 
- docker run -d -p 8182:8182 -p 8181:8181 mailgun/vulcand:v0.8.0-alpha.1 /go/bin/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
+ docker run -d -p 8182:8182 -p 8181:8181 mailgun/vulcand:v0.8.0-alpha.3 /go/bin/vulcand -apiInterface="0.0.0.0" --etcd=http://172.17.42.1:4001
 
 
 Don't forget to map the ports and bind to the proper interfaces, otherwise vulcan won't be reachable from outside the container.
@@ -965,7 +1035,7 @@ Using the vctl from container:
 
 .. code-block:: sh
 
- docker run mailgun/vulcand:v0.8.0-alpha.1 /opt/vulcan/vctl status  --vulcan 'http://172.17.42.1:8182'
+ docker run mailgun/vulcand:v0.8.0-alpha.3 /opt/vulcan/vctl status  --vulcan 'http://172.17.42.1:8182'
 
 
 Make sure you've specified ``--vulcan`` flag to tell vctl where the running vulcand is. We've used lxc bridge interface in the example above.
@@ -974,7 +1044,7 @@ Make sure you've specified ``--vulcan`` flag to tell vctl where the running vulc
 Docker trusted build
 ~~~~~~~~~~~~~~~~~~~~~
 
-There's a trusted ``mailgun/vulcand`` build you can use. The recommended version is `0.8.0-alpha`.
+There's a trusted ``mailgun/vulcand`` build you can use. The recommended version is `0.8.0-alpha.3`.
 
 
 Manual installation
