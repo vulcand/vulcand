@@ -315,8 +315,9 @@ Routing Language
 ~~~~~~~~~~~~~~~~
 
 Vulcand uses a special type of a routing language to match requests - called ``route`` and implemented as a `standalone library <https://github.com/mailgun/route>`_
+It uses Go syntax to route http requests by by hostname, method, path and headers. Every Vulcand frontend has a special ``Route`` field for routing requests.
 
-It uses Go syntax to route http requests by by hostname, method, path and headers:
+Here is the syntax explained:
 
 .. code-block:: go
 
@@ -401,7 +402,7 @@ In case if you need Host-based routing (just as Apache's ``VHost`` or Nginx's ``
    curl -H "Host:example.com" http://localhost/hello # works
    curl -H "Host:hello.com" http://localhost/hello   # not found
 
-.. note::  None of the example above does not set up hosts entries in Vulcand. You only need them when using HTTPS to supply certificates.
+.. note::  The example above do not set up host entries in Vulcand. You only need them when using HTTPS to supply certificates.
 
 
 Method matching
