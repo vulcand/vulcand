@@ -2,7 +2,6 @@ package command
 
 import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-
 	"github.com/mailgun/vulcand/engine"
 )
 

@@ -8,7 +8,6 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	oxytest "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
-
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/engine/memng"
 	"github.com/mailgun/vulcand/plugin/connlimit"
