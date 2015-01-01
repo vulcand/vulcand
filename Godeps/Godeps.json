@@ -1,25 +1,10 @@
 {
 	"ImportPath": "github.com/mailgun/vulcand",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.4",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
-		{
-			"ImportPath": "code.google.com/p/go.crypto/nacl/secretbox",
-			"Comment": "null-223",
-			"Rev": "31393df5baea9ed8d6778396e7f3896070ea5c04"
-		},
-		{
-			"ImportPath": "code.google.com/p/go.crypto/poly1305",
-			"Comment": "null-223",
-			"Rev": "31393df5baea9ed8d6778396e7f3896070ea5c04"
-		},
-		{
-			"ImportPath": "code.google.com/p/go.crypto/salsa20/salsa",
-			"Comment": "null-223",
-			"Rev": "31393df5baea9ed8d6778396e7f3896070ea5c04"
-		},
 		{
 			"ImportPath": "github.com/buger/goterm",
 			"Rev": "af3f07dadc88b80c7b5a15f26033c6dd979f012f"
@@ -126,6 +111,18 @@
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
 			"Rev": "51994f8e1aad271eb214e725379dde8bd4c90acf"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/nacl/secretbox",
+			"Rev": "c89e5683853da5ed97731b507dcd8cda2b11afaf"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/poly1305",
+			"Rev": "c89e5683853da5ed97731b507dcd8cda2b11afaf"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
+			"Rev": "c89e5683853da5ed97731b507dcd8cda2b11afaf"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

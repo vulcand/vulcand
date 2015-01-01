@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-
 	"github.com/mailgun/vulcand/engine/test"
 	"github.com/mailgun/vulcand/plugin/registry"
 

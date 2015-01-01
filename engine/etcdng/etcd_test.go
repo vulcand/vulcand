@@ -7,7 +7,6 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-
 	"github.com/mailgun/vulcand/engine/test"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/secret"

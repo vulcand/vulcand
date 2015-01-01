@@ -11,7 +11,6 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/roundrobin"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/stream"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
-
 	"github.com/mailgun/vulcand/engine"
 )
 
