@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/mailgun/vulcand/engine"
@@ -32,6 +33,11 @@ func NewHostCommand(cmd *Command) cli.Command {
 					cli.StringFlag{Name: "name", Usage: "hostname"},
 					cli.StringFlag{Name: "privateKey", Usage: "Path to a private key"},
 					cli.StringFlag{Name: "cert", Usage: "Path to a certificate"},
+
+					cli.BoolFlag{Name: "ocsp", Usage: "Turn OCSP on"},
+					cli.BoolFlag{Name: "ocspSkipCheck", Usage: "Insecure: skip signature checking for the OCSP certificate"},
+					cli.DurationFlag{Name: "ocspPeriod", Usage: "optional OCSP period", Value: time.Hour},
+					cli.StringSliceFlag{Name: "ocspResponder", Usage: "Optional list of OCSP responders", Value: &cli.StringSlice{}},
 				},
 				Usage:  "Update or insert a new host to vulcan proxy",
 				Action: cmd.upsertHostAction,
@@ -79,6 +85,12 @@ func (cmd *Command) upsertHostAction(c *cli.Context) {
 			return
 		}
 		host.Settings.KeyPair = keyPair
+	}
+	host.Settings.OCSP = engine.OCSPSettings{
+		Enabled:            c.Bool("ocsp"),
+		SkipSignatureCheck: c.Bool("ocspSkipCheck"),
+		Period:             c.Duration("ocspPeriod").String(),
+		Responders:         c.StringSlice("ocspResponder"),
 	}
 	if err := cmd.client.UpsertHost(*host); err != nil {
 		cmd.printError(err)

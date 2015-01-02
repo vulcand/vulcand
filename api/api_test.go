@@ -13,6 +13,7 @@ import (
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/proxy"
+	"github.com/mailgun/vulcand/stapler"
 	"github.com/mailgun/vulcand/supervisor"
 	"github.com/mailgun/vulcand/testutils"
 
@@ -34,8 +35,10 @@ func (s *ApiSuite) SetUpSuite(c *C) {
 }
 
 func (s *ApiSuite) SetUpTest(c *C) {
+	st, err := stapler.New()
+	c.Assert(err, IsNil)
 	newProxy := func(id int) (proxy.Proxy, error) {
-		return proxy.New(id, proxy.Options{})
+		return proxy.New(id, st, proxy.Options{})
 	}
 
 	s.ng = memng.New(registry.GetRegistry())

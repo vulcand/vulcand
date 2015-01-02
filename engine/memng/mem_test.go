@@ -49,6 +49,10 @@ func (s *MemSuite) TestHostUpsertKeyPair(c *C) {
 	s.suite.HostUpsertKeyPair(c)
 }
 
+func (s *MemSuite) TestHostWithOCSP(c *C) {
+	s.suite.HostWithOCSP(c)
+}
+
 func (s *MemSuite) TestListenerCRUD(c *C) {
 	s.suite.ListenerCRUD(c)
 }

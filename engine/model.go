@@ -85,9 +85,40 @@ func (a *Address) Equals(o Address) bool {
 	return a.Network == o.Network && a.Address == o.Address
 }
 
+// Sets up OCSP stapling
+type OCSPSettings struct {
+	Enabled            bool
+	Period             string
+	Responders         []string // optional responder
+	SkipSignatureCheck bool
+}
+
+func (o *OCSPSettings) RefreshPeriod() (time.Duration, error) {
+	if o.Period == "" {
+		return time.Hour, nil
+	}
+	return time.ParseDuration(o.Period)
+}
+
+func (o *OCSPSettings) Equals(other *OCSPSettings) bool {
+	if o.Period != other.Period {
+		return false
+	}
+	if (len(o.Responders) == 0 || len(other.Responders) == 0) || len(o.Responders) != len(other.Responders) {
+		return false
+	}
+	for i := range o.Responders {
+		if o.Responders[i] != other.Responders[i] {
+			return false
+		}
+	}
+	return true
+}
+
 type HostSettings struct {
-	KeyPair *KeyPair
 	Default bool
+	KeyPair *KeyPair
+	OCSP    OCSPSettings
 }
 
 type HostKey struct {
@@ -116,7 +147,7 @@ func NewHost(name string, settings HostSettings) (*Host, error) {
 }
 
 func (h *Host) String() string {
-	return fmt.Sprintf("Host(%s)", h.Name)
+	return fmt.Sprintf("Host(%s, keyPair=%t, ocsp=%t)", h.Name, h.Settings.KeyPair != nil, h.Settings.OCSP.Enabled)
 }
 
 func (h *Host) GetId() string {

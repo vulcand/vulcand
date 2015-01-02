@@ -23,6 +23,7 @@ import (
 	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/proxy"
 	"github.com/mailgun/vulcand/secret"
+	"github.com/mailgun/vulcand/stapler"
 	"github.com/mailgun/vulcand/supervisor"
 )
 
@@ -52,6 +53,7 @@ type Service struct {
 	metricsClient metrics.Client
 	apiServer     *manners.GracefulServer
 	ng            engine.Engine
+	stapler       stapler.Stapler
 }
 
 func NewService(options Options, registry *plugin.Registry) *Service {
@@ -91,6 +93,13 @@ func (s *Service) Start() error {
 	if err := s.newEngine(); err != nil {
 		return err
 	}
+
+	st, err := stapler.New()
+	if err != nil {
+		log.Errorf("Error initializing stapler: %v", err)
+		return err
+	}
+	s.stapler = st
 
 	s.supervisor = supervisor.New(
 		s.newProxy, s.ng, s.errorC, supervisor.Options{Files: muxFiles})
@@ -290,7 +299,7 @@ func (s *Service) reportSystemMetrics() {
 }
 
 func (s *Service) newProxy(id int) (proxy.Proxy, error) {
-	return proxy.New(id, proxy.Options{
+	return proxy.New(id, s.stapler, proxy.Options{
 		MetricsClient:  s.metricsClient,
 		DialTimeout:    s.options.EndpointDialTimeout,
 		ReadTimeout:    s.options.ServerReadTimeout,

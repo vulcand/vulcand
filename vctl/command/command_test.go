@@ -16,6 +16,7 @@ import (
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/proxy"
 	"github.com/mailgun/vulcand/secret"
+	"github.com/mailgun/vulcand/stapler"
 	"github.com/mailgun/vulcand/supervisor"
 	"github.com/mailgun/vulcand/testutils"
 
@@ -43,8 +44,11 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.ng = memng.New(registry.GetRegistry())
 
+	st, err := stapler.New()
+	c.Assert(err, IsNil)
+
 	newProxy := func(id int) (proxy.Proxy, error) {
-		return proxy.New(id, proxy.Options{})
+		return proxy.New(id, st, proxy.Options{})
 	}
 
 	sv := supervisor.New(newProxy, s.ng, make(chan error), supervisor.Options{})
@@ -97,11 +101,18 @@ func (s *CmdSuite) TestHostCRUD(c *C) {
 	defer fCert.Close()
 	fCert.Write(keyPair.Cert)
 
-	c.Assert(s.run("host", "upsert", "-name", host, "-privateKey", fKey.Name(), "-cert", fCert.Name()), Matches, OK)
+	c.Assert(s.run("host", "upsert", "-name", host,
+		"-privateKey", fKey.Name(), "-cert", fCert.Name(),
+		"-ocsp", "-ocspPeriod", "2h", "-ocspResponder", "http://a.com", "-ocspResponder", "http://b.com", "-ocspSkipCheck"), Matches, OK)
 
 	h, err := s.ng.GetHost(engine.HostKey{Name: host})
 	c.Assert(err, IsNil)
 	c.Assert(h.Settings.KeyPair, DeepEquals, keyPair)
+
+	c.Assert(h.Settings.OCSP.Enabled, Equals, true)
+	c.Assert(h.Settings.OCSP.Period, Equals, "2h0m0s")
+	c.Assert(h.Settings.OCSP.Responders, DeepEquals, []string{"http://a.com", "http://b.com"})
+	c.Assert(h.Settings.OCSP.SkipSignatureCheck, Equals, true)
 
 	c.Assert(s.run("host", "show", "-name", host), Matches, ".*"+host+".*")
 	c.Assert(s.run("host", "rm", "-name", host), Matches, OK)
