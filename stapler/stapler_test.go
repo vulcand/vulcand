@@ -1,7 +1,7 @@
 package stapler
 
 import (
-	"golang.org/x/crypto/ocsp"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
 	"testing"
 	"time"
 

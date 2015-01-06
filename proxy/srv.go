@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 
 	"fmt"
-	"golang.org/x/crypto/ocsp"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
 	"net"
 	"net/http"
 
