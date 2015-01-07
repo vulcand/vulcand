@@ -191,7 +191,7 @@ Delete listener
 
     DELETE /v2/listeners/<listener-id>
 
-Delete anlistener
+Delete a listener
 
 
 Backend
