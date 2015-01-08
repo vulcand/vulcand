@@ -108,6 +108,31 @@ func (s *EngineSuite) HostWithKeyPair(c *C) {
 	})
 }
 
+func (s *EngineSuite) HostWithOCSP(c *C) {
+	host := engine.Host{Name: "localhost"}
+
+	host.Settings.Default = true
+	host.Settings.KeyPair = &engine.KeyPair{
+		Key:  []byte("hello"),
+		Cert: []byte("world"),
+	}
+
+	host.Settings.OCSP = engine.OCSPSettings{
+		Enabled:            true,
+		Responders:         []string{"http://a.com", "http://b.com"},
+		SkipSignatureCheck: true,
+		Period:             "1h",
+	}
+
+	c.Assert(s.Engine.UpsertHost(host), IsNil)
+	s.expectChanges(c, &engine.HostUpserted{Host: host})
+
+	hk := engine.HostKey{Name: host.Name}
+	h2, err := s.Engine.GetHost(hk)
+	c.Assert(err, IsNil)
+	c.Assert(h2, DeepEquals, &host)
+}
+
 func (s *EngineSuite) HostUpsertKeyPair(c *C) {
 	host := engine.Host{Name: "localhost"}
 

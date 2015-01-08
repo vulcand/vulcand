@@ -85,9 +85,56 @@ func (a *Address) Equals(o Address) bool {
 	return a.Network == o.Network && a.Address == o.Address
 }
 
+// Sets up OCSP stapling, see http://en.wikipedia.org/wiki/OCSP_stapling
+type OCSPSettings struct {
+	Enabled bool
+	Period  string
+	// Optional responders. Responder is the CA-operated HTTP server that responds with revocation status
+	// If set, this field will override
+	Responders         []string
+	SkipSignatureCheck bool
+}
+
+func (o *OCSPSettings) RefreshPeriod() (time.Duration, error) {
+	if o.Period == "" {
+		return time.Hour, nil
+	}
+	return time.ParseDuration(o.Period)
+}
+
+func (o *OCSPSettings) Equals(other *OCSPSettings) bool {
+	if o.Enabled != other.Enabled {
+		return false
+	}
+	p, err := o.RefreshPeriod()
+	if err != nil {
+		return false
+	}
+	p2, err := other.RefreshPeriod()
+	if err != nil {
+		return false
+	}
+	if p != p2 {
+		return false
+	}
+	if len(o.Responders) != len(other.Responders) {
+		return false
+	}
+	if len(o.Responders) == 0 || len(other.Responders) == 0 {
+		return true
+	}
+	for i := range o.Responders {
+		if o.Responders[i] != other.Responders[i] {
+			return false
+		}
+	}
+	return true
+}
+
 type HostSettings struct {
-	KeyPair *KeyPair
 	Default bool
+	KeyPair *KeyPair
+	OCSP    OCSPSettings
 }
 
 type HostKey struct {
@@ -116,7 +163,7 @@ func NewHost(name string, settings HostSettings) (*Host, error) {
 }
 
 func (h *Host) String() string {
-	return fmt.Sprintf("Host(%s)", h.Name)
+	return fmt.Sprintf("Host(%s, keyPair=%t, ocsp=%t)", h.Name, h.Settings.KeyPair != nil, h.Settings.OCSP.Enabled)
 }
 
 func (h *Host) GetId() string {

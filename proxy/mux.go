@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/mailgun/vulcand/engine"
+	"github.com/mailgun/vulcand/stapler"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
@@ -45,13 +46,20 @@ type mux struct {
 
 	// Connection watcher
 	connTracker *connTracker
+
+	// OCSP staple cache and responder
+	stapler stapler.Stapler
+
+	// Unsubscribe from staple updates
+	stapleUpdatesC chan *stapler.StapleUpdated
+	stopStapleC    chan struct{}
 }
 
 func (m *mux) String() string {
 	return fmt.Sprintf("mux(%d, %v)", m.id, m.state)
 }
 
-func New(id int, o Options) (*mux, error) {
+func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 	o = setDefaults(o)
 	m := &mux{
 		id:  id,
@@ -67,6 +75,10 @@ func New(id int, o Options) (*mux, error) {
 		backends:  make(map[engine.BackendKey]*backend),
 		frontends: make(map[engine.FrontendKey]*frontend),
 		hosts:     make(map[engine.HostKey]engine.Host),
+
+		stapleUpdatesC: make(chan *stapler.StapleUpdated),
+		stopStapleC:    make(chan struct{}),
+		stapler:        st,
 	}
 	m.router.NotFound = &NotFound{}
 	if m.options.DefaultListener != nil {
@@ -74,6 +86,21 @@ func New(id int, o Options) (*mux, error) {
 			return nil, err
 		}
 	}
+
+	// Subscribe to staple responses and kick staple updates
+	m.stapler.Subscribe(m.stapleUpdatesC, m.stopStapleC)
+
+	go func() {
+		for {
+			select {
+			case <-m.stopStapleC:
+				log.Infof("%v stop listening for staple updates", m)
+				return
+			case e := <-m.stapleUpdatesC:
+				m.processStapleUpdate(e)
+			}
+		}
+	}()
 	return m, nil
 }
 
@@ -230,9 +257,7 @@ func (m *mux) UpsertHost(host engine.Host) error {
 
 	for _, s := range m.servers {
 		if s.isTLS() {
-			if err := s.upsertKeyPair(engine.HostKey{Name: host.Name}, host.Settings.KeyPair); err != nil {
-				return err
-			}
+			s.reload()
 		}
 	}
 	return nil
@@ -249,14 +274,18 @@ func (m *mux) DeleteHost(hk engine.HostKey) error {
 		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", hk)}
 	}
 
+	// delete host from the hosts list
+	delete(m.hosts, hk)
+
+	// delete staple from the cache
+	m.stapler.DeleteHost(hk)
+
 	if host.Settings.KeyPair == nil {
 		return nil
 	}
 
 	for _, s := range m.servers {
-		if err := s.deleteKeyPair(hk); err != nil {
-			return err
-		}
+		s.reload()
 	}
 	return nil
 }
@@ -487,6 +516,25 @@ func (m *mux) transportSettings(b engine.Backend) (*engine.TransportSettings, er
 		s.Timeouts.Read = m.options.ReadTimeout
 	}
 	return s, nil
+}
+
+func (m *mux) processStapleUpdate(e *stapler.StapleUpdated) error {
+	log.Infof("%v processStapleUpdate event: %v", m, e)
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if _, ok := m.hosts[e.HostKey]; !ok {
+		log.Infof("%v %v from the staple update is not found, skipping", m, e.HostKey)
+		return nil
+	}
+
+	for _, s := range m.servers {
+		if s.isTLS() {
+			// each server will ask stapler for the new OCSP response during reload
+			s.reload()
+		}
+	}
+	return nil
 }
 
 type muxState int

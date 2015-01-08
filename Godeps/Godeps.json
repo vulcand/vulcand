@@ -117,6 +117,10 @@
 			"Rev": "c89e5683853da5ed97731b507dcd8cda2b11afaf"
 		},
 		{
+			"ImportPath": "golang.org/x/crypto/ocsp",
+			"Rev": "c89e5683853da5ed97731b507dcd8cda2b11afaf"
+		},
+		{
 			"ImportPath": "golang.org/x/crypto/poly1305",
 			"Rev": "c89e5683853da5ed97731b507dcd8cda2b11afaf"
 		},

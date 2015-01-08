@@ -99,7 +99,7 @@ func (n *ng) GetHost(key engine.HostKey) (*engine.Host, error) {
 		}
 	}
 
-	return engine.NewHost(key.Name, engine.HostSettings{Default: host.Settings.Default, KeyPair: keyPair})
+	return engine.NewHost(key.Name, engine.HostSettings{Default: host.Settings.Default, KeyPair: keyPair, OCSP: host.Settings.OCSP})
 }
 
 func (n *ng) UpsertHost(h engine.Host) error {
@@ -112,6 +112,7 @@ func (n *ng) UpsertHost(h engine.Host) error {
 		Name: h.Name,
 		Settings: hostSettings{
 			Default: h.Settings.Default,
+			OCSP:    h.Settings.OCSP,
 		},
 	}
 
@@ -782,4 +783,5 @@ type host struct {
 type hostSettings struct {
 	Default bool
 	KeyPair []byte
+	OCSP    engine.OCSPSettings
 }

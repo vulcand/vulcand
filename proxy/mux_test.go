@@ -1,6 +1,9 @@
 package proxy
 
 import (
+	"bufio"
+	"crypto/tls"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -10,6 +13,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/engine"
+	"github.com/mailgun/vulcand/stapler"
 	. "github.com/mailgun/vulcand/testutils"
 )
 
@@ -20,6 +24,7 @@ var _ = Suite(&ServerSuite{})
 type ServerSuite struct {
 	mux    *mux
 	lastId int
+	st     stapler.Stapler
 }
 
 func (s *ServerSuite) SetUpSuite(c *C) {
@@ -27,9 +32,10 @@ func (s *ServerSuite) SetUpSuite(c *C) {
 }
 
 func (s *ServerSuite) SetUpTest(c *C) {
-	m, err := New(s.lastId, Options{})
+	m, err := New(s.lastId, st, Options{})
 	c.Assert(err, IsNil)
 	s.mux = m
+	s.st = stapler.New()
 }
 
 func (s *ServerSuite) TearDownTest(c *C) {
@@ -107,7 +113,7 @@ func (s *ServerSuite) TestServerDefaultListener(c *C) {
 
 	b := MakeBatch(Batch{Addr: "localhost:41000", Route: `Path("/")`, URL: e.URL})
 
-	m, err := New(s.lastId, Options{DefaultListener: &b.L})
+	m, err := New(s.lastId, s.st, Options{DefaultListener: &b.L})
 	defer m.Stop(true)
 	c.Assert(err, IsNil)
 	s.mux = m
@@ -287,6 +293,92 @@ func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 
 	c.Assert(s.mux.UpsertHost(b.H), IsNil)
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+}
+
+func (s *ServerSuite) TestOCSPStapling(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+	c.Assert(s.mux.Start(), IsNil)
+
+	srv := NewOCSPResponder()
+	defer srv.Close()
+
+	b := MakeBatch(Batch{
+		Addr:     "localhost:31000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+	})
+
+	b.H.Settings = engine.HostSettings{
+		KeyPair: &engine.KeyPair{Key: LocalhostKey, Cert: LocalhostCertChain},
+		OCSP:    engine.OCSPSettings{Enabled: true, Period: "1h", Responders: []string{srv.URL}, SkipSignatureCheck: true},
+	}
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	conn, err := tls.Dial("tcp", b.L.Address.Address, &tls.Config{
+		InsecureSkipVerify: true,
+	})
+
+	c.Assert(err, IsNil)
+	fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
+	status, err := bufio.NewReader(conn).ReadString('\n')
+	c.Assert(err, IsNil)
+
+	c.Assert(status, Equals, "HTTP/1.0 200 OK\r\n")
+	re := conn.OCSPResponse()
+	c.Assert(re, DeepEquals, OCSPResponseBytes)
+	conn.Close()
+
+	// Make sure that deleting the host clears the cache
+	hk := engine.HostKey{Name: b.H.Name}
+	c.Assert(s.mux.stapler.HasHost(hk), Equals, true)
+	c.Assert(s.mux.DeleteHost(hk), IsNil)
+	c.Assert(s.mux.stapler.HasHost(hk), Equals, false)
+}
+
+func (s *ServerSuite) TestOCSPResponderDown(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+	c.Assert(s.mux.Start(), IsNil)
+
+	srv := NewOCSPResponder()
+	srv.Close()
+
+	b := MakeBatch(Batch{
+		Addr:     "localhost:31000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+	})
+
+	b.H.Settings = engine.HostSettings{
+		KeyPair: &engine.KeyPair{Key: LocalhostKey, Cert: LocalhostCertChain},
+		OCSP:    engine.OCSPSettings{Enabled: true, Period: "1h", Responders: []string{srv.URL}, SkipSignatureCheck: true},
+	}
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	conn, err := tls.Dial("tcp", b.L.Address.Address, &tls.Config{
+		InsecureSkipVerify: true,
+	})
+
+	c.Assert(err, IsNil)
+	fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
+	status, err := bufio.NewReader(conn).ReadString('\n')
+	c.Assert(err, IsNil)
+
+	c.Assert(status, Equals, "HTTP/1.0 200 OK\r\n")
+	re := conn.OCSPResponse()
+	c.Assert(re, IsNil)
+	conn.Close()
 }
 
 func (s *ServerSuite) TestSNI(c *C) {
@@ -745,7 +837,7 @@ func (s *ServerSuite) TestTakeFiles(c *C) {
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
 
-	mux2, err := New(s.lastId, Options{})
+	mux2, err := New(s.lastId, s.st, Options{})
 	c.Assert(err, IsNil)
 
 	e2 := testutils.NewResponder("Hi, I'm endpoint 2")

@@ -115,6 +115,10 @@ func (s *EtcdSuite) TestHostUpsertKeyPair(c *C) {
 	s.suite.HostUpsertKeyPair(c)
 }
 
+func (s *EtcdSuite) TestHostWithOCSP(c *C) {
+	s.suite.HostWithOCSP(c)
+}
+
 func (s *EtcdSuite) TestListenerCRUD(c *C) {
 	s.suite.ListenerCRUD(c)
 }

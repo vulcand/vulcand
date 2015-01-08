@@ -2,7 +2,9 @@ package proxy
 
 import (
 	"crypto/tls"
+
 	"fmt"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
 	"net"
 	"net/http"
 
@@ -21,7 +23,6 @@ type srv struct {
 	srv         *manners.GracefulServer
 	proxy       http.Handler
 	listener    engine.Listener
-	keyPairs    map[engine.HostKey]engine.KeyPair
 	options     Options
 	state       int
 }
@@ -64,14 +65,8 @@ func newSrv(m *mux, l engine.Listener) (*srv, error) {
 		proxy:       h,
 		listener:    l,
 		defaultHost: defaultHost,
-		keyPairs:    keyPairs,
 		state:       srvStateInit,
 	}, nil
-}
-
-func (s *srv) deleteKeyPair(hk engine.HostKey) error {
-	delete(s.keyPairs, hk)
-	return s.reload()
 }
 
 func (s *srv) isTLS() bool {
@@ -97,26 +92,6 @@ func (s *srv) updateListener(l engine.Listener) error {
 	return s.reload()
 }
 
-func (s *srv) upsertKeyPair(hk engine.HostKey, keyPair *engine.KeyPair) error {
-	old, exists := s.keyPairs[hk]
-	if exists && old.Equals(keyPair) {
-		return nil
-	}
-	s.keyPairs[hk] = *keyPair
-	return s.reload()
-}
-
-func (s *srv) setDefaultHost(host engine.Host) error {
-	oldDefault := s.defaultHost
-	if host.Settings.Default {
-		s.defaultHost = host.Name
-	}
-	if oldDefault != s.defaultHost && s.isTLS() {
-		return s.reload()
-	}
-	return nil
-}
-
 func (s *srv) isServing() bool {
 	return s.state == srvStateActive
 }
@@ -139,7 +114,7 @@ func (s *srv) takeFile(f *FileDescriptor) error {
 			return fmt.Errorf(`%s failed to take file descriptor - it is running in TLS mode so I need a TCP listener, 
 but the file descriptor that was given corresponded to a listener of type %T. More about file descriptor: %s`, listener, s, f)
 		}
-		config, err := newTLSConfig(s.keyPairs, s.defaultHost)
+		config, err := s.newTLSConfig()
 		if err != nil {
 			return err
 		}
@@ -174,7 +149,7 @@ func (s *srv) reload() error {
 	var config *tls.Config
 
 	if s.isTLS() {
-		cfg, err := newTLSConfig(s.keyPairs, s.defaultHost)
+		cfg, err := s.newTLSConfig()
 		if err != nil {
 			return err
 		}
@@ -198,7 +173,7 @@ func (s *srv) shutdown() {
 	}
 }
 
-func newTLSConfig(keyPairs map[engine.HostKey]engine.KeyPair, defaultHost string) (*tls.Config, error) {
+func (s *srv) newTLSConfig() (*tls.Config, error) {
 	config := &tls.Config{}
 
 	if config.NextProtos == nil {
@@ -219,26 +194,41 @@ func newTLSConfig(keyPairs map[engine.HostKey]engine.KeyPair, defaultHost string
 		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 	}
 
-	pairs := make(map[string]tls.Certificate, len(keyPairs))
-	for h, c := range keyPairs {
+	pairs := map[string]tls.Certificate{}
+	for _, host := range s.mux.hosts {
+		c := host.Settings.KeyPair
+		if c == nil {
+			continue
+		}
 		keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
 		if err != nil {
 			return nil, err
 		}
-		pairs[h.Name] = keyPair
+		if host.Settings.OCSP.Enabled {
+			log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, host, host.Settings.OCSP.Responders)
+			r, err := s.mux.stapler.StapleHost(&host)
+			if err != nil {
+				log.Warningf("%v failed to staple %v, error %v", s, host, err)
+			} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
+				keyPair.OCSPStaple = r.Staple
+			} else {
+				log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
+			}
+		}
+		pairs[host.Name] = keyPair
 	}
 
-	config.Certificates = make([]tls.Certificate, 0, len(keyPairs))
-	if defaultHost != "" {
-		keyPair, exists := pairs[defaultHost]
+	config.Certificates = make([]tls.Certificate, 0, len(pairs))
+	if s.defaultHost != "" {
+		keyPair, exists := pairs[s.defaultHost]
 		if !exists {
-			return nil, fmt.Errorf("default host '%s' certificate is not passed", defaultHost)
+			return nil, fmt.Errorf("default host '%s' certificate is not passed", s.defaultHost)
 		}
 		config.Certificates = append(config.Certificates, keyPair)
 	}
 
 	for h, keyPair := range pairs {
-		if h != defaultHost {
+		if h != s.defaultHost {
 			config.Certificates = append(config.Certificates, keyPair)
 		}
 	}
@@ -257,7 +247,7 @@ func (s *srv) start() error {
 		}
 
 		if s.isTLS() {
-			config, err := newTLSConfig(s.keyPairs, s.defaultHost)
+			config, err := s.newTLSConfig()
 			if err != nil {
 				return err
 			}

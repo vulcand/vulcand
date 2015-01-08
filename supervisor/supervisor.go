@@ -51,7 +51,7 @@ type Options struct {
 	Files []*proxy.FileDescriptor
 }
 
-func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, options Options) (s *Supervisor) {
+func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, options Options) *Supervisor {
 	return &Supervisor{
 		wg:       &sync.WaitGroup{},
 		mtx:      &sync.RWMutex{},
