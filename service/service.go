@@ -94,13 +94,7 @@ func (s *Service) Start() error {
 		return err
 	}
 
-	st, err := stapler.New()
-	if err != nil {
-		log.Errorf("Error initializing stapler: %v", err)
-		return err
-	}
-	s.stapler = st
-
+	s.stapler = stapler.New()
 	s.supervisor = supervisor.New(
 		s.newProxy, s.ng, s.errorC, supervisor.Options{Files: muxFiles})
 

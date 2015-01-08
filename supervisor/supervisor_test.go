@@ -14,13 +14,14 @@ import (
 	"github.com/mailgun/vulcand/engine/memng"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/proxy"
+	"github.com/mailgun/vulcand/stapler"
 	. "github.com/mailgun/vulcand/testutils"
 )
 
 func TestSupervisor(t *testing.T) { TestingT(t) }
 
 func newProxy(id int) (proxy.Proxy, error) {
-	return proxy.New(id, proxy.Options{})
+	return proxy.New(id, stapler.New(), proxy.Options{})
 }
 
 type SupervisorSuite struct {

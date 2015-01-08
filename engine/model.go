@@ -85,11 +85,13 @@ func (a *Address) Equals(o Address) bool {
 	return a.Network == o.Network && a.Address == o.Address
 }
 
-// Sets up OCSP stapling
+// Sets up OCSP stapling, see http://en.wikipedia.org/wiki/OCSP_stapling
 type OCSPSettings struct {
-	Enabled            bool
-	Period             string
-	Responders         []string // optional responder
+	Enabled bool
+	Period  string
+	// Optional responders. Responder is the CA-operated HTTP server that responds with revocation status
+	// If set, this field will override
+	Responders         []string
 	SkipSignatureCheck bool
 }
 
@@ -101,11 +103,25 @@ func (o *OCSPSettings) RefreshPeriod() (time.Duration, error) {
 }
 
 func (o *OCSPSettings) Equals(other *OCSPSettings) bool {
-	if o.Period != other.Period {
+	if o.Enabled != other.Enabled {
 		return false
 	}
-	if (len(o.Responders) == 0 || len(other.Responders) == 0) || len(o.Responders) != len(other.Responders) {
+	p, err := o.RefreshPeriod()
+	if err != nil {
 		return false
+	}
+	p2, err := other.RefreshPeriod()
+	if err != nil {
+		return false
+	}
+	if p != p2 {
+		return false
+	}
+	if len(o.Responders) != len(other.Responders) {
+		return false
+	}
+	if len(o.Responders) == 0 || len(other.Responders) == 0 {
+		return true
 	}
 	for i := range o.Responders {
 		if o.Responders[i] != other.Responders[i] {

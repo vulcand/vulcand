@@ -1,12 +1,12 @@
 package stapler
 
 import (
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
 	"testing"
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/testutils"
 
@@ -30,9 +30,7 @@ func (s *StaplerSuite) SetUpSuite(c *C) {
 
 func (s *StaplerSuite) SetUpTest(c *C) {
 	s.clock = &timetools.FreezedTime{CurrentTime: s.re.ThisUpdate.Add(time.Hour)}
-	v, err := New(Clock(s.clock))
-	c.Assert(err, IsNil)
-	s.st = v.(*stapler)
+	s.st = New(Clock(s.clock)).(*stapler)
 }
 
 func (s *StaplerSuite) TearDownTest(c *C) {

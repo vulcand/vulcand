@@ -32,13 +32,10 @@ func (s *ServerSuite) SetUpSuite(c *C) {
 }
 
 func (s *ServerSuite) SetUpTest(c *C) {
-	st, err := stapler.New()
-	c.Assert(err, IsNil)
-
 	m, err := New(s.lastId, st, Options{})
 	c.Assert(err, IsNil)
 	s.mux = m
-	s.st = st
+	s.st = stapler.New()
 }
 
 func (s *ServerSuite) TearDownTest(c *C) {

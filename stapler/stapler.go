@@ -1,5 +1,9 @@
 // package stapler implements OCSP stapling feature described here: http://en.wikipedia.org/wiki/OCSP_stapling
-// stapler provides implementation that caches the staple on the first request and periodically updates the stapler
+// stapler provides implementation that caches the staple on the first request and periodically updates the cache
+// OCSP specs:
+//    https://tools.ietf.org/html/rfc2560
+//    http://tools.ietf.org/html/rfc6066
+
 package stapler
 
 import (
@@ -31,22 +35,22 @@ type Stapler interface {
 	DeleteHost(host engine.HostKey)
 	// Subscribe subscribes the channel to the series of OCSP updates
 	Subscribe(chan *StapleUpdated, chan struct{})
-	Close()
+	// Close closes all subscription activities and deallocate internal resources
+	Close() error
 }
 
 // StaplerOption is used for optional parameters for the New function
-type StaplerOption func(s *stapler) error
+type StaplerOption func(s *stapler)
 
 // Clock is an optional argument to the New function, by default the system clock is used
 func Clock(clock timetools.TimeProvider) StaplerOption {
-	return func(s *stapler) error {
+	return func(s *stapler) {
 		s.clock = clock
-		return nil
 	}
 }
 
 // New returns a new instance of in-memory Staple resolver and cache
-func New(opts ...StaplerOption) (Stapler, error) {
+func New(opts ...StaplerOption) Stapler {
 	s := &stapler{
 		v:           make(map[string]*hostStapler),
 		mtx:         &sync.Mutex{},
@@ -67,33 +71,36 @@ func New(opts ...StaplerOption) (Stapler, error) {
 		},
 	}
 	for _, o := range opts {
-		if err := o(s); err != nil {
-			return nil, err
-		}
+		o(s)
 	}
 	if s.clock == nil {
 		s.clock = &timetools.RealTime{}
 	}
 	go s.fanOut()
-	return s, nil
+	return s
 }
 
+// stapler is an internal in-memory implementation of the staple retriever and cache
 type stapler struct {
-	v       map[string]*hostStapler
-	mtx     *sync.Mutex
-	clock   timetools.TimeProvider
+	// host stapler is a cached OCSP response for particular host
+	v     map[string]*hostStapler
+	mtx   *sync.Mutex
+	clock timetools.TimeProvider
+	// eventsC is used to communicate updates from the timer-based updaters
 	eventsC chan *stapleFetched
-	cnt     int32
-	closeC  chan struct{}
-	kickC   chan bool
-	client  *http.Client
-
+	// cnt used to generate unique id for each staple update job
+	cnt int32
+	// closeC singlas close for all running operations
+	closeC chan struct{}
+	// client used to query OCSP responders
+	client *http.Client
+	// subcscibrers holds a list of subscribers for OCSP updates
 	subscribers map[int32]chan *StapleUpdated
 
 	// these channels are set up for test purposes
-	// in production they are not used
 	discardC      chan bool
 	beforeUpdateC chan bool
+	kickC         chan bool
 }
 
 func (s *stapler) StapleHost(host *engine.Host) (*StapleResponse, error) {
@@ -134,16 +141,14 @@ func (s *stapler) DeleteHost(hk engine.HostKey) {
 }
 
 func (s *stapler) Subscribe(in chan *StapleUpdated, closeC chan struct{}) {
-	myId := s.subscribe(in)
+	myID := s.subscribe(in)
 	go func() {
-		select {
-		case <-closeC:
-			s.unsubscribe(myId)
-		}
+		<-closeC
+		s.unsubscribe(myID)
 	}()
 }
 
-func (s *stapler) Close() {
+func (s *stapler) Close() error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	for key, hs := range s.v {
@@ -151,6 +156,7 @@ func (s *stapler) Close() {
 		delete(s.v, key)
 	}
 	close(s.closeC)
+	return nil
 }
 
 func (s *stapler) subscribe(c chan *StapleUpdated) int32 {

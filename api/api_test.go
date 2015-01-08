@@ -35,10 +35,8 @@ func (s *ApiSuite) SetUpSuite(c *C) {
 }
 
 func (s *ApiSuite) SetUpTest(c *C) {
-	st, err := stapler.New()
-	c.Assert(err, IsNil)
 	newProxy := func(id int) (proxy.Proxy, error) {
-		return proxy.New(id, st, proxy.Options{})
+		return proxy.New(id, stapler.New(), proxy.Options{})
 	}
 
 	s.ng = memng.New(registry.GetRegistry())

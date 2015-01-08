@@ -44,11 +44,8 @@ func (s *CmdSuite) SetUpSuite(c *C) {
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.ng = memng.New(registry.GetRegistry())
 
-	st, err := stapler.New()
-	c.Assert(err, IsNil)
-
 	newProxy := func(id int) (proxy.Proxy, error) {
-		return proxy.New(id, st, proxy.Options{})
+		return proxy.New(id, stapler.New(), proxy.Options{})
 	}
 
 	sv := supervisor.New(newProxy, s.ng, make(chan error), supervisor.Options{})

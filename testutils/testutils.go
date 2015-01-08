@@ -156,12 +156,8 @@ func NewTestKeyPair() *engine.KeyPair {
 
 func NewOCSPResponder() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bytes, err := hex.DecodeString(OCSPResponseHex)
-		if err != nil {
-			panic(err)
-		}
 		w.Header().Set("Content-Type", "ocsp-response")
-		w.Write(bytes)
+		w.Write(OCSPResponseBytes)
 	}))
 }
 

@@ -142,6 +142,39 @@ func (s *BackendSuite) TestBackendOptionsEq(c *C) {
 	}
 }
 
+func (s *BackendSuite) TestOCSPSettingsEq(c *C) {
+	options := []struct {
+		a *OCSPSettings
+		b *OCSPSettings
+		e bool
+	}{
+		{&OCSPSettings{}, &OCSPSettings{}, true},
+		{&OCSPSettings{Period: "2m0s"}, &OCSPSettings{Period: "2m"}, true},
+		{&OCSPSettings{Period: "2m0s"}, &OCSPSettings{Period: "3m"}, false},
+		{&OCSPSettings{Period: "bla"}, &OCSPSettings{Period: "2m"}, false},
+		{&OCSPSettings{Period: "2m"}, &OCSPSettings{Period: "bla"}, false},
+		{&OCSPSettings{Enabled: true}, &OCSPSettings{Enabled: false}, false},
+		{
+			&OCSPSettings{Enabled: true, Responders: []string{"http://a.com", "http://b.com"}},
+			&OCSPSettings{Enabled: true, Responders: []string{"http://a.com", "http://b.com"}},
+			true,
+		},
+		{
+			&OCSPSettings{Enabled: true, Responders: []string{"http://a.com", "http://b.com"}},
+			&OCSPSettings{Enabled: true, Responders: []string{"http://a.com"}},
+			false,
+		},
+		{
+			&OCSPSettings{Enabled: true, Responders: []string{"http://a.com", "http://b.com"}},
+			&OCSPSettings{Enabled: true, Responders: []string{"http://a.com", "http://c.com"}},
+			false,
+		},
+	}
+	for _, o := range options {
+		c.Assert(o.a.Equals(o.b), Equals, o.e)
+	}
+}
+
 func (s *BackendSuite) TestNewBackendWithBadOptions(c *C) {
 	options := []HTTPBackendSettings{
 		HTTPBackendSettings{
