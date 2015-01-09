@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"testing"
 	"time"
@@ -121,21 +122,60 @@ func (s *BackendSuite) TestNewBackendWithOptions(c *C) {
 	c.Assert(o.KeepAlive.MaxIdleConnsPerHost, Equals, 3)
 }
 
-func (s *BackendSuite) TestBackendOptionsEq(c *C) {
+func (s *BackendSuite) TestBackendSettingsEq(c *C) {
 	options := []struct {
 		a HTTPBackendSettings
 		b HTTPBackendSettings
 		e bool
 	}{
-		{HTTPBackendSettings{}, HTTPBackendSettings{}, true},
+		{
+			a: HTTPBackendSettings{},
+			b: HTTPBackendSettings{},
+			e: true,
+		},
 
-		{HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "1s"}}, HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "1s"}}, true},
-		{HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "2s"}}, HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "1s"}}, false},
-		{HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Read: "2s"}}, HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Read: "1s"}}, false},
-		{HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{TLSHandshake: "2s"}}, HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{TLSHandshake: "1s"}}, false},
+		{
+			a: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "1s"}},
+			b: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "1s"}},
+			e: true,
+		},
+		{
+			a: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "2s"}},
+			b: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Dial: "1s"}},
+			e: false,
+		},
+		{
+			a: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Read: "2s"}},
+			b: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{Read: "1s"}},
+			e: false,
+		},
+		{
+			a: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{TLSHandshake: "2s"}},
+			b: HTTPBackendSettings{Timeouts: HTTPBackendTimeouts{TLSHandshake: "1s"}},
+			e: false,
+		},
 
-		{HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{Period: "2s"}}, HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{Period: "1s"}}, false},
-		{HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{MaxIdleConnsPerHost: 1}}, HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{MaxIdleConnsPerHost: 2}}, false},
+		{
+			a: HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{Period: "2s"}},
+			b: HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{Period: "1s"}},
+			e: false,
+		},
+		{
+			a: HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{MaxIdleConnsPerHost: 1}},
+			b: HTTPBackendSettings{KeepAlive: HTTPBackendKeepAlive{MaxIdleConnsPerHost: 2}},
+			e: false,
+		},
+
+		{
+			a: HTTPBackendSettings{TLS: &TLSSettings{}},
+			b: HTTPBackendSettings{TLS: &TLSSettings{}},
+			e: true,
+		},
+		{
+			a: HTTPBackendSettings{TLS: &TLSSettings{}},
+			b: HTTPBackendSettings{TLS: &TLSSettings{SessionTicketsDisabled: true}},
+			e: false,
+		},
 	}
 	for _, o := range options {
 		c.Assert(o.a.Equals(o.b), Equals, o.e)
@@ -172,6 +212,43 @@ func (s *BackendSuite) TestOCSPSettingsEq(c *C) {
 	}
 	for _, o := range options {
 		c.Assert(o.a.Equals(o.b), Equals, o.e)
+	}
+}
+
+func (s *BackendSuite) TestListenerSettingsEq(c *C) {
+	options := []struct {
+		a Listener
+		b Listener
+		e bool
+		c string
+	}{
+		{
+			a: Listener{},
+			b: Listener{},
+			e: true,
+			c: "empty",
+		},
+		{
+			a: Listener{Settings: &HTTPSListenerSettings{}},
+			b: Listener{Settings: &HTTPSListenerSettings{}},
+			e: true,
+			c: "emtpy https",
+		},
+		{
+			a: Listener{Settings: &HTTPSListenerSettings{TLS: TLSSettings{}}},
+			b: Listener{Settings: &HTTPSListenerSettings{TLS: TLSSettings{}}},
+			e: true,
+			c: "default https",
+		},
+		{
+			a: Listener{Settings: &HTTPSListenerSettings{TLS: TLSSettings{SessionTicketsDisabled: false}}},
+			b: Listener{Settings: &HTTPSListenerSettings{TLS: TLSSettings{}}},
+			e: true,
+			c: "different https",
+		},
+	}
+	for _, o := range options {
+		c.Assert((&o.a).SettingsEquals(&o.b), Equals, o.e, Commentf("TC: %v", o.c))
 	}
 }
 
@@ -218,18 +295,18 @@ func (s *BackendSuite) TestNewServerBadParams(c *C) {
 }
 
 func (s *BackendSuite) TestNewListener(c *C) {
-	_, err := NewListener("id", "http", "tcp", "127.0.0.1:4000", "")
+	_, err := NewListener("id", "http", "tcp", "127.0.0.1:4000", "", nil)
 	c.Assert(err, IsNil)
 }
 
 func (s *BackendSuite) TestNewListenerBadParams(c *C) {
-	_, err := NewListener("id", "http", "tcp", "", "")
+	_, err := NewListener("id", "http", "tcp", "", "", nil)
 	c.Assert(err, NotNil)
 
-	_, err = NewListener("id", "", "tcp", "127.0.0.1:4000", "")
+	_, err = NewListener("id", "", "tcp", "127.0.0.1:4000", "", nil)
 	c.Assert(err, NotNil)
 
-	_, err = NewListener("id", "http", "tcp", "127.0.0.1:4000", "blabla")
+	_, err = NewListener("id", "http", "tcp", "127.0.0.1:4000", "blabla", nil)
 	c.Assert(err, NotNil)
 }
 
@@ -293,4 +370,317 @@ func (s *BackendSuite) TestServerFromJSON(c *C) {
 	c.Assert(out, NotNil)
 
 	c.Assert(out, DeepEquals, e)
+}
+
+func (s *BackendSuite) TestNewTLSSettings(c *C) {
+	tcs := []struct {
+		S TLSSettings
+		C *tls.Config
+	}{
+		// Make sure defaults are set as expected
+		{
+			S: TLSSettings{},
+			C: &tls.Config{
+				MinVersion: tls.VersionTLS10,
+				MaxVersion: tls.VersionTLS12,
+
+				SessionTicketsDisabled:   false,
+				PreferServerCipherSuites: false,
+				CipherSuites: []uint16{
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+
+					tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+
+					tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+
+					tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+				},
+
+				InsecureSkipVerify: false,
+			},
+		},
+		{
+			S: TLSSettings{
+				MinVersion: "VersionTLS11",
+				MaxVersion: "VersionTLS12",
+
+				SessionTicketsDisabled:   false,
+				PreferServerCipherSuites: true,
+
+				CipherSuites: []string{
+					"TLS_RSA_WITH_RC4_128_SHA",
+					"TLS_RSA_WITH_3DES_EDE_CBC_SHA",
+					"TLS_ECDHE_ECDSA_WITH_RC4_128_SHA",
+					"TLS_ECDHE_RSA_WITH_RC4_128_SHA",
+					"TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA",
+
+					"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+					"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+					"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+					"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+					"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+					"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+					"TLS_RSA_WITH_AES_256_CBC_SHA",
+					"TLS_RSA_WITH_AES_128_CBC_SHA",
+				},
+
+				InsecureSkipVerify: false,
+
+				SessionCache: TLSSessionCache{
+					Type: "LRU",
+					Settings: &LRUSessionCacheSettings{
+						Capacity: 12,
+					},
+				},
+			},
+			C: &tls.Config{
+				MinVersion: tls.VersionTLS11,
+				MaxVersion: tls.VersionTLS12,
+
+				SessionTicketsDisabled:   false,
+				PreferServerCipherSuites: true,
+				CipherSuites: []uint16{
+					tls.TLS_RSA_WITH_RC4_128_SHA,
+					tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+					tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+					tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+					tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+
+					tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+
+					tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+
+					tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+				},
+
+				InsecureSkipVerify: false,
+			},
+		},
+		{
+			S: TLSSettings{
+				MinVersion: "VersionTLS10",
+				MaxVersion: "VersionTLS12",
+
+				SessionTicketsDisabled:   true,
+				PreferServerCipherSuites: false,
+
+				CipherSuites: []string{
+					"TLS_RSA_WITH_RC4_128_SHA",
+				},
+
+				InsecureSkipVerify: true,
+			},
+			C: &tls.Config{
+				MinVersion: tls.VersionTLS10,
+				MaxVersion: tls.VersionTLS12,
+
+				SessionTicketsDisabled:   true,
+				PreferServerCipherSuites: false,
+				CipherSuites: []uint16{
+					tls.TLS_RSA_WITH_RC4_128_SHA,
+				},
+
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	for _, tc := range tcs {
+		cfg, err := NewTLSConfig(&tc.S)
+		c.Assert(err, IsNil)
+
+		c.Assert(cfg.MinVersion, Equals, tc.C.MinVersion)
+		c.Assert(cfg.MaxVersion, Equals, tc.C.MaxVersion)
+
+		c.Assert(cfg.SessionTicketsDisabled, Equals, tc.C.SessionTicketsDisabled)
+		c.Assert(cfg.PreferServerCipherSuites, Equals, tc.C.PreferServerCipherSuites)
+		c.Assert(cfg.CipherSuites, DeepEquals, tc.C.CipherSuites)
+		c.Assert(cfg.InsecureSkipVerify, Equals, tc.C.InsecureSkipVerify)
+		if tc.C.ClientSessionCache != nil {
+			c.Assert(cfg.ClientSessionCache, FitsTypeOf, tc.C.ClientSessionCache)
+		}
+	}
+}
+
+func (s *BackendSuite) TestNewTLSSettingsBadParams(c *C) {
+	tcs := []TLSSettings{
+		TLSSettings{
+			MinVersion: "blabla",
+		},
+		TLSSettings{
+			MaxVersion: "blabla",
+		},
+		TLSSettings{
+			CipherSuites: []string{"blabla"},
+		},
+		TLSSettings{
+			SessionCache: TLSSessionCache{
+				Type: "what?",
+				Settings: &LRUSessionCacheSettings{
+					Capacity: 12,
+				},
+			},
+		},
+		TLSSettings{
+			SessionCache: TLSSessionCache{
+				Type: "LRU",
+				Settings: &LRUSessionCacheSettings{
+					Capacity: -5,
+				},
+			},
+		},
+	}
+	for _, tc := range tcs {
+		cfg, err := NewTLSConfig(&tc)
+		c.Assert(err, NotNil)
+		c.Assert(cfg, IsNil)
+	}
+}
+
+func (s *BackendSuite) TestTLSSettingsEq(c *C) {
+	tcs := []struct {
+		A  TLSSettings
+		B  TLSSettings
+		R  bool
+		TC string
+	}{
+		{
+			A:  TLSSettings{},
+			B:  TLSSettings{},
+			R:  true,
+			TC: "defaults",
+		},
+		{
+			A: TLSSettings{
+				SessionCache: TLSSessionCache{
+					Type: "LRU",
+				},
+			},
+			B: TLSSettings{
+				SessionCache: TLSSessionCache{
+					Type: "LRU",
+				},
+			},
+			R:  true,
+			TC: "cache defaults",
+		},
+		{
+			A: TLSSettings{
+				SessionCache: TLSSessionCache{
+					Type: "LRU",
+					Settings: &LRUSessionCacheSettings{
+						Capacity: 5,
+					},
+				},
+			},
+			B: TLSSettings{
+				SessionCache: TLSSessionCache{
+					Type: "LRU",
+					Settings: &LRUSessionCacheSettings{
+						Capacity: 5,
+					},
+				},
+			},
+			R:  true,
+			TC: "cache params",
+		},
+		{
+			A: TLSSettings{
+				SessionCache: TLSSessionCache{
+					Type: "LRU",
+					Settings: &LRUSessionCacheSettings{
+						Capacity: 5,
+					},
+				},
+			},
+			B: TLSSettings{
+				SessionCache: TLSSessionCache{
+					Type: "LRU",
+					Settings: &LRUSessionCacheSettings{
+						Capacity: 4,
+					},
+				},
+			},
+			R:  false,
+			TC: "cache params neq",
+		},
+		{
+			A: TLSSettings{
+				SessionTicketsDisabled: true,
+			},
+			B:  TLSSettings{},
+			R:  false,
+			TC: "no session tickets",
+		},
+		{
+			A: TLSSettings{
+				InsecureSkipVerify: true,
+			},
+			B:  TLSSettings{},
+			R:  false,
+			TC: "insecure",
+		},
+		{
+			A: TLSSettings{
+				MinVersion: "VersionTLS12",
+			},
+			B:  TLSSettings{},
+			R:  false,
+			TC: "different min",
+		},
+		{
+			A: TLSSettings{
+				MaxVersion: "VersionTLS10",
+			},
+			B:  TLSSettings{},
+			R:  false,
+			TC: "different max",
+		},
+		{
+			A: TLSSettings{
+				PreferServerCipherSuites: true,
+			},
+			B:  TLSSettings{},
+			R:  false,
+			TC: "prefer server csuites",
+		},
+		{
+			A: TLSSettings{
+				CipherSuites: []string{
+					"TLS_RSA_WITH_RC4_128_SHA",
+				},
+			},
+			B: TLSSettings{
+				CipherSuites: []string{
+					"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+				},
+			},
+			R:  false,
+			TC: "different csuites",
+		},
+		{
+			A: TLSSettings{
+				CipherSuites: []string{
+					"TLS_RSA_WITH_RC4_128_SHA",
+				},
+			},
+			B: TLSSettings{
+				CipherSuites: []string{},
+			},
+			R:  false,
+			TC: "different csuites 1",
+		},
+	}
+	for _, tc := range tcs {
+		c.Assert(tc.A.Equals(&tc.B), Equals, tc.R, Commentf("TC: %v", tc.TC))
+	}
 }

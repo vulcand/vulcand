@@ -75,6 +75,22 @@ type Listener struct {
 	Address Address
 	// Scope is optional expression that limits the operational scope of this listener
 	Scope string
+	// Settings provides listener-type specific settings, e.g. TLS settings for HTTPS listener
+	Settings interface{} `json:",omitempty"`
+}
+
+func (l *Listener) TLSConfig() (*tls.Config, error) {
+	if l.Protocol != HTTPS {
+		return nil, fmt.Errorf("wrong listener proto: %v", l.Protocol)
+	}
+	if l.Settings == nil {
+		return NewTLSConfig(&TLSSettings{})
+	}
+	t, ok := l.Settings.(*HTTPSListenerSettings)
+	if !ok {
+		return nil, fmt.Errorf("expected *HTTPSListenerSettings, got %T", l.Settings)
+	}
+	return NewTLSConfig(&t.TLS)
 }
 
 func (l *Listener) String() string {
@@ -83,6 +99,28 @@ func (l *Listener) String() string {
 
 func (a *Address) Equals(o Address) bool {
 	return a.Network == o.Network && a.Address == o.Address
+}
+
+func (l *Listener) SettingsEquals(o *Listener) bool {
+	if l.Settings == nil && o.Settings == nil {
+		return true
+	}
+	ls, ok := l.Settings.(*HTTPSListenerSettings)
+	if !ok {
+		return false
+	}
+	os, ok := o.Settings.(*HTTPSListenerSettings)
+	if !ok {
+		return false
+	}
+	if (ls == nil && os != nil) || (ls != nil && os == nil) {
+		return false
+	}
+	return (&os.TLS).Equals(&ls.TLS)
+}
+
+type HTTPSListenerSettings struct {
+	TLS TLSSettings
 }
 
 // Sets up OCSP stapling, see http://en.wikipedia.org/wiki/OCSP_stapling
@@ -212,7 +250,7 @@ func NewAddress(network, address string) (*Address, error) {
 	return &Address{Network: network, Address: address}, nil
 }
 
-func NewListener(id, protocol, network, address, scope string) (*Listener, error) {
+func NewListener(id, protocol, network, address, scope string, settings interface{}) (*Listener, error) {
 	protocol = strings.ToLower(protocol)
 	if protocol != HTTP && protocol != HTTPS {
 		return nil, fmt.Errorf("unsupported protocol '%s', supported protocols are http and https", protocol)
@@ -234,6 +272,7 @@ func NewListener(id, protocol, network, address, scope string) (*Listener, error
 		Id:       id,
 		Address:  *a,
 		Protocol: protocol,
+		Settings: settings,
 	}, nil
 }
 
@@ -301,9 +340,12 @@ type HTTPBackendKeepAlive struct {
 }
 
 type HTTPBackendSettings struct {
+	// Timeouts provides timeout settings for backend servers
 	Timeouts HTTPBackendTimeouts
-	// Controls KeepAlive settins for backend servers
+	// KeepAlive controls keep-alive settings for backend servers
 	KeepAlive HTTPBackendKeepAlive
+	// TLS provides optional TLS settings for HTTP backend
+	TLS *TLSSettings `json:",omitempty"`
 }
 
 func (s *HTTPBackendSettings) Equals(o HTTPBackendSettings) bool {
@@ -311,7 +353,9 @@ func (s *HTTPBackendSettings) Equals(o HTTPBackendSettings) bool {
 		s.Timeouts.Dial == o.Timeouts.Dial &&
 		s.Timeouts.TLSHandshake == o.Timeouts.TLSHandshake &&
 		s.KeepAlive.Period == o.KeepAlive.Period &&
-		s.KeepAlive.MaxIdleConnsPerHost == o.KeepAlive.MaxIdleConnsPerHost)
+		s.KeepAlive.MaxIdleConnsPerHost == o.KeepAlive.MaxIdleConnsPerHost &&
+		((s.TLS == nil && o.TLS == nil) ||
+			((s.TLS != nil && o.TLS != nil) && s.TLS.Equals(o.TLS))))
 }
 
 type MiddlewareKey struct {
@@ -399,6 +443,14 @@ func transportSettings(s HTTPBackendSettings) (*TransportSettings, error) {
 		}
 	}
 	t.KeepAlive.MaxIdleConnsPerHost = s.KeepAlive.MaxIdleConnsPerHost
+
+	if s.TLS != nil {
+		config, err := NewTLSConfig(s.TLS)
+		if err != nil {
+			return nil, err
+		}
+		t.TLS = config
+	}
 	return t, nil
 }
 
@@ -667,4 +719,5 @@ type TransportKeepAlive struct {
 type TransportSettings struct {
 	Timeouts  TransportTimeouts
 	KeepAlive TransportKeepAlive
+	TLS       *tls.Config
 }

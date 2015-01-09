@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -249,7 +250,11 @@ func (s *ServerSuite) TestServerNoBody(c *C) {
 }
 
 func (s *ServerSuite) TestServerHTTPS(c *C) {
-	e := testutils.NewResponder("Hi, I'm endpoint")
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
 	defer e.Close()
 
 	b := MakeBatch(Batch{
@@ -267,7 +272,95 @@ func (s *ServerSuite) TestServerHTTPS(c *C) {
 
 	c.Assert(s.mux.Start(), IsNil)
 
-	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "hi https")
+	// Make sure that we see right proto
+	c.Assert(req.Header.Get("X-Forwarded-Proto"), Equals, "https")
+}
+
+func (s *ServerSuite) TestServerUpdateHTTPS(c *C) {
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
+	defer e.Close()
+
+	b := MakeBatch(Batch{
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		KeyPair:  &engine.KeyPair{Key: localhostKey, Cert: localhostCert},
+	})
+
+	b.L.Settings = &engine.HTTPSListenerSettings{TLS: engine.TLSSettings{MinVersion: "VersionTLS11"}}
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	config := &tls.Config{
+		InsecureSkipVerify: true,
+		// We only support tls 10
+		MinVersion: tls.VersionTLS10,
+		MaxVersion: tls.VersionTLS10,
+	}
+
+	conn, err := tls.Dial("tcp", b.L.Address.Address, config)
+	c.Assert(err, NotNil) // we got TLS error
+
+	// Relax the version
+	b.L.Settings = &engine.HTTPSListenerSettings{TLS: engine.TLSSettings{MinVersion: "VersionTLS10"}}
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	time.Sleep(20 * time.Millisecond)
+
+	conn, err = tls.Dial("tcp", b.L.Address.Address, config)
+	c.Assert(err, IsNil)
+
+	fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
+	status, err := bufio.NewReader(conn).ReadString('\n')
+
+	c.Assert(status, Equals, "HTTP/1.0 200 OK\r\n")
+	state := conn.ConnectionState()
+	c.Assert(state.Version, DeepEquals, uint16(tls.VersionTLS10))
+	conn.Close()
+}
+
+func (s *ServerSuite) TestBackendHTTPS(c *C) {
+	e := httptest.NewUnstartedServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("hi https"))
+		}))
+	e.StartTLS()
+	defer e.Close()
+
+	b := MakeBatch(Batch{
+		Addr:  "localhost:41000",
+		Route: `Path("/")`,
+		URL:   e.URL,
+	})
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	re, _, err := testutils.Get(b.FrontendURL("/"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, 500) // failed because of bad cert
+
+	b.B.Settings = engine.HTTPBackendSettings{TLS: &engine.TLSSettings{InsecureSkipVerify: true}}
+	c.Assert(s.mux.UpsertBackend(b.B), IsNil)
+
+	re, body, err := testutils.Get(b.FrontendURL("/"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, 200)
+	c.Assert(string(body), Equals, "hi https")
 }
 
 func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {

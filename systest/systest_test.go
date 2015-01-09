@@ -275,7 +275,7 @@ func (s *VESuite) TestHTTPListenerCRUD(c *C) {
 
 	// Add HTTP listener
 	l1 := "l1"
-	listener, err := engine.NewListener(l1, "http", "tcp", "localhost:31000", "")
+	listener, err := engine.NewListener(l1, "http", "tcp", "localhost:31000", "", nil)
 	c.Assert(err, IsNil)
 	bytes, err := json.Marshal(listener)
 	c.Assert(err, IsNil)
@@ -327,7 +327,7 @@ func (s *VESuite) TestHTTPSListenerCRUD(c *C) {
 
 	// Add HTTPS listener
 	l2 := "ls2"
-	listener, err := engine.NewListener(l2, "https", "tcp", "localhost:32000", "")
+	listener, err := engine.NewListener(l2, "https", "tcp", "localhost:32000", "", nil)
 	c.Assert(err, IsNil)
 	bytes, err = json.Marshal(listener)
 	c.Assert(err, IsNil)
@@ -467,7 +467,7 @@ func (s *VESuite) TestLiveBinaryUpgrade(c *C) {
 
 	// Add HTTPS listener
 	l2 := "ls2"
-	listener, err := engine.NewListener(l2, "https", "tcp", "localhost:32000", "")
+	listener, err := engine.NewListener(l2, "https", "tcp", "localhost:32000", "", nil)
 	c.Assert(err, IsNil)
 	bytes, err = json.Marshal(listener)
 	c.Assert(err, IsNil)

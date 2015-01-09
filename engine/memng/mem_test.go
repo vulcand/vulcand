@@ -57,6 +57,10 @@ func (s *MemSuite) TestListenerCRUD(c *C) {
 	s.suite.ListenerCRUD(c)
 }
 
+func (s *MemSuite) TestListenerSettingsCRUD(c *C) {
+	s.suite.ListenerSettingsCRUD(c)
+}
+
 func (s *MemSuite) TestBackendCRUD(c *C) {
 	s.suite.BackendCRUD(c)
 }

@@ -123,6 +123,10 @@ func (s *EtcdSuite) TestListenerCRUD(c *C) {
 	s.suite.ListenerCRUD(c)
 }
 
+func (s *EtcdSuite) TestListenerSettingsCRUD(c *C) {
+	s.suite.ListenerSettingsCRUD(c)
+}
+
 func (s *EtcdSuite) TestBackendCRUD(c *C) {
 	s.suite.BackendCRUD(c)
 }

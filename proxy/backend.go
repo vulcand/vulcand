@@ -69,6 +69,7 @@ func (b *backend) updateSettings(be engine.Backend) error {
 		return err
 	}
 	t := newTransport(s)
+
 	b.transport.CloseIdleConnections()
 	b.transport = t
 	for _, f := range b.frontends {
@@ -130,5 +131,6 @@ func newTransport(s *engine.TransportSettings) *http.Transport {
 		ResponseHeaderTimeout: s.Timeouts.Read,
 		TLSHandshakeTimeout:   s.Timeouts.TLSHandshake,
 		MaxIdleConnsPerHost:   s.KeepAlive.MaxIdleConnsPerHost,
+		TLSClientConfig:       s.TLS,
 	}
 }

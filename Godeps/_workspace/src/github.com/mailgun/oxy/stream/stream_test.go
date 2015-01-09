@@ -2,6 +2,7 @@ package stream
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -292,4 +293,39 @@ func (s *STSuite) TestNoBody(c *C) {
 	re, _, err := testutils.Get(proxy.URL)
 	c.Assert(err, IsNil)
 	c.Assert(re.StatusCode, Equals, http.StatusOK)
+}
+
+// Make sure that stream handler preserves TLS settings
+func (s *STSuite) TestPreservesTLS(c *C) {
+	srv := testutils.NewHandler(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+	defer srv.Close()
+
+	// forwarder will proxy the request to whatever destination
+	fwd, err := forward.New()
+	c.Assert(err, IsNil)
+
+	var t *tls.ConnectionState
+	// this is our redirect to server
+	rdr := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		t = req.TLS
+		req.URL = testutils.ParseURI(srv.URL)
+		fwd.ServeHTTP(w, req)
+	})
+
+	// stream handler will forward requests to redirect
+	st, err := New(rdr, Logger(utils.NewFileLogger(os.Stdout, utils.INFO)))
+	c.Assert(err, IsNil)
+
+	proxy := httptest.NewUnstartedServer(st)
+	proxy.StartTLS()
+	defer proxy.Close()
+
+	re, _, err := testutils.Get(proxy.URL)
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+
+	c.Assert(t, NotNil)
 }
