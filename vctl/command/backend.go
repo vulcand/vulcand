@@ -14,9 +14,10 @@ func NewBackendCommand(cmd *Command) cli.Command {
 				Name:   "upsert",
 				Usage:  "Update or insert a new backend to vulcan",
 				Action: cmd.upsertBackendAction,
-				Flags: append([]cli.Flag{
+				Flags: append(append([]cli.Flag{
 					cli.StringFlag{Name: "id", Usage: "backend id"}},
 					backendOptions()...),
+					getTLSFlags()...),
 			},
 			{
 				Name:   "rm",
@@ -99,6 +100,11 @@ func getBackendSettings(c *cli.Context) (engine.HTTPBackendSettings, error) {
 	s.KeepAlive.Period = c.Duration("keepAlivePeriod").String()
 	s.KeepAlive.MaxIdleConnsPerHost = c.Int("maxIdleConns")
 
+	tlsSettings, err := getTLSSettings(c)
+	if err != nil {
+		return s, err
+	}
+	s.TLS = tlsSettings
 	return s, nil
 }
 

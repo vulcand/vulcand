@@ -182,6 +182,45 @@ func (s *EngineSuite) ListenerCRUD(c *C) {
 	)
 }
 
+func (s *EngineSuite) ListenerSettingsCRUD(c *C) {
+	listener := engine.Listener{
+		Id:       "l1",
+		Protocol: "https",
+		Address: engine.Address{
+			Network: "tcp",
+			Address: "127.0.0.1:9000",
+		},
+		Settings: &engine.HTTPSListenerSettings{
+			TLS: engine.TLSSettings{
+				InsecureSkipVerify: true,
+				CipherSuites: []string{
+					"TLS_RSA_WITH_AES_256_CBC_SHA",
+					"TLS_RSA_WITH_AES_128_CBC_SHA",
+				},
+			},
+		},
+	}
+	c.Assert(s.Engine.UpsertListener(listener), IsNil)
+	lk := engine.ListenerKey{Id: listener.Id}
+
+	out, err := s.Engine.GetListener(lk)
+	c.Assert(err, IsNil)
+	c.Assert(out, DeepEquals, &listener)
+
+	ls, err := s.Engine.GetListeners()
+	c.Assert(err, IsNil)
+	c.Assert(ls, DeepEquals, []engine.Listener{listener})
+
+	s.expectChanges(c,
+		&engine.ListenerUpserted{Listener: listener},
+	)
+	c.Assert(s.Engine.DeleteListener(lk), IsNil)
+
+	s.expectChanges(c,
+		&engine.ListenerDeleted{ListenerKey: lk},
+	)
+}
+
 func (s *EngineSuite) BackendCRUD(c *C) {
 	b := engine.Backend{Id: "b1", Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}
 
@@ -200,7 +239,14 @@ func (s *EngineSuite) BackendCRUD(c *C) {
 	c.Assert(bs[0], DeepEquals, b)
 
 	b.Settings = engine.HTTPBackendSettings{Timeouts: engine.HTTPBackendTimeouts{Read: "1s"}}
+	c.Assert(s.Engine.UpsertBackend(b), IsNil)
 
+	s.expectChanges(c, &engine.BackendUpserted{Backend: b})
+
+	b.Settings = engine.HTTPBackendSettings{
+		Timeouts: engine.HTTPBackendTimeouts{Read: "1s"},
+		TLS:      &engine.TLSSettings{PreferServerCipherSuites: true},
+	}
 	c.Assert(s.Engine.UpsertBackend(b), IsNil)
 
 	s.expectChanges(c, &engine.BackendUpserted{Backend: b})

@@ -30,6 +30,15 @@ type gracefulConn struct {
 	lastHTTPState http.ConnState
 }
 
+type gracefulAddr struct {
+	net.Addr
+	gconn *gracefulConn
+}
+
+func (g *gracefulConn) LocalAddr() net.Addr {
+	return &gracefulAddr{g.Conn.LocalAddr(), g}
+}
+
 // A GracefulListener differs from a standard net.Listener in one way: if
 // Accept() is called after it is gracefully closed, it returns a
 // listenerAlreadyClosed error. The GracefulServer will ignore this error.
@@ -59,8 +68,12 @@ func (l *GracefulListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	gconn := &gracefulConn{conn, 0}
-	return gconn, nil
+	// don't wrap connection if it's tls so we won't break
+	// http server internal logic that relies on the type
+	if _, ok := conn.(*tls.Conn); ok {
+		return conn, nil
+	}
+	return &gracefulConn{conn, 0}, nil
 }
 
 // Close tells the wrapped listener to stop listening.  It is idempotent.
@@ -113,7 +126,7 @@ func (l *TLSListener) Accept() (c net.Conn, err error) {
 	if err != nil {
 		return
 	}
-	c = tls.Server(c, l.config)
+	c = tls.Server(&gracefulConn{c, 0}, l.config)
 	return
 }
 

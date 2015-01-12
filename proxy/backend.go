@@ -130,5 +130,6 @@ func newTransport(s *engine.TransportSettings) *http.Transport {
 		ResponseHeaderTimeout: s.Timeouts.Read,
 		TLSHandshakeTimeout:   s.Timeouts.TLSHandshake,
 		MaxIdleConnsPerHost:   s.KeepAlive.MaxIdleConnsPerHost,
+		TLSClientConfig:       s.TLS,
 	}
 }

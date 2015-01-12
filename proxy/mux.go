@@ -417,7 +417,7 @@ func (m *mux) upsertFrontend(fe engine.Frontend) (*frontend, error) {
 }
 
 func (m *mux) DeleteFrontend(fk engine.FrontendKey) error {
-	log.Infof("%v DeleteFrontend %v, %v", m, &fk)
+	log.Infof("%v DeleteFrontend %v", m, &fk)
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()

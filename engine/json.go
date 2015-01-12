@@ -103,15 +103,20 @@ func HostFromJSON(in []byte, name ...string) (*Host, error) {
 }
 
 func ListenerFromJSON(in []byte, id ...string) (*Listener, error) {
-	var l *Listener
-	err := json.Unmarshal(in, &l)
+	var rl *Listener
+	err := json.Unmarshal(in, &rl)
 	if err != nil {
 		return nil, err
 	}
 	if len(id) != 0 {
-		l.Id = id[0]
+		rl.Id = id[0]
 	}
-	return NewListener(l.Id, l.Protocol, l.Address.Network, l.Address.Address, l.Scope)
+	if rl.Protocol == HTTPS && rl.Settings != nil {
+		if _, err = NewTLSConfig(&rl.Settings.TLS); err != nil {
+			return nil, err
+		}
+	}
+	return NewListener(rl.Id, rl.Protocol, rl.Address.Network, rl.Address.Address, rl.Scope, rl.Settings)
 }
 
 func ListenersFromJSON(in []byte) ([]Listener, error) {
@@ -224,6 +229,11 @@ func BackendFromJSON(in []byte, id ...string) (*Backend, error) {
 	var s HTTPBackendSettings
 	if rb.Settings != nil {
 		if err := json.Unmarshal(rb.Settings, &s); err != nil {
+			return nil, err
+		}
+	}
+	if s.TLS != nil {
+		if _, err := NewTLSConfig(s.TLS); err != nil {
 			return nil, err
 		}
 	}

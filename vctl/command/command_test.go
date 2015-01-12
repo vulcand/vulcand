@@ -134,6 +134,21 @@ func (s *CmdSuite) TestListenerCRUD(c *C) {
 	c.Assert(s.run("listener", "upsert", "-id", l, "-proto", "http", "-addr", "localhost:11300", "-scope", `Host("localhost")`), Matches, OK)
 }
 
+func (s *CmdSuite) TestHTTPSListenerCRUD(c *C) {
+	host := "host"
+	c.Assert(s.run("host", "upsert", "-name", host), Matches, OK)
+	l := "l1"
+	c.Assert(
+		s.run("listener", "upsert", "-id", l, "-proto", "https", "-addr", "localhost:11300",
+			// TLS parameters
+			"-tlsSkipVerify", "-tlsPreferServerCS", "-tlsSessionTicketsOff",
+			"-tlsMinV=VersionTLS11", "-tlsMaxV=VersionTLS12",
+			"-tlsCS=TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+			"-tlsCS=TLS_ECDHE_RSA_WITH_RC4_128_SHA"), Matches, OK)
+
+	c.Assert(s.run("listener", "rm", "-id", l), Matches, OK)
+}
+
 func (s *CmdSuite) TestBackendCRUD(c *C) {
 	b := "bk1"
 	c.Assert(s.run("backend", "upsert", "-id", b), Matches, OK)
@@ -146,6 +161,11 @@ func (s *CmdSuite) TestBackendCRUD(c *C) {
 		"-readTimeout", "1s", "-dialTimeout", "2s", "-handshakeTimeout", "3s",
 		// Keep Alive parameters
 		"-keepAlivePeriod", "4s", "-maxIdleConns", "5",
+		// TLS parameters
+		"-tlsSkipVerify", "-tlsPreferServerCS", "-tlsSessionTicketsOff",
+		"-tlsMinV=VersionTLS11", "-tlsMaxV=VersionTLS12",
+		"-tlsCS=TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+		"-tlsCS=TLS_ECDHE_RSA_WITH_RC4_128_SHA",
 	),
 		Matches, OK)
 
@@ -160,6 +180,44 @@ func (s *CmdSuite) TestBackendCRUD(c *C) {
 	c.Assert(o.KeepAlive.Period, Equals, "4s")
 	c.Assert(o.KeepAlive.MaxIdleConnsPerHost, Equals, 5)
 
+	c.Assert(o.TLS.InsecureSkipVerify, Equals, true)
+	c.Assert(o.TLS.PreferServerCipherSuites, Equals, true)
+	c.Assert(o.TLS.SessionTicketsDisabled, Equals, true)
+	c.Assert(o.TLS.MinVersion, Equals, "VersionTLS11")
+	c.Assert(o.TLS.MaxVersion, Equals, "VersionTLS12")
+	c.Assert(o.TLS.SessionTicketsDisabled, Equals, true)
+	c.Assert(o.TLS.CipherSuites, DeepEquals,
+		[]string{
+			"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+			"TLS_ECDHE_RSA_WITH_RC4_128_SHA",
+		})
+	c.Assert(s.run("backend", "rm", "-id", b), Matches, OK)
+}
+
+func (s *CmdSuite) TestBackendSessionCacheCRUD(c *C) {
+	b := "bk1"
+	c.Assert(s.run("backend", "upsert", "-id", b), Matches, OK)
+	c.Assert(s.run("backend", "ls"), Matches, fmt.Sprintf(".*%s.*", b))
+
+	c.Assert(s.run(
+		"backend", "upsert",
+		"-id", b,
+		// Timeouts
+		"-readTimeout", "1s", "-dialTimeout", "2s", "-handshakeTimeout", "3s",
+		// Keep Alive parameters
+		"-keepAlivePeriod", "4s", "-maxIdleConns", "5",
+		// TLS parameters
+		"-tlsSessionCache=LRU",
+		"-tlsSessionCacheCapacity=1023",
+	),
+		Matches, OK)
+
+	val, err := s.ng.GetBackend(engine.BackendKey{Id: b})
+	c.Assert(err, IsNil)
+	o := val.HTTPSettings()
+
+	c.Assert(o.TLS.SessionCache.Type, Equals, "LRU")
+	c.Assert(o.TLS.SessionCache.Settings.Capacity, Equals, 1023)
 	c.Assert(s.run("backend", "rm", "-id", b), Matches, OK)
 }
 

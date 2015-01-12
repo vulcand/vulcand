@@ -78,9 +78,10 @@ func (s *srv) updateListener(l engine.Listener) error {
 	if s.listener.Protocol != l.Protocol {
 		return fmt.Errorf("conflicting protocol %s and %s", s.listener.Protocol, l.Protocol)
 	}
-	if l.Scope == s.listener.Scope {
+	if l.Scope == s.listener.Scope && (&l).SettingsEquals(&s.listener) {
 		return nil
 	}
+
 	log.Infof("%v update %v", s, &l)
 	handler, err := scopedHandler(l.Scope, s.mux.router)
 	if err != nil {
@@ -174,24 +175,13 @@ func (s *srv) shutdown() {
 }
 
 func (s *srv) newTLSConfig() (*tls.Config, error) {
-	config := &tls.Config{}
+	config, err := s.listener.TLSConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	if config.NextProtos == nil {
 		config.NextProtos = []string{"http/1.1"}
-	}
-
-	// only support TLS (mitigate against POODLE exploit)
-	config.MinVersion = tls.VersionTLS10
-	// use only modern ciphers
-	config.CipherSuites = []uint16{
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 	}
 
 	pairs := map[string]tls.Certificate{}

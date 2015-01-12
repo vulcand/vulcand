@@ -27,13 +27,13 @@ func NewListenerCommand(cmd *Command) cli.Command {
 			{
 				Name:  "upsert",
 				Usage: "Update or insert a listener",
-				Flags: []cli.Flag{
+				Flags: append([]cli.Flag{
 					cli.StringFlag{Name: "id", Usage: "id"},
 					cli.StringFlag{Name: "proto", Usage: "protocol, either http or https"},
 					cli.StringFlag{Name: "net", Value: "tcp", Usage: "network, tcp or unix"},
 					cli.StringFlag{Name: "addr", Value: "tcp", Usage: "address to bind to, e.g. 'localhost:31000'"},
 					cli.StringFlag{Name: "scope", Usage: "scope expression limits the listener, e.g. 'Hostname(`myhost`)'"},
-				},
+				}, getTLSFlags()...),
 				Action: cmd.upsertListenerAction,
 			},
 			{
@@ -49,7 +49,16 @@ func NewListenerCommand(cmd *Command) cli.Command {
 }
 
 func (cmd *Command) upsertListenerAction(c *cli.Context) {
-	listener, err := engine.NewListener(c.String("id"), c.String("proto"), c.String("net"), c.String("addr"), c.String("scope"))
+	var settings *engine.HTTPSListenerSettings
+	if c.String("proto") == engine.HTTPS {
+		s, err := getTLSSettings(c)
+		if err != nil {
+			cmd.printError(err)
+			return
+		}
+		settings = &engine.HTTPSListenerSettings{TLS: *s}
+	}
+	listener, err := engine.NewListener(c.String("id"), c.String("proto"), c.String("net"), c.String("addr"), c.String("scope"), settings)
 	if err != nil {
 		cmd.printError(err)
 		return
