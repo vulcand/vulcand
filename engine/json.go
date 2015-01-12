@@ -54,18 +54,6 @@ type RawMiddleware struct {
 	Middleware json.RawMessage
 }
 
-type rawListener struct {
-	Id       string
-	Protocol string
-	Address  Address
-	Scope    string
-	Settings json.RawMessage
-}
-
-type rawListenerSettings struct {
-	TLS json.RawMessage
-}
-
 func HostsFromJSON(in []byte) ([]Host, error) {
 	var hs rawHosts
 	err := json.Unmarshal(in, &hs)
@@ -115,7 +103,7 @@ func HostFromJSON(in []byte, name ...string) (*Host, error) {
 }
 
 func ListenerFromJSON(in []byte, id ...string) (*Listener, error) {
-	var rl *rawListener
+	var rl *Listener
 	err := json.Unmarshal(in, &rl)
 	if err != nil {
 		return nil, err
@@ -123,13 +111,12 @@ func ListenerFromJSON(in []byte, id ...string) (*Listener, error) {
 	if len(id) != 0 {
 		rl.Id = id[0]
 	}
-	var settings interface{}
-	if rl.Protocol == HTTPS && len(rl.Settings) != 0 {
-		if settings, err = HTTPSListenerSettingsFromJSON(rl.Settings); err != nil {
+	if rl.Protocol == HTTPS && rl.Settings != nil {
+		if _, err = NewTLSConfig(&rl.Settings.TLS); err != nil {
 			return nil, err
 		}
 	}
-	return NewListener(rl.Id, rl.Protocol, rl.Address.Network, rl.Address.Address, rl.Scope, settings)
+	return NewListener(rl.Id, rl.Protocol, rl.Address.Network, rl.Address.Address, rl.Scope, rl.Settings)
 }
 
 func ListenersFromJSON(in []byte) ([]Listener, error) {
@@ -309,29 +296,4 @@ func ServerFromJSON(in []byte, id ...string) (*Server, error) {
 		e.Id = id[0]
 	}
 	return NewServer(e.Id, e.URL)
-}
-
-func HTTPSListenerSettingsFromJSON(in []byte) (*HTTPSListenerSettings, error) {
-	var rs *rawListenerSettings
-	if err := json.Unmarshal(in, &rs); err != nil {
-		return nil, err
-	}
-	s, err := TLSSettingsFromJSON(rs.TLS)
-	if err != nil {
-		return nil, err
-	}
-	return &HTTPSListenerSettings{
-		TLS: *s,
-	}, nil
-}
-
-func TLSSettingsFromJSON(in []byte) (*TLSSettings, error) {
-	var s *TLSSettings
-	if err := json.Unmarshal(in, &s); err != nil {
-		return nil, err
-	}
-	if _, err := NewTLSConfig(s); err != nil {
-		return nil, err
-	}
-	return s, nil
 }

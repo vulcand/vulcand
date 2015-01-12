@@ -49,7 +49,7 @@ func NewListenerCommand(cmd *Command) cli.Command {
 }
 
 func (cmd *Command) upsertListenerAction(c *cli.Context) {
-	var settings interface{}
+	var settings *engine.HTTPSListenerSettings
 	if c.String("proto") == engine.HTTPS {
 		s, err := getTLSSettings(c)
 		if err != nil {

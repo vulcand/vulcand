@@ -76,7 +76,7 @@ type Listener struct {
 	// Scope is optional expression that limits the operational scope of this listener
 	Scope string
 	// Settings provides listener-type specific settings, e.g. TLS settings for HTTPS listener
-	Settings interface{} `json:",omitempty"`
+	Settings *HTTPSListenerSettings `json:",omitempty"`
 }
 
 func (l *Listener) TLSConfig() (*tls.Config, error) {
@@ -86,11 +86,7 @@ func (l *Listener) TLSConfig() (*tls.Config, error) {
 	if l.Settings == nil {
 		return NewTLSConfig(&TLSSettings{})
 	}
-	t, ok := l.Settings.(*HTTPSListenerSettings)
-	if !ok {
-		return nil, fmt.Errorf("expected *HTTPSListenerSettings, got %T", l.Settings)
-	}
-	return NewTLSConfig(&t.TLS)
+	return NewTLSConfig(&l.Settings.TLS)
 }
 
 func (l *Listener) String() string {
@@ -105,14 +101,7 @@ func (l *Listener) SettingsEquals(o *Listener) bool {
 	if l.Settings == nil && o.Settings == nil {
 		return true
 	}
-	ls, ok := l.Settings.(*HTTPSListenerSettings)
-	if !ok {
-		return false
-	}
-	os, ok := o.Settings.(*HTTPSListenerSettings)
-	if !ok {
-		return false
-	}
+	ls, os := l.Settings, o.Settings
 	if (ls == nil && os != nil) || (ls != nil && os == nil) {
 		return false
 	}
@@ -250,7 +239,7 @@ func NewAddress(network, address string) (*Address, error) {
 	return &Address{Network: network, Address: address}, nil
 }
 
-func NewListener(id, protocol, network, address, scope string, settings interface{}) (*Listener, error) {
+func NewListener(id, protocol, network, address, scope string, settings *HTTPSListenerSettings) (*Listener, error) {
 	protocol = strings.ToLower(protocol)
 	if protocol != HTTP && protocol != HTTPS {
 		return nil, fmt.Errorf("unsupported protocol '%s', supported protocols are http and https", protocol)

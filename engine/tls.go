@@ -25,7 +25,16 @@ type TLSSettings struct {
 	// SessionCache specifies TLS session cache, default it 'LRU' with capacity 1024
 	SessionCache TLSSessionCache
 
-	// Preferred CipherSuites, default is
+	// Preferred CipherSuites, default is:
+	//
+	// TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+	// TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+	// TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA
+	// TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+	// TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
+	// TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA
+	// TLS_RSA_WITH_AES_256_CBC_SHA
+	// TLS_RSA_WITH_AES_128_CBC_SHA
 	CipherSuites []string
 }
 
@@ -113,7 +122,7 @@ func NewTLSSessionCache(s *TLSSessionCache) (tls.ClientSessionCache, error) {
 	if cacheType == "" {
 		cacheType = LRUCacheType
 	}
-	if cacheType != "LRU" {
+	if cacheType != LRUCacheType {
 		return nil, fmt.Errorf("unsupported session cache type: %v", s.Type)
 	}
 	var capacity int

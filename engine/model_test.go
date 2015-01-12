@@ -246,6 +246,12 @@ func (s *BackendSuite) TestListenerSettingsEq(c *C) {
 			e: true,
 			c: "different https",
 		},
+		{
+			a: Listener{Settings: &HTTPSListenerSettings{TLS: TLSSettings{SessionTicketsDisabled: true}}},
+			b: Listener{Settings: &HTTPSListenerSettings{TLS: TLSSettings{}}},
+			e: false,
+			c: "session tickets",
+		},
 	}
 	for _, o := range options {
 		c.Assert((&o.a).SettingsEquals(&o.b), Equals, o.e, Commentf("TC: %v", o.c))
@@ -414,16 +420,20 @@ func (s *BackendSuite) TestNewTLSSettings(c *C) {
 				CipherSuites: []string{
 					"TLS_RSA_WITH_RC4_128_SHA",
 					"TLS_RSA_WITH_3DES_EDE_CBC_SHA",
+
 					"TLS_ECDHE_ECDSA_WITH_RC4_128_SHA",
 					"TLS_ECDHE_RSA_WITH_RC4_128_SHA",
 					"TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA",
 
 					"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
 					"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+
 					"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
 					"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+
 					"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
 					"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+
 					"TLS_RSA_WITH_AES_256_CBC_SHA",
 					"TLS_RSA_WITH_AES_128_CBC_SHA",
 				},
@@ -446,6 +456,7 @@ func (s *BackendSuite) TestNewTLSSettings(c *C) {
 				CipherSuites: []uint16{
 					tls.TLS_RSA_WITH_RC4_128_SHA,
 					tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+
 					tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
 					tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
 					tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
@@ -464,6 +475,8 @@ func (s *BackendSuite) TestNewTLSSettings(c *C) {
 				},
 
 				InsecureSkipVerify: false,
+
+				ClientSessionCache: tls.NewLRUClientSessionCache(12),
 			},
 		},
 		{

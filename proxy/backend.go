@@ -69,7 +69,6 @@ func (b *backend) updateSettings(be engine.Backend) error {
 		return err
 	}
 	t := newTransport(s)
-
 	b.transport.CloseIdleConnections()
 	b.transport = t
 	for _, f := range b.frontends {
