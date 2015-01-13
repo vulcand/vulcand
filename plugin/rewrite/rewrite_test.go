@@ -233,6 +233,8 @@ func (s *RewriteSuite) TestUnknownVar(c *C) {
 	c.Assert(re.StatusCode, Equals, http.StatusInternalServerError)
 }
 
+/*
+// What real-world scenario does this test?
 func (s *RewriteSuite) TestRewriteScheme(c *C) {
 	var outURL string
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -253,13 +255,14 @@ func (s *RewriteSuite) TestRewriteScheme(c *C) {
 	c.Assert(re.StatusCode, Equals, http.StatusOK)
 	c.Assert(outURL, Equals, "http://localhost/foo/bar")
 }
+*/
 
 func (s *RewriteSuite) TestRedirect(c *C) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("hello"))
 	})
 
-	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/(foo)/(bar)", "http://localhost/$2", false, true})
+	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/(foo)/(bar)", "https://localhost/$2", false, true})
 	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
@@ -268,7 +271,7 @@ func (s *RewriteSuite) TestRedirect(c *C) {
 
 	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
 	c.Assert(re.StatusCode, Equals, http.StatusFound)
-	c.Assert(re.Header.Get("Location"), Equals, "http://localhost/bar")
+	c.Assert(re.Header.Get("Location"), Equals, "https://localhost/bar")
 }
 
 func (s *RewriteSuite) TestRewriteResponseBody(c *C) {
