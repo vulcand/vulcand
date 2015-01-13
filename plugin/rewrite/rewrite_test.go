@@ -1,11 +1,6 @@
 package rewrite
 
 import (
-	/*	"io"
-		"io/ioutil"
-
-		"strings"
-	*/
 	"net/http"
 	"net/http/httptest"
 	"regexp"

@@ -7,6 +7,7 @@ import (
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 	"github.com/mailgun/vulcand/plugin/rewrite"
+	"github.com/mailgun/vulcand/plugin/trace"
 )
 
 func GetRegistry() *plugin.Registry {
@@ -25,6 +26,10 @@ func GetRegistry() *plugin.Registry {
 	}
 
 	if err := r.AddSpec(cbreaker.GetSpec()); err != nil {
+		panic(err)
+	}
+
+	if err := r.AddSpec(trace.GetSpec()); err != nil {
 		panic(err)
 	}
 

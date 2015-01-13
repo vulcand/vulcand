@@ -285,8 +285,6 @@ func (s *Streamer) copyRequest(req *http.Request, body io.ReadCloser, bodySize i
 	o.TransferEncoding = []string{}
 	// http.Transport will close the request body on any error, we are controlling the close process ourselves, so we override the closer here
 	o.Body = ioutil.NopCloser(body)
-	// Preserve TLS state if it's present
-	o.TLS = req.TLS
 	return &o
 }
 
