@@ -81,7 +81,7 @@ func (rw *rewriteHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if rw.redirect {
+	if rw.redirect && newURL != oldURL {
 		(&redirectHandler{u: parsedURL}).ServeHTTP(w, req)
 		return
 	}
@@ -149,8 +149,8 @@ func CliFlags() []cli.Flag {
 
 func rawURL(request *http.Request) string {
 	scheme := "http"
-	if request.URL.Scheme != "" {
-		scheme = request.URL.Scheme
+	if request.TLS != nil {
+		scheme = "https"
 	}
 	return strings.Join([]string{scheme, "://", request.Host, request.RequestURI}, "")
 }
