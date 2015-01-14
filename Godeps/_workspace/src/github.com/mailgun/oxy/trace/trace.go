@@ -35,7 +35,7 @@ func RequestHeaders(headers ...string) Option {
 // ResponseHeaders adds response headers to capture
 func ResponseHeaders(headers ...string) Option {
 	return func(t *Tracer) error {
-		t.respHeaders = append(t.reqHeaders, headers...)
+		t.respHeaders = append(t.respHeaders, headers...)
 		return nil
 	}
 }
