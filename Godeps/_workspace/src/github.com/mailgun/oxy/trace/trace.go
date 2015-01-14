@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
@@ -91,20 +92,21 @@ func (t *Tracer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (t *Tracer) newRecord(req *http.Request, pw *utils.ProxyWriter, diff time.Duration) *Record {
-	r := &Record{
+	return &Record{
 		Request: Request{
-			Method:  req.Method,
-			URL:     req.URL.String(),
-			TLS:     newTLS(req),
-			Headers: captureHeaders(req.Header, t.reqHeaders),
+			Method:    req.Method,
+			URL:       req.URL.String(),
+			TLS:       newTLS(req),
+			BodyBytes: bodyBytes(req.Header),
+			Headers:   captureHeaders(req.Header, t.reqHeaders),
 		},
 		Response: Response{
 			Code:      pw.StatusCode(),
+			BodyBytes: bodyBytes(pw.Header()),
 			Roundtrip: float64(diff) / float64(time.Millisecond),
 			Headers:   captureHeaders(pw.Header(), t.respHeaders),
 		},
 	}
-	return r
 }
 
 func newTLS(req *http.Request) *TLS {
@@ -144,10 +146,11 @@ type Record struct {
 
 // Req contains information about an HTTP request
 type Request struct {
-	Method  string      `json:"method"`            // Method - request method
-	URL     string      `json:"url"`               // URL - Request URL
-	Headers http.Header `json:"headers,omitempty"` // Headers - optional request headers, will be recorded if configured
-	TLS     *TLS        `json:"tls,omitempty"`     // TLS - optional TLS record, will be recorded if it's a TLS connection
+	Method    string      `json:"method"`            // Method - request method
+	BodyBytes int64       `json:"body_bytes"`        // BodyBytes - size of request body in bytes
+	URL       string      `json:"url"`               // URL - Request URL
+	Headers   http.Header `json:"headers,omitempty"` // Headers - optional request headers, will be recorded if configured
+	TLS       *TLS        `json:"tls,omitempty"`     // TLS - optional TLS record, will be recorded if it's a TLS connection
 }
 
 // Resp contains information about HTTP response
@@ -155,6 +158,7 @@ type Response struct {
 	Code      int         `json:"code"`              // Code - response status code
 	Roundtrip float64     `json:"roundtrip"`         // Roundtrip - round trip time in milliseconds
 	Headers   http.Header `json:"headers,omitempty"` // Headers - optional headers, will be recorded if configured
+	BodyBytes int64       `json:"body_bytes"`        // BodyBytes - size of response body in bytes
 }
 
 // TLS contains information about this TLS connection
@@ -209,4 +213,16 @@ func csToString(cs uint16) string {
 		return "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
 	}
 	return fmt.Sprintf("unknown: %x", cs)
+}
+
+func bodyBytes(h http.Header) int64 {
+	len := h.Get("Content-Length")
+	if len == "" {
+		return 0
+	}
+	bytes, err := strconv.ParseInt(len, 10, 0)
+	if err == nil {
+		return bytes
+	}
+	return 0
 }

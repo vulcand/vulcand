@@ -24,6 +24,7 @@ var _ = Suite(&TraceSuite{})
 
 func (s *TraceSuite) TestTraceSimple(c *C) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Length", "5")
 		w.Write([]byte("hello"))
 	})
 	buf := &bytes.Buffer{}
@@ -37,17 +38,19 @@ func (s *TraceSuite) TestTraceSimple(c *C) {
 	srv := httptest.NewServer(t)
 	defer srv.Close()
 
-	re, _, err := testutils.Get(srv.URL + "/hello")
+	re, _, err := testutils.MakeRequest(srv.URL+"/hello", testutils.Method("POST"), testutils.Body("123456"))
 	c.Assert(err, IsNil)
 	c.Assert(re.StatusCode, Equals, http.StatusOK)
 
 	var r *Record
 	c.Assert(json.Unmarshal(trace.Bytes(), &r), IsNil)
 
-	c.Assert(r.Request.Method, Equals, "GET")
+	c.Assert(r.Request.Method, Equals, "POST")
 	c.Assert(r.Request.URL, Equals, "/hello")
 	c.Assert(r.Response.Code, Equals, http.StatusOK)
+	c.Assert(r.Request.BodyBytes, Equals, int64(6))
 	c.Assert(r.Response.Roundtrip, Not(Equals), float64(0))
+	c.Assert(r.Response.BodyBytes, Equals, int64(5))
 }
 
 func (s *TraceSuite) TestTraceCaptureHeaders(c *C) {
@@ -116,7 +119,6 @@ func (s *TraceSuite) TestTraceTLS(c *C) {
 	conn.Close()
 
 	var r *Record
-	fmt.Printf("%v", string(trace.Bytes()))
 	c.Assert(json.Unmarshal(trace.Bytes(), &r), IsNil)
 	c.Assert(r.Request.TLS.Version, Equals, versionToString(state.Version))
 }
