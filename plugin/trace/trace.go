@@ -151,7 +151,7 @@ func sevToString(sev string) (pr syslog.Priority, err error) {
 	case "DEBUG", "":
 		pr |= syslog.LOG_DEBUG
 	default:
-		return pr, fmt.Errorf("uknown severity: %v", sev)
+		return 0, fmt.Errorf("uknown severity: %v", sev)
 	}
 	return pr, nil
 }
