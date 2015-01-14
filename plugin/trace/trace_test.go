@@ -68,7 +68,7 @@ func (s *TraceSuite) TestBadAddr(c *C) {
 }
 
 func (s *TraceSuite) TestHandler(c *C) {
-	c.Assert(os.Remove("/tmp/vulcand_trace_test.sock"), IsNil)
+	os.Remove("/tmp/vulcand_trace_test.sock")
 	unixAddr, err := net.ResolveUnixAddr("unixgram", "/tmp/vulcand_trace_test.sock")
 	c.Assert(err, IsNil)
 	conn, err := net.ListenUnixgram("unixgram", unixAddr)
