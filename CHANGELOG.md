@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-beta.1 (2015-01-14)
+
+### Bugfixes
+
+* Rewrite plugin should be able to rewrite HTTP to HTTPS https://github.com/mailgun/vulcand/issues/120
+
+### Features
+
+* OCSP support for cert revocation checking
+* Expose TLS settings for listeners and backends
+* Add trace plugin for structured logging of HTTP requests
+
 ## 0.8.0-alpha.3 (2014-12-31)
 
 ### Bugfixes
