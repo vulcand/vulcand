@@ -3,6 +3,7 @@ package rewrite
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"testing"
 
@@ -228,10 +229,11 @@ func (s *RewriteSuite) TestUnknownVar(c *C) {
 	c.Assert(re.StatusCode, Equals, http.StatusInternalServerError)
 }
 
+// What real-world scenario does this test?
 func (s *RewriteSuite) TestRewriteScheme(c *C) {
-	var outURL string
+	var outURL *url.URL
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		outURL = rawURL(req)
+		outURL = req.URL
 		w.Write([]byte("hello"))
 	})
 
@@ -246,7 +248,9 @@ func (s *RewriteSuite) TestRewriteScheme(c *C) {
 	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
 	c.Assert(err, IsNil)
 	c.Assert(re.StatusCode, Equals, http.StatusOK)
-	c.Assert(outURL, Equals, "http://localhost/foo/bar")
+	c.Assert(outURL.Scheme, Equals, "http")
+	c.Assert(outURL.Path, Equals, "/foo/bar")
+	c.Assert(outURL.Host, Equals, "localhost")
 }
 
 func (s *RewriteSuite) TestRedirect(c *C) {
@@ -254,7 +258,7 @@ func (s *RewriteSuite) TestRedirect(c *C) {
 		w.Write([]byte("hello"))
 	})
 
-	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/(foo)/(bar)", "http://localhost/$2", false, true})
+	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/(foo)/(bar)", "https://localhost/$2", false, true})
 	c.Assert(rh, NotNil)
 	c.Assert(err, IsNil)
 
@@ -263,7 +267,7 @@ func (s *RewriteSuite) TestRedirect(c *C) {
 
 	re, _, err := testutils.Get(srv.URL+"/foo/bar", testutils.Host("localhost"))
 	c.Assert(re.StatusCode, Equals, http.StatusFound)
-	c.Assert(re.Header.Get("Location"), Equals, "http://localhost/bar")
+	c.Assert(re.Header.Get("Location"), Equals, "https://localhost/bar")
 }
 
 func (s *RewriteSuite) TestRewriteResponseBody(c *C) {
