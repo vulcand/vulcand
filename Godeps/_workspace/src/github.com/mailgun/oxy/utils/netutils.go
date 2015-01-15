@@ -6,9 +6,21 @@ import (
 	"net/url"
 )
 
+// ProxyWriter helps to capture response headers and status code
+// from the ServeHTTP. It can be safely passed to ServeHTTP handler,
+// wrapping the real response writer.
 type ProxyWriter struct {
 	W    http.ResponseWriter
 	Code int
+}
+
+func (p *ProxyWriter) StatusCode() int {
+	if p.Code == 0 {
+		// per contract standard lib will set this to http.StatusOK if not set
+		// by user, here we avoid the confusion by mirroring this logic
+		return http.StatusOK
+	}
+	return p.Code
 }
 
 func (p *ProxyWriter) Header() http.Header {

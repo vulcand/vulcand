@@ -100,11 +100,10 @@ func MakeRequest(url string, opts ...ReqOption) (*http.Response, []byte, error) 
 		}
 	}
 
-	method := "GET"
 	if o.Method == "" {
 		o.Method = "GET"
 	}
-	request, _ := http.NewRequest(method, url, strings.NewReader(o.Body))
+	request, _ := http.NewRequest(o.Method, url, strings.NewReader(o.Body))
 	if o.Headers != nil {
 		utils.CopyHeaders(request.Header, o.Headers)
 	}

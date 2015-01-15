@@ -112,6 +112,7 @@ func builtinPackages() []Package {
 		"github.com/mailgun/vulcand/plugin/ratelimit",
 		"github.com/mailgun/vulcand/plugin/rewrite",
 		"github.com/mailgun/vulcand/plugin/cbreaker",
+		"github.com/mailgun/vulcand/plugin/trace",
 	}
 }
 

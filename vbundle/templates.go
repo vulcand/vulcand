@@ -36,11 +36,17 @@ import (
 func GetRegistry() (*plugin.Registry, error) {
 	r := plugin.NewRegistry()
 
-	{{range .Packages}}
-	if err := r.AddSpec({{.Name}}.GetSpec()); err != nil {
-		return nil, err
+	specs := []*plugin.MiddlewareSpec{
+		{{range .Packages}}
+		{{.Name}}.GetSpec(),
+       {{end}}
 	}
-	{{end}}
+
+	for _, spec := range specs {
+		if err := r.AddSpec(spec); err != nil {
+			return nil, err
+		}
+	}
 	return r, nil
 }
 `

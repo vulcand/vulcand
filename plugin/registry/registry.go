@@ -7,25 +7,24 @@ import (
 	"github.com/mailgun/vulcand/plugin/connlimit"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 	"github.com/mailgun/vulcand/plugin/rewrite"
+	"github.com/mailgun/vulcand/plugin/trace"
 )
 
 func GetRegistry() *plugin.Registry {
 	r := plugin.NewRegistry()
 
-	if err := r.AddSpec(ratelimit.GetSpec()); err != nil {
-		panic(err)
+	specs := []*plugin.MiddlewareSpec{
+		ratelimit.GetSpec(),
+		connlimit.GetSpec(),
+		rewrite.GetSpec(),
+		cbreaker.GetSpec(),
+		trace.GetSpec(),
 	}
 
-	if err := r.AddSpec(connlimit.GetSpec()); err != nil {
-		panic(err)
-	}
-
-	if err := r.AddSpec(rewrite.GetSpec()); err != nil {
-		panic(err)
-	}
-
-	if err := r.AddSpec(cbreaker.GetSpec()); err != nil {
-		panic(err)
+	for _, spec := range specs {
+		if err := r.AddSpec(spec); err != nil {
+			panic(err)
+		}
 	}
 
 	return r
