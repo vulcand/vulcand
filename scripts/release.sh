@@ -49,6 +49,7 @@ function package {
 	done
 
 	cp ${PROJ_DIR}/README.md ${target}/README.md
+    cp ${PROJ_DIR}/CHANGELOG.md ${target}/CHANGELOG.md
 }
 
 function main {
