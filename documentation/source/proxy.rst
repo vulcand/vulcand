@@ -310,6 +310,14 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 .. note:: When setting keypair via Etcd you need to encrypt keypair. This is explained in `TLS`_ section of this document.
 
 
+**OCSP**
+
+`Onile Certificate Status Protocol <http://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol>`_ is a protocol for certificate revocation checking. Vulcand checks OCSP status in the background and 
+includes the OCSP staple response in the TLS handshake when this feature turned on.
+
+Read more about turning OCSP for hosts in `OCSP`_ section of this document.
+
+
 
 Routing Language
 ~~~~~~~~~~~~~~~~
@@ -511,8 +519,14 @@ Adding and removing middlewares will modify the frontend behavior in real time. 
 
  # Update or set rate limit the request to frontend "f1" to 1 request per second per client ip 
  # with bursts up to 3 requests per second.
- etcdctl set /vulcand/frontends/f1/middlewares/rl1\
-        '{"Priority": 0, "Type": "ratelimit", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}'
+ etcdctl set /vulcand/frontends/f1/middlewares/rl1 '{
+    "Priority": 0, 
+    "Type": "ratelimit", 
+    "Middleware":{
+        "Requests":1, 
+        "PeriodSeconds":1, 
+        "Burst":3, 
+        "Variable": "client.ip"}}'
 
 
 .. code-block:: cli
@@ -526,7 +540,74 @@ Adding and removing middlewares will modify the frontend behavior in real time. 
  # Update or set rate limit the request to frontend "f1" to 1 request per second per client ip 
  # with bursts up to 3 requests per second.
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
-      -d '{"Middleware": {"Priority": 0, "Type": "ratelimit", "Id": "rl1", "Middleware":{"Requests":1, "PeriodSeconds":1, "Burst":3, "Variable": "client.ip"}}}'
+      -d '{"Middleware": {
+        "Priority": 0, 
+        "Type": "ratelimit",
+        "Id": "rl1",
+        "Middleware":{
+            "Requests":1, 
+            "PeriodSeconds":1, 
+            "Burst":3, 
+            "Variable": "client.ip"}}}'
+
+
+**Programmatic rate limits**
+
+Sometimes you have to change rate limits based on various parameters, e.g. account billing plan. Instead of setting hard-coded rate limits, Vulcand can accept rate limits
+set via headers for each individual request. 
+
+Each HTTP header should contain a JSON-encoded list with rates in the following format:
+
+.. code-block:: json
+
+  [{"PeriodSeconds": 1, "Requests": 2, "Burst": 3}]
+
+
+That means that you should write a middleware that sets the header to the right value and place it before the ratelimit middleware. 
+
+After it's done you can activate the ratelimit plugin:
+
+.. code-block:: etcd
+
+ # Update or set rate limit the request to frontend "f1" to get the rates from the X-Custom-Rates.
+ # in case if the header is missing, ratelimit will default to 1 request per second per client ip  
+ # with bursts up to 3 requests per second.
+ etcdctl set /vulcand/frontends/f1/middlewares/rl1 '{
+    "Id":"rl1",
+    "Priority":0,
+    "Type":"ratelimit",
+    "Middleware":{
+       "PeriodSeconds":1,
+       "Requests":1,
+       "Burst":3,
+       "Variable":"client.ip",
+       "RateVar":"request.header.X-Custom-Rates"}}'
+
+
+.. code-block:: cli
+
+ # Update or set rate limit the request to frontend "f1" to get the rates from the X-Custom-Rates.
+ # in case if the header is missing, ratelimit will default to 1 request per second per client ip  
+ # with bursts up to 3 requests per second.
+ vctl ratelimit upsert -id=rl1 -frontend=f1 -requests=1 -burst=3 -period=1 --priority=0 --rateVar="request.header.X-Custom-Rates"
+
+.. code-block:: api
+
+ # Update or set rate limit the request to frontend "f1" to get the rates from the X-Custom-Rates.
+ # in case if the header is missing, ratelimit will default to 1 request per second per client ip  
+ # with bursts up to 3 requests per second.
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares -d '{
+    "Middleware": {
+        "Id":"rl1",
+        "Priority":0,
+        "Type":"ratelimit",
+        "Middleware":{
+           "PeriodSeconds":1,
+           "Requests":1,
+           "Burst":3,
+           "Variable":"client.ip",
+           "RateVar":"request.header.X-Custom-Rates"}}}'
+
 
 
 Connection Limits
@@ -552,6 +633,236 @@ Connection limits control the amount of simultaneous connections per frontend. F
  # limit the amount of connections per frontend to 16 per client ip
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
       -d '{"Middleware": {"Id": "cl1", "Priority": 0, "Type": "connlimit", "Middleware":{"Connections":16, "Variable": "client.ip"}}}'
+
+
+Rewrites and redirects
+~~~~~~~~~~~~~~~~~~~~~~
+
+Rewrite plugin enables rewriting request URLs, returning redirect responses and changing response bodies.
+
+**Rewrites**
+
+.. code-block:: etcd
+
+ # remove /foo prefix from the url
+ etcdctl set /vulcand/frontends/f1/middlewares/r1 '{
+    "Id":"r1",
+    "Priority":1,
+    "Type":"rewrite",
+    "Middleware":{
+       "Regexp":"/foo(.*)",
+       "Replacement":"$1",
+       "RewriteBody":false,
+       "Redirect":false}}'
+
+
+.. code-block:: cli
+
+ # remove /foo prefix from the url, note the single quotes for '$1'
+ vctl rewrite upsert -f f1 -id r1 --regexp="/foo(.*)" --replacement='$1'
+
+
+.. code-block:: api
+
+ # remove /foo prefix from the url
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
+      -d '{"Middleware": {
+          "Id":"r1",
+          "Priority":1,
+          "Type":"rewrite",
+          "Middleware":{
+             "Regexp":"/foo(.*)",
+             "Replacement":"$1",
+             "RewriteBody":false,
+             "Redirect":false}}}'
+
+
+**Redirects**
+
+Setting a ``redirect`` parameter to rewrite will make it to generate ``302 Found`` response with ``Location`` header
+set to the new URL:
+
+
+.. code-block:: etcd
+
+ # remove /foo prefix from the url
+ etcdctl set /vulcand/frontends/f1/middlewares/r1 '{
+    "Id":"r1",
+    "Priority":1,
+    "Type":"rewrite",
+    "Middleware":{
+       "Regexp":"^http://localhost/(.*)",
+       "Replacement":"https://localhost/$1",
+       "RewriteBody":false,
+       "Redirect":true}}'
+
+
+.. code-block:: cli
+
+ # redirect http requests to https location
+ vctl rewrite upsert -f f1 -id r1 --regexp="^http://localhost/(.*)" --replacement='https://localhost/$1' --redirect
+
+.. code-block:: api
+
+ # remove /foo prefix from the url
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
+      -d '{"Middleware": {
+          "Id":"r1",
+          "Priority":1,
+          "Type":"rewrite",
+          "Middleware":{
+             "Regexp":"^http://localhost/(.*)",
+             "Replacement":"https://localhost/$1",
+             "RewriteBody":false,
+             "Redirect":true}}}'
+
+**Templating**
+
+Rewrite can treat the response body as a template. Consider the following example:
+
+.. code-block:: etcd
+
+ # treat response body as a template
+ etcdctl set /vulcand/frontends/f1/middlewares/r1 '{
+    "Id":"r1",
+    "Priority":1,
+    "Type":"rewrite",
+    "Middleware":{"RewriteBody":true}}'
+
+
+.. code-block:: cli
+
+ # treat response body as a template
+ vctl rewrite upsert -f f1 -id r1 --rewriteBody
+
+.. code-block:: api
+
+ # treat response body as a template
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares\
+      -d '{"Middleware": {
+          "Id":"r1",
+          "Priority":1,
+          "Type":"rewrite",
+          "Middleware":{"RewriteBody":true}}}'
+
+
+The backend server can now reply:
+
+.. code-block:: go
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte(`{"foo": "{{.Request.Header.Get "variable-value"}}"}`))
+	})
+
+And the client will get as a response:
+
+.. code-block:: go
+
+   {"foo": "variable-value"}
+
+
+
+Structured logs
+~~~~~~~~~~~~~~~
+
+.. warning:: We are still polishing the log format, so it may change soon.
+
+``trace`` plugin supports output in syslog-compatible format of the structured logs to UDP or Unix socket.
+
+Here's the example of the log entry:
+
+.. code-block:: bash
+
+ Jan 13 15:07:51 vulcan @json:[3634]: {"request":{"method":"GET","url":"http://h:5000"},"response":{"code":404,"roundtrip":0.333712}}
+
+The prefix is a standard syslog prefix, and the part after ``[3634]:`` is a structured log entry. Here's the entry format explained:
+
+
+.. code-block:: js
+
+ {
+  "request": {
+    "method": "GET",                   // request method
+    "url": "http://localhost:5000",    // request URL
+    "headers": {                       // optional captured request headers
+      "User-Agent": [                  // captured request User-Agent header values
+        "curl\/7.35.0"
+      ]
+    },
+    "tls": {                           // tls is an optonal field, used when it's a TLS connection
+      "version": "TLS12",              // TLS version used
+      "resume": false,                 // whether it's a session resumed with session ticket
+      "cipher_suite": "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", // cipher used in a connection
+      "server": "vulcand.io"           // server name used in SNI
+    }
+  },
+  "response": {
+    "code": 404,                     // response code
+    "roundtrip": 0.408372,           // roundtrip in milliseconds, part after '.' is microseconds
+    "headers": {                     // optional captured response headers
+      "Content-Type": [
+        "text\/plain; charset=utf-8" // captured response Content-Type header values
+      ]
+    }
+  }
+ }
+
+Adding and removing trace middleware will turn on/off tracing in real time.
+
+.. code-block:: etcd
+
+ # turn tracing on, pointing output to unix syslog facility.
+ # capture request header values 'X-A' and 'X-B' and response headers 'X-C' and 'X-D'
+ etcdctl set /vulcand/frontends/f1/middlewares/t1 '{
+   "Id":"t1",
+   "Priority":1,
+   "Type":"trace",
+   "Middleware":{
+     "ReqHeaders":["X-A","X-B"],
+     "RespHeaders":["X-C","X-D"],
+     "Addr":"syslog://"}}'
+
+.. code-block:: cli
+
+ # turn tracing on, pointing output to unix syslog facility.
+ # capture request header values 'X-A' and 'X-B' and response headers 'X-C' and 'X-D'
+ vctl trace upsert -f f1 -id t1 --addr='syslog://'\
+    --reqHeader=X-A --reqHeader=X-B --respHeader=X-C --respHeader=X-D
+
+.. code-block:: api
+
+ # turn tracing on, pointing output to unix syslog facility.
+ # capture request header values 'X-A' and 'X-B' and response headers 'X-C' and 'X-D'
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/frontends/f1/middlewares -d '{
+   "Middleware": {
+   "Id":"t1",
+   "Priority":1,
+   "Type":"trace",
+   "Middleware":{
+     "ReqHeaders":["X-A","X-B"],
+     "RespHeaders":["X-C","X-D"],
+     "Addr":"syslog://"}}}'
+
+**Controlling output**
+
+You can control output using the following form of address values:
+
+.. code-block:: bash
+
+  # UDP socket formats
+  syslog://localhost:5000                        # host localhost, port 5000, LOG_LOCAL0 facility
+  syslog://localhost:5000?f=MAIL&sev=INFO        # host localhost, port 5000, MAIL facility, INFO severity
+  syslog://localhost:5000?f=MAIL                 # host localhost, port 5000, MAIL facility, INFO severity
+  syslog://localhost:5000?f=LOG_LOCAL0&sev=DEBUG # host localhost, port 5000, LOG_LOCAL0 facility, INFO severity
+
+  # unixgram  socket format
+  syslog:///tmp/out.sock            # /tmp/out.sock unixgram socket
+  syslog:///tmp/out.sock?f=MAIL     # /tmp/out.sock unixgram socket
+
+  # default syslog
+  syslog://                        # default OS-specific unix/unixgram socket
+  syslog://?f=LOG_LOCAL0&sev=INFO  # default OS-specific unix/unixgram socket
 
 
 
@@ -695,7 +1006,10 @@ Circuit breaker setup is can be done via Etcd, command line or API:
               "Type":"cbreaker",
               "Middleware":{
                  "Condition":"NetworkErrorRatio() > 0.5",
-                 "Fallback":"{\"Type\": \"response\", \"Action\": {\"StatusCode\": 400, \"Body\": \"Come back later\"}}",
+                 "Fallback":{
+                    "Type": "response", 
+                    "Action": {"StatusCode": 400, "Body": "Come back later"}
+                 },
                  "FallbackDuration": 10000000000,
                  "RecoveryDuration": 10000000000,
                  "CheckPeriod": 100000000
@@ -761,6 +1075,212 @@ Setting certificate via etcd is slightly different from CLI and API:
 .. note::  To update the certificate in the live mode just repeat the steps with the new certificate, vulcand will gracefully reload the TLS config for running server
 
 
+OCSP
+~~~~
+
+`Online Certificate Status Protocol <http://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol>`_ is a protocol for certificate revocation checking. Vulcand checks OCSP status in the background and 
+includes the OCSP staple response in the TLS handshake when this feature turned on. 
+By default it is turned off, mostly because it provides `questionable benefits <https://www.imperialviolet.org/2014/04/19/revchecking.html>`_.
+
+.. code-block:: etcd
+
+ # Set keypair and OCSP settings
+ etcdctl set /vulcand/hosts/localhost/host '{"Settings": 
+     {"KeyPair": {...}, "OCSP":{"Enabled":true,"Period":"1h0m0s","Responders":[],"SkipSignatureCheck":false}}}'
+
+.. code-block:: cli
+
+ # set keypair and OCSP settings
+ # --ocsp               // turn OCSP on
+ # --ocspSkipCheck      // insecure: skip OCSP signature check
+ # --ocspPeriod='1h'    //  override OCSP check period defined in the certificate, use '1h','30m' as time periods
+ # --ocspResponder      //   optional OCSP responder, use multiple args for responder list
+ vctl host upsert -name example.com -cert=</path-to/chain.crt> -privateKey=</path-to/key>\
+   --ocsp
+   --ocspSkipCheck
+   --ocspPeriod='1h'
+   --ocspResponder="http://example.com/respond"
+
+.. code-block:: api
+
+ #set keypair and OCSP settings
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/hosts\
+      -d '{"Host": { 
+             "Name": "localhost", 
+             "Settings": {
+                "KeyPair": {"Cert": "base64", Key: "base64"}, 
+                 "OCSP":{
+                     "Enabled":true,
+                     "Period":"1h0m0s",
+                     "Responders":[],
+                     "SkipSignatureCheck":false}}}}}'
+
+
+SNI
+~~~
+
+Not all clients support SNI, or sometimes host name is not available. In this case you can set the ``default`` certificate that will be returned in case if the SNI is not available:
+
+.. code-block:: etcd
+
+ # Set example.com as default host returned in case if SNI is not available
+ etcdctl set /vulcand/hosts/example.com/host '{"Settings": {"Default": true, "KeyPair": {...}}}'
+
+
+Session Tickets
+~~~~~~~~~~~~~~~
+`Session tickets <http://en.wikipedia.org/wiki/Transport_Layer_Security#Session_tickets>`_ is a way to resume TLS connection, saving time on a TLS handshake. 
+Vulcand supports in-memory session tickets cache for HTTPS listeners and backend pools. Session tickets are enabled by default
+
+.. code-block:: etcd
+
+ # Add http listener accepting requests on 127.0.0.1:9443, uses session ticket LRU cache of 1024
+ etcdctl set /vulcand/listeners/ls1\
+            '{"Id":"ls1","Protocol":"https","Address":{"Network":"tcp","Address":"127.0.0.1:9443"},
+              "Settings":{
+                "TLS":{
+                  "SessionTicketsDisabled":false,
+                  "SessionCache":{"Type":"LRU","Settings":{"Capacity":1024}}}}}'
+
+.. code-block:: cli
+
+ # Add http listener accepting requests on 127.0.0.1:9443, uses session ticket LRU cache of 1024
+ vctl listener upsert --id ls1 --proto=https --net=tcp -addr=127.0.0.1:9443\
+      -tlsSessionCache=LRU -tlsSessionCacheCapacity=1024
+   
+
+
+.. code-block:: api
+
+ # Add http listener accepting requests on 127.0.0.1:443, uses session ticket LRU cache of 1024
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
+      -d '{"Listener": 
+             {"Id": "ls1", "Protocol":"https", 
+              "Address":{"Network":"tcp", "Address":"127.0.0.1:443"},
+              "Settings":{
+                 "TLS":{
+                    "SessionTicketsDisabled":false,
+                     "SessionCache":{"Type":"LRU","Settings":{"Capacity":1024}}}}}}'
+
+
+
+Cipher Suites
+~~~~~~~~~~~~~
+
+Vulcand supports cipher suites currently implemented in `go crypto/tls standard lib <http://golang.org/pkg/crypto/tls>`_:
+
+.. code-block:: bash
+
+  TLS_RSA_WITH_RC4_128_SHA
+  TLS_RSA_WITH_3DES_EDE_CBC_SHA
+  TLS_RSA_WITH_AES_128_CBC_SHA
+  TLS_RSA_WITH_AES_256_CBC_SHA
+  TLS_ECDHE_ECDSA_WITH_RC4_128_SHA
+  TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA
+  TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
+  TLS_ECDHE_RSA_WITH_RC4_128_SHA
+  TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
+  TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+  TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA
+  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+
+By default, the following cipher suites are selected, in the order of preference:
+
+.. code-block:: bash
+
+  TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA
+  TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+  TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
+  TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA
+  TLS_RSA_WITH_AES_256_CBC_SHA
+  TLS_RSA_WITH_AES_128_CBC_SHA
+
+
+Here's an example of how to configure cipher suites for HTTPS listener
+
+.. code-block:: etcd
+
+ # Add http listener accepting requests on 127.0.0.1:9443, uses session ticket LRU cache of 1024
+ etcdctl set /vulcand/listeners/ls1\
+            '{"Id":"ls1","Protocol":"https","Address":{"Network":"tcp","Address":"127.0.0.1:9443"},
+              "Settings":{
+                "TLS":{
+                  "CipherSuites":[
+                     "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+                     "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"]}}}'
+
+.. code-block:: cli
+
+ # Add http listener accepting requests on 127.0.0.1:443 with customized cipher suite list
+ vctl listener upsert --id ls1 --proto=https --net=tcp -addr=127.0.0.1:9443\
+       --tlsCS=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 --tlsCS=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+ 
+
+.. code-block:: api
+
+ # Add http listener accepting requests on 127.0.0.1:443, uses session ticket LRU cache of 1024
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
+      -d '{"Listener": {"Id": "ls1", "Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:9443"},
+           "Settings":{
+                "TLS":{
+                  "CipherSuites":[
+                     "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+                     "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"]}}}}'
+
+
+TLS options
+~~~~~~~~~~~~
+
+Both HTTPS listeners and backends support some other TLS options:
+
+* Insecure: skipping certificate checks
+* Setting minimum and maximum supported version
+* Setting a server preference when selecting a cipher suite.
+
+Here's an example on how to set these options for HTTPS listener. Note that you can use the same parameters for backends as well.
+
+.. code-block:: etcd
+
+ # Add http listener accepting requests on 127.0.0.1:9443, uses session ticket LRU cache of 1024
+ etcdctl set /vulcand/listeners/ls1 '{
+     "Id":"ls1",
+     "Protocol":"https",
+     "Address":{"Network":"tcp","Address":"127.0.0.1:9443"},
+     "Settings":{
+         "TLS":{
+             "PreferServerCipherSuites":true,
+             "InsecureSkipVerify":true,
+             "MinVersion":"VersionTLS10",
+             "MaxVersion":"VersionTLS11",
+             "SessionTicketsDisabled":true}}}'
+
+.. code-block:: cli
+
+ # Add http listener accepting requests on 127.0.0.1:9443 with customized cipher suite list
+ vctl listener upsert --id ls1 --proto=https --net=tcp -addr=127.0.0.1:9443\
+     --tlsSkipVerify --tlsSessionTicketsOff --tlsMinV=VersionTLS10 --tlsMaxV=VersionTLS11 --tlsPreferServerCS
+ 
+
+.. code-block:: api
+
+ # Add http listener accepting requests on 127.0.0.1:443, uses session ticket LRU cache of 1024
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
+      -d '{"Listener": {
+           "Id":"ls1",
+           "Protocol":"https",
+           "Address":{"Network":"tcp","Address":"127.0.0.1:9443"},
+           "Settings":{
+               "TLS":{
+                   "PreferServerCipherSuites":true,
+                   "InsecureSkipVerify":true,
+                   "MinVersion":"VersionTLS10",
+                   "MaxVersion":"VersionTLS11",
+                   "SessionTicketsDisabled":true}}}}'
+
+
 HTTPS listeners
 ~~~~~~~~~~~~~~~~
 
@@ -782,18 +1302,48 @@ Once we have the certificate set, we can create HTTPS listeners for the host:
 
  # Add http listener accepting requests on 127.0.0.1:443
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
-      -d '{"Listener": {"Id": "ls1", "Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:443"}}}'
+      -d '{"Listener": 
+             {"Id": "ls1", "Protocol":"https", "Address":{"Network":"tcp", "Address":"127.0.0.1:443"}}}'
 
 
-SNI
-~~~
+HTTPS Backends
+~~~~~~~~~~~~~~
 
-Not all clients support SNI, or sometimes host name is not available. In this case you can set the ``default`` certificate that will be returned in case if the SNI is not available:
+Vulcand supports HTTPS backends out of the box, with default TLS settings. All TLS options described in the sections above, like session tickets, cipher suites and TLS versions
+are available for HTTPS backends as well.
+
+Here's how you can modify TLS settings for a backend:
 
 .. code-block:: etcd
 
- # Set example.com as default host returned in case if SNI is not available
- etcdctl set /vulcand/hosts/example.com/host '{"Settings": {"Default": true, "KeyPair": {...}}}'
+ # Upsert https backend, choosing to ignore certificate checks and setting min and max TLS version
+ etcdctl set /vulcand/backends/b1/backend '{"Id":"b1","Type":"http",
+       "Settings":{
+          "TLS":{
+              "PreferServerCipherSuites":false,
+              "InsecureSkipVerify":true,
+              "MinVersion":"VersionTLS10",
+              "MaxVersion":"VersionTLS11"}}}'
+
+.. code-block:: cli
+
+ # Upsert https backend, choosing to ignore certificate checks and setting min and max TLS version
+ vctl backend upsert -id b1 --tlsSkipVerify --tlsMinV="VersionTLS10" --tlsMaxV=VersionTLS11
+
+
+.. code-block:: api
+
+ # Upsert https backend, choosing to ignore certificate checks and setting min and max TLS version
+ curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends\
+      -d '{"Backend": 
+             {"Id":"b1","Type":"http",
+              "Settings":{
+                 "TLS":{
+                 "PreferServerCipherSuites":false,
+                 "InsecureSkipVerify":true,
+                 "MinVersion":"VersionTLS10",
+                 "MaxVersion":"VersionTLS11"}}}}'
+
 
 
 Metrics
