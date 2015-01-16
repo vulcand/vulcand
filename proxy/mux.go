@@ -234,14 +234,20 @@ func (m *mux) stopServers() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if m.state == stateInit {
-		m.state = stateShuttingDown
-		return
-	}
 	if m.state == stateShuttingDown {
+		log.Infof("%v is already shutting down", m)
 		return
 	}
+
+	prevState := m.state
 	m.state = stateShuttingDown
+	close(m.stopStapleC)
+
+	// init state has no running servers, no need to close them
+	if prevState == stateInit {
+		return
+	}
+
 	for _, s := range m.servers {
 		s.shutdown()
 	}
