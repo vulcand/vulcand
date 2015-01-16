@@ -7,7 +7,7 @@ It uses Etcd as a configuration backend, so changes to configuration take effect
 
 
 .. warning::  Status: Under active development. Used at Mailgun on moderate workloads.
-.. note::  Version used in this documentation: ``v0.8.0-beta.1``
+.. note::  Version used in this documentation: ``v0.8.0-beta.2``
 
 
 .. toctree::
