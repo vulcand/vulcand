@@ -34,7 +34,7 @@ func Run(registry *plugin.Registry) error {
 	}
 	service := NewService(options, registry)
 	if err := service.Start(); err != nil {
-		log.Errorf("Failed to start servive: %v", err)
+		log.Errorf("Failed to start service: %v", err)
 		return fmt.Errorf("service start failure: %s", err)
 	} else {
 		log.Infof("Service exited gracefully")
