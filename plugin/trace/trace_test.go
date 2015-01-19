@@ -101,7 +101,7 @@ func (s *TraceSuite) TestHandler(c *C) {
 		w.Write([]byte("hello"))
 	})
 
-	h, err := New("syslog:///tmp/vulcand_trace_test.sock?tag=@json:", []string{"X-Req-A"}, []string{"X-Resp-A"})
+	h, err := New("syslog:///tmp/vulcand_trace_test.sock", []string{"X-Req-A"}, []string{"X-Resp-A"})
 	c.Assert(err, IsNil)
 
 	handler, err := h.NewHandler(responder)
@@ -121,7 +121,7 @@ func (s *TraceSuite) TestHandler(c *C) {
 		c.Fatalf("timeout")
 	}
 
-	vals := strings.Split(string(buf), "]: ")
+	vals := strings.Split(string(buf), SyslogPrefix)
 	var r *oxytrace.Record
 	c.Assert(json.Unmarshal([]byte(vals[1]), &r), IsNil)
 	c.Assert(r.Request.URL, Equals, "/hello")

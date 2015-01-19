@@ -1,6 +1,7 @@
 package trace
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log/syslog"
@@ -103,14 +104,21 @@ func newWriter(addr string) (io.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var w io.Writer
 	if u.Host != "" {
-		return syslog.Dial("udp", u.Host, pr, parsePrefix(u))
+		w, err = syslog.Dial("udp", u.Host, pr, SyslogTag)
 	} else if u.Path != "" {
-		return syslog.Dial("unixgram", u.Path, pr, parsePrefix(u))
+		w, err = syslog.Dial("unixgram", u.Path, pr, SyslogTag)
 	} else if u.Host == "" && u.Path == "" {
-		return syslog.Dial("", "", pr, parsePrefix(u))
+		w, err = syslog.Dial("", "", pr, SyslogTag)
+	} else {
+		return nil, fmt.Errorf("unsupported address format: %v", addr)
 	}
-	return nil, fmt.Errorf("unsupported address format: %v", addr)
+	if err != nil {
+		return nil, err
+	}
+	return &prefixWriter{p: []byte(parsePrefix(u)), w: w}, nil
 }
 
 func parsePrefix(u *url.URL) string {
@@ -202,4 +210,17 @@ func fToString(v string) (f syslog.Priority, err error) {
 	return f, nil
 }
 
-const SyslogPrefix = "@json:"
+const SyslogPrefix = "@cee: "
+const SyslogTag = "pid"
+
+type prefixWriter struct {
+	w io.Writer
+	p []byte
+}
+
+func (p *prefixWriter) Write(val []byte) (int, error) {
+	b := bytes.Buffer{}
+	b.Write(p.p)
+	b.Write(val)
+	return p.w.Write(b.Bytes())
+}
