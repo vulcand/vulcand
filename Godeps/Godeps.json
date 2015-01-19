@@ -41,8 +41,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",
-			"Comment": "0.3.1-16-gf6cce01",
-			"Rev": "f6cce01ddb734f88518baf828e3b29abe48cd1ea"
+			"Comment": "0.3.1-19-g12f1b91",
+			"Rev": "12f1b911a179b472980f386c2e1e786d19f42da4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
