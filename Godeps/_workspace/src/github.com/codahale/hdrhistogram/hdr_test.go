@@ -7,6 +7,22 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codahale/hdrhistogram"
 )
 
+func TestHighSigFig(t *testing.T) {
+	input := []int64{
+		459876, 669187, 711612, 816326, 931423, 1033197, 1131895, 2477317,
+		3964974, 12718782,
+	}
+
+	hist := hdrhistogram.New(459876, 12718782, 5)
+	for _, sample := range input {
+		hist.RecordValue(sample)
+	}
+
+	if v, want := hist.ValueAtQuantile(50), int64(1048575); v != want {
+		t.Errorf("Median was %v, but expected %v", v, want)
+	}
+}
+
 func TestValueAtQuantile(t *testing.T) {
 	h := hdrhistogram.New(1, 10000000, 3)
 
@@ -174,22 +190,22 @@ func TestCumulativeDistribution(t *testing.T) {
 
 	actual := h.CumulativeDistribution()
 	expected := []hdrhistogram.Bracket{
-		hdrhistogram.Bracket{Quantile: 0, Count: 1},
-		hdrhistogram.Bracket{Quantile: 50, Count: 500224},
-		hdrhistogram.Bracket{Quantile: 75, Count: 750080},
-		hdrhistogram.Bracket{Quantile: 87.5, Count: 875008},
-		hdrhistogram.Bracket{Quantile: 93.75, Count: 937984},
-		hdrhistogram.Bracket{Quantile: 96.875, Count: 969216},
-		hdrhistogram.Bracket{Quantile: 98.4375, Count: 984576},
-		hdrhistogram.Bracket{Quantile: 99.21875, Count: 992256},
-		hdrhistogram.Bracket{Quantile: 99.609375, Count: 996352},
-		hdrhistogram.Bracket{Quantile: 99.8046875, Count: 998400},
-		hdrhistogram.Bracket{Quantile: 99.90234375, Count: 999424},
-		hdrhistogram.Bracket{Quantile: 99.951171875, Count: 999936},
-		hdrhistogram.Bracket{Quantile: 99.9755859375, Count: 999936},
-		hdrhistogram.Bracket{Quantile: 99.98779296875, Count: 999936},
-		hdrhistogram.Bracket{Quantile: 99.993896484375, Count: 1000000},
-		hdrhistogram.Bracket{Quantile: 100, Count: 1000000},
+		hdrhistogram.Bracket{Quantile: 0, Count: 1, ValueAt: 0},
+		hdrhistogram.Bracket{Quantile: 50, Count: 500224, ValueAt: 500223},
+		hdrhistogram.Bracket{Quantile: 75, Count: 750080, ValueAt: 750079},
+		hdrhistogram.Bracket{Quantile: 87.5, Count: 875008, ValueAt: 875007},
+		hdrhistogram.Bracket{Quantile: 93.75, Count: 937984, ValueAt: 937983},
+		hdrhistogram.Bracket{Quantile: 96.875, Count: 969216, ValueAt: 969215},
+		hdrhistogram.Bracket{Quantile: 98.4375, Count: 984576, ValueAt: 984575},
+		hdrhistogram.Bracket{Quantile: 99.21875, Count: 992256, ValueAt: 992255},
+		hdrhistogram.Bracket{Quantile: 99.609375, Count: 996352, ValueAt: 996351},
+		hdrhistogram.Bracket{Quantile: 99.8046875, Count: 998400, ValueAt: 998399},
+		hdrhistogram.Bracket{Quantile: 99.90234375, Count: 999424, ValueAt: 999423},
+		hdrhistogram.Bracket{Quantile: 99.951171875, Count: 999936, ValueAt: 999935},
+		hdrhistogram.Bracket{Quantile: 99.9755859375, Count: 999936, ValueAt: 999935},
+		hdrhistogram.Bracket{Quantile: 99.98779296875, Count: 999936, ValueAt: 999935},
+		hdrhistogram.Bracket{Quantile: 99.993896484375, Count: 1000000, ValueAt: 1000447},
+		hdrhistogram.Bracket{Quantile: 100, Count: 1000000, ValueAt: 1000447},
 	}
 
 	if !reflect.DeepEqual(actual, expected) {
@@ -217,5 +233,88 @@ func BenchmarkNew(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		hdrhistogram.New(1, 120000, 3) // this could track 1ms-2min
+	}
+}
+
+func TestUnitMagnitudeOverflow(t *testing.T) {
+	h := hdrhistogram.New(0, 200, 4)
+	if err := h.RecordValue(11); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSubBucketMaskOverflow(t *testing.T) {
+	hist := hdrhistogram.New(2e7, 1e8, 5)
+	for _, sample := range [...]int64{1e8, 2e7, 3e7} {
+		hist.RecordValue(sample)
+	}
+
+	for q, want := range map[float64]int64{
+		50:    33554431,
+		83.33: 33554431,
+		83.34: 100663295,
+		99:    100663295,
+	} {
+		if got := hist.ValueAtQuantile(q); got != want {
+			t.Errorf("got %d for %fth percentile. want: %d", got, q, want)
+		}
+	}
+}
+
+func TestExportImport(t *testing.T) {
+	min := int64(1)
+	max := int64(10000000)
+	sigfigs := 3
+	h := hdrhistogram.New(min, max, sigfigs)
+	for i := 0; i < 1000000; i++ {
+		if err := h.RecordValue(int64(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	s := h.Export()
+
+	if v := s.LowestTrackableValue; v != min {
+		t.Errorf("LowestTrackableValue was %v, but expected %v", v, min)
+	}
+
+	if v := s.HighestTrackableValue; v != max {
+		t.Errorf("HighestTrackableValue was %v, but expected %v", v, max)
+	}
+
+	if v := int(s.SignificantFigures); v != sigfigs {
+		t.Errorf("SignificantFigures was %v, but expected %v", v, sigfigs)
+	}
+
+	if imported := hdrhistogram.Import(s); !imported.Equals(h) {
+		t.Error("Expected Histograms to be equivalent")
+	}
+
+}
+
+func TestEquals(t *testing.T) {
+	h1 := hdrhistogram.New(1, 10000000, 3)
+	for i := 0; i < 1000000; i++ {
+		if err := h1.RecordValue(int64(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	h2 := hdrhistogram.New(1, 10000000, 3)
+	for i := 0; i < 10000; i++ {
+		if err := h1.RecordValue(int64(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if h1.Equals(h2) {
+		t.Error("Expected Histograms to not be equivalent")
+	}
+
+	h1.Reset()
+	h2.Reset()
+
+	if !h1.Equals(h2) {
+		t.Error("Expected Histograms to be equivalent")
 	}
 }

@@ -230,9 +230,7 @@ func (s *GracefulServer) Serve(listener net.Listener) error {
 
 	orgConnState := s.Server.ConnState
 	s.ConnState = func(conn net.Conn, newState http.ConnState) {
-		// Ugly hack, but it works. We pass the information about the underlying state via the only available interface in net.Conn
-		// we do this not to override the tls.Conn, as the internal logic of http.Server depends on the type assertion (unfortunately)
-		gconn := conn.LocalAddr().(*gracefulAddr).gconn
+		gconn := conn.(*gracefulConn)
 		switch newState {
 		case http.StateNew:
 			// new_conn -> StateNew

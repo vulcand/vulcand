@@ -124,8 +124,7 @@ func startGenericServer(t *testing.T, server *GracefulServer, statechanged chan 
 		// Wrap the ConnState handler with something that will notify
 		// the statechanged channel when a state change happens
 		server.ConnState = func(conn net.Conn, newState http.ConnState) {
-			gconn := conn.LocalAddr().(*gracefulAddr).gconn
-			s := gconn.lastHTTPState
+			s := conn.(*gracefulConn).lastHTTPState
 			statechanged <- s
 		}
 	}
@@ -247,7 +246,7 @@ func TestStateTransitions(t *testing.T) {
 		server.wg = wg
 		startServer(t, server, nil)
 
-		conn := &gracefulConn{&fakeConn{}, 0}
+		conn := &gracefulConn{nil, 0}
 		for _, newState := range test.states {
 			server.ConnState(conn, newState)
 		}
@@ -264,11 +263,6 @@ func TestStateTransitions(t *testing.T) {
 type fakeConn struct {
 	net.Conn
 	closeCalled bool
-	localAddr   net.Addr
-}
-
-func (f *fakeConn) LocalAddr() net.Addr {
-	return &net.IPAddr{}
 }
 
 func (c *fakeConn) Close() error {

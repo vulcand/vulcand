@@ -12,7 +12,8 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 )
 
-type rbOptSetter func(*Rebalancer) error
+// RebalancerOption - functional option setter for rebalancer
+type RebalancerOption func(*Rebalancer) error
 
 // Meter measures server peformance and returns it's relative value via rating
 type Meter interface {
@@ -38,6 +39,8 @@ type Rebalancer struct {
 	servers []*rbServer
 	// next is  internal load balancer next in chain
 	next balancerHandler
+	// errHandler is HTTP handler called in case of errors
+	errHandler utils.ErrorHandler
 
 	log utils.Logger
 
@@ -47,35 +50,43 @@ type Rebalancer struct {
 	newMeter NewMeterFn
 }
 
-func RebalancerLogger(log utils.Logger) rbOptSetter {
+func RebalancerLogger(log utils.Logger) RebalancerOption {
 	return func(r *Rebalancer) error {
 		r.log = log
 		return nil
 	}
 }
 
-func RebalancerClock(clock timetools.TimeProvider) rbOptSetter {
+func RebalancerClock(clock timetools.TimeProvider) RebalancerOption {
 	return func(r *Rebalancer) error {
 		r.clock = clock
 		return nil
 	}
 }
 
-func RebalancerBackoff(d time.Duration) rbOptSetter {
+func RebalancerBackoff(d time.Duration) RebalancerOption {
 	return func(r *Rebalancer) error {
 		r.backoffDuration = d
 		return nil
 	}
 }
 
-func RebalancerMeter(newMeter NewMeterFn) rbOptSetter {
+func RebalancerMeter(newMeter NewMeterFn) RebalancerOption {
 	return func(r *Rebalancer) error {
 		r.newMeter = newMeter
 		return nil
 	}
 }
 
-func NewRebalancer(handler balancerHandler, opts ...rbOptSetter) (*Rebalancer, error) {
+// RebalancerErrorHandler is a functional argument that sets error handler of the server
+func RebalancerErrorHandler(h utils.ErrorHandler) RebalancerOption {
+	return func(r *Rebalancer) error {
+		r.errHandler = h
+		return nil
+	}
+}
+
+func NewRebalancer(handler balancerHandler, opts ...RebalancerOption) (*Rebalancer, error) {
 	rb := &Rebalancer{
 		mtx:  &sync.Mutex{},
 		next: handler,
@@ -107,6 +118,9 @@ func NewRebalancer(handler balancerHandler, opts ...rbOptSetter) (*Rebalancer, e
 			}, nil
 		}
 	}
+	if rb.errHandler == nil {
+		rb.errHandler = utils.DefaultHandler
+	}
 	return rb, nil
 }
 
@@ -120,9 +134,18 @@ func (rb *Rebalancer) Servers() []*url.URL {
 func (rb *Rebalancer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	pw := &utils.ProxyWriter{W: w}
 	start := rb.clock.UtcNow()
-	rb.next.ServeHTTP(pw, req)
+	url, err := rb.next.NextServer()
+	if err != nil {
+		rb.errHandler.ServeHTTP(w, req, err)
+		return
+	}
 
-	rb.recordMetrics(req.URL, pw.Code, rb.clock.UtcNow().Sub(start))
+	// make shallow copy of request before changing anything to avoid side effects
+	newReq := *req
+	newReq.URL = url
+	rb.next.Next().ServeHTTP(pw, &newReq)
+
+	rb.recordMetrics(url, pw.Code, rb.clock.UtcNow().Sub(start))
 	rb.adjustWeights()
 }
 
@@ -151,7 +174,7 @@ func (rb *Rebalancer) Wrap(next balancerHandler) error {
 	return nil
 }
 
-func (rb *Rebalancer) UpsertServer(u *url.URL, options ...serverSetter) error {
+func (rb *Rebalancer) UpsertServer(u *url.URL, options ...ServerOption) error {
 	rb.mtx.Lock()
 	defer rb.mtx.Unlock()
 

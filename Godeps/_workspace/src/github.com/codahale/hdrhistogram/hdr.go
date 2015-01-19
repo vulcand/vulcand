@@ -10,8 +10,17 @@ import (
 
 // A Bracket is a part of a cumulative distribution.
 type Bracket struct {
-	Quantile float64
-	Count    int64
+	Quantile       float64
+	Count, ValueAt int64
+}
+
+// A Snapshot is an exported view of a Histogram, useful for serializing them.
+// A Histogram can be constructed from it by passing it to Import.
+type Snapshot struct {
+	LowestTrackableValue  int64
+	HighestTrackableValue int64
+	SignificantFigures    int64
+	Counts                []int64
 }
 
 // A Histogram is a lossy data structure used to record the distribution of
@@ -53,18 +62,21 @@ func New(minValue, maxValue int64, sigfigs int) *Histogram {
 	subBucketHalfCountMagnitude--
 
 	unitMagnitude := int32(math.Floor(math.Log(float64(minValue)) / math.Log(2)))
+	if unitMagnitude < 0 {
+		unitMagnitude = 0
+	}
 
 	subBucketCount := int32(math.Pow(2, float64(subBucketHalfCountMagnitude)+1))
 
 	subBucketHalfCount := subBucketCount / 2
-	subBucketMask := (subBucketCount - 1) << uint(unitMagnitude)
+	subBucketMask := int64(subBucketCount-1) << uint(unitMagnitude)
 
 	// determine exponent range needed to support the trackable value with no
 	// overflow:
-	trackableValue := int64(subBucketCount - 1)
+	smallestUntrackableValue := int64(subBucketCount) << uint(unitMagnitude)
 	bucketsNeeded := int32(1)
-	for trackableValue < maxValue {
-		trackableValue <<= 1
+	for smallestUntrackableValue < maxValue {
+		smallestUntrackableValue <<= 1
 		bucketsNeeded++
 	}
 
@@ -78,7 +90,7 @@ func New(minValue, maxValue int64, sigfigs int) *Histogram {
 		significantFigures:          int64(sigfigs),
 		subBucketHalfCountMagnitude: subBucketHalfCountMagnitude,
 		subBucketHalfCount:          subBucketHalfCount,
-		subBucketMask:               int64(subBucketMask),
+		subBucketMask:               subBucketMask,
 		subBucketCount:              subBucketCount,
 		bucketCount:                 bucketCount,
 		countsLen:                   countsLen,
@@ -218,7 +230,7 @@ func (h *Histogram) RecordValues(v, n int64) error {
 	return nil
 }
 
-// ValueAtQuantile returns the recorded value at the given quantile.
+// ValueAtQuantile returns the recorded value at the given quantile (0..100).
 func (h *Histogram) ValueAtQuantile(q float64) int64 {
 	if q > 100 {
 		q = 100
@@ -248,10 +260,63 @@ func (h *Histogram) CumulativeDistribution() []Bracket {
 		result = append(result, Bracket{
 			Quantile: i.percentile,
 			Count:    i.countToIdx,
+			ValueAt:  i.highestEquivalentValue,
 		})
 	}
 
 	return result
+}
+
+// Equals returns true if the two Histograms are equivalent, false if not.
+func (h *Histogram) Equals(other *Histogram) bool {
+	switch {
+	case
+		h.lowestTrackableValue != other.lowestTrackableValue,
+		h.highestTrackableValue != other.highestTrackableValue,
+		h.unitMagnitude != other.unitMagnitude,
+		h.significantFigures != other.significantFigures,
+		h.subBucketHalfCountMagnitude != other.subBucketHalfCountMagnitude,
+		h.subBucketHalfCount != other.subBucketHalfCount,
+		h.subBucketMask != other.subBucketMask,
+		h.subBucketCount != other.subBucketCount,
+		h.bucketCount != other.bucketCount,
+		h.countsLen != other.countsLen,
+		h.totalCount != other.totalCount:
+		return false
+	default:
+		for i, c := range h.counts {
+			if c != other.counts[i] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// Export returns a snapshot view of the Histogram. This can be later passed to
+// Import to construct a new Histogram with the same state.
+func (h *Histogram) Export() *Snapshot {
+	return &Snapshot{
+		LowestTrackableValue:  h.lowestTrackableValue,
+		HighestTrackableValue: h.highestTrackableValue,
+		SignificantFigures:    h.significantFigures,
+		Counts:                h.counts,
+	}
+}
+
+// Import returns a new Histogram populated from the Snapshot data.
+func Import(s *Snapshot) *Histogram {
+	h := New(s.LowestTrackableValue, s.HighestTrackableValue, int(s.SignificantFigures))
+	h.counts = s.Counts
+	totalCount := int64(0)
+	for i := int32(0); i < h.countsLen; i++ {
+		countAtIndex := h.counts[i]
+		if countAtIndex > 0 {
+			totalCount += countAtIndex
+		}
+	}
+	h.totalCount = totalCount
+	return h
 }
 
 func (h *Histogram) iterator() *iterator {
