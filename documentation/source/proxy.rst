@@ -460,7 +460,7 @@ Vulcand can have multiple listeners attached and share the same listener.
 
  # Add http listener accepting requests on 127.0.0.1:8183
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/listeners\
-      -d '{"Id": "ls1", "Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}'
+      -d '{"Listener":{"Id": "ls1", "Protocol":"http", "Address":{"Network":"tcp", "Address":"127.0.0.1:8183"}}}'
 
 
 
