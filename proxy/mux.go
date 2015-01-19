@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/stapler"
@@ -47,12 +48,14 @@ type mux struct {
 	// Connection watcher
 	connTracker *connTracker
 
+	// stopC used for global broadcast to all proxy systems that it's closed
+	stopC chan struct{}
+
 	// OCSP staple cache and responder
 	stapler stapler.Stapler
 
 	// Unsubscribe from staple updates
 	stapleUpdatesC chan *stapler.StapleUpdated
-	stopStapleC    chan struct{}
 }
 
 func (m *mux) String() string {
@@ -69,7 +72,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		options: o,
 
 		router:      route.NewMux(),
-		connTracker: newConnTracker(o.MetricsClient),
+		connTracker: newConnTracker(),
 
 		servers:   make(map[engine.ListenerKey]*srv),
 		backends:  make(map[engine.BackendKey]*backend),
@@ -77,7 +80,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		hosts:     make(map[engine.HostKey]engine.Host),
 
 		stapleUpdatesC: make(chan *stapler.StapleUpdated),
-		stopStapleC:    make(chan struct{}),
+		stopC:          make(chan struct{}),
 		stapler:        st,
 	}
 	m.router.NotFound = &NotFound{}
@@ -88,16 +91,32 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 	}
 
 	// Subscribe to staple responses and kick staple updates
-	m.stapler.Subscribe(m.stapleUpdatesC, m.stopStapleC)
+	m.stapler.Subscribe(m.stapleUpdatesC, m.stopC)
 
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
 		for {
 			select {
-			case <-m.stopStapleC:
+			case <-m.stopC:
 				log.Infof("%v stop listening for staple updates", m)
 				return
 			case e := <-m.stapleUpdatesC:
 				m.processStapleUpdate(e)
+			}
+		}
+	}()
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		for {
+			select {
+			case <-m.stopC:
+				log.Infof("%v stop emitting metrics", m)
+				return
+			case <-time.After(time.Second):
+				m.emitMetrics()
 			}
 		}
 	}()
@@ -241,7 +260,7 @@ func (m *mux) stopServers() {
 
 	prevState := m.state
 	m.state = stateShuttingDown
-	close(m.stopStapleC)
+	close(m.stopC)
 
 	// init state has no running servers, no need to close them
 	if prevState == stateInit {

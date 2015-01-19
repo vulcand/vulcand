@@ -117,9 +117,8 @@ func (f *frontend) rebuild() error {
 				TrustForwardHeader: settings.TrustForwardHeader,
 			}))
 
-	// reporter and rtwatcher will be observing metrics
-	rp := NewReporter(fwd, f.mux.options.MetricsClient, engine.FrontendKey{Id: f.frontend.Id})
-	watcher, err := NewWatcher(rp)
+	// rtwatcher will be observing and aggregating metrics
+	watcher, err := NewWatcher(fwd)
 	if err != nil {
 		return err
 	}

@@ -1028,6 +1028,9 @@ func (s *ServerSuite) TestGetStats(c *C) {
 	topServers, err := s.mux.TopServers(nil)
 	c.Assert(err, IsNil)
 	c.Assert(len(topServers), Equals, 2)
+
+	// emit stats works without errors
+	c.Assert(s.mux.emitMetrics(), IsNil)
 }
 
 func GETResponse(c *C, url string, opts ...testutils.ReqOption) string {
