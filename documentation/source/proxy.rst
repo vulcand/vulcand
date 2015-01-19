@@ -774,9 +774,9 @@ Here's the example of the log entry:
 
 .. code-block:: bash
 
- Jan 13 15:07:51 vulcan @json:[3634]: {"request":{"method":"GET","url":"http://h:5000"},"response":{"code":404,"roundtrip":0.333712}}
+ Jan 13 15:07:51 vulcan pid:[3634]: @cee: {"request":{"method":"GET","url":"http://h:5000"},"response":{"code":404,"roundtrip":0.333712}}
 
-The prefix is a standard syslog prefix, and the part after ``[3634]:`` is a structured log entry. Here's the entry format explained:
+The prefix is a standard syslog prefix, and the part after ``@cee:`` is a structured log entry. Here's the entry format explained:
 
 
 .. code-block:: js
