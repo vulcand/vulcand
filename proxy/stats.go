@@ -4,10 +4,52 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
+	"strings"
+	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/memmetrics"
 	"github.com/mailgun/vulcand/engine"
 )
+
+func (mx *mux) emitMetrics() error {
+	c := mx.options.MetricsClient
+
+	// Emit connection stats
+	counts := mx.connTracker.counts()
+	for state, values := range counts {
+		for addr, count := range values {
+			c.Gauge(c.Metric("conns", addr, state.String()), count, 1)
+		}
+	}
+
+	// Emit frontend metrics stats
+	frontends, err := mx.topFrontends(nil)
+	if err != nil {
+		log.Errorf("failed to get top frontends: %v", err)
+		return err
+	}
+	for _, f := range frontends {
+		m := c.Metric("frontend", strings.Replace(f.Id, ".", "_", -1))
+		s := f.Stats
+		for _, scode := range s.Counters.StatusCodes {
+			// response codes counters
+			c.Gauge(m.Metric("code", strconv.Itoa(scode.Code)), scode.Count, 1)
+		}
+		// network errors
+		c.Gauge(m.Metric("neterr"), s.Counters.NetErrors, 1)
+		// requests
+		c.Gauge(m.Metric("reqs"), s.Counters.Total, 1)
+
+		// round trip times in microsecond resolution
+		for _, b := range s.LatencyBrackets {
+			c.Gauge(m.Metric("rtt", strconv.Itoa(int(b.Quantile*10.0))), int64(b.Value/time.Microsecond), 1)
+		}
+	}
+
+	return nil
+}
 
 func (mx *mux) frontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
 	f, ok := mx.frontends[key]

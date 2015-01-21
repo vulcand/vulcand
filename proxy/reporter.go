@@ -5,49 +5,15 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/memmetrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
 	"github.com/mailgun/vulcand/engine"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 )
 
-// Reporter reports real time metrics to the Statsd client
-type Reporter struct {
-	next  http.Handler
-	c     metrics.Client
-	fk    engine.FrontendKey
-	clock timetools.TimeProvider
-}
-
-func NewReporter(next http.Handler, c metrics.Client, fk engine.FrontendKey) *Reporter {
-	return &Reporter{
-		clock: &timetools.RealTime{},
-		next:  next,
-		c:     c,
-		fk:    fk,
-	}
-}
-
-func (rp *Reporter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	start := rp.clock.UtcNow()
-	pw := &utils.ProxyWriter{W: w}
-	rp.next.ServeHTTP(pw, req)
-	diff := rp.clock.UtcNow().Sub(start)
-	rp.emitMetrics(req, pw.Code, diff, "frontend", rp.fk.Id)
-}
-
-func (rp *Reporter) emitMetrics(r *http.Request, code int, latency time.Duration, p ...string) {
-	m := rp.c.Metric(p...)
-	rp.c.TimingMs(m.Metric("rtt"), latency, 1)
-	rp.c.Inc(m.Metric("code", fmt.Sprintf("%v", code)), 1, 1)
-	rp.c.Inc(m.Metric("request"), 1, 1)
-}
-
-// RTWatcher watches runtime metrics
+// RTWatcher watches and aggregates runtime metrics
 type RTWatcher struct {
 	mtx   *sync.Mutex
 	m     *memmetrics.RTMetrics

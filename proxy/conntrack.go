@@ -4,23 +4,18 @@ import (
 	"net"
 	"net/http"
 	"sync"
-
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 )
 
 type connTracker struct {
 	mtx *sync.Mutex
-
-	c metrics.Client
 
 	new    map[string]int64
 	active map[string]int64
 	idle   map[string]int64
 }
 
-func newConnTracker(c metrics.Client) *connTracker {
+func newConnTracker() *connTracker {
 	return &connTracker{
-		c:      c,
 		mtx:    &sync.Mutex{},
 		new:    make(map[string]int64),
 		active: make(map[string]int64),
@@ -57,5 +52,25 @@ func (c *connTracker) inc(conn net.Conn, state http.ConnState, v int64) {
 	}
 
 	m[addr] += v
-	c.c.Gauge(c.c.Metric("conns", addr, state.String()), m[addr], 1)
 }
+
+func (c *connTracker) counts() connStats {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	return connStats{
+		http.StateNew:    c.copy(c.new),
+		http.StateActive: c.copy(c.active),
+		http.StateIdle:   c.copy(c.idle),
+	}
+}
+
+func (c *connTracker) copy(s map[string]int64) map[string]int64 {
+	out := make(map[string]int64, len(s))
+	for k, v := range s {
+		out[k] = v
+	}
+	return out
+}
+
+type connStats map[http.ConnState]map[string]int64
