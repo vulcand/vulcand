@@ -109,7 +109,7 @@ Our Auth plugin is a struct that stores username and password.
 
 .. code-block:: go
 
- // AuthMiiddleware struct holds configuration parameters and is used to
+ // AuthMiddleware struct holds configuration parameters and is used to
  // serialize/deserialize the configuration from storage engines.
  type AuthMiddleware struct {
   	Password string
@@ -337,7 +337,7 @@ Note that vbundle simply writes the new ``vulcanbundle`` for you, and does not t
 However, here are a couple of tips if you feel like you need ones:
 
 * Your new bundle is just a go program like any other one out there. 
-* This means that you can add it to your repo, and update periodicallly by calling ``vbundle init`` with new parameters.
+* This means that you can add it to your repo, and update periodically by calling ``vbundle init`` with new parameters.
 * You can use ``godep save -r ./...`` with new bundle as well to make sure your bundle's deps are always there.
 
 
