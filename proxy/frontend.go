@@ -117,14 +117,8 @@ func (f *frontend) rebuild() error {
 				TrustForwardHeader: settings.TrustForwardHeader,
 			}))
 
-	// rtwatcher will be observing and aggregating metrics
-	watcher, err := NewWatcher(fwd)
-	if err != nil {
-		return err
-	}
-
 	// Create a load balancer
-	rr, err := roundrobin.New(watcher)
+	rr, err := roundrobin.New(fwd)
 	if err != nil {
 		return err
 	}
@@ -172,12 +166,18 @@ func (f *frontend) rebuild() error {
 		return err
 	}
 
+	// rtwatcher will be observing and aggregating metrics for the full round trip
+	watcher, err := NewWatcher(str)
+	if err != nil {
+		return err
+	}
+
 	if err := syncServers(f.mux, rb, f.backend, watcher); err != nil {
 		return err
 	}
 
 	// Add the frontend to the router
-	if err := f.mux.router.Handle(f.frontend.Route, str); err != nil {
+	if err := f.mux.router.Handle(f.frontend.Route, watcher); err != nil {
 		return err
 	}
 
