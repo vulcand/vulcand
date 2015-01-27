@@ -312,7 +312,7 @@ Certificates are stored as encrypted JSON dictionaries. Updating a certificate w
 
 **OCSP**
 
-`Onile Certificate Status Protocol <http://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol>`_ is a protocol for certificate revocation checking. Vulcand checks OCSP status in the background and 
+`Online Certificate Status Protocol <http://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol>`_ is a protocol for certificate revocation checking. Vulcand checks OCSP status in the background and 
 includes the OCSP staple response in the TLS handshake when this feature turned on.
 
 Read more about turning OCSP for hosts in `OCSP`_ section of this document.
