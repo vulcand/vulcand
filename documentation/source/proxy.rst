@@ -127,7 +127,7 @@ Adding and removing servers to the backend will change the traffic in real-time,
 
  # Upsert backend and add a server to it
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends\
-      -d '{"Backend": {"Id":"b", "Type":"http"}}'
+      -d '{"Backend": {"Id":"b1", "Type":"http"}}'
  curl -X POST -H "Content-Type: application/json" http://localhost:8182/v2/backends/b1/servers\
       -d '{"Server": {"Id":"srv1", "URL":"http://localhost:5000"}}'
 
