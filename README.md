@@ -4,9 +4,9 @@ Vulcand
 Vulcand is a programmatic extendable proxy for microservices and API management.
 It is inspired by [Hystrix](https://github.com/Netflix/Hystrix) and powers Mailgun microservices infrastructure.
 
-What it's not
---------------
-It's not general-purpose reverse proxy - it is focused on microservices and API use-cases.
+Focus and priorities
+--------------------
+Vulcand is focused on microservices and API use-cases.
 
 Features
 --------
