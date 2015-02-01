@@ -3,5 +3,3 @@ go:
         - 1.4
 script:
         - go test -v ./...
-
-sudo: false
