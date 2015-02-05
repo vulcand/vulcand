@@ -229,6 +229,46 @@ func (s *RewriteSuite) TestUnknownVar(c *C) {
 	c.Assert(re.StatusCode, Equals, http.StatusInternalServerError)
 }
 
+func (s *RewriteSuite) TestRewritePreserveQuery(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
+
+	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/foo(.*)", "http://localhost$1", false, false})
+	c.Assert(rh, NotNil)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
+
+	re, _, err := testutils.Get(srv.URL+"/foo/bar?a=b", testutils.Host("localhost"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/bar?a=b")
+}
+
+func (s *RewriteSuite) TestRewriteInQuery(c *C) {
+	var outURL string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		outURL = rawURL(req)
+		w.Write([]byte("hello"))
+	})
+
+	rh, err := newRewriteHandler(handler, &Rewrite{"^http://localhost/foo\\?(.*)=(.*)", `http://localhost/foo?$1={{.Request.Header.Get "X-Header"}}`, false, false})
+	c.Assert(rh, NotNil)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
+
+	re, _, err := testutils.Get(srv.URL+"/foo?a=b", testutils.Host("localhost"), testutils.Header("X-Header", "xxx"))
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusOK)
+	c.Assert(outURL, Equals, "http://localhost/foo?a=xxx")
+}
+
 // What real-world scenario does this test?
 func (s *RewriteSuite) TestRewriteScheme(c *C) {
 	var outURL *url.URL

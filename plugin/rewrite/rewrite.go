@@ -87,7 +87,12 @@ func (rw *rewriteHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	req.URL = parsedURL
+
+	// make sure the request URI corresponds the rewritten URL
 	req.RequestURI = req.URL.Path
+	if req.URL.RawQuery != "" {
+		req.RequestURI = strings.Join([]string{req.RequestURI, "?", req.URL.RawQuery}, "")
+	}
 
 	if !rw.rewriteBody {
 		rw.next.ServeHTTP(w, req)
