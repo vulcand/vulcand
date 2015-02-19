@@ -350,3 +350,25 @@ func (s *RewriteSuite) TestDontRewriteResponseBody(c *C) {
 	c.Assert(re.StatusCode, Equals, http.StatusOK)
 	c.Assert(string(body), Equals, `{"foo": "{{.Request.Header.Get "X-Header"}}"}`)
 }
+
+// TestContentLength makes sure Content-Length is re-calculated if body rewrite is enabled.
+func (s *RewriteSuite) TestContentLength(c *C) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Length", "45")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"foo": "{{.Request.Header.Get "X-Header"}}"}`))
+	})
+
+	rh, err := newRewriteHandler(handler, &Rewrite{"", "", true, false})
+	c.Assert(rh, NotNil)
+	c.Assert(err, IsNil)
+
+	srv := httptest.NewServer(rh)
+	defer srv.Close()
+
+	re, _, _ := testutils.Get(srv.URL,
+		testutils.Host("localhost"),
+		testutils.Header("X-Header", "bar"))
+
+	c.Assert(re.Header.Get("Content-Length"), Equals, "14")
+}

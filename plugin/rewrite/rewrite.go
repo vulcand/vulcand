@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
@@ -110,6 +111,7 @@ func (rw *rewriteHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	utils.CopyHeaders(w.Header(), bw.Header())
+	w.Header().Set("Content-Length", strconv.Itoa(newBody.Len()))
 	w.WriteHeader(bw.code)
 	io.Copy(w, newBody)
 }
