@@ -11,9 +11,9 @@ const (
 	endpointKey = "vulcand/upstreams/%v/endpoints/%v"
 	locationKey = "vulcand/hosts/%v/locations/%v"
 
-	backendKey  = "vulcand2/backends/%v"
-	serverKey   = "vulcand2/backends/%v/servers/%v"
-	frontendKey = "vulcand2/frontends/%v.%v"
+	backendPath  = "vulcand2/backends/%v"
+	serverPath   = "vulcand2/backends/%v/servers/%v"
+	frontendPath = "vulcand2/frontends/%v.%v"
 
 	// If vulcand registration is enabled, the app will be re-registering itself every
 	// this amount of seconds.
@@ -91,7 +91,7 @@ func (r *Registry) RegisterLocation(l *Location) error {
 }
 
 func (r *Registry) RegisterBackend(e *Endpoint) error {
-	bk := fmt.Sprintf(backendKey+"/backend", e.Name)
+	bk := fmt.Sprintf(backendPath+"/backend", e.Name)
 	bkSpec, err := e.BackendSpec()
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (r *Registry) RegisterServer(e *Endpoint) error {
 	if err != nil {
 		return err
 	}
-	sk := fmt.Sprintf(serverKey, e.Name, e.ID)
+	sk := fmt.Sprintf(serverPath, e.Name, e.ID)
 	if _, err := r.etcdClient.Set(sk, sSpec, endpointTTL); err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (r *Registry) RegisterServer(e *Endpoint) error {
 }
 
 func (r *Registry) RegisterFrontend(l *Location) error {
-	fk := fmt.Sprintf(frontendKey, l.Host, l.ID)
+	fk := fmt.Sprintf(frontendPath, l.Host, l.ID)
 
 	spec, err := l.Spec()
 	if err != nil {

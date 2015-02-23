@@ -19,6 +19,10 @@ func NewEndpoint(name, listenIP string, listenPort int) (*Endpoint, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to make endpoint ID: %v", err)
 	}
+	return NewEndpointWithID(id, name, listenIP, listenPort)
+}
+
+func NewEndpointWithID(id string, name string, listenIP string, listenPort int) (*Endpoint, error) {
 	url, err := makeEndpointURL(listenIP, listenPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make endpoint URL: %v", err)

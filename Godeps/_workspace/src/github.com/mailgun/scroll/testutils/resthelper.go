@@ -2,7 +2,6 @@ package testutils
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -61,13 +60,10 @@ func (h *RestHelper) Delete(t T, url string) scroll.Response {
 }
 
 func (h *RestHelper) parseResponse(t T, response *http.Response) scroll.Response {
-	responseBytes, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer response.Body.Close()
 
 	parsedResponse := scroll.Response{}
-	err = json.Unmarshal(responseBytes, &parsedResponse)
+	err := json.NewDecoder(response.Body).Decode(&parsedResponse)
 	if err != nil {
 		t.Fatal(err)
 	}

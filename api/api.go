@@ -25,71 +25,71 @@ func InitProxyController(ng engine.Engine, stats engine.StatsProvider, app *scro
 
 	app.SetNotFoundHandler(c.handleError)
 
-	app.AddHandler(scroll.Spec{Path: "/v1/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
-	app.AddHandler(scroll.Spec{Path: "/v2/status", Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v1/status"}, Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/status"}, Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
 
-	app.AddHandler(scroll.Spec{Path: "/v2/log/severity", Methods: []string{"GET"}, Handler: c.getLogSeverity})
-	app.AddHandler(scroll.Spec{Path: "/v2/log/severity", Methods: []string{"PUT"}, Handler: c.updateLogSeverity})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/log/severity"}, Methods: []string{"GET"}, Handler: c.getLogSeverity})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/log/severity"}, Methods: []string{"PUT"}, Handler: c.updateLogSeverity})
 
 	// Hosts
-	app.AddHandler(scroll.Spec{Path: "/v2/hosts", Methods: []string{"POST"}, HandlerWithBody: c.upsertHost})
-	app.AddHandler(scroll.Spec{Path: "/v2/hosts", Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
-	app.AddHandler(scroll.Spec{Path: "/v2/hosts/{hostname}", Methods: []string{"GET"}, Handler: c.getHost})
-	app.AddHandler(scroll.Spec{Path: "/v2/hosts/{hostname}", Methods: []string{"DELETE"}, Handler: c.deleteHost})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/hosts"}, Methods: []string{"POST"}, HandlerWithBody: c.upsertHost})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/hosts"}, Methods: []string{"GET"}, HandlerWithBody: c.getHosts})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/hosts/{hostname}"}, Methods: []string{"GET"}, Handler: c.getHost})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/hosts/{hostname}"}, Methods: []string{"DELETE"}, Handler: c.deleteHost})
 
 	// Listeners
-	app.AddHandler(scroll.Spec{Path: "/v2/listeners", Methods: []string{"GET"}, Handler: c.getListeners})
-	app.AddHandler(scroll.Spec{Path: "/v2/listeners", Methods: []string{"POST"}, HandlerWithBody: c.upsertListener})
-	app.AddHandler(scroll.Spec{Path: "/v2/listeners/{id}", Methods: []string{"GET"}, Handler: c.getListener})
-	app.AddHandler(scroll.Spec{Path: "/v2/listeners/{id}", Methods: []string{"DELETE"}, Handler: c.deleteListener})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/listeners"}, Methods: []string{"GET"}, Handler: c.getListeners})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/listeners"}, Methods: []string{"POST"}, HandlerWithBody: c.upsertListener})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/listeners/{id}"}, Methods: []string{"GET"}, Handler: c.getListener})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/listeners/{id}"}, Methods: []string{"DELETE"}, Handler: c.deleteListener})
 
 	// Top provides top-style realtime statistics about frontends and servers
-	app.AddHandler(scroll.Spec{Path: "/v2/top/frontends", Methods: []string{"GET"}, Handler: c.getTopFrontends})
-	app.AddHandler(scroll.Spec{Path: "/v2/top/servers", Methods: []string{"GET"}, Handler: c.getTopServers})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/top/frontends"}, Methods: []string{"GET"}, Handler: c.getTopFrontends})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/top/servers"}, Methods: []string{"GET"}, Handler: c.getTopServers})
 
 	// Frontends
-	app.AddHandler(scroll.Spec{Path: "/v2/frontends", Methods: []string{"POST"}, HandlerWithBody: c.upsertFrontend})
-	app.AddHandler(scroll.Spec{Path: "/v2/frontends/{id}", Methods: []string{"GET"}, Handler: c.getFrontend})
-	app.AddHandler(scroll.Spec{Path: "/v2/frontends", Methods: []string{"GET"}, Handler: c.getFrontends})
-	app.AddHandler(scroll.Spec{Path: "/v2/frontends/{id}", Methods: []string{"DELETE"}, Handler: c.deleteFrontend})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/frontends"}, Methods: []string{"POST"}, HandlerWithBody: c.upsertFrontend})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/frontends/{id}"}, Methods: []string{"GET"}, Handler: c.getFrontend})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/frontends"}, Methods: []string{"GET"}, Handler: c.getFrontends})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/frontends/{id}"}, Methods: []string{"DELETE"}, Handler: c.deleteFrontend})
 
 	// Backends
-	app.AddHandler(scroll.Spec{Path: "/v2/backends", Methods: []string{"POST"}, HandlerWithBody: c.upsertBackend})
-	app.AddHandler(scroll.Spec{Path: "/v2/backends", Methods: []string{"GET"}, Handler: c.getBackends})
-	app.AddHandler(scroll.Spec{Path: "/v2/backends/{id}", Methods: []string{"DELETE"}, Handler: c.deleteBackend})
-	app.AddHandler(scroll.Spec{Path: "/v2/backends/{id}", Methods: []string{"GET"}, Handler: c.getBackend})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends"}, Methods: []string{"POST"}, HandlerWithBody: c.upsertBackend})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends"}, Methods: []string{"GET"}, Handler: c.getBackends})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends/{id}"}, Methods: []string{"DELETE"}, Handler: c.deleteBackend})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends/{id}"}, Methods: []string{"GET"}, Handler: c.getBackend})
 
 	// Servers
-	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers", Methods: []string{"GET"}, Handler: c.getServers})
-	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers", Methods: []string{"POST"}, HandlerWithBody: c.upsertServer})
-	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers/{id}", Methods: []string{"GET"}, Handler: c.getServer})
-	app.AddHandler(scroll.Spec{Path: "/v2/backends/{backendId}/servers/{id}", Methods: []string{"DELETE"}, Handler: c.deleteServer})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends/{backendId}/servers"}, Methods: []string{"GET"}, Handler: c.getServers})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends/{backendId}/servers"}, Methods: []string{"POST"}, HandlerWithBody: c.upsertServer})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends/{backendId}/servers/{id}"}, Methods: []string{"GET"}, Handler: c.getServer})
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/backends/{backendId}/servers/{id}"}, Methods: []string{"DELETE"}, Handler: c.deleteServer})
 
 	// Middlewares
 	c.app.AddHandler(
 		scroll.Spec{
-			Path:            fmt.Sprintf("/v2/frontends/{frontend}/middlewares"),
+			Paths:           []string{fmt.Sprintf("/v2/frontends/{frontend}/middlewares")},
 			Methods:         []string{"POST"},
 			HandlerWithBody: c.upsertMiddleware,
 		})
 
 	c.app.AddHandler(
 		scroll.Spec{
-			Path:    fmt.Sprintf("/v2/frontends/{frontend}/middlewares/{id}"),
+			Paths:   []string{fmt.Sprintf("/v2/frontends/{frontend}/middlewares/{id}")},
 			Methods: []string{"GET"},
 			Handler: c.getMiddleware,
 		})
 
 	c.app.AddHandler(
 		scroll.Spec{
-			Path:    fmt.Sprintf("/v2/frontends/{frontend}/middlewares"),
+			Paths:   []string{fmt.Sprintf("/v2/frontends/{frontend}/middlewares")},
 			Methods: []string{"GET"},
 			Handler: c.getMiddlewares,
 		})
 
 	c.app.AddHandler(
 		scroll.Spec{
-			Path:    fmt.Sprintf("/v2/frontends/{frontend}/middlewares/{id}"),
+			Paths:   []string{fmt.Sprintf("/v2/frontends/{frontend}/middlewares/{id}")},
 			Methods: []string{"DELETE"},
 			Handler: c.deleteMiddleware,
 		})
