@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 type Response struct {
@@ -27,6 +28,7 @@ func (f *ResponseFallback) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if f.r.ContentType != "" {
 		w.Header().Set("Content-Type", f.r.ContentType)
 	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(f.r.Body)))
 	w.WriteHeader(f.r.StatusCode)
 	w.Write(f.r.Body)
 }
