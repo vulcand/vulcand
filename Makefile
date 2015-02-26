@@ -72,3 +72,18 @@ run-test-mode: install
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
+
+docker-clean:
+	docker rm -f vulcand
+
+docker-build:
+	go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vulcand .
+	go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vctl/vctl ./vctl
+	go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vbundle/vbundle ./vbundle
+	docker build -t mailgun/vulcand:latest -f ./Dockerfile-scratch .
+
+docker-run-fast: docker-build
+	docker run -d --net=host --name vulcand mailgun/vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand -sealKey=${SEAL_KEY}
+
+docker-run-test-mode: docker-build
+	docker run -d --net=host --name vulcand mailgun/vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=${PREFIX} -sealKey=${SEAL_KEY} -logSeverity=INFO
