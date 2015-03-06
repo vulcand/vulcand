@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 type matcher interface {
@@ -18,11 +19,11 @@ type matcher interface {
 }
 
 func hostTrieMatcher(hostname string) (matcher, error) {
-	return newTrieMatcher(hostname, &hostMapper{}, &match{})
+	return newTrieMatcher(strings.ToLower(hostname), &hostMapper{}, &match{})
 }
 
 func hostRegexpMatcher(hostname string) (matcher, error) {
-	return newRegexpMatcher(hostname, &hostMapper{}, &match{})
+	return newRegexpMatcher(strings.ToLower(hostname), &hostMapper{}, &match{})
 }
 
 func methodTrieMatcher(method string) (matcher, error) {
