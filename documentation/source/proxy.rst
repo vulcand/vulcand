@@ -79,7 +79,7 @@ Route is a simple routing language for matching http requests with Go syntax: ``
 
 .. code-block:: go
 
-   Host("/v1/users/<user>")              // Match by host with trie syntax
+   Host("<user>.example.com")            // Match by host with trie syntax
    HostRegexp(".*.example.com")          // Match by host with regexp syntax
 
    Path("/v1/users/<user>")              // Match by path with trie syntax
