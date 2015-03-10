@@ -389,16 +389,17 @@ func (n *ng) sealJSONVal(val interface{}) ([]byte, error) {
 
 func (n *ng) backendUsedBy(bk engine.BackendKey) ([]engine.Frontend, error) {
 	fs, err := n.GetFrontends()
+	usedFs := []engine.Frontend{}
 	if err != nil {
 		return nil, err
 	}
 	for _, f := range fs {
 		if f.BackendId == bk.Id {
-			fs = append(fs, f)
+			usedFs = append(usedFs, f)
 		}
 	}
-
-	return fs, nil
+	// only return used frontends
+	return usedFs, nil
 }
 
 // Subscribe watches etcd changes and generates structured events telling vulcand to add or delete frontends, hosts etc.
