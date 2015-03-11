@@ -277,8 +277,7 @@ func (s *EngineSuite) BackendDeleteUsed(c *C) {
 	c.Assert(s.Engine.DeleteBackend(engine.BackendKey{Id: b.Id}), NotNil)
 }
 
-// allow to delete backend when there is another backend has been used by frontends
-func (s *EngineSuite) BackendDeleteWhenThereIsAnotherBackendUsed(c *C) {
+func (s *EngineSuite) BackendDeleteUnused(c *C) {
 	b := engine.Backend{Id: "b0", Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}
 	b1 := engine.Backend{Id: "b1", Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}
 	c.Assert(s.Engine.UpsertBackend(b), IsNil)

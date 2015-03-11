@@ -398,7 +398,6 @@ func (n *ng) backendUsedBy(bk engine.BackendKey) ([]engine.Frontend, error) {
 			usedFs = append(usedFs, f)
 		}
 	}
-	// only return used frontends
 	return usedFs, nil
 }
 
