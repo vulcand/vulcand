@@ -135,6 +135,10 @@ func (s *EtcdSuite) TestBackendDeleteUsed(c *C) {
 	s.suite.BackendDeleteUsed(c)
 }
 
+func (s *EtcdSuite) TestBackendDeleteUnused(c *C) {
+	s.suite.BackendDeleteUnused(c)
+}
+
 func (s *EtcdSuite) TestServerCRUD(c *C) {
 	s.suite.ServerCRUD(c)
 }

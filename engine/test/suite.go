@@ -277,6 +277,27 @@ func (s *EngineSuite) BackendDeleteUsed(c *C) {
 	c.Assert(s.Engine.DeleteBackend(engine.BackendKey{Id: b.Id}), NotNil)
 }
 
+func (s *EngineSuite) BackendDeleteUnused(c *C) {
+	b := engine.Backend{Id: "b0", Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}
+	b1 := engine.Backend{Id: "b1", Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}
+	c.Assert(s.Engine.UpsertBackend(b), IsNil)
+	c.Assert(s.Engine.UpsertBackend(b1), IsNil)
+
+	f := engine.Frontend{
+		Id:        "f1",
+		Route:     `Path("/hello")`,
+		BackendId: b.Id,
+		Type:      engine.HTTP,
+		Settings:  engine.HTTPFrontendSettings{},
+	}
+	c.Assert(s.Engine.UpsertFrontend(f, 0), IsNil)
+
+	s.collectChanges(c, 2)
+
+	c.Assert(s.Engine.DeleteBackend(engine.BackendKey{Id: b.Id}), NotNil)
+	c.Assert(s.Engine.DeleteBackend(engine.BackendKey{Id: b1.Id}), IsNil)
+}
+
 func (s *EngineSuite) ServerCRUD(c *C) {
 	b := engine.Backend{Id: "b0", Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}
 
