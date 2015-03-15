@@ -1033,6 +1033,17 @@ func (s *ServerSuite) TestGetStats(c *C) {
 	c.Assert(s.mux.emitMetrics(), IsNil)
 }
 
+func (s *ServerSuite) TestNotFound(c *C) {
+	e := httptest.NewUnstartedServer(new(NotFound))
+	e.Start()
+	defer e.Close()
+
+	re, err := http.Get(e.URL)
+	c.Assert(err, IsNil)
+	c.Assert(re.StatusCode, Equals, http.StatusNotFound)
+	c.Assert(re.Header.Get("Content-Type"), Equals, "application/json")
+}
+
 func GETResponse(c *C, url string, opts ...testutils.ReqOption) string {
 	response, body, err := testutils.Get(url, opts...)
 	c.Assert(err, IsNil)

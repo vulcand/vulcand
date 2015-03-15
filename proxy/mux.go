@@ -604,7 +604,7 @@ type NotFound struct {
 // ServeHTTP returns a simple 404 Not found response
 func (*NotFound) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Not found: %v %v", r.Method, r.URL)
-	w.Header().Set("Content-Type", "application-json")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprint(w, `{"error":"not found"}`)
 }
