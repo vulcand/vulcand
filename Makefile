@@ -82,6 +82,9 @@ docker-build:
 	go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vbundle/vbundle ./vbundle
 	docker build -t mailgun/vulcand:latest -f ./Dockerfile-scratch .
 
+docker-minimal-linux:
+	bash scripts/build-minimal-linux.sh ${SEAL_KEY}
+
 docker-run-fast: docker-build
 	docker run -d --net=host --name vulcand mailgun/vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand -sealKey=${SEAL_KEY}
 
