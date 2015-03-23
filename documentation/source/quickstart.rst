@@ -17,7 +17,7 @@ The easiest way to install Vulcand is to pull the trusted build from the hub.doc
   docker pull mailgun/vulcand:v0.8.0-beta.2
 
   # launch vulcand in a container
-  docker run -p 8182:8182 -p 8181:8181 mailgun/vulcand:v0.8.0-beta.2 /go/bin/vulcand -apiInterface=0.0.0.0 --etcd=http://172.17.42.1:4001
+  docker run -p 8182:8182 -p 8181:8181 mailgun/vulcand:v0.8.0-beta.2 /go/bin/vulcand --apiInterface=0.0.0.0 --etcd=http://172.17.42.1:4001
 
 You can check if Vulcand is running by checking the logs of the container: 
 
