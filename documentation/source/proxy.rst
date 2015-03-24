@@ -59,7 +59,7 @@ To use this feature, users generate ``sealKey`` using command line utility and p
 Failover Predicates
 ~~~~~~~~~~~~~~~~~~~
 
-Sometimes it is handy to retry the request on error. The good question is what constitues an error? Sometimes it's a read/write timeout, and somethimes it's a special error code. 
+Sometimes it is handy to retry the request on error. The good question is what constitutes an error? Sometimes it's a read/write timeout, and somethimes it's a special error code. 
 Failover predicates are expressions that define when the request can be failed over, e.g.  ``IsNetworkError() && Attempts <= 2``
 
 .. code-block:: bash
