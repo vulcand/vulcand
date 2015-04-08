@@ -83,7 +83,14 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		stopC:          make(chan struct{}),
 		stapler:        st,
 	}
-	m.router.NotFound = &NotFound{}
+
+	m.router.NotFound = &DefaultNotFound{}
+	if o.NotFoundMiddleware != nil {
+		if handler, err := o.NotFoundMiddleware.NewHandler(m.router.NotFound); err == nil {
+			m.router.NotFound = handler
+		}
+	}
+
 	if m.options.DefaultListener != nil {
 		if err := m.upsertListener(*m.options.DefaultListener); err != nil {
 			return nil, err
@@ -598,11 +605,11 @@ func setDefaults(o Options) Options {
 }
 
 // NotFound is a generic http.Handler for request
-type NotFound struct {
+type DefaultNotFound struct {
 }
 
 // ServeHTTP returns a simple 404 Not found response
-func (*NotFound) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (*DefaultNotFound) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Not found: %v %v", r.Method, r.URL)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)

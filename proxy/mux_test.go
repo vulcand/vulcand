@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"testing"
 	"time"
 
@@ -1034,7 +1035,7 @@ func (s *ServerSuite) TestGetStats(c *C) {
 }
 
 func (s *ServerSuite) TestNotFound(c *C) {
-	e := httptest.NewUnstartedServer(new(NotFound))
+	e := httptest.NewUnstartedServer(new(DefaultNotFound))
 	e.Start()
 	defer e.Close()
 
@@ -1042,6 +1043,14 @@ func (s *ServerSuite) TestNotFound(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(re.StatusCode, Equals, http.StatusNotFound)
 	c.Assert(re.Header.Get("Content-Type"), Equals, "application/json")
+}
+
+func (s *ServerSuite) TestCustomNotFound(c *C) {
+	st := stapler.New()
+	m, err := New(s.lastId, st, Options{NotFoundMiddleware: &appender{append: "Custom Not Found handler"}})
+	c.Assert(err, IsNil)
+	t := reflect.TypeOf(m.router.NotFound)
+	c.Assert(t.String(), Equals, "*proxy.appender")
 }
 
 func GETResponse(c *C, url string, opts ...testutils.ReqOption) string {

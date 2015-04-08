@@ -307,6 +307,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 				Address: fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port),
 			},
 		},
+		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
 	})
 }
 

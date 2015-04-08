@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/mailgun/vulcand/engine"
-
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/vulcand/engine"
+	"github.com/mailgun/vulcand/plugin"
 )
 
 type Proxy interface {
@@ -47,14 +47,15 @@ type Proxy interface {
 }
 
 type Options struct {
-	MetricsClient   metrics.Client
-	DialTimeout     time.Duration
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	MaxHeaderBytes  int
-	DefaultListener *engine.Listener
-	Files           []*FileDescriptor
-	TimeProvider    timetools.TimeProvider
+	MetricsClient      metrics.Client
+	DialTimeout        time.Duration
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	MaxHeaderBytes     int
+	DefaultListener    *engine.Listener
+	Files              []*FileDescriptor
+	TimeProvider       timetools.TimeProvider
+	NotFoundMiddleware plugin.Middleware
 }
 
 type NewProxyFn func(id int) (Proxy, error)
