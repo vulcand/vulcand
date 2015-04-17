@@ -265,9 +265,13 @@ func (s *Service) newEngine() error {
 		return err
 	}
 	ng, err := etcdng.New(
-		s.options.EtcdNodes, s.options.EtcdKey,
+		s.options.EtcdNodes,
+		s.options.EtcdKey,
 		s.registry,
 		etcdng.Options{
+			EtcdCaFile:      s.options.EtcdCaFile,
+			EtcdCertFile:    s.options.EtcdCertFile,
+			EtcdKeyFile:     s.options.EtcdKeyFile,
 			EtcdConsistency: s.options.EtcdConsistency,
 			Box:             box,
 		})
