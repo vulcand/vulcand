@@ -97,12 +97,23 @@ func (s *MiddlewareSuite) TestRegistryAddSpecBadSignature(c *C) {
 	c.Assert(r.AddSpec(&MiddlewareSpec{}), NotNil)
 }
 
-type TestMiddleware struct {
-	Field string
+func (s *MiddlewareSuite) TestRegistryNotFoundMiddlewareGetSet(c *C) {
+	r := NewRegistry()
+	correct := &TestMiddleware{Field: "notfound"}
+	r.AddNotFoundMiddleware(correct)
+	c.Assert(r.GetNotFoundMiddleware(), Equals, correct)
 }
 
-func (*TestMiddleware) NewHandler(http.Handler) (http.Handler, error) {
-	return nil, nil
+type TestMiddleware struct {
+	Field string
+	next  http.Handler
+}
+
+func (*TestMiddleware) NewHandler(next http.Handler) (http.Handler, error) {
+	return &TestMiddleware{next: next}, nil
+}
+
+func (*TestMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func GetSpec() *MiddlewareSpec {

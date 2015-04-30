@@ -53,7 +53,8 @@ type SpecGetter func(string) *MiddlewareSpec
 
 // Registry contains currently registered middlewares and used to support pluggable middlewares across all modules of the vulcand
 type Registry struct {
-	specs []*MiddlewareSpec
+	specs    []*MiddlewareSpec
+	notFound Middleware
 }
 
 func NewRegistry() *Registry {
@@ -87,6 +88,15 @@ func (r *Registry) GetSpec(middlewareType string) *MiddlewareSpec {
 
 func (r *Registry) GetSpecs() []*MiddlewareSpec {
 	return r.specs
+}
+
+func (r *Registry) AddNotFoundMiddleware(notFound Middleware) error {
+	r.notFound = notFound
+	return nil
+}
+
+func (r *Registry) GetNotFoundMiddleware() Middleware {
+	return r.notFound
 }
 
 func verifySignature(fn interface{}) error {

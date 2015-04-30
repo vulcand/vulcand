@@ -297,7 +297,7 @@ func scopedHandler(scope string, proxy http.Handler) (http.Handler, error) {
 		return proxy, nil
 	}
 	mux := route.NewMux()
-	mux.NotFound = &NotFound{}
+	mux.NotFound = &DefaultNotFound{}
 	if err := mux.Handle(scope, proxy); err != nil {
 		return nil, err
 	}
