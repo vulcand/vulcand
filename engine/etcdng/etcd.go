@@ -29,6 +29,9 @@ type ng struct {
 
 type Options struct {
 	EtcdConsistency string
+	EtcdCaFile      string
+	EtcdCertFile    string
+	EtcdKeyFile     string
 	Box             *secret.Box
 }
 
@@ -55,7 +58,15 @@ func (s *ng) Close() {
 
 func (n *ng) reconnect() error {
 	n.Close()
-	client := etcd.NewClient(n.nodes)
+	var client *etcd.Client
+	if n.options.EtcdCertFile == "" && n.options.EtcdKeyFile == "" {
+		client = etcd.NewClient(n.nodes)
+	} else {
+		var err error
+		if client, err = etcd.NewTLSClient(n.nodes, n.options.EtcdCertFile, n.options.EtcdKeyFile, n.options.EtcdCaFile); err != nil {
+			return err
+		}
+	}
 	if err := client.SetConsistency(n.options.EtcdConsistency); err != nil {
 		return err
 	}

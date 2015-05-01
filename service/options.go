@@ -21,6 +21,9 @@ type Options struct {
 
 	EtcdNodes       listOptions
 	EtcdKey         string
+	EtcdCaFile      string
+	EtcdCertFile    string
+	EtcdKeyFile     string
 	EtcdConsistency string
 
 	Log         string
@@ -92,6 +95,9 @@ func validateOptions(o Options) (Options, error) {
 func ParseCommandLine() (options Options, err error) {
 	flag.Var(&options.EtcdNodes, "etcd", "Etcd discovery service API endpoints")
 	flag.StringVar(&options.EtcdKey, "etcdKey", "vulcand", "Etcd key for storing configuration")
+	flag.StringVar(&options.EtcdCaFile, "etcdCaFile", "", "Path to CA file for etcd communication")
+	flag.StringVar(&options.EtcdCertFile, "etcdCertFile", "", "Path to cert file for etcd communication")
+	flag.StringVar(&options.EtcdKeyFile, "etcdKeyFile", "", "Path to key file for etcd communication")
 	flag.StringVar(&options.EtcdConsistency, "etcdConsistency", etcd.STRONG_CONSISTENCY, "Etcd consistency")
 	flag.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
 	flag.IntVar(&options.Port, "port", 8181, "Port to listen on")
