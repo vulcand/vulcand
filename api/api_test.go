@@ -164,31 +164,35 @@ func (s *ApiSuite) TestServerCRUD(c *C) {
 
 	c.Assert(s.client.UpsertBackend(*b), IsNil)
 
-	srv := engine.Server{Id: "srv1", URL: "http://localhost:5000"}
+	srv1 := engine.Server{Id: "srv1", URL: "http://localhost:5000"}
+	srv2 := engine.Server{Id: "srv2", URL: "http://localhost:6000"}
 
 	bk := engine.BackendKey{Id: b.Id}
-	c.Assert(s.client.UpsertServer(bk, srv, 0), IsNil)
+	c.Assert(s.client.UpsertServer(bk, srv1, 0), IsNil)
+	c.Assert(s.client.UpsertServer(bk, srv2, 0), IsNil)
 
 	srvs, _ := s.ng.GetServers(bk)
-	c.Assert(len(srvs), Equals, 1)
-	c.Assert(srvs[0], DeepEquals, srv)
+	c.Assert(len(srvs), Equals, 2)
+	c.Assert(srvs[0], DeepEquals, srv1)
+	c.Assert(srvs[1], DeepEquals, srv2)
 
 	srvs, err = s.client.GetServers(bk)
 	c.Assert(srvs, NotNil)
-	c.Assert(len(srvs), Equals, 1)
-	c.Assert(srvs[0], DeepEquals, srv)
+	c.Assert(len(srvs), Equals, 2)
+	c.Assert(srvs[0], DeepEquals, srv1)
+	c.Assert(srvs[1], DeepEquals, srv2)
 
-	sk := engine.ServerKey{Id: srv.Id, BackendKey: bk}
+	sk := engine.ServerKey{Id: srv1.Id, BackendKey: bk}
 	out, err := s.client.GetServer(sk)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, &srv)
+	c.Assert(out, DeepEquals, &srv1)
 
-	srv.URL = "http://localhost:5001"
-	c.Assert(s.client.UpsertServer(bk, srv, 0), IsNil)
+	srv1.URL = "http://localhost:5001"
+	c.Assert(s.client.UpsertServer(bk, srv1, 0), IsNil)
 
 	out, err = s.client.GetServer(sk)
 	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, &srv)
+	c.Assert(out, DeepEquals, &srv1)
 
 	err = s.client.DeleteServer(sk)
 	c.Assert(err, IsNil)
