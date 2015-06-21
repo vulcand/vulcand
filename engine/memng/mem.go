@@ -282,11 +282,11 @@ func (m *Mem) UpsertServer(bk engine.BackendKey, srv engine.Server, d time.Durat
 	}
 	for i, v := range vals {
 		if v.Id == srv.Id {
-			vals[i] = srv
+			m.Servers[bk][i] = srv
 			return nil
 		}
 	}
-	vals = append(vals, srv)
+	m.Servers[bk] = append(vals, srv)
 	return nil
 }
 
