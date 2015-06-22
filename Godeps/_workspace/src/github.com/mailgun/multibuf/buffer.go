@@ -379,6 +379,7 @@ func (w *writerOnce) initFile() error {
 	w.file = file
 	w.cleanupFn = func() error {
 		file.Close()
+		os.Remove(file.Name())
 		return nil
 	}
 	return nil
