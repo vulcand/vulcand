@@ -13,10 +13,11 @@ import (
 
 // Mem is exported to provide easy access to its internals
 type Mem struct {
-	Hosts     map[engine.HostKey]engine.Host
-	Frontends map[engine.FrontendKey]engine.Frontend
-	Backends  map[engine.BackendKey]engine.Backend
-	Listeners map[engine.ListenerKey]engine.Listener
+	Hosts             map[engine.HostKey]engine.Host
+	Frontends         map[engine.FrontendKey]engine.Frontend
+	Backends          map[engine.BackendKey]engine.Backend
+	Listeners         map[engine.ListenerKey]engine.Listener
+	SharedMiddlewares []engine.Middleware
 
 	Middlewares map[engine.FrontendKey][]engine.Middleware
 	Servers     map[engine.BackendKey][]engine.Server
@@ -179,6 +180,7 @@ func (m *Mem) UpsertMiddleware(fk engine.FrontendKey, md engine.Middleware, d ti
 	if _, ok := m.Frontends[fk]; !ok {
 		return &engine.NotFoundError{Message: fmt.Sprintf("'%v' not found", fk)}
 	}
+
 	defer func() {
 		m.emit(&engine.MiddlewareUpserted{FrontendKey: fk, Middleware: md})
 	}()
