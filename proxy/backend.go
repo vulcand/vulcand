@@ -15,8 +15,6 @@ type backend struct {
 	frontends map[engine.FrontendKey]*frontend
 	servers   []engine.Server
 	transport *http.Transport
-
-	deferClosed bool
 }
 
 func newBackend(m *mux, b engine.Backend) (*backend, error) {
@@ -43,18 +41,6 @@ func (b *backend) linkFrontend(key engine.FrontendKey, f *frontend) {
 
 func (b *backend) unlinkFrontend(key engine.FrontendKey) {
 	delete(b.frontends, key)
-
-	//if last frontend is removed, and this
-	//backend has been deferClosed, close all idle connections
-	//from the transport
-	if b.deferClosed && len(b.frontends) == 0 {
-		b.Close()
-	}
-}
-
-func (b *backend) DeferClose() error {
-	b.deferClosed = true
-	return nil
 }
 
 func (b *backend) Close() error {

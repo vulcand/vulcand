@@ -414,7 +414,6 @@ func (m *mux) DeleteBackend(bk engine.BackendKey) error {
 	delete(m.backends, bk)
 
 	if len(b.frontends) != 0 {
-		b.DeferClose()
 		return fmt.Errorf("%v is used by frontends: %v", b, b.frontends)
 	}
 
