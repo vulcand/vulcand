@@ -403,11 +403,15 @@ func (m *mux) DeleteBackend(bk engine.BackendKey) error {
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-
 	b, ok := m.backends[bk]
 	if !ok {
 		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", bk)}
 	}
+
+	//delete backend from being referenced - it is no longer in etcd
+	//and future frontend additions to etcd shouldn't see a
+	//magical backend just because vulcan is holding a reference to it.
+	delete(m.backends, bk)
 
 	if len(b.frontends) != 0 {
 		return fmt.Errorf("%v is used by frontends: %v", b, b.frontends)

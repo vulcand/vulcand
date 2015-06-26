@@ -13,7 +13,7 @@ type NewEngineFn func() (Engine, error)
 // Engines should pass the following acceptance suite to be compatible:
 // engine/test/suite.go, see engine/etcdng/etcd_test.go and engine/memng/mem_test.go for details
 type Engine interface {
-	// GetHosts returns list of hosts registered in the sotrage engine
+	// GetHosts returns list of hosts registered in the storage engine
 	// Returns empty list in case if there are no hosts.
 	GetHosts() ([]Host, error)
 	// GetHost returns host by given key, or engine.NotFoundError if it's not found
@@ -44,14 +44,14 @@ type Engine interface {
 	// DeleteFrontend deletes a frontend by a given key, returns engine.NotFoundError if it's not found
 	DeleteFrontend(FrontendKey) error
 
-	// GetMiddlewares retunrns middlewares registered for a given frontend
+	// GetMiddlewares returns middlewares registered for a given frontend
 	// Returns empty list if there are no registered middlewares
 	GetMiddlewares(FrontendKey) ([]Middleware, error)
 	// GetMiddleware returns middleware by a given key, returns engine.NotFoundError if it's not there
 	GetMiddleware(MiddlewareKey) (*Middleware, error)
 	// UpsertMiddleware updates or inserts a middleware for a frontend. FrontendKey.Id and Middleware.Id should not be empty
 	UpsertMiddleware(FrontendKey, Middleware, time.Duration) error
-	// Delete middleware by given key, returns engine.NotFoundError if its not found
+	// Delete middleware by given key, returns engine.NotFoundError if it's not found
 	DeleteMiddleware(MiddlewareKey) error
 
 	// GetBackends returns list of registered backends. Returns empty list if there are no backends
