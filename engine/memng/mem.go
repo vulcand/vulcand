@@ -179,7 +179,6 @@ func (m *Mem) UpsertMiddleware(fk engine.FrontendKey, md engine.Middleware, d ti
 	if _, ok := m.Frontends[fk]; !ok {
 		return &engine.NotFoundError{Message: fmt.Sprintf("'%v' not found", fk)}
 	}
-
 	defer func() {
 		m.emit(&engine.MiddlewareUpserted{FrontendKey: fk, Middleware: md})
 	}()

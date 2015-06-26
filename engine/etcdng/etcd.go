@@ -307,7 +307,6 @@ func (n *ng) GetMiddleware(key engine.MiddlewareKey) (*engine.Middleware, error)
 	if err != nil {
 		return nil, err
 	}
-
 	return engine.MiddlewareFromJSON([]byte(bytes), n.registry.GetSpec, key.Id)
 }
 
