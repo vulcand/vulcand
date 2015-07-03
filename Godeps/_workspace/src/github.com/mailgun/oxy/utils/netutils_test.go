@@ -27,7 +27,7 @@ func (s *NetUtilsSuite) TestCopyUrl(c *C) {
 		User:     &url.Userinfo{},
 	}
 	urlB := CopyURL(urlA)
-	c.Assert(urlB, DeepEquals, urlB)
+	c.Assert(urlB, DeepEquals, urlA)
 	urlB.Scheme = "https"
 	c.Assert(urlB, Not(DeepEquals), urlA)
 }

@@ -46,8 +46,8 @@ import (
 )
 
 const (
-	DefaultMemBodyBytes = // Store up to 1MB in RAM
-	1048576
+	// Store up to 1MB in RAM
+	DefaultMemBodyBytes = 1048576
 	// No limit by default
 	DefaultMaxBodyBytes = -1
 	// Maximum retry attempts
