@@ -156,14 +156,14 @@ func CliFlags() []cli.Flag {
 
 func rawURL(request *http.Request) string {
 	scheme := "http"
-	if request.TLS != nil || isXForwardedHttps(request) {
+	if request.TLS != nil || isXForwardedHTTPS(request) {
 		scheme = "https"
 	}
 
 	return strings.Join([]string{scheme, "://", request.Host, request.RequestURI}, "")
 }
 
-func isXForwardedHttps(request *http.Request) bool {
+func isXForwardedHTTPS(request *http.Request) bool {
 	xForwardedProto := request.Header.Get("X-Forwarded-Proto")
 
 	return len(xForwardedProto) > 0 && xForwardedProto == "https"
