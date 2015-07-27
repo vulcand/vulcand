@@ -32,10 +32,15 @@ func (rw *HeaderRewriter) Rewrite(req *http.Request) {
 		req.Header.Set(XForwardedProto, "http")
 	}
 
-	if req.Host != "" {
+	if xfh := req.Header.Get(XForwardedHost); xfh != "" && rw.TrustForwardHeader {
+		req.Header.Set(XForwardedHost, xfh)
+	} else if req.Host != "" {
 		req.Header.Set(XForwardedHost, req.Host)
 	}
-	req.Header.Set(XForwardedServer, rw.Hostname)
+
+	if rw.Hostname != "" {
+		req.Header.Set(XForwardedServer, rw.Hostname)
+	}
 
 	// Remove hop-by-hop headers to the backend.  Especially important is "Connection" because we want a persistent
 	// connection, regardless of what the client sent to us.

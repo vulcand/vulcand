@@ -58,43 +58,43 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/cbreaker",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/connlimit",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/forward",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/memmetrics",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/ratelimit",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/roundrobin",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/stream",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/testutils",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/trace",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/utils",
-			"Rev": "563343dd5c1f1997846c85e353fbf81708982ab5"
+			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/predicate",
