@@ -21,9 +21,10 @@ type Mem struct {
 	Middlewares map[engine.FrontendKey][]engine.Middleware
 	Servers     map[engine.BackendKey][]engine.Server
 
-	Registry *plugin.Registry
-	ChangesC chan interface{}
-	ErrorsC  chan error
+	Registry    *plugin.Registry
+	ChangesC    chan interface{}
+	ErrorsC     chan error
+	LogSeverity log.Severity
 }
 
 func New(r *plugin.Registry) engine.Engine {
@@ -49,6 +50,15 @@ func (m *Mem) emit(val interface{}) {
 }
 
 func (m *Mem) Close() {
+}
+
+func (m *Mem) GetLogSeverity() log.Severity {
+	return m.LogSeverity
+}
+
+func (m *Mem) SetLogSeverity(sev log.Severity) {
+	m.LogSeverity = sev
+	log.SetSeverity(m.LogSeverity)
 }
 
 func (m *Mem) GetRegistry() *plugin.Registry {

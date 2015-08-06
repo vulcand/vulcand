@@ -3,6 +3,7 @@ package engine
 import (
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/plugin"
 )
 
@@ -84,6 +85,11 @@ type Engine interface {
 
 	// GetRegistry returns registry with the supported plugins. It should be stored by Engine instance.
 	GetRegistry() *plugin.Registry
+
+	// GetLogSeverity returns the current logging severity level
+	GetLogSeverity() log.Severity
+	// SetLogSeverity updates the logging severity level
+	SetLogSeverity(log.Severity)
 
 	// Close should close all underlying resources such as connections, files, etc.
 	Close()

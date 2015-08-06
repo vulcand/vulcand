@@ -23,6 +23,7 @@ type ng struct {
 	client   *etcd.Client
 	cancelC  chan bool
 	stopC    chan bool
+	logsev   log.Severity
 
 	options Options
 }
@@ -54,6 +55,15 @@ func (s *ng) Close() {
 	if s.client != nil {
 		s.client.Close()
 	}
+}
+
+func (n *ng) GetLogSeverity() log.Severity {
+	return n.logsev
+}
+
+func (n *ng) SetLogSeverity(sev log.Severity) {
+	n.logsev = sev
+	log.SetSeverity(n.logsev)
 }
 
 func (n *ng) reconnect() error {

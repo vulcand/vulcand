@@ -33,7 +33,7 @@ func newFrontend(m *mux, f engine.Frontend, b *backend) (*frontend, error) {
 		mux:         m,
 		backend:     b,
 		middlewares: make(map[engine.MiddlewareKey]engine.Middleware),
-		log:         log.GetLogger(),
+		log:         log.GetGlobalLogger(),
 	}
 
 	if err := fr.rebuild(); err != nil {
