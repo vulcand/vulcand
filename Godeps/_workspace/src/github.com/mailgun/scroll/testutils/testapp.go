@@ -5,6 +5,7 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/registry"
 )
 
 // TestApp wraps a regular app adding features that can be used in unit tests.
@@ -17,9 +18,15 @@ type TestApp struct {
 // NewTestApp creates a new app should be used in unit tests.
 func NewTestApp() *TestApp {
 	router := mux.NewRouter()
+	registry := &registry.NopRegistry{}
+	config := scroll.AppConfig{
+		Name:     "test",
+		Router:   router,
+		Registry: registry}
+
 	return &TestApp{
 		RestHelper{},
-		scroll.NewAppWithConfig(scroll.AppConfig{Router: router}),
+		scroll.NewAppWithConfig(config),
 		httptest.NewServer(router),
 	}
 }

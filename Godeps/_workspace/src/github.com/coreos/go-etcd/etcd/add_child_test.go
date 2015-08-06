@@ -64,18 +64,6 @@ func TestAddChildDir(t *testing.T) {
 			"  The response was: %#v", resp)
 	}
 
-	child_resp, err := c.Get(resp.Node.Nodes[0].Key, false, false)
-	// The child should actually be a directory
-	if err != nil {
-		t.Fatalf("AddChildDir 2 failed.  Getting one of the created children resulted in an error:", err)
-	}
-	if child_resp == nil {
-		t.Fatalf("AddChildDir 2 failed.  Getting one of the created children resulted in a nil response, but no error.")
-	}
-	if child_resp.Node.Dir != true {
-		t.Fatalf("AddChildDir 2 failed.  The created key should be a directory. The created node is: %#v", child_resp.Node)
-	}
-
 	// Creating a child under a nonexistent directory should succeed.
 	// The directory should be created.
 	resp, err = c.AddChildDir("nonexistentDir", 5)

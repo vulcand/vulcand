@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/mailgun/vulcand",
-	"GoVersion": "go1.4.1",
+	"GoVersion": "go1.4.2",
 	"Packages": [
 		"./..."
 	],
@@ -19,17 +19,17 @@
 			"Rev": "bf4a526f48af7badd25d2cb02d587e1b01be3b50"
 		},
 		{
+			"ImportPath": "github.com/coreos/go-etcd/etcd",
+			"Comment": "v2.0.0-22-g9847b93",
+			"Rev": "9847b93751a5fbaf227b893d172cee0104ac6427"
+		},
+		{
 			"ImportPath": "github.com/gorilla/context",
 			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
 		},
 		{
 			"ImportPath": "github.com/gorilla/mux",
 			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
-		},
-		{
-			"ImportPath": "github.com/mailgun/go-etcd/etcd",
-			"Comment": "v0.2.0-rc1-124-g248e96a",
-			"Rev": "248e96a4ad7adfa23b531eb2d8e80d9050c33d24"
 		},
 		{
 			"ImportPath": "github.com/mailgun/iptools",
@@ -106,7 +106,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/scroll",
-			"Rev": "c33949cbf905969d74b2fbb22a1490319cea2d14"
+			"Rev": "77b0214e471c031b73fac913b7dda81b21ed4bd3"
 		},
 		{
 			"ImportPath": "github.com/mailgun/timetools",
@@ -115,6 +115,10 @@
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
 			"Rev": "51994f8e1aad271eb214e725379dde8bd4c90acf"
+		},
+		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "5abd4e96a45c386928ed2ca2a7ef63e2533e18ec"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/nacl/secretbox",
