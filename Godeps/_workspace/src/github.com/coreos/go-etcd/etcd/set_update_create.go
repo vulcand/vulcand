@@ -13,7 +13,7 @@ func (c *Client) Set(key string, value string, ttl uint64) (*Response, error) {
 	return raw.Unmarshal()
 }
 
-// Set sets the given key to a directory.
+// SetDir sets the given key to a directory.
 // It will create a new directory or replace the old key value pair by a directory.
 // It will not replace a existing directory.
 func (c *Client) SetDir(key string, ttl uint64) (*Response, error) {
@@ -133,5 +133,5 @@ func (c *Client) RawCreate(key string, value string, ttl uint64) (*RawResponse, 
 }
 
 func (c *Client) RawCreateInOrder(dir string, value string, ttl uint64) (*RawResponse, error) {
-	return c.post(dir, value, ttl, Options{})
+	return c.post(dir, value, ttl)
 }

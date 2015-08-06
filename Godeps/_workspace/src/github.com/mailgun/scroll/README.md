@@ -31,6 +31,7 @@ import (
 	"net/http"
 
 	"github.com/mailgun/scroll"
+	"github.com/mailgun/scroll/registry"
 )
 
 func handler(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
@@ -45,6 +46,7 @@ func main() {
 		Name:       "scrollexample",
 		ListenIP:   "0.0.0.0",
 		ListenPort: 8080,
+		Registry:   &registry.NopRegistry{},
 	}
 	app := scroll.NewAppWithConfig(appConfig)
 
@@ -52,7 +54,6 @@ func main() {
 	handlerSpec := scroll.Spec{
 		Methods:  []string{"GET", "POST"},
 		Paths:    []string{"/resources/{resourceID}"},
-		Register: false,
 		Handler:  handler,
 	}
 

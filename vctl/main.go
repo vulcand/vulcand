@@ -11,7 +11,7 @@ import (
 var vulcanUrl string
 
 func main() {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 
 	cmd := command.NewCommand(registry.GetRegistry())
 	err := cmd.Run(os.Args)

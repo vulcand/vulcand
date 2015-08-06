@@ -20,7 +20,7 @@ type MemSuite struct {
 var _ = Suite(&MemSuite{})
 
 func (s *MemSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 }
 
 func (s *MemSuite) SetUpTest(c *C) {

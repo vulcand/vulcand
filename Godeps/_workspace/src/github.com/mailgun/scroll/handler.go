@@ -10,6 +10,7 @@ import (
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/vulcan/middleware"
 )
 
@@ -156,6 +157,25 @@ func ReplyError(w http.ResponseWriter, err error) {
 func ReplyInternalError(w http.ResponseWriter, message string) {
 	log.Errorf("Internal server error: %v", message)
 	Reply(w, Response{"message": message}, http.StatusInternalServerError)
+}
+
+// GetVarSafe is a helper function that returns the requested variable from URI with allowSet
+// providing input sanitization. If an error occurs, returns either a `MissingFieldError`
+// or an `UnsafeFieldError`.
+func GetVarSafe(r *http.Request, variableName string, allowSet AllowSet) (string, error) {
+	vars := mux.Vars(r)
+	variableValue, ok := vars[variableName]
+
+	if !ok {
+		return "", MissingFieldError{variableName}
+	}
+
+	err := allowSet.IsSafe(variableValue)
+	if err != nil {
+		return "", UnsafeFieldError{variableName, err.Error()}
+	}
+
+	return variableValue, nil
 }
 
 // Parse the request data based on its content type.

@@ -50,7 +50,7 @@ func (s *SupervisorSuite) TearDownTest(c *C) {
 var _ = Suite(&SupervisorSuite{})
 
 func (s *SupervisorSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 }
 
 func (s *SupervisorSuite) TestStartStopEmpty(c *C) {

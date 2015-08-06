@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/go-etcd/etcd"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
 	"github.com/mailgun/vulcand/engine"
@@ -45,7 +45,7 @@ func (s *VESuite) name(prefix string) string {
 }
 
 func (s *VESuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 
 	etcdNodes := os.Getenv("VULCAND_TEST_ETCD_NODES")
 	if etcdNodes == "" {

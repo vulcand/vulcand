@@ -18,6 +18,9 @@ const (
 var severityNames = []string{"DEBUG", "INFO", "WARN", "ERROR"}
 
 func (s Severity) String() string {
+	if int(s) < 0 || int(s) >= len(severityNames) {
+		return "UNKNOWN"
+	}
 	return severityNames[s]
 }
 
