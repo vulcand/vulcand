@@ -14,7 +14,7 @@ import (
 var vulcanUrl string
 
 func main() {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 
 	app := cli.NewApp()
 	app.Name = "vulcanbundle"

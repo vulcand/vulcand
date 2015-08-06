@@ -30,7 +30,7 @@ type ServerSuite struct {
 }
 
 func (s *ServerSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 }
 
 func (s *ServerSuite) SetUpTest(c *C) {

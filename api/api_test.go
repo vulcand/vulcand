@@ -31,7 +31,7 @@ type ApiSuite struct {
 var _ = Suite(&ApiSuite{})
 
 func (s *ApiSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 }
 
 func (s *ApiSuite) SetUpTest(c *C) {
@@ -65,7 +65,7 @@ func (s *ApiSuite) TestStatusV1(c *C) {
 }
 
 func (s *ApiSuite) TestSeverity(c *C) {
-	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarn, log.SeverityError} {
+	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarning, log.SeverityError} {
 		err := s.client.UpdateLogSeverity(sev)
 		c.Assert(err, IsNil)
 		out, err := s.client.GetLogSeverity()

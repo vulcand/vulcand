@@ -34,7 +34,7 @@ var _ = Suite(&EtcdSuite{
 })
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 
 	key, err := secret.NewKeyString()
 	if err != nil {

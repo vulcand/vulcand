@@ -45,7 +45,7 @@ func (s *VESuite) name(prefix string) string {
 }
 
 func (s *VESuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 
 	etcdNodes := os.Getenv("VULCAND_TEST_ETCD_NODES")
 	if etcdNodes == "" {

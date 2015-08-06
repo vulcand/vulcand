@@ -24,7 +24,7 @@ type StaplerSuite struct {
 }
 
 func (s *StaplerSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 	s.re = testutils.OCSPResponse
 }
 

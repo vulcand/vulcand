@@ -38,7 +38,7 @@ type CmdSuite struct {
 var _ = Suite(&CmdSuite{})
 
 func (s *CmdSuite) SetUpSuite(c *C) {
-	log.Init([]*log.LogConfig{&log.LogConfig{Name: "console"}})
+	log.InitWithConfig(log.Config{Name: "console"})
 }
 
 func (s *CmdSuite) SetUpTest(c *C) {
@@ -116,7 +116,7 @@ func (s *CmdSuite) TestHostCRUD(c *C) {
 }
 
 func (s *CmdSuite) TestLogSeverity(c *C) {
-	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarn, log.SeverityError} {
+	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarning, log.SeverityError} {
 		c.Assert(s.run("log", "set_severity", "-s", sev.String()), Matches, ".*updated.*")
 		c.Assert(s.run("log", "get_severity"), Matches, fmt.Sprintf(".*%v.*", sev))
 	}
