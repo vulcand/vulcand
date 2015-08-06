@@ -47,7 +47,7 @@ type severity struct {
 }
 
 func (s *severity) Get() interface{} {
-	return s.s.Get()
+	return &s.s
 }
 
 // Set is part of the flag.Value interface.
@@ -108,7 +108,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.CertPath, "certPath", "", "KeyPair to use (enables TLS)")
 	flag.StringVar(&options.Log, "log", "console", "Logging to use (syslog or console)")
 
-	options.LogSeverity.s = log.SeverityWarn
+	options.LogSeverity.s = log.SeverityWarning
 	flag.Var(&options.LogSeverity, "logSeverity", "logs at or above this level to the logging output")
 
 	flag.IntVar(&options.ServerMaxHeaderBytes, "serverMaxHeaderBytes", 1<<20, "Maximum size of request headers")

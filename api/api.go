@@ -107,7 +107,7 @@ func (c *ProxyController) getStatus(w http.ResponseWriter, r *http.Request, para
 
 func (c *ProxyController) getLogSeverity(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
 	return scroll.Response{
-		"severity": log.GetSeverity().String(),
+		"severity": c.ng.GetLogSeverity().String(),
 	}, nil
 }
 
@@ -116,7 +116,7 @@ func (c *ProxyController) updateLogSeverity(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return nil, formatError(err)
 	}
-	log.SetSeverity(s)
+	c.ng.SetLogSeverity(s)
 	return scroll.Response{"message": fmt.Sprintf("Severity has been updated to %v", s)}, nil
 }
 

@@ -1,53 +1,57 @@
 package log
 
 import (
-	"errors"
-	"log/syslog"
+	"bytes"
 
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
-type SysLogSuite struct {
-	logger Logger
+type SysLoggerSuite struct {
 }
 
-var _ = Suite(&SysLogSuite{})
+var _ = Suite(&SysLoggerSuite{})
 
-func (s *SysLogSuite) SetUpSuite(c *C) {
-	config := &LogConfig{Name: "test"}
-	s.logger, _ = NewSysLogger(config)
+func (s *SysLoggerSuite) TestWriter(c *C) {
+	debug, info, warning, error := &bytes.Buffer{}, &bytes.Buffer{}, &bytes.Buffer{}, &bytes.Buffer{}
+
+	// DEBUG logger should log DEBUG, INFO, WARN and ERROR
+	l := &sysLogger{SeverityDebug, debug, info, warning, error}
+	c.Assert(l.Writer(SeverityDebug), Equals, debug)
+	c.Assert(l.Writer(SeverityInfo), Equals, info)
+	c.Assert(l.Writer(SeverityWarning), Equals, warning)
+	c.Assert(l.Writer(SeverityError), Equals, error)
+
+	// INFO logger should log INFO, WARN and ERROR
+	l = &sysLogger{SeverityInfo, debug, info, warning, error}
+	c.Assert(l.Writer(SeverityDebug), IsNil)
+	c.Assert(l.Writer(SeverityInfo), Equals, info)
+	c.Assert(l.Writer(SeverityWarning), Equals, warning)
+	c.Assert(l.Writer(SeverityError), Equals, error)
+
+	// WARN logger should log WARN and ERROR
+	l = &sysLogger{SeverityWarning, debug, info, warning, error}
+	c.Assert(l.Writer(SeverityDebug), IsNil)
+	c.Assert(l.Writer(SeverityInfo), IsNil)
+	c.Assert(l.Writer(SeverityWarning), Equals, warning)
+	c.Assert(l.Writer(SeverityError), Equals, error)
+
+	// ERROR logger should log only ERROR
+	l = &sysLogger{SeverityError, debug, info, warning, error}
+	c.Assert(l.Writer(SeverityDebug), IsNil)
+	c.Assert(l.Writer(SeverityInfo), IsNil)
+	c.Assert(l.Writer(SeverityWarning), IsNil)
+	c.Assert(l.Writer(SeverityError), Equals, error)
 }
 
-func (s *SysLogSuite) TestNewSysLogger(c *C) {
-	config := &LogConfig{Name: "syslog"}
-	logger, err := NewSysLogger(config)
-	c.Assert(logger, NotNil)
+func (s *SysLoggerSuite) TestNewSysLogger(c *C) {
+	l, err := NewSysLogger(Config{Syslog, "debug"})
 	c.Assert(err, IsNil)
-}
+	c.Assert(l, NotNil)
 
-func (s *SysLogSuite) TestNewSysLoggerError(c *C) {
-	config := &LogConfig{Name: "syslog"}
-	newSyslogWriter = func(int syslog.Priority, tag string) (*syslog.Writer, error) {
-		return nil, errors.New("Error")
-	}
-
-	logger, err := NewSysLogger(config)
-	c.Assert(logger, IsNil)
-	c.Assert(err, NotNil)
-}
-
-func (s *SysLogSuite) TestInfo(c *C) {
-	s.logger.Infof("test message")
-}
-
-func (s *SysLogSuite) TestWarning(c *C) {
-	s.logger.Warningf("test message")
-}
-
-func (s *SysLogSuite) TestError(c *C) {
-	s.logger.Errorf("test message")
-}
-
-func (s *SysLogSuite) TestFatal(c *C) {
-	s.logger.Fatalf("test message")
+	syslog := l.(*sysLogger)
+	c.Assert(syslog.sev, Equals, SeverityDebug)
+	c.Assert(syslog.debugW, NotNil)
+	c.Assert(syslog.infoW, NotNil)
+	c.Assert(syslog.warnW, NotNil)
+	c.Assert(syslog.errorW, NotNil)
 }
