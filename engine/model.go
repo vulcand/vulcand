@@ -272,11 +272,11 @@ func NewHTTPFrontend(id, backendId string, routeExpr string, settings HTTPFronte
 
 	// Make sure location path is a valid route expression
 	if !route.IsValid(routeExpr) {
-		return nil, fmt.Errorf("route should be a valid route expression")
+		return nil, fmt.Errorf("route should be a valid route expression: %s", routeExpr)
 	}
 
 	if settings.FailoverPredicate != "" && !stream.IsValidExpression(settings.FailoverPredicate) {
-		return nil, fmt.Errorf("invalid failover predicate")
+		return nil, fmt.Errorf("invalid failover predicate: %s", settings.FailoverPredicate)
 	}
 
 	return &Frontend{
