@@ -67,9 +67,10 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 }
 
 func (s *Service) Start() error {
-	log.InitWithConfig(log.Config{Name: s.options.Log})
-
-	log.SetSeverity(s.options.LogSeverity.s)
+	log.InitWithConfig(log.Config{
+		Name:     s.options.Log,
+		Severity: s.options.LogSeverity.S.String(),
+	})
 
 	log.Infof("Service starts with options: %#v", s.options)
 
