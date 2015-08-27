@@ -20,6 +20,13 @@ type ReqRewriter interface {
 
 type optSetter func(f *Forwarder) error
 
+func PassHostHeader(bool) optSetter {
+	return func(f *Forwarder) error {
+		f.passHost = true
+		return nil
+	}
+}
+
 func RoundTripper(r http.RoundTripper) optSetter {
 	return func(f *Forwarder) error {
 		f.roundTripper = r
@@ -54,6 +61,7 @@ type Forwarder struct {
 	roundTripper http.RoundTripper
 	rewriter     ReqRewriter
 	log          utils.Logger
+	passHost     bool
 }
 
 func New(setters ...optSetter) (*Forwarder, error) {
@@ -122,9 +130,10 @@ func (f *Forwarder) copyRequest(req *http.Request, u *url.URL) *http.Request {
 	outReq.URL.Opaque = req.RequestURI
 	// raw query is already included in RequestURI, so ignore it to avoid dupes
 	outReq.URL.RawQuery = ""
-	// Go doesn't implicitly pass the host header unless you set Host on the request
-	outReq.Host = u.Host
-
+	// Do not pass client Host header unless optsetter PassHostHeader is set.
+	if f.passHost != true {
+		outReq.Host = u.Host
+	}
 	outReq.Proto = "HTTP/1.1"
 	outReq.ProtoMajor = 1
 	outReq.ProtoMinor = 1
