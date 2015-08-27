@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/mailgun/vulcand",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.5",
 	"Packages": [
 		"./..."
 	],
@@ -58,43 +58,43 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/cbreaker",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/connlimit",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/forward",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/memmetrics",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/ratelimit",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/roundrobin",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/stream",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/testutils",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/trace",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/oxy/utils",
-			"Rev": "946eb4e5bac9f322929ee4e5b14b7d08020b14e6"
+			"Rev": "7d13b3eab8e6392740c375f298557d1a01014aa4"
 		},
 		{
 			"ImportPath": "github.com/mailgun/predicate",
