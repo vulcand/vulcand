@@ -108,6 +108,7 @@ func getFrontendSettings(c *cli.Context) (engine.HTTPFrontendSettings, error) {
 	s.FailoverPredicate = c.String("failoverPredicate")
 	s.Hostname = c.String("forwardHost")
 	s.TrustForwardHeader = c.Bool("trustForwardHeader")
+	s.PassHostHeader = c.Bool("passHostHeader")
 
 	return s, nil
 }
@@ -122,5 +123,6 @@ func frontendOptions() []cli.Flag {
 		cli.StringFlag{Name: "failoverPredicate", Usage: "predicate that defines cases when failover is allowed"},
 		cli.StringFlag{Name: "forwardHost", Usage: "hostname to set when forwarding a request"},
 		cli.BoolFlag{Name: "trustForwardHeader", Usage: "allows copying X-Forwarded-For header value from the original request"},
+		cli.BoolFlag{Name: "passHostHeader", Usage: "allows passing custom headers to the backend servers"},
 	}
 }
