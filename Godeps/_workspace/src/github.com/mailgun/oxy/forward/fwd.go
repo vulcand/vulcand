@@ -20,9 +20,9 @@ type ReqRewriter interface {
 
 type optSetter func(f *Forwarder) error
 
-func PassHostHeader(bool) optSetter {
+func PassHostHeader(b bool) optSetter {
 	return func(f *Forwarder) error {
-		f.passHost = true
+		f.passHost = b
 		return nil
 	}
 }

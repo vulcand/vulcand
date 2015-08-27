@@ -224,6 +224,8 @@ type HTTPFrontendSettings struct {
 	Hostname string
 	// In this case appends new forward info to the existing header
 	TrustForwardHeader bool
+	// Should host header be forwarded as-is?
+	PassHostHeader bool
 }
 
 func NewAddress(network, address string) (*Address, error) {
