@@ -29,11 +29,12 @@ type ng struct {
 }
 
 type Options struct {
-	EtcdConsistency string
-	EtcdCaFile      string
-	EtcdCertFile    string
-	EtcdKeyFile     string
-	Box             *secret.Box
+	EtcdConsistency         string
+	EtcdCaFile              string
+	EtcdCertFile            string
+	EtcdKeyFile             string
+	EtcdSyncIntervalSeconds int64
+	Box                     *secret.Box
 }
 
 func New(nodes []string, etcdKey string, registry *plugin.Registry, options Options) (engine.Engine, error) {
@@ -47,6 +48,9 @@ func New(nodes []string, etcdKey string, registry *plugin.Registry, options Opti
 	}
 	if err := n.reconnect(); err != nil {
 		return nil, err
+	}
+	if options.EtcdSyncIntervalSeconds > 0 {
+		go n.periodicallySyncCluster()
 	}
 	return n, nil
 }
@@ -727,6 +731,11 @@ func (n *ng) checkKeyExists(key string) error {
 func (n *ng) deleteKey(key string) error {
 	_, err := n.client.Delete(key, true)
 	return convertErr(err)
+}
+
+func (n *ng) periodicallySyncCluster() {
+	time.Sleep(time.Duration(n.options.EtcdSyncIntervalSeconds) * time.Second)
+	n.client.SyncCluster()
 }
 
 type Pair struct {

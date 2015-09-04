@@ -270,11 +270,12 @@ func (s *Service) newEngine() error {
 		s.options.EtcdKey,
 		s.registry,
 		etcdng.Options{
-			EtcdCaFile:      s.options.EtcdCaFile,
-			EtcdCertFile:    s.options.EtcdCertFile,
-			EtcdKeyFile:     s.options.EtcdKeyFile,
-			EtcdConsistency: s.options.EtcdConsistency,
-			Box:             box,
+			EtcdCaFile:              s.options.EtcdCaFile,
+			EtcdCertFile:            s.options.EtcdCertFile,
+			EtcdKeyFile:             s.options.EtcdKeyFile,
+			EtcdConsistency:         s.options.EtcdConsistency,
+			EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
+			Box: box,
 		})
 	if err != nil {
 		return err
