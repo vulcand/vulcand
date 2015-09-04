@@ -65,6 +65,12 @@ func newRewriteHandler(next http.Handler, spec *Rewrite) (*rewriteHandler, error
 func (rw *rewriteHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	oldURL := rawURL(req)
 
+	// only continue if the Regexp param matches the URL
+	if !rw.regexp.MatchString(oldURL) {
+		rw.next.ServeHTTP(w, req)
+		return
+	}
+
 	// apply a rewrite regexp to the URL
 	newURL := rw.regexp.ReplaceAllString(oldURL, rw.replacement)
 
@@ -90,10 +96,7 @@ func (rw *rewriteHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req.URL = parsedURL
 
 	// make sure the request URI corresponds the rewritten URL
-	req.RequestURI = req.URL.Path
-	if req.URL.RawQuery != "" {
-		req.RequestURI = strings.Join([]string{req.RequestURI, "?", req.URL.RawQuery}, "")
-	}
+	req.RequestURI = req.URL.RequestURI()
 
 	if !rw.rewriteBody {
 		rw.next.ServeHTTP(w, req)
