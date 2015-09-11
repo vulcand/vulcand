@@ -202,7 +202,12 @@ func (s *Supervisor) init() error {
 			close(cancelC)
 			// Graceful shutdown without restart
 			log.Infof("%v engine watcher got nil error, gracefully shutdown", proxy)
-			s.restartC <- nil
+
+			s.mtx.Lock()
+			if s.restartC != nil {
+				s.restartC <- nil
+			}
+			s.mtx.Unlock()
 		}
 	}()
 
@@ -286,7 +291,13 @@ func (s *Supervisor) Stop(wait bool) {
 		return
 	}
 
-	close(s.restartC)
+	s.mtx.Lock()
+	if s.restartC != nil {
+		close(s.restartC)
+		s.restartC = nil //Tell any others who might close it, that it doesn't exist
+	}
+	s.mtx.Unlock()
+
 	if wait {
 		<-s.closeC
 		log.Infof("All operations stopped")

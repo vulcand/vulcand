@@ -94,6 +94,7 @@ func (s *SupervisorSuite) TestInitOnTheFly(c *C) {
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
+
 func (s *SupervisorSuite) TestGracefulShutdown(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
