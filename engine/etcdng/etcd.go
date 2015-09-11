@@ -734,8 +734,10 @@ func (n *ng) deleteKey(key string) error {
 }
 
 func (n *ng) periodicallySyncCluster() {
-	time.Sleep(time.Duration(n.options.EtcdSyncIntervalSeconds) * time.Second)
-	n.client.SyncCluster()
+	for {
+		time.Sleep(time.Duration(n.options.EtcdSyncIntervalSeconds) * time.Second)
+		n.client.SyncCluster()
+	}
 }
 
 type Pair struct {
