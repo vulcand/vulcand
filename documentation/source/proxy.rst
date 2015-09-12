@@ -905,7 +905,7 @@ CB defines a simple language that allows us to specify simple conditions that wa
 
 .. code-block:: javascript
 
- NetworkErrorRatio() > 0.5      // watch error ratio over 10 second sliding widndow for a frontend
+ NetworkErrorRatio() > 0.5      // watch error ratio over 10 second sliding window for a frontend
  LatencyAtQuantileMS(50.0) > 50 // watch latency at quantile in milliseconds.
  ResponseCodeRatio(500, 600, 0, 600) > 0.5 // ratio of response codes in range [500-600) to  [0-600)
 
