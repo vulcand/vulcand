@@ -55,14 +55,14 @@ type Options struct {
 
 func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, options Options) *Supervisor {
 	return &Supervisor{
-		wg:       &sync.WaitGroup{},
-		mtx:      &sync.RWMutex{},
-		newProxy: newProxy,
-		engine:   engine,
-		options:  setDefaults(options),
-		errorC:   errorC,
-		restartC: make(chan error),
-		closeC:   make(chan bool),
+		wg:              &sync.WaitGroup{},
+		mtx:             &sync.RWMutex{},
+		newProxy:        newProxy,
+		engine:          engine,
+		options:         setDefaults(options),
+		errorC:          errorC,
+		restartC:        make(chan error),
+		closeC:          make(chan bool),
 		broadcastCloseC: make(chan bool),
 	}
 }
@@ -241,26 +241,26 @@ func (s *Supervisor) stop() {
 func (s *Supervisor) supervise() {
 	for {
 		select {
-			case err := <-s.restartC:
-				// This means graceful shutdown, do nothing and return
-				if err == nil {
-					log.Infof("watchErrors - graceful shutdown")
-					s.stop()
-					return
+		case err := <-s.restartC:
+			// This means graceful shutdown, do nothing and return
+			if err == nil {
+				log.Infof("watchErrors - graceful shutdown")
+				s.stop()
+				return
+			}
+			for {
+				s.options.Clock.Sleep(retryPeriod)
+				log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
+				// We failed to initialize server, this error can not be recovered, so send an error and exit
+				if err := s.init(); err != nil {
+					log.Infof("Failed to initialize %s, will retry", err)
+				} else {
+					break
 				}
-				for {
-					s.options.Clock.Sleep(retryPeriod)
-					log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
-					// We failed to initialize server, this error can not be recovered, so send an error and exit
-					if err := s.init(); err != nil {
-						log.Infof("Failed to initialize %s, will retry", err)
-					} else {
-						break
-					}
-				}
+			}
 
-			case <- s.broadcastCloseC:
-				s.Stop(false)
+		case <-s.broadcastCloseC:
+			s.Stop(false)
 		}
 	}
 }
@@ -294,7 +294,6 @@ func (s *Supervisor) Stop(wait bool) {
 	}
 
 	close(s.restartC)
-
 	if wait {
 		<-s.closeC
 		log.Infof("All operations stopped")
