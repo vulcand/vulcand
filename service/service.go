@@ -299,12 +299,12 @@ func (s *Service) reportSystemMetrics() {
 
 func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 	return proxy.New(id, s.stapler, proxy.Options{
-		MetricsClient:  s.metricsClient,
-		DialTimeout:    s.options.EndpointDialTimeout,
-		ReadTimeout:    s.options.ServerReadTimeout,
-		WriteTimeout:   s.options.ServerWriteTimeout,
-		MaxHeaderBytes: s.options.ServerMaxHeaderBytes,
-		DefaultListener: constructDefaultListener(s.options),
+		MetricsClient:      s.metricsClient,
+		DialTimeout:        s.options.EndpointDialTimeout,
+		ReadTimeout:        s.options.ServerReadTimeout,
+		WriteTimeout:       s.options.ServerWriteTimeout,
+		MaxHeaderBytes:     s.options.ServerMaxHeaderBytes,
+		DefaultListener:    constructDefaultListener(s.options),
 		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
 	})
 }
@@ -339,7 +339,7 @@ func (s *Service) startApi(file *proxy.FileDescriptor) error {
 	return s.apiServer.ListenAndServe()
 }
 
-func constructDefaultListener(options Options) (*engine.Listener) {
+func constructDefaultListener(options Options) *engine.Listener {
 	if options.DefaultListener {
 		return &engine.Listener{
 			Id:       "DefaultListener",
