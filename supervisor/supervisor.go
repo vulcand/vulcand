@@ -40,6 +40,8 @@ type Supervisor struct {
 	restartC chan error
 	// closeC is a channel to tell everyone to stop working and exit at the earliest convenience.
 	closeC chan bool
+	// broadcastCloseC is a channel to broadcast the beginning of a close.
+	broadcastCloseC chan bool
 
 	options Options
 
@@ -61,6 +63,7 @@ func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, opt
 		errorC:   errorC,
 		restartC: make(chan error),
 		closeC:   make(chan bool),
+		broadcastCloseC: make(chan bool),
 	}
 }
 
@@ -202,12 +205,7 @@ func (s *Supervisor) init() error {
 			close(cancelC)
 			// Graceful shutdown without restart
 			log.Infof("%v engine watcher got nil error, gracefully shutdown", proxy)
-
-			s.mtx.Lock()
-			if s.restartC != nil {
-				s.restartC <- nil
-			}
-			s.mtx.Unlock()
+			s.broadcastCloseC <- true
 		}
 	}()
 
@@ -242,23 +240,27 @@ func (s *Supervisor) stop() {
 // supervise() listens for error notifications and triggers graceful restart
 func (s *Supervisor) supervise() {
 	for {
-		err := <-s.restartC
+		select {
+			case err := <-s.restartC:
+				// This means graceful shutdown, do nothing and return
+				if err == nil {
+					log.Infof("watchErrors - graceful shutdown")
+					s.stop()
+					return
+				}
+				for {
+					s.options.Clock.Sleep(retryPeriod)
+					log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
+					// We failed to initialize server, this error can not be recovered, so send an error and exit
+					if err := s.init(); err != nil {
+						log.Infof("Failed to initialize %s, will retry", err)
+					} else {
+						break
+					}
+				}
 
-		// This means graceful shutdown, do nothing and return
-		if err == nil {
-			log.Infof("watchErrors - graceful shutdown")
-			s.stop()
-			return
-		}
-		for {
-			s.options.Clock.Sleep(retryPeriod)
-			log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
-			// We failed to initialize server, this error can not be recovered, so send an error and exit
-			if err := s.init(); err != nil {
-				log.Infof("Failed to initialize %s, will retry", err)
-			} else {
-				break
-			}
+			case <- s.broadcastCloseC:
+				s.Stop(false)
 		}
 	}
 }
@@ -291,12 +293,7 @@ func (s *Supervisor) Stop(wait bool) {
 		return
 	}
 
-	s.mtx.Lock()
-	if s.restartC != nil {
-		close(s.restartC)
-		s.restartC = nil //Tell any others who might close it, that it doesn't exist
-	}
-	s.mtx.Unlock()
+	close(s.restartC)
 
 	if wait {
 		<-s.closeC
