@@ -40,6 +40,8 @@ type Options struct {
 
 	StatsdAddr   string
 	StatsdPrefix string
+
+	DefaultListener bool
 }
 
 type SeverityFlag struct {
@@ -123,6 +125,8 @@ func ParseCommandLine() (options Options, err error) {
 
 	flag.StringVar(&options.StatsdPrefix, "statsdPrefix", "", "Statsd prefix will be appended to the metrics emitted by this instance")
 	flag.StringVar(&options.StatsdAddr, "statsdAddr", "", "Statsd address in form of 'host:port'")
+
+	flag.BoolVar(&options.DefaultListener, "default-listener", true, "Enables the default listener on startup (Default value: true)")
 
 	flag.Parse()
 	options, err = validateOptions(options)

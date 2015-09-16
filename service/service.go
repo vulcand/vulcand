@@ -304,14 +304,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		ReadTimeout:    s.options.ServerReadTimeout,
 		WriteTimeout:   s.options.ServerWriteTimeout,
 		MaxHeaderBytes: s.options.ServerMaxHeaderBytes,
-		DefaultListener: &engine.Listener{
-			Id:       "DefaultListener",
-			Protocol: "http",
-			Address: engine.Address{
-				Network: "tcp",
-				Address: fmt.Sprintf("%s:%d", s.options.Interface, s.options.Port),
-			},
-		},
+		DefaultListener: constructDefaultListener(s.options),
 		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
 	})
 }
@@ -344,6 +337,20 @@ func (s *Service) startApi(file *proxy.FileDescriptor) error {
 
 	s.apiServer = manners.NewWithOptions(manners.Options{Server: server, Listener: listener})
 	return s.apiServer.ListenAndServe()
+}
+
+func constructDefaultListener(options Options) (*engine.Listener) {
+	if options.DefaultListener {
+		return &engine.Listener{
+			Id:       "DefaultListener",
+			Protocol: "http",
+			Address: engine.Address{
+				Network: "tcp",
+				Address: fmt.Sprintf("%s:%d", options.Interface, options.Port),
+			},
+		}
+	}
+	return nil
 }
 
 func execPath() (string, error) {
