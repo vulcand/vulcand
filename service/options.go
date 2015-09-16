@@ -19,12 +19,13 @@ type Options struct {
 	Interface string
 	CertPath  string
 
-	EtcdNodes       listOptions
-	EtcdKey         string
-	EtcdCaFile      string
-	EtcdCertFile    string
-	EtcdKeyFile     string
-	EtcdConsistency string
+	EtcdNodes               listOptions
+	EtcdKey                 string
+	EtcdCaFile              string
+	EtcdCertFile            string
+	EtcdKeyFile             string
+	EtcdConsistency         string
+	EtcdSyncIntervalSeconds int64
 
 	Log         string
 	LogSeverity SeverityFlag
@@ -101,6 +102,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.EtcdCertFile, "etcdCertFile", "", "Path to cert file for etcd communication")
 	flag.StringVar(&options.EtcdKeyFile, "etcdKeyFile", "", "Path to key file for etcd communication")
 	flag.StringVar(&options.EtcdConsistency, "etcdConsistency", etcd.STRONG_CONSISTENCY, "Etcd consistency")
+	flag.Int64Var(&options.EtcdSyncIntervalSeconds, "etcdSyncIntervalSeconds", 0, "Interval between updating etcd cluster information. Use 0 to disable any syncing (default behavior.)")
 	flag.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
 	flag.IntVar(&options.Port, "port", 8181, "Port to listen on")
 	flag.IntVar(&options.ApiPort, "apiPort", 8182, "Port to provide api on")

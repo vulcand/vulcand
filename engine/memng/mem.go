@@ -322,15 +322,16 @@ func (m *Mem) Subscribe(changes chan interface{}, cancelC chan bool) error {
 		case <-cancelC:
 			return nil
 		case change := <-m.ChangesC:
-			log.Infof("Got change: %v", change)
+			log.Infof("Got change channel: %v", change)
 			select {
 			case changes <- change:
+				log.Infof("Got changes from changes channel: %v", changes)
 			case err := <-m.ErrorsC:
-				log.Infof("Returning error: %v", err)
+				log.Infof("Returning error (while reading changes from channel): %v", err)
 				return err
 			}
 		case err := <-m.ErrorsC:
-			log.Infof("Returning error: %v", err)
+			log.Infof("Returning error (before changes channel was acquired.): %v", err)
 			return err
 		}
 	}

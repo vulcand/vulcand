@@ -40,6 +40,8 @@ type Supervisor struct {
 	restartC chan error
 	// closeC is a channel to tell everyone to stop working and exit at the earliest convenience.
 	closeC chan bool
+	// broadcastCloseC is a channel to broadcast the beginning of a close.
+	broadcastCloseC chan bool
 
 	options Options
 
@@ -53,14 +55,15 @@ type Options struct {
 
 func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, options Options) *Supervisor {
 	return &Supervisor{
-		wg:       &sync.WaitGroup{},
-		mtx:      &sync.RWMutex{},
-		newProxy: newProxy,
-		engine:   engine,
-		options:  setDefaults(options),
-		errorC:   errorC,
-		restartC: make(chan error),
-		closeC:   make(chan bool),
+		wg:              &sync.WaitGroup{},
+		mtx:             &sync.RWMutex{},
+		newProxy:        newProxy,
+		engine:          engine,
+		options:         setDefaults(options),
+		errorC:          errorC,
+		restartC:        make(chan error),
+		closeC:          make(chan bool),
+		broadcastCloseC: make(chan bool),
 	}
 }
 
@@ -202,7 +205,7 @@ func (s *Supervisor) init() error {
 			close(cancelC)
 			// Graceful shutdown without restart
 			log.Infof("%v engine watcher got nil error, gracefully shutdown", proxy)
-			s.restartC <- nil
+			s.broadcastCloseC <- true
 		}
 	}()
 
@@ -237,23 +240,27 @@ func (s *Supervisor) stop() {
 // supervise() listens for error notifications and triggers graceful restart
 func (s *Supervisor) supervise() {
 	for {
-		err := <-s.restartC
-
-		// This means graceful shutdown, do nothing and return
-		if err == nil {
-			log.Infof("watchErrors - graceful shutdown")
-			s.stop()
-			return
-		}
-		for {
-			s.options.Clock.Sleep(retryPeriod)
-			log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
-			// We failed to initialize server, this error can not be recovered, so send an error and exit
-			if err := s.init(); err != nil {
-				log.Infof("Failed to initialize %s, will retry", err)
-			} else {
-				break
+		select {
+		case err := <-s.restartC:
+			// This means graceful shutdown, do nothing and return
+			if err == nil {
+				log.Infof("watchErrors - graceful shutdown")
+				s.stop()
+				return
 			}
+			for {
+				s.options.Clock.Sleep(retryPeriod)
+				log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
+				// We failed to initialize server, this error can not be recovered, so send an error and exit
+				if err := s.init(); err != nil {
+					log.Infof("Failed to initialize %s, will retry", err)
+				} else {
+					break
+				}
+			}
+
+		case <-s.broadcastCloseC:
+			s.Stop(false)
 		}
 	}
 }
