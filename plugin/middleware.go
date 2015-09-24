@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-
+	"github.com/mailgun/vulcand/router"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 )
 
@@ -55,6 +55,7 @@ type SpecGetter func(string) *MiddlewareSpec
 type Registry struct {
 	specs    []*MiddlewareSpec
 	notFound Middleware
+	router   router.Router
 }
 
 func NewRegistry() *Registry {
@@ -97,6 +98,15 @@ func (r *Registry) AddNotFoundMiddleware(notFound Middleware) error {
 
 func (r *Registry) GetNotFoundMiddleware() Middleware {
 	return r.notFound
+}
+
+func (r *Registry) SetRouter(router router.Router) error {
+	r.router = router
+	return nil
+}
+
+func (r *Registry) GetRouter() router.Router {
+	return r.router
 }
 
 func verifySignature(fn interface{}) error {

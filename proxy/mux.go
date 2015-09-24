@@ -9,6 +9,7 @@ import (
 
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/stapler"
+	"github.com/mailgun/vulcand/router"
 
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
@@ -40,7 +41,7 @@ type mux struct {
 	mtx *sync.RWMutex
 
 	// Router will be shared between mulitple listeners
-	router *route.Mux
+	router router.Router
 
 	// Current server stats
 	state muxState
@@ -84,10 +85,10 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		stapler:        st,
 	}
 
-	m.router.NotFound = &DefaultNotFound{}
+	m.router.SetNotFound(&DefaultNotFound{})
 	if o.NotFoundMiddleware != nil {
-		if handler, err := o.NotFoundMiddleware.NewHandler(m.router.NotFound); err == nil {
-			m.router.NotFound = handler
+		if handler, err := o.NotFoundMiddleware.NewHandler(m.router.GetNotFound()); err == nil {
+			m.router.SetNotFound(handler)
 		}
 	}
 
@@ -604,6 +605,9 @@ func setDefaults(o Options) Options {
 	}
 	if o.TimeProvider == nil {
 		o.TimeProvider = &timetools.RealTime{}
+	}
+	if o.Router == nil {
+		o.Router = route.NewMux()
 	}
 	return o
 }
