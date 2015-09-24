@@ -17,41 +17,47 @@ import (
 )
 
 type ng struct {
-	nodes    []string
-	registry *plugin.Registry
-	etcdKey  string
-	client   *etcd.Client
-	cancelC  chan bool
-	stopC    chan bool
-	logsev   log.Severity
-
-	options Options
+	nodes            []string
+	registry         *plugin.Registry
+	etcdKey          string
+	client           *etcd.Client
+	cancelC          chan bool
+	stopC            chan bool
+	syncClusterStopC chan bool
+	logsev           log.Severity
+	options          Options
 }
 
 type Options struct {
-	EtcdConsistency string
-	EtcdCaFile      string
-	EtcdCertFile    string
-	EtcdKeyFile     string
-	Box             *secret.Box
+	EtcdConsistency         string
+	EtcdCaFile              string
+	EtcdCertFile            string
+	EtcdKeyFile             string
+	EtcdSyncIntervalSeconds int64
+	Box                     *secret.Box
 }
 
 func New(nodes []string, etcdKey string, registry *plugin.Registry, options Options) (engine.Engine, error) {
 	n := &ng{
-		nodes:    nodes,
-		registry: registry,
-		etcdKey:  etcdKey,
-		cancelC:  make(chan bool, 1),
-		stopC:    make(chan bool, 1),
-		options:  setDefaults(options),
+		nodes:            nodes,
+		registry:         registry,
+		etcdKey:          etcdKey,
+		cancelC:          make(chan bool, 1),
+		stopC:            make(chan bool, 1),
+		syncClusterStopC: make(chan bool, 1),
+		options:          setDefaults(options),
 	}
 	if err := n.reconnect(); err != nil {
 		return nil, err
+	}
+	if options.EtcdSyncIntervalSeconds > 0 {
+		go n.periodicallySyncCluster(n.syncClusterStopC)
 	}
 	return n, nil
 }
 
 func (s *ng) Close() {
+	s.syncClusterStopC <- true
 	if s.client != nil {
 		s.client.Close()
 	}
@@ -727,6 +733,17 @@ func (n *ng) checkKeyExists(key string) error {
 func (n *ng) deleteKey(key string) error {
 	_, err := n.client.Delete(key, true)
 	return convertErr(err)
+}
+
+func (n *ng) periodicallySyncCluster(syncClusterStopC chan bool) {
+	for {
+		select {
+		case <-time.After(time.Duration(n.options.EtcdSyncIntervalSeconds) * time.Second):
+			n.client.SyncCluster()
+		case <-syncClusterStopC:
+			return
+		}
+	}
 }
 
 type Pair struct {
