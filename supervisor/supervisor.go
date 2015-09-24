@@ -63,7 +63,7 @@ func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, opt
 		errorC:          errorC,
 		restartC:        make(chan error),
 		closeC:          make(chan bool),
-		broadcastCloseC: make(chan bool),
+		broadcastCloseC: make(chan bool, 10),
 	}
 }
 
