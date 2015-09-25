@@ -72,7 +72,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 
 		options: o,
 
-		router:      route.NewMux(),
+		router:      o.Router,
 		connTracker: newConnTracker(),
 
 		servers:   make(map[engine.ListenerKey]*srv),
