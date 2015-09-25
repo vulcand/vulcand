@@ -11,6 +11,9 @@ type Router interface {
 	//Gets the not-found handler that is currently in use by this router.
 	GetNotFound() http.Handler
 
+	//Validates whether this is an acceptable route expression
+	IsValid(string) bool
+
 	//Adds a new route->handler combination. The route is a string which provides the routing expression. http.Handler is called when this expression matches a request.
 	Handle(string, http.Handler) error
 

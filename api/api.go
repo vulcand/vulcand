@@ -12,6 +12,7 @@ import (
 	"github.com/mailgun/vulcand/anomaly"
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/router"
 )
 
 type ProxyController struct {
@@ -271,7 +272,7 @@ func (c *ProxyController) getBackend(w http.ResponseWriter, r *http.Request, par
 }
 
 func (c *ProxyController) upsertFrontend(w http.ResponseWriter, r *http.Request, params map[string]string, body []byte) (interface{}, error) {
-	frontend, ttl, err := parseFrontendPack(body)
+	frontend, ttl, err := parseFrontendPack(c.ng.GetRegistry().GetRouter(), body)
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -471,7 +472,7 @@ func parseBackendPack(v []byte) (*engine.Backend, error) {
 	return engine.BackendFromJSON(bp.Backend)
 }
 
-func parseFrontendPack(v []byte) (*engine.Frontend, time.Duration, error) {
+func parseFrontendPack(router router.Router, v []byte) (*engine.Frontend, time.Duration, error) {
 	var fp frontendReadPack
 	if err := json.Unmarshal(v, &fp); err != nil {
 		return nil, 0, err
@@ -479,7 +480,7 @@ func parseFrontendPack(v []byte) (*engine.Frontend, time.Duration, error) {
 	if len(fp.Frontend) == 0 {
 		return nil, 0, &scroll.MissingFieldError{Field: "Frontend"}
 	}
-	f, err := engine.FrontendFromJSON(fp.Frontend)
+	f, err := engine.FrontendFromJSON(router, fp.Frontend)
 	if err != nil {
 		return nil, 0, err
 	}

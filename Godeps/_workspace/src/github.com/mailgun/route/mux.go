@@ -56,6 +56,10 @@ func (m *Mux) GetNotFound() http.Handler {
 	return m.notFound
 }
 
+func (m *Mux) IsValid(expr string) bool {
+	return IsValid(expr)
+}
+
 // NotFound is a generic http.Handler for request
 type notFound struct {
 }
@@ -67,3 +71,4 @@ func (notFound) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Not found")
 
 }
+
