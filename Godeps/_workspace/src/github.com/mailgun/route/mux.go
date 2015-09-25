@@ -8,7 +8,7 @@ import (
 // Mux implements router compatible with http.Handler
 type Mux struct {
 	// NotFound sets handler for routes that are not found
-	NotFound http.Handler
+	notFound http.Handler
 	router   Router
 }
 
@@ -16,7 +16,7 @@ type Mux struct {
 func NewMux() *Mux {
 	return &Mux{
 		router:   New(),
-		NotFound: &NotFound{},
+		notFound: &notFound{},
 	}
 }
 
@@ -38,20 +38,37 @@ func (m *Mux) Remove(expr string) error {
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h, err := m.router.Route(r)
 	if err != nil || h == nil {
-		m.NotFound.ServeHTTP(w, r)
+		m.notFound.ServeHTTP(w, r)
 		return
 	}
 	h.(http.Handler).ServeHTTP(w, r)
 }
 
+func (m *Mux) SetNotFound(n http.Handler) error {
+	if n == nil {
+		return fmt.Errorf("Not Found handler cannot be nil. Operation rejected.")
+	}
+	m.notFound = n
+	return nil
+}
+
+func (m *Mux) GetNotFound() http.Handler {
+	return m.notFound
+}
+
+func (m *Mux) IsValid(expr string) bool {
+	return IsValid(expr)
+}
+
 // NotFound is a generic http.Handler for request
-type NotFound struct {
+type notFound struct {
 }
 
 // ServeHTTP returns a simple 404 Not found response
-func (NotFound) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (notFound) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprint(w, "Not found")
 
 }
+

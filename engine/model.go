@@ -14,6 +14,7 @@ import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/stream"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
 	"github.com/mailgun/vulcand/plugin"
+	"github.com/mailgun/vulcand/router"
 )
 
 // StatsProvider provides realtime stats abount endpoints, backends and locations
@@ -267,13 +268,13 @@ func NewListener(id, protocol, network, address, scope string, settings *HTTPSLi
 	}, nil
 }
 
-func NewHTTPFrontend(id, backendId string, routeExpr string, settings HTTPFrontendSettings) (*Frontend, error) {
+func NewHTTPFrontend(router router.Router, id, backendId string, routeExpr string, settings HTTPFrontendSettings) (*Frontend, error) {
 	if len(id) == 0 || len(backendId) == 0 {
 		return nil, fmt.Errorf("supply valid  route, id, and backendId")
 	}
 
 	// Make sure location path is a valid route expression
-	if !route.IsValid(routeExpr) {
+	if !router.IsValid(routeExpr) {
 		return nil, fmt.Errorf("route should be a valid route expression: %s", routeExpr)
 	}
 

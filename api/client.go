@@ -109,7 +109,7 @@ func (c *Client) GetFrontend(fk engine.FrontendKey) (*engine.Frontend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return engine.FrontendFromJSON(response)
+	return engine.FrontendFromJSON(c.Registry.GetRouter(), response)
 }
 
 func (c *Client) GetFrontends() ([]engine.Frontend, error) {
@@ -117,7 +117,7 @@ func (c *Client) GetFrontends() ([]engine.Frontend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return engine.FrontendsFromJSON(data)
+	return engine.FrontendsFromJSON(c.Registry.GetRouter(), data)
 }
 
 func (c *Client) TopFrontends(bk *engine.BackendKey, limit int) ([]engine.Frontend, error) {
@@ -131,7 +131,7 @@ func (c *Client) TopFrontends(bk *engine.BackendKey, limit int) ([]engine.Fronte
 	if err != nil {
 		return nil, err
 	}
-	return engine.FrontendsFromJSON(response)
+	return engine.FrontendsFromJSON(c.Registry.GetRouter(), response)
 }
 
 func (c *Client) DeleteFrontend(fk engine.FrontendKey) error {
