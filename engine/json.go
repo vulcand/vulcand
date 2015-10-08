@@ -152,7 +152,7 @@ func FrontendFromJSON(in []byte, id ...string) (*Frontend, error) {
 	if err := json.Unmarshal(in, &rf); err != nil {
 		return nil, err
 	}
-	if rf.Type != HTTP {
+	if rf.Type != HTTP && rf.Type != WS {
 		return nil, fmt.Errorf("Unsupported frontend type: %v", rf.Type)
 	}
 	var s HTTPFrontendSettings
@@ -222,7 +222,7 @@ func BackendFromJSON(in []byte, id ...string) (*Backend, error) {
 	if err := json.Unmarshal(in, &rb); err != nil {
 		return nil, err
 	}
-	if rb.Type != HTTP {
+	if rb.Type != HTTP && rb.Type != WS {
 		return nil, fmt.Errorf("Unsupported backend type %v", rb.Type)
 	}
 

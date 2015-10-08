@@ -177,13 +177,16 @@ func (f *frontend) rebuild() error {
 		return err
 	}
 
+	log.Infof("insert websocket middleware")
+	upg := newWebsocketUpgrader(rr, str, f)
+
 	// Add the frontend to the router
-	if err := f.mux.router.Handle(f.frontend.Route, str); err != nil {
+	if err := f.mux.router.Handle(f.frontend.Route, upg); err != nil {
 		return err
 	}
 
 	f.lb = rb
-	f.handler = str
+	f.handler = upg
 	f.watcher = watcher
 	return nil
 }
