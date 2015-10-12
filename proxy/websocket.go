@@ -3,7 +3,7 @@ package proxy
 import (
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/roundrobin"
-	"golang.org/x/net/websocket"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/golang.org/x/net/websocket"
 	"io"
 	"net/http"
 	"strings"

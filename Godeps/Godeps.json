@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/mailgun/vulcand",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.5.1",
 	"Packages": [
 		"./..."
 	],
@@ -135,6 +135,10 @@
 		{
 			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
 			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+		},
+		{
+			"ImportPath": "golang.org/x/net/websocket",
+			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
