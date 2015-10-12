@@ -188,7 +188,7 @@ func (f *frontend) rebuild() error {
 	} else {
 		h = str
 	}
-	
+
 	// Add the frontend to the router
 	if err := f.mux.router.Handle(f.frontend.Route, h); err != nil {
 		return err
