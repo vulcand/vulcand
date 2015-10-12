@@ -169,6 +169,7 @@ func FrontendFromJSON(in []byte, id ...string) (*Frontend, error) {
 		return nil, err
 	}
 	f.Stats = rf.Stats
+	f.Type = rf.Type
 	return f, nil
 }
 
@@ -245,6 +246,7 @@ func BackendFromJSON(in []byte, id ...string) (*Backend, error) {
 		return nil, err
 	}
 	b.Stats = rb.Stats
+	b.Type = rb.Type
 	return b, nil
 }
 

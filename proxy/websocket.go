@@ -12,9 +12,9 @@ import (
 // WebsocketUpgrader is an HTTP middleware that detects websocket upgrade requests
 // and establishes an HTTP connection via a chosen backend server
 type WebsocketUpgrader struct {
-	next http.Handler
-	rr   *roundrobin.RoundRobin
-	f	*frontend
+	next     http.Handler
+	rr       *roundrobin.RoundRobin
+	f        *frontend
 	wsServer *websocket.Server
 }
 
@@ -23,9 +23,9 @@ type WebsocketUpgrader struct {
 func newWebsocketUpgrader(rr *roundrobin.RoundRobin, next http.Handler, f *frontend) *WebsocketUpgrader {
 	wsServer := &websocket.Server{}
 	wu := WebsocketUpgrader{
-		next: next,
-		rr:   rr,
-		f:	f,
+		next:     next,
+		rr:       rr,
+		f:        f,
 		wsServer: wsServer,
 	}
 	wu.wsServer.Handler = websocket.Handler(wu.proxyWS)
@@ -37,16 +37,17 @@ func newWebsocketUpgrader(rr *roundrobin.RoundRobin, next http.Handler, f *front
 func (u *WebsocketUpgrader) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// If request is websocket, serve with golang websocket server to do protocol handshake
 	if strings.Join(req.Header["Upgrade"], "") == "websocket" {
+		log.Infof("Websocket connected!")
 		u.wsServer.ServeHTTP(w, req)
-		return
+		//return
 	}
+	log.Infof("Websocket not connected!")
 
 	u.next.ServeHTTP(w, req)
 }
 
 func (u *WebsocketUpgrader) proxyWS(ws *websocket.Conn) {
 	url, err := u.rr.NextServer()
-
 	if err != nil {
 		log.Errorf("Can't round robin")
 		return
@@ -58,8 +59,7 @@ func (u *WebsocketUpgrader) proxyWS(ws *websocket.Conn) {
 	if strings.HasPrefix(rurl, "https") {
 		rurl = strings.Replace(rurl, "https", "wss", 1)
 	}
-	path := rurl+ws.Request().URL.String()
-	log.Infof("Dial: %s", rurl+ws.Request().URL.String())
+	path := rurl + ws.Request().URL.String()
 	ws2, err := websocket.Dial(path, "", url.Host)
 	if err != nil {
 		log.Errorf("Couldn't connect to backend server: %v", err)
@@ -68,18 +68,14 @@ func (u *WebsocketUpgrader) proxyWS(ws *websocket.Conn) {
 	defer ws2.Close()
 	done := make(chan bool)
 	go func() {
-		log.Infof("Begin copy...")
 		io.Copy(ws, ws2)
 		ws2.Close()
-		log.Infof("Done")
-		done<-true
+		done <- true
 	}()
 	go func() {
-		log.Infof("Begin copy...")
 		io.Copy(ws2, ws)
 		ws2.Close()
-		log.Infof("Done")
-		done<-true
+		done <- true
 	}()
 	<-done
 	<-done
