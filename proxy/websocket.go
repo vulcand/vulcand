@@ -39,6 +39,7 @@ func (u *WebsocketUpgrader) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 	if strings.Join(req.Header["Upgrade"], "") == "websocket" {
 		log.Infof("Websocket connected!")
 		u.wsServer.ServeHTTP(w, req)
+		return
 	}
 	log.Infof("Websocket not connected!")
 
@@ -59,6 +60,7 @@ func (u *WebsocketUpgrader) proxyWS(ws *websocket.Conn) {
 		rurl = strings.Replace(rurl, "https", "wss", 1)
 	}
 	path := rurl + ws.Request().URL.String()
+	log.Infof("path: ", path)
 	ws2, err := websocket.Dial(path, "", url.Host)
 	if err != nil {
 		log.Errorf("Couldn't connect to backend server: %v", err)
