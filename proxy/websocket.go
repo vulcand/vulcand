@@ -39,7 +39,6 @@ func (u *WebsocketUpgrader) ServeHTTP(w http.ResponseWriter, req *http.Request) 
 	if strings.Join(req.Header["Upgrade"], "") == "websocket" {
 		log.Infof("Websocket connected!")
 		u.wsServer.ServeHTTP(w, req)
-		//return
 	}
 	log.Infof("Websocket not connected!")
 
@@ -69,12 +68,10 @@ func (u *WebsocketUpgrader) proxyWS(ws *websocket.Conn) {
 	done := make(chan bool)
 	go func() {
 		io.Copy(ws, ws2)
-		ws2.Close()
 		done <- true
 	}()
 	go func() {
 		io.Copy(ws2, ws)
-		ws2.Close()
 		done <- true
 	}()
 	<-done
