@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/log"
 	"github.com/mailgun/vulcand/plugin/registry"
 	"github.com/mailgun/vulcand/vctl/command"
 )

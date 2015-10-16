@@ -10,10 +10,10 @@ import (
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/stapler"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/log"
+	"github.com/mailgun/metrics"
+	"github.com/mailgun/route"
+	"github.com/mailgun/timetools"
 )
 
 // mux is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
