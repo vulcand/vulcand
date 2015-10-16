@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
-	oxytrace "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/codegangsta/cli"
+	"github.com/mailgun/oxy/testutils"
+	oxytrace "github.com/mailgun/oxy/trace"
+	. "gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/plugin"
 )
 

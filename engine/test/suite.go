@@ -7,7 +7,7 @@ import (
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/plugin/connlimit"
 
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestEtcd(t *testing.T) { TestingT(t) }

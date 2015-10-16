@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	oxytest "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	"github.com/mailgun/log"
+	oxytest "github.com/mailgun/oxy/testutils"
+	"github.com/mailgun/scroll"
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/engine/memng"
 	"github.com/mailgun/vulcand/plugin/connlimit"
@@ -17,7 +17,7 @@ import (
 	"github.com/mailgun/vulcand/supervisor"
 	"github.com/mailgun/vulcand/testutils"
 
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestApi(t *testing.T) { TestingT(t) }

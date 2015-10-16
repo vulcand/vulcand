@@ -3,7 +3,7 @@ package engine
 import (
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/mailgun/log"
 	"github.com/mailgun/vulcand/plugin"
 )
 
