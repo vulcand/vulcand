@@ -207,7 +207,7 @@ func (s *ApiSuite) TestFrontendCRUD(c *C) {
 
 	c.Assert(s.client.UpsertBackend(*b), IsNil)
 
-	f, err := engine.NewHTTPFrontend("f1", b.Id, `Path("/")`, engine.HTTPFrontendSettings{})
+	f, err := engine.NewHTTPFrontend(s.ng.GetRegistry().GetRouter(), "f1", b.Id, `Path("/")`, engine.HTTPFrontendSettings{})
 	c.Assert(err, IsNil)
 	fk := engine.FrontendKey{Id: f.Id}
 
@@ -260,7 +260,7 @@ func (s *ApiSuite) TestMiddlewareCRUD(c *C) {
 
 	c.Assert(s.client.UpsertBackend(*b), IsNil)
 
-	f, err := engine.NewHTTPFrontend("f1", b.Id, `Path("/")`, engine.HTTPFrontendSettings{})
+	f, err := engine.NewHTTPFrontend(s.ng.GetRegistry().GetRouter(), "f1", b.Id, `Path("/")`, engine.HTTPFrontendSettings{})
 	c.Assert(err, IsNil)
 	fk := engine.FrontendKey{Id: f.Id}
 

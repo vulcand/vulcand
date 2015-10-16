@@ -1049,7 +1049,7 @@ func (s *ServerSuite) TestCustomNotFound(c *C) {
 	st := stapler.New()
 	m, err := New(s.lastId, st, Options{NotFoundMiddleware: &appender{append: "Custom Not Found handler"}})
 	c.Assert(err, IsNil)
-	t := reflect.TypeOf(m.router.NotFound)
+	t := reflect.TypeOf(m.router.GetNotFound())
 	c.Assert(t.String(), Equals, "*proxy.appender")
 }
 
