@@ -322,12 +322,12 @@ Get server
 
 Retrieve the particular server with id ``server-id``
 
-Upsert endpoint
+Upsert server
 +++++++++++++++
 
 .. code-block:: url
 
-    POST /v1/upstreams/<id>/endpoints
+    POST /v2/backends/<id>/servers
 
 Upsert server to the backend
 
