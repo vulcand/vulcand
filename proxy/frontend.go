@@ -183,11 +183,7 @@ func (f *frontend) rebuild() error {
 	}
 
 	var h http.Handler
-	if f.frontend.Type == engine.WS {
-		h = newWebsocketUpgrader(rr, str, f)
-	} else {
-		h = str
-	}
+    h = newWebsocketUpgrader(rr, str, f)
 
 	// Add the frontend to the router
 	if err := f.mux.router.Handle(f.frontend.Route, h); err != nil {
