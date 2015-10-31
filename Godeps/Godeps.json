@@ -3,20 +3,16 @@
 	"GoVersion": "go1.5",
 	"Deps": [
 		{
-			"ImportPath": "github.com/codahale/hdrhistogram",
-			"Rev": "9208b142303c12d8899bae836fd524ac9338b4fd"
+			"ImportPath": "github.com/buger/goterm",
+			"Rev": "db9aaed44abbb1be9061aa43612ede2e864c5973"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "11d3bc7aa68e238947792f30573146a3231fc0f1"
 		},
 		{
-			"ImportPath": "github.com/buger/goterm",
-			"Rev": "db9aaed44abbb1be9061aa43612ede2e864c5973"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"ImportPath": "github.com/codahale/hdrhistogram",
+			"Rev": "9208b142303c12d8899bae836fd524ac9338b4fd"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
@@ -103,6 +99,10 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
+			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+		},
+		{
+			"ImportPath": "github.com/vulcand/oxy/testutils",
 			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
 		},
 		{
