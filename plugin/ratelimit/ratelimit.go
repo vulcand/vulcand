@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/ratelimit"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/ratelimit"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/plugin"
 )
 
 // Spec is an entry point of a plugin and will be called to register this middleware plugin withing vulcand

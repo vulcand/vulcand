@@ -3,8 +3,8 @@ package registry
 import (
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/vulcan/middleware"
+	"github.com/mailgun/log"
+	"github.com/mailgun/scroll/vulcan/middleware"
 )
 
 // AppRegistration contains data about an app to be registered.

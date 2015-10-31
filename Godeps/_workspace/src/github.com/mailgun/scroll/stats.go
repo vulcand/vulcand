@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
+	"github.com/mailgun/metrics"
 )
 
 type appStats struct {

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 )
 
 var vulcanUrl string
@@ -28,7 +28,7 @@ func main() {
 				cli.StringSliceFlag{
 					Name:  "middleware, m",
 					Value: &cli.StringSlice{},
-					Usage: "Path to repo and revision, e.g. github.com/mailgun/vulcand-plugins/auth",
+					Usage: "Path to repo and revision, e.g. github.com/vulcand/vulcand-plugins/auth",
 				},
 			},
 		},
@@ -108,11 +108,11 @@ func (p Package) Name() string {
 
 func builtinPackages() []Package {
 	return []Package{
-		"github.com/mailgun/vulcand/plugin/connlimit",
-		"github.com/mailgun/vulcand/plugin/ratelimit",
-		"github.com/mailgun/vulcand/plugin/rewrite",
-		"github.com/mailgun/vulcand/plugin/cbreaker",
-		"github.com/mailgun/vulcand/plugin/trace",
+		"github.com/vulcand/vulcand/plugin/connlimit",
+		"github.com/vulcand/vulcand/plugin/ratelimit",
+		"github.com/vulcand/vulcand/plugin/rewrite",
+		"github.com/vulcand/vulcand/plugin/cbreaker",
+		"github.com/vulcand/vulcand/plugin/trace",
 	}
 }
 

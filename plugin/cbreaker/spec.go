@@ -29,9 +29,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/cbreaker"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/cbreaker"
+	"github.com/vulcand/vulcand/plugin"
 )
 
 const Type = "cbreaker"

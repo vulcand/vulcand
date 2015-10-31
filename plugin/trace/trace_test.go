@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/testutils"
-	oxytrace "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/trace"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
+	oxytrace "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/trace"
+	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/vulcand/vulcand/plugin"
 )
 
 func TestTrace(t *testing.T) { TestingT(t) }

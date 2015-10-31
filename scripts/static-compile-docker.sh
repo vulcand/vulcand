@@ -8,7 +8,7 @@
 # DOCKER_IMAGE_NAME: name for final docker image
 # DOCKER_IMAGE_TAG: tag for final docker image
 
-GO_PROJECT_PATH=${GO_PROJECT_PATH-github.com/mailgun/vulcand}
+GO_PROJECT_PATH=${GO_PROJECT_PATH-github.com/vulcand/vulcand}
 
 echo "Building go project \"$GO_PROJECT_PATH\""
 

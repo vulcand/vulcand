@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/registry"
-	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/mailgun/scroll/registry"
+	. "gopkg.in/check.v1"
 )
 
 type FakeRegistry struct {

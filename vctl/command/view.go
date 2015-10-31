@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
-	"github.com/mailgun/vulcand/engine"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/vulcand/vulcand/engine"
 )
 
 func hostsView(hs []engine.Host) string {
