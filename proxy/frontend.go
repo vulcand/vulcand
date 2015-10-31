@@ -73,7 +73,12 @@ func syncServers(m *mux, rb *roundrobin.Rebalancer, backend *backend, w *RTWatch
 			} else {
 				log.Infof("%v add %v", m, s)
 			}
-			w.upsertServer(s)
+			if err := w.upsertServer(s); err != nil {
+				log.Errorf("%v failed to add watcher %v, err: %s", m, s, err)
+			} else {
+				log.Infof("%v add watcher %v", m, s)
+			}
+
 		}
 	}
 
@@ -177,13 +182,16 @@ func (f *frontend) rebuild() error {
 		return err
 	}
 
+	var h http.Handler
+    h = newWebsocketUpgrader(rr, str, f)
+
 	// Add the frontend to the router
-	if err := f.mux.router.Handle(f.frontend.Route, str); err != nil {
+	if err := f.mux.router.Handle(f.frontend.Route, h); err != nil {
 		return err
 	}
 
 	f.lb = rb
-	f.handler = str
+	f.handler = h
 	f.watcher = watcher
 	return nil
 }

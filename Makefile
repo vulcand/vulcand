@@ -29,6 +29,7 @@ test-package-with-etcd: clean
 	${ETCD_FLAGS} go test -v ./$(p)
 
 update:
+	godep restore
 	rm -rf Godeps/
 	find . -iregex .*go | xargs sed -i 's:".*Godeps/_workspace/src/:":g'
 	godep save -r ./...

@@ -153,7 +153,7 @@ func FrontendFromJSON(router router.Router, in []byte, id ...string) (*Frontend,
 	if err := json.Unmarshal(in, &rf); err != nil {
 		return nil, err
 	}
-	if rf.Type != HTTP {
+	if rf.Type != HTTP && rf.Type != WS {
 		return nil, fmt.Errorf("Unsupported frontend type: %v", rf.Type)
 	}
 	var s HTTPFrontendSettings
@@ -170,6 +170,7 @@ func FrontendFromJSON(router router.Router, in []byte, id ...string) (*Frontend,
 		return nil, err
 	}
 	f.Stats = rf.Stats
+	f.Type = rf.Type
 	return f, nil
 }
 
@@ -223,7 +224,7 @@ func BackendFromJSON(in []byte, id ...string) (*Backend, error) {
 	if err := json.Unmarshal(in, &rb); err != nil {
 		return nil, err
 	}
-	if rb.Type != HTTP {
+	if rb.Type != HTTP && rb.Type != WS {
 		return nil, fmt.Errorf("Unsupported backend type %v", rb.Type)
 	}
 
@@ -246,6 +247,7 @@ func BackendFromJSON(in []byte, id ...string) (*Backend, error) {
 		return nil, err
 	}
 	b.Stats = rb.Stats
+	b.Type = rb.Type
 	return b, nil
 }
 

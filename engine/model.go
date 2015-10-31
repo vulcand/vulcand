@@ -687,6 +687,8 @@ func (u BackendKey) String() string {
 const (
 	HTTP  = "http"
 	HTTPS = "https"
+	WS    = "ws"
+	WSS   = "wss"
 	TCP   = "tcp"
 	UNIX  = "unix"
 	NoTTL = 0
