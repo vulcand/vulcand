@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mailgun/vulcand/engine"
-	"github.com/mailgun/vulcand/stapler"
-	"github.com/mailgun/vulcand/router"
+	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/router"
+	"github.com/vulcand/vulcand/stapler"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
 )
 
 // mux is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates

@@ -3,8 +3,8 @@ package engine
 import (
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/vulcand/vulcand/plugin"
 )
 
 type NewEngineFn func() (Engine, error)

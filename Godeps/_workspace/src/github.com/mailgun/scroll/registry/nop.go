@@ -1,6 +1,6 @@
 package registry
 
-import "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+import "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 
 // NopRegistry is an implementation of Registry for applications that do not need service discovery.
 type NopRegistry struct {

@@ -8,13 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/registry"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/vulcan/middleware"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/registry"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/vulcan/middleware"
 )
 
 const (

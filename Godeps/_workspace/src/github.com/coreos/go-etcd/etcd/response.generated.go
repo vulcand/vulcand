@@ -8,7 +8,7 @@ package etcd
 import (
 	"errors"
 	"fmt"
-	codec1978 "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/ugorji/go/codec"
+	codec1978 "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/ugorji/go/codec"
 	"net/http"
 	"reflect"
 	"runtime"

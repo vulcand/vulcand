@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
+	"github.com/vulcand/vulcand/plugin"
 )
 
 const Type = "rewrite"

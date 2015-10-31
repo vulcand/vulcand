@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/memmetrics"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/stream"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
-	"github.com/mailgun/vulcand/plugin"
-	"github.com/mailgun/vulcand/router"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/memmetrics"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/stream"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
+	"github.com/vulcand/vulcand/plugin"
+	"github.com/vulcand/vulcand/router"
 )
 
 // StatsProvider provides realtime stats abount endpoints, backends and locations

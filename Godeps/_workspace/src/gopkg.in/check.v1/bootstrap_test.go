@@ -14,7 +14,7 @@ package check_test
 
 import (
 	"fmt"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"strings"
 )
 
