@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/ratelimit"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/plugin"
 )
 

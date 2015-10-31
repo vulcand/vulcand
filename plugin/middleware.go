@@ -3,11 +3,11 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"reflect"
-	"github.com/vulcand/vulcand/router"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
+	"github.com/vulcand/vulcand/router"
+	"net/http"
+	"reflect"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends
@@ -61,7 +61,7 @@ type Registry struct {
 
 func NewRegistry() *Registry {
 	return &Registry{
-		specs: []*MiddlewareSpec{},
+		specs:  []*MiddlewareSpec{},
 		router: route.NewMux(),
 	}
 }

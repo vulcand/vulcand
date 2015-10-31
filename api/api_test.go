@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
-	oxytest "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	oxytest "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/memng"
 	"github.com/vulcand/vulcand/plugin/connlimit"

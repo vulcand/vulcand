@@ -1,4 +1,5 @@
 package router
+
 import "net/http"
 
 //This interface captures all routing functionality required by vulcan.
