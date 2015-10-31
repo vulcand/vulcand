@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vulcand/oxy/utils"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
 )
 
 // Rewriter is responsible for removing hop-by-hop headers and setting forwarding headers

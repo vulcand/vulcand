@@ -1,10 +1,10 @@
 package cbreaker
 
 import (
-	"github.com/vulcand/oxy/memmetrics"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/memmetrics"
 	"time"
 
-	. "gopkg.in/check.v1"
+	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 type PredicatesSuite struct {

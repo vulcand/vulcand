@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/vulcand/oxy/utils"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
 )
 
 // ReqRewriter can alter request headers and body

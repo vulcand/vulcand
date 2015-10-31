@@ -7,10 +7,9 @@ import (
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
+	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/testutils"
-
-	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestStapler(t *testing.T) { TestingT(t) }

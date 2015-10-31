@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mailgun/scroll/vulcan/middleware"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/vulcan/middleware"
 )
 
 const (

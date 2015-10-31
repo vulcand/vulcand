@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mailgun/timetools"
-	. "gopkg.in/check.v1"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestFailrate(t *testing.T) { TestingT(t) }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mailgun/iptools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/iptools"
 )
 
 type Endpoint struct {

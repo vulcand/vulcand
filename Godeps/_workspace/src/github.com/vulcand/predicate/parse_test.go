@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }

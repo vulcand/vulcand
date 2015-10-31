@@ -3,7 +3,7 @@ package hdrhistogram_test
 import (
 	"testing"
 
-	"github.com/codahale/hdrhistogram"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codahale/hdrhistogram"
 )
 
 func TestWindowedHistogram(t *testing.T) {

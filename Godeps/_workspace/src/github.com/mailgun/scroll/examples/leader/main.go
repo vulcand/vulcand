@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mailgun/scroll"
-	"github.com/mailgun/scroll/registry"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll/registry"
 )
 
 var host string

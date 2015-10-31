@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/mailgun/scroll"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 )
 
 type RestHelper struct{}

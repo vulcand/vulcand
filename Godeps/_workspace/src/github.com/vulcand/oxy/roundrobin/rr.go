@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/vulcand/oxy/utils"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
 )
 
 // Weight is an optional functional argument that sets weight of the server

@@ -31,12 +31,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vulcand/oxy/memmetrics"
-	"github.com/vulcand/oxy/utils"
-	"github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/memmetrics"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils" // CircuitBreaker is http.Handler that implements circuit breaker pattern
 )
 
-// CircuitBreaker is http.Handler that implements circuit breaker pattern
 type CircuitBreaker struct {
 	m       *sync.RWMutex
 	metrics *memmetrics.RTMetrics

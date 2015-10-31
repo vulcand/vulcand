@@ -1,14 +1,13 @@
 {
 	"ImportPath": "github.com/vulcand/vulcand",
 	"GoVersion": "go1.5",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/buger/goterm",
 			"Rev": "db9aaed44abbb1be9061aa43612ede2e864c5973"
-		},
-		{
-			"ImportPath": "gopkg.in/check.v1",
-			"Rev": "11d3bc7aa68e238947792f30573146a3231fc0f1"
 		},
 		{
 			"ImportPath": "github.com/codahale/hdrhistogram",
@@ -21,8 +20,8 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v2.0.0-38-g003851b",
-			"Rev": "003851be7bb0694fe3cc457a49529a19388ee7cf"
+			"Comment": "v2.0.0-22-g9847b93",
+			"Rev": "9847b93751a5fbaf227b893d172cee0104ac6427"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
@@ -136,6 +135,10 @@
 		{
 			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
 			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+		},
+		{
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "11d3bc7aa68e238947792f30573146a3231fc0f1"
 		}
 	]
 }

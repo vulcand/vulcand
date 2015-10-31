@@ -7,12 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vulcand/oxy/memmetrics"
-	"github.com/vulcand/oxy/utils"
-	"github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/memmetrics"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils" // RebalancerOption - functional option setter for rebalancer
 )
 
-// RebalancerOption - functional option setter for rebalancer
 type RebalancerOption func(*Rebalancer) error
 
 // Meter measures server peformance and returns it's relative value via rating

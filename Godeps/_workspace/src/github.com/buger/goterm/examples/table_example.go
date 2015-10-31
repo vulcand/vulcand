@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	tm "github.com/buger/goterm"
+	tm "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
 )
 
 func main() {

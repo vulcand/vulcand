@@ -3,7 +3,7 @@ package route
 import (
 	"fmt"
 
-	"github.com/vulcand/predicate"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/predicate"
 )
 
 // IsValid checks whether expression is valid

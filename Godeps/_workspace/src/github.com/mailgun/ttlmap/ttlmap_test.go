@@ -1,7 +1,7 @@
 package ttlmap
 
 import (
-	"github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	. "launchpad.net/gocheck"
 	"testing"
 	"time"

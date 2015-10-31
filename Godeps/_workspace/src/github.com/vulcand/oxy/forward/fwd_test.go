@@ -9,10 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vulcand/oxy/testutils"
-	"github.com/vulcand/oxy/utils"
-
-	. "gopkg.in/check.v1"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
+	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestFwd(t *testing.T) { TestingT(t) }

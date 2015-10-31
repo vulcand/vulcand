@@ -2,8 +2,8 @@ package ttlmap
 
 import (
 	"fmt"
-	"github.com/mailgun/minheap"
-	"github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/minheap"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"time"
 )
 

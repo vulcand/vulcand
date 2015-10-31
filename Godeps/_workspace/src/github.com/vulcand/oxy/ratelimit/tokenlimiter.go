@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vulcand/oxy/utils"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/ttlmap"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/ttlmap"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
 )
 
-const DefaultCapacity = 65536
+const DefaultCapacity = // RateSet maintains a set of rates. It can contain only one rate per period at a time.
+65536
 
-// RateSet maintains a set of rates. It can contain only one rate per period at a time.
 type RateSet struct {
 	m map[time.Duration]*rate
 }

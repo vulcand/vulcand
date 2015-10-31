@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/codahale/hdrhistogram"
-	"github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codahale/hdrhistogram"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 )
 
 // HDRHistogram is a tiny wrapper around github.com/codahale/hdrhistogram that provides convenience functions for measuring http latencies

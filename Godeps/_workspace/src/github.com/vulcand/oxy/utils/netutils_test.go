@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 func TestUtils(t *testing.T) { TestingT(t) }

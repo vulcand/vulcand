@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 )
 
 type rcOptSetter func(*RollingCounter) error
