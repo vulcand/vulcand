@@ -307,6 +307,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		MaxHeaderBytes:     s.options.ServerMaxHeaderBytes,
 		DefaultListener:    constructDefaultListener(s.options),
 		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
+		Router:             s.registry.GetRouter(),
 	})
 }
 

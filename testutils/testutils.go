@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 
+	routelib "github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
 	"github.com/mailgun/vulcand/engine"
 	"github.com/mailgun/vulcand/plugin/ratelimit"
 )
@@ -108,7 +109,7 @@ func MakeListener(addr string, protocol string) engine.Listener {
 }
 
 func MakeFrontend(route string, backendId string) engine.Frontend {
-	f, err := engine.NewHTTPFrontend(UID("frontend"), backendId, route, engine.HTTPFrontendSettings{})
+	f, err := engine.NewHTTPFrontend(routelib.NewMux(), UID("frontend"), backendId, route, engine.HTTPFrontendSettings{})
 	if err != nil {
 		panic(err)
 	}

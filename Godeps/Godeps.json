@@ -102,7 +102,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/route",
-			"Rev": "85cf368efd247dabbcc2e53272ef4276f94a87c4"
+			"Rev": "77565948d9ac90b156eb3a5e5d7d42e6482d7f27"
 		},
 		{
 			"ImportPath": "github.com/mailgun/scroll",

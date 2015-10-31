@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-
+	"github.com/mailgun/vulcand/router"
 	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends
@@ -55,11 +56,13 @@ type SpecGetter func(string) *MiddlewareSpec
 type Registry struct {
 	specs    []*MiddlewareSpec
 	notFound Middleware
+	router   router.Router
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
 		specs: []*MiddlewareSpec{},
+		router: route.NewMux(),
 	}
 }
 
@@ -97,6 +100,15 @@ func (r *Registry) AddNotFoundMiddleware(notFound Middleware) error {
 
 func (r *Registry) GetNotFoundMiddleware() Middleware {
 	return r.notFound
+}
+
+func (r *Registry) SetRouter(router router.Router) error {
+	r.router = router
+	return nil
+}
+
+func (r *Registry) GetRouter() router.Router {
+	return r.router
 }
 
 func verifySignature(fn interface{}) error {

@@ -243,7 +243,7 @@ func (n *ng) GetFrontend(key engine.FrontendKey) (*engine.Frontend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return engine.FrontendFromJSON([]byte(bytes), key.Id)
+	return engine.FrontendFromJSON(n.registry.GetRouter(), []byte(bytes), key.Id)
 }
 
 func (n *ng) DeleteFrontend(fk engine.FrontendKey) error {

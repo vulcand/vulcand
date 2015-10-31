@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/route"
 	. "github.com/mailgun/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/mailgun/vulcand/plugin"
 	"github.com/mailgun/vulcand/plugin/connlimit"
@@ -33,7 +34,7 @@ func (s *BackendSuite) TestHostBad(c *C) {
 }
 
 func (s *BackendSuite) TestFrontendDefaults(c *C) {
-	f, err := NewHTTPFrontend("f1", "b1", `Path("/home")`, HTTPFrontendSettings{})
+	f, err := NewHTTPFrontend(route.NewMux(), "f1", "b1", `Path("/home")`, HTTPFrontendSettings{})
 	c.Assert(err, IsNil)
 	c.Assert(f.GetId(), Equals, "f1")
 	c.Assert(f.String(), Not(Equals), "")
@@ -50,7 +51,7 @@ func (s *BackendSuite) TestNewFrontendWithOptions(c *C) {
 		Hostname:           "host1",
 		TrustForwardHeader: true,
 	}
-	f, err := NewHTTPFrontend("f1", "b1", `Path("/home")`, settings)
+	f, err := NewHTTPFrontend(route.NewMux(), "f1", "b1", `Path("/home")`, settings)
 	c.Assert(err, IsNil)
 	c.Assert(f.Id, Equals, "f1")
 
@@ -66,11 +67,11 @@ func (s *BackendSuite) TestNewFrontendWithOptions(c *C) {
 
 func (s *BackendSuite) TestFrontendBadParams(c *C) {
 	// Bad route
-	_, err := NewHTTPFrontend("f1", "b1", "/home  -- afawf \\~", HTTPFrontendSettings{})
+	_, err := NewHTTPFrontend(route.NewMux(), "f1", "b1", "/home  -- afawf \\~", HTTPFrontendSettings{})
 	c.Assert(err, NotNil)
 
 	// Empty params
-	_, err = NewHTTPFrontend("", "", "", HTTPFrontendSettings{})
+	_, err = NewHTTPFrontend(route.NewMux(), "", "", "", HTTPFrontendSettings{})
 	c.Assert(err, NotNil)
 }
 
@@ -81,7 +82,7 @@ func (s *BackendSuite) TestFrontendBadOptions(c *C) {
 		},
 	}
 	for _, s := range settings {
-		f, err := NewHTTPFrontend("f1", "b", `Path("/home")`, s)
+		f, err := NewHTTPFrontend(route.NewMux(), "f1", "b", `Path("/home")`, s)
 		c.Assert(err, NotNil)
 		c.Assert(f, IsNil)
 	}
@@ -317,7 +318,7 @@ func (s *BackendSuite) TestNewListenerBadParams(c *C) {
 }
 
 func (s *BackendSuite) TestFrontendsFromJSON(c *C) {
-	f, err := NewHTTPFrontend("f1", "b1", `Path("/path")`, HTTPFrontendSettings{})
+	f, err := NewHTTPFrontend(route.NewMux(), "f1", "b1", `Path("/path")`, HTTPFrontendSettings{})
 	c.Assert(err, IsNil)
 
 	bytes, err := json.Marshal(f)
@@ -329,7 +330,7 @@ func (s *BackendSuite) TestFrontendsFromJSON(c *C) {
 	r := plugin.NewRegistry()
 	c.Assert(r.AddSpec(connlimit.GetSpec()), IsNil)
 
-	out, err := FrontendsFromJSON(bytes)
+	out, err := FrontendsFromJSON(route.NewMux(), bytes)
 	c.Assert(err, IsNil)
 	c.Assert(out, NotNil)
 	c.Assert(out, DeepEquals, fs)
