@@ -445,7 +445,7 @@ func (n *ng) Subscribe(changes chan interface{}, cancelC chan bool) error {
 				return err
 			}
 		}
-		waitIndex = response.Node.ModifiedIndex + 1
+		waitIndex = response.EtcdIndex + 1
 		log.Infof("%s", responseToString(response))
 		change, err := n.parseChange(response)
 		if err != nil {
