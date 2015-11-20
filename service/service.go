@@ -12,14 +12,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
+	etcd "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/etcd/client"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
-	"github.com/vulcand/vulcand/engine/etcdng"
+	"github.com/vulcand/vulcand/engine/etcdv2ng"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/secret"
@@ -43,7 +43,7 @@ func Run(registry *plugin.Registry) error {
 }
 
 type Service struct {
-	client        *etcd.Client
+	client        etcd.Client
 	options       Options
 	registry      *plugin.Registry
 	apiApp        *scroll.App
@@ -265,11 +265,11 @@ func (s *Service) newEngine() error {
 	if err != nil {
 		return err
 	}
-	ng, err := etcdng.New(
+	ng, err := etcdv2ng.New(
 		s.options.EtcdNodes,
 		s.options.EtcdKey,
 		s.registry,
-		etcdng.Options{
+		etcdv2ng.Options{
 			EtcdCaFile:              s.options.EtcdCaFile,
 			EtcdCertFile:            s.options.EtcdCertFile,
 			EtcdKeyFile:             s.options.EtcdKeyFile,

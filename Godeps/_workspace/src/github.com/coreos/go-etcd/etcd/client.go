@@ -216,12 +216,12 @@ func (c *Client) initHTTPSClient(cert, key string) error {
 		InsecureSkipVerify: true,
 	}
 
-	tr := &http.Transport{
+	c.transport = &http.Transport{
 		TLSClientConfig: tlsConfig,
 		Dial:            c.DefaultDial,
 	}
 
-	c.httpClient = &http.Client{Transport: tr}
+	c.httpClient = &http.Client{Transport: c.transport}
 	return nil
 }
 
