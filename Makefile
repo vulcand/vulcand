@@ -77,9 +77,9 @@ docker-clean:
 	docker rm -f vulcand
 
 docker-build:
-	go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vulcand .
-	go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vctl/vctl ./vctl
-	go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vbundle/vbundle ./vbundle
+	GOOS=linux go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vulcand .
+	GOOS=linux go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vctl/vctl ./vctl
+	GOOS=linux go build -a -tags netgo -installsuffix cgo -ldflags '-w' -o ./vbundle/vbundle ./vbundle
 	docker build -t mailgun/vulcand:latest -f ./Dockerfile-scratch .
 
 docker-minimal-linux:
