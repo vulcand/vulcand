@@ -812,7 +812,7 @@ func join(keys ...string) string {
 }
 
 func notFound(e error) bool {
-	err, ok := e.(*etcd.Error)
+	err, ok := e.(etcd.Error)
 	return ok && err.Code == etcd.ErrorCodeKeyNotFound
 }
 
@@ -821,7 +821,7 @@ func convertErr(e error) error {
 		return nil
 	}
 	switch err := e.(type) {
-	case *etcd.Error:
+	case etcd.Error:
 		if err.Code == etcd.ErrorCodeKeyNotFound {
 			return &engine.NotFoundError{Message: err.Error()}
 		}
@@ -834,11 +834,6 @@ func convertErr(e error) error {
 
 func isDir(n *etcd.Node) bool {
 	return n != nil && n.Dir == true
-}
-
-func isNotFoundError(err error) bool {
-	_, ok := err.(*engine.NotFoundError)
-	return ok
 }
 
 const encryptionSecretBox = "secretbox.v1"
