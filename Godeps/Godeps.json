@@ -20,8 +20,13 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v2.0.0-22-g9847b93",
-			"Rev": "9847b93751a5fbaf227b893d172cee0104ac6427"
+			"Comment": "v2.0.0-38-g003851b",
+			"Rev": "003851be7bb0694fe3cc457a49529a19388ee7cf"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/client",
+			"Comment": "v2.3.0-alpha.0-73-gc400d05",
+			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
@@ -70,7 +75,7 @@
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
-			"Rev": "5abd4e96a45c386928ed2ca2a7ef63e2533e18ec"
+			"Rev": "ea9cd21fa0bc41ee4bdd50ac7ed8cbc7ea2ed960"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
@@ -135,6 +140,10 @@
 		{
 			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
 			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "6460565bec1e8891e29ff478184c71b9e443ac36"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
