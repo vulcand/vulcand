@@ -53,7 +53,7 @@ func MemBytes(m int64) optionSetter {
 	}
 }
 
-// NewWriterOnce returns io.ReadWrite compatilble objkect that can limit the size of the buffer and persist large buffers to disk.
+// NewWriterOnce returns io.ReadWrite compatible object that can limit the size of the buffer and persist large buffers to disk.
 // WriterOnce implements write once, read many times writer. Create a WriterOnce and write to it, once Reader() function has been
 // called, the internal data is transferred to MultiReader and this instance of WriterOnce should be no longer used.
 // By default NewWriterOnce returns unbound buffer that will allow to write up to 1MB in RAM and will start buffering to disk
@@ -379,6 +379,7 @@ func (w *writerOnce) initFile() error {
 	w.file = file
 	w.cleanupFn = func() error {
 		file.Close()
+		os.Remove(file.Name())
 		return nil
 	}
 	return nil

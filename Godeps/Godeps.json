@@ -59,7 +59,7 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/multibuf",
-			"Rev": "22cedde644395b0b798017493b9b950485619b87"
+			"Rev": "565402cd71fbd9c12aa7e295324ea357e970a61e"
 		},
 		{
 			"ImportPath": "github.com/mailgun/scroll",
