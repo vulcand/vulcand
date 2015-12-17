@@ -144,10 +144,18 @@ func (s *Supervisor) TopServers(key *engine.BackendKey) ([]engine.Server, error)
 
 func (s *Supervisor) init() error {
 	proxy, err := s.newProxy(s.lastId)
+	s.lastId += 1
 	if err != nil {
 		return err
 	}
-	s.lastId += 1
+
+	stopNewProxy := true
+
+	defer func() {
+		if stopNewProxy {
+			proxy.Stop(true)
+		}
+	}()
 
 	if err := initProxy(s.engine, proxy); err != nil {
 		return err
@@ -189,6 +197,7 @@ func (s *Supervisor) init() error {
 	}
 
 	// Watch and configure this instance of server
+	stopNewProxy = false
 	s.setCurrentProxy(proxy)
 	changesC := make(chan interface{})
 
