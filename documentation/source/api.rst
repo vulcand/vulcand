@@ -113,7 +113,7 @@ Add a host to the proxy.
  "Host": {
   "Name": "localhost",                              // hostname
   "Settings": {                                     // settings are optional
-    "KeyPair": {"Cert": "base64", Key: "base64"},   // base64 encoded key-pair certficate
+    "KeyPair": {"Cert": "base64", Key: "base64"},   // base64 encoded key-pair certificate
     "Default": false ,                              // default host for SNI
   }
  }
