@@ -21,10 +21,9 @@ Features
 Project info
 ------------
 
-| documentation | https://docs.vulcand.io                                      |
+| documentation | http://vulcand.github.io/                                   |
 | :------------- |:-----------------------------------------------------------------|
 | status        | Used in production@Mailgun on moderate workloads.  Under active development.              |
-| blog          | http://blog.vulcanproxy.com                                     |
 | discussions   | https://groups.google.com/d/forum/vulcan-proxy                  |
 | roadmap       | [roadmap.md](ROADMAP.md)                  |
 | build status  | [![Build Status](https://travis-ci.org/mailgun/vulcand.svg?branch=master)](https://travis-ci.org/mailgun/vulcand) |
