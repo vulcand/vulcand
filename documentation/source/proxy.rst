@@ -944,7 +944,7 @@ Redirect fallback will redirect the request to another frontend.
 
 **Webhook Action**
 
-Circuit breaker can notify extenral sources on it's state transitions, e.g. it can create a pager duty incident by issuing a webhook:
+Circuit breaker can notify external sources on it's state transitions, e.g. it can create a pager duty incident by issuing a webhook:
 
 .. code-block:: javascript
 
