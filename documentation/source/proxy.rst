@@ -322,7 +322,7 @@ Read more about turning OCSP for hosts in `OCSP`_ section of this document.
 Routing Language
 ~~~~~~~~~~~~~~~~
 
-Vulcand uses a special type of a routing language to match requests - called ``route`` and implemented as a `standalone library <https://github.com/mailgun/route>`_
+Vulcand uses a special type of a routing language to match requests - called ``route`` and implemented as a `standalone library <https://github.com/vulcand/route>`_
 It uses Go syntax to route http requests by hostname, method, path and headers. Every Vulcand frontend has a special ``Route`` field for routing requests.
 
 Here is the syntax explained:
