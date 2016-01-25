@@ -61,7 +61,7 @@ Vbundle is a very simple command line tool that creates a new version of vulcand
 .. code-block:: go
   
   import (
-     "github.com/mailgun/vulcand"
+     "github.com/vulcand/vulcand"
      "github.com/example/extension"
   )
 
@@ -77,7 +77,7 @@ Example - Auth middleware
 *************************
 
 In this example, we will write a new fully functional (but insecure) middleware that will require all requests to be authorized with HTTP basic auth.
-For this demo, we've created ``auth`` package in our environment. Full source code is available at: http://github.com/mailgun/vulcand-auth
+For this demo, we've created ``auth`` package in our environment. Full source code is available at: http://github.com/vulcand/vulcand-auth
 
 
 Describing your middleware
@@ -88,7 +88,7 @@ Vulcand looks for a special function ``GetSpec`` that returns all that it needs 
 .. code-block:: go
 
  import (
-     "github.com/mailgun/vulcand/plugin"
+     "github.com/vulcand/vulcand/plugin"
  )
 
  const Type = "auth"
@@ -149,7 +149,7 @@ Let's define ``ServeHTTP`` handler that will be called on each request and respo
 As you may noticed, ``AuthHandler`` is fully compatible with ``http.Handler``. This is very handy as you may now re-use all these middlewares available in the internet, like this one: 
 
 * https://github.com/codahale/http-handlers
-* https://github.com/mailgun/oxy
+* https://github.com/vulcand/oxy
 
 
 Utility functions
@@ -215,7 +215,7 @@ create new auth middlewares:
 Imports
 ///////
 
-Let's take a look at all imports used in the http://github.com/mailgun/vulcand-auth
+Let's take a look at all imports used in the http://github.com/vulcand/vulcand-auth
 
 .. code-block:: go
 
@@ -226,9 +226,9 @@ Let's take a look at all imports used in the http://github.com/mailgun/vulcand-a
 	"io"
 	"net/http"
 
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/mailgun/vulcand/Godeps/_workspace/src/github.com/mailgun/oxy/utils"
-	"github.com/mailgun/vulcand/plugin"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
+	"github.com/vulcand/vulcand/plugin"
  )
 
 
@@ -243,16 +243,16 @@ In our case it looks like this:
 
 .. code-block:: bash
  
- /home/alex/goworld/src/github.com/mailgun/vulcand-bundle
+ /home/alex/goworld/src/github.com/vulcand/vulcand-bundle
 
 In your case it would be something different. Now execute the vbundle command, you should see something like this:
 
 .. code-block:: bash
 
- $ vbundle init --middleware=github.com/mailgun/vulcand-auth/auth
+ $ vbundle init --middleware=github.com/vulcand/vulcand-auth/auth
  Dec 26 01:02:57.180: INFO PID:16442 [main.go:51] SUCCESS: bundle vulcand and vctl completed
 
-.. note:: ``--middleware=github.com/mailgun/vulcand-auth/auth`` flag tells the tool to include our auth middleware into bundle.
+.. note:: ``--middleware=github.com/vulcand/vulcand-auth/auth`` flag tells the tool to include our auth middleware into bundle.
 
 Let us check that it actually did something:
 
@@ -327,7 +327,7 @@ Testing
 
 We were in a hurry trying to get it all working, didn't we? Now we can step back and cover it all by tests:
 
-https://github.com/mailgun/vulcand-auth/blob/master/auth/auth_test.go
+https://github.com/vulcand/vulcand-auth/blob/master/auth/auth_test.go
 
 
 Maintenance
