@@ -8,14 +8,10 @@ import (
 	"text/template"
 
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 )
 
-var vulcanUrl string
-
 func main() {
-	log.InitWithConfig(log.Config{Name: "console"})
-
 	app := cli.NewApp()
 	app.Name = "vulcanbundle"
 	app.Usage = "Command line interface to compile plugins into vulcan binary"

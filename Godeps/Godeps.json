@@ -5,6 +5,15 @@
 		"./..."
 	],
 	"Deps": [
+    {
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.8.7-55-gf7f79f7",
+			"Rev": "f7f79f729e0fbe2fcc061db48a9ba0263f588252"
+		},
+    {
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
+		},
 		{
 			"ImportPath": "github.com/buger/goterm",
 			"Rev": "db9aaed44abbb1be9061aa43612ede2e864c5973"

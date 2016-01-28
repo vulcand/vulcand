@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
@@ -36,10 +36,6 @@ type CmdSuite struct {
 }
 
 var _ = Suite(&CmdSuite{})
-
-func (s *CmdSuite) SetUpSuite(c *C) {
-	log.InitWithConfig(log.Config{Name: "console"})
-}
 
 func (s *CmdSuite) SetUpTest(c *C) {
 	s.ng = memng.New(registry.GetRegistry())
@@ -116,7 +112,7 @@ func (s *CmdSuite) TestHostCRUD(c *C) {
 }
 
 func (s *CmdSuite) TestLogSeverity(c *C) {
-	for _, sev := range []log.Severity{log.SeverityInfo, log.SeverityWarning, log.SeverityError} {
+	for _, sev := range []log.Level{log.InfoLevel, log.WarnLevel, log.ErrorLevel} {
 		c.Assert(s.run("log", "set_severity", "-s", sev.String()), Matches, ".*updated.*")
 		c.Assert(s.run("log", "get_severity"), Matches, fmt.Sprintf(".*%v.*", sev))
 	}

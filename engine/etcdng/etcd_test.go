@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/engine/test"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/secret"
@@ -34,8 +33,6 @@ var _ = Suite(&EtcdSuite{
 })
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
-	log.InitWithConfig(log.Config{Name: "console"})
-
 	key, err := secret.NewKeyString()
 	if err != nil {
 		panic(err)

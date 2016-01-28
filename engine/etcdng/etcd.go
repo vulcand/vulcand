@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
@@ -24,7 +24,7 @@ type ng struct {
 	cancelC          chan bool
 	stopC            chan bool
 	syncClusterStopC chan bool
-	logsev           log.Severity
+	logsev           log.Level
 	options          Options
 }
 
@@ -63,13 +63,13 @@ func (s *ng) Close() {
 	}
 }
 
-func (n *ng) GetLogSeverity() log.Severity {
+func (n *ng) GetLogSeverity() log.Level {
 	return n.logsev
 }
 
-func (n *ng) SetLogSeverity(sev log.Severity) {
+func (n *ng) SetLogSeverity(sev log.Level) {
 	n.logsev = sev
-	log.SetSeverity(n.logsev)
+	log.SetLevel(n.logsev)
 }
 
 func (n *ng) reconnect() error {

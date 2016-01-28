@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
 	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -23,7 +22,6 @@ type StaplerSuite struct {
 }
 
 func (s *StaplerSuite) SetUpSuite(c *C) {
-	log.InitWithConfig(log.Config{Name: "console"})
 	s.re = testutils.OCSPResponse
 }
 

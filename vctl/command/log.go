@@ -1,8 +1,9 @@
 package command
 
 import (
+	"strings"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 )
 
 func NewLogCommand(cmd *Command) cli.Command {
@@ -27,7 +28,7 @@ func NewLogCommand(cmd *Command) cli.Command {
 }
 
 func (cmd *Command) updateLogSeverityAction(c *cli.Context) {
-	sev, err := log.SeverityFromString(c.String("severity"))
+	sev, err := log.ParseLevel(strings.ToLower(c.String("severity")))
 	if err != nil {
 		cmd.printError(err)
 		return

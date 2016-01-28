@@ -3,7 +3,6 @@ package memng
 import (
 	"testing"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/engine/test"
 	"github.com/vulcand/vulcand/plugin/registry"
 
@@ -18,10 +17,6 @@ type MemSuite struct {
 }
 
 var _ = Suite(&MemSuite{})
-
-func (s *MemSuite) SetUpSuite(c *C) {
-	log.InitWithConfig(log.Config{Name: "console"})
-}
 
 func (s *MemSuite) SetUpTest(c *C) {
 	engine := New(registry.GetRegistry())

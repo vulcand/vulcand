@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
 	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/vulcand/vulcand/engine"
@@ -27,10 +26,6 @@ type ServerSuite struct {
 	mux    *mux
 	lastId int
 	st     stapler.Stapler
-}
-
-func (s *ServerSuite) SetUpSuite(c *C) {
-	log.InitWithConfig(log.Config{Name: "console"})
 }
 
 func (s *ServerSuite) SetUpTest(c *C) {
