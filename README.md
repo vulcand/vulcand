@@ -26,5 +26,5 @@ Project info
 | status        | Used in production@Mailgun on moderate workloads.  Under active development.              |
 | discussions   | https://groups.google.com/d/forum/vulcan-proxy                  |
 | roadmap       | [roadmap.md](ROADMAP.md)                  |
-| build status  | [![Build Status](https://travis-ci.org/mailgun/vulcand.svg?branch=master)](https://travis-ci.org/mailgun/vulcand) |
+| build status  | [![Build Status](https://travis-ci.org/vulcand/vulcand.svg?branch=master)](https://travis-ci.org/mailgun/vulcand) |
 
