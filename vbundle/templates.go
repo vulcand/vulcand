@@ -54,20 +54,13 @@ func GetRegistry() (*plugin.Registry, error) {
 const vulcanctlTemplate = `package main
 
 import (
-    "github.com/mailgun/log"
+    log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 	"github.com/vulcand/vulcand/vctl/command"
 	"{{.PackagePath}}/registry"
 	"os"
 )
 
 func main() {
-	console, err := log.NewLogger(log.Config{"console", "info"})
-	if err != nil {
-		log.Errorf("Error: %s\n", err)
-		return
-	}
-	log.Init(console)
-
 	r, err := registry.GetRegistry()
 	if err != nil {
 		log.Errorf("Error: %s\n", err)

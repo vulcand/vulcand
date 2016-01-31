@@ -13,7 +13,7 @@ import (
 	"crypto/tls"
 
 	etcd "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/etcd/client"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/golang.org/x/net/context"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
@@ -33,7 +33,7 @@ type ng struct {
 	cancelC          chan bool
 	stopC            chan bool
 	syncClusterStopC chan bool
-	logsev           log.Severity
+	logsev           log.Level
 	options          Options
 	requireQuorum    bool
 }
@@ -73,13 +73,13 @@ func (n *ng) Close() {
 	}
 }
 
-func (n *ng) GetLogSeverity() log.Severity {
+func (n *ng) GetLogSeverity() log.Level {
 	return n.logsev
 }
 
-func (n *ng) SetLogSeverity(sev log.Severity) {
+func (n *ng) SetLogSeverity(sev log.Level) {
 	n.logsev = sev
-	log.SetSeverity(n.logsev)
+	log.SetLevel(n.logsev)
 }
 
 func (n *ng) reconnect() error {

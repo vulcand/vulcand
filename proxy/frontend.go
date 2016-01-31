@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"sort"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
+	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/forward"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/roundrobin"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/stream"
@@ -33,7 +33,7 @@ func newFrontend(m *mux, f engine.Frontend, b *backend) (*frontend, error) {
 		mux:         m,
 		backend:     b,
 		middlewares: make(map[engine.MiddlewareKey]engine.Middleware),
-		log:         log.GetGlobalLogger(),
+		log:         log.StandardLogger(),
 	}
 
 	if err := fr.rebuild(); err != nil {

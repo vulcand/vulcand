@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
 	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
@@ -48,10 +47,6 @@ func (s *SupervisorSuite) TearDownTest(c *C) {
 }
 
 var _ = Suite(&SupervisorSuite{})
-
-func (s *SupervisorSuite) SetUpSuite(c *C) {
-	log.InitWithConfig(log.Config{Name: "console"})
-}
 
 func (s *SupervisorSuite) TestStartStopEmpty(c *C) {
 	s.sv.Start()

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/log"
 	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/secret"
@@ -45,8 +44,6 @@ func (s *VESuite) name(prefix string) string {
 }
 
 func (s *VESuite) SetUpSuite(c *C) {
-	log.InitWithConfig(log.Config{Name: "console"})
-
 	etcdNodes := os.Getenv("VULCAND_TEST_ETCD_NODES")
 	if etcdNodes == "" {
 		c.Skip("This test requires running Etcd, please provide url via VULCAND_TEST_ETCD_NODES environment variable")
