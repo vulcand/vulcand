@@ -175,8 +175,18 @@
 			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
 		},
 		{
+			"ImportPath": "gopkg.in/airbrake/gobrake.v2",
+			"Comment": "v2.0.3",
+			"Rev": "c9d51adc624b5cc4c1bf8de730a09af4878ffe2d"
+		},
+		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "11d3bc7aa68e238947792f30573146a3231fc0f1"
+		},
+		{
+			"ImportPath": "gopkg.in/gemnasium/logrus-airbrake-hook.v2",
+			"Comment": "v2.0.0",
+			"Rev": "31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd"
 		}
 	]
 }
