@@ -4,15 +4,15 @@ import (
 	"crypto/tls"
 
 	"fmt"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
+	"golang.org/x/crypto/ocsp"
 	"net"
 	"net/http"
 
 	"github.com/vulcand/vulcand/engine"
 
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
+	log "github.com/Sirupsen/logrus"
+	"github.com/mailgun/manners"
+	"github.com/vulcand/route"
 )
 
 // srv contains all that is necessary to run the HTTP(s) server. server does not work on its own,

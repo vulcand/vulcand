@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/vctl/command"
 )

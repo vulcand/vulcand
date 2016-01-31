@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
+	"github.com/buger/goterm"
 	"github.com/vulcand/vulcand/engine"
 )
 
