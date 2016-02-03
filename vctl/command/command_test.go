@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	log "github.com/Sirupsen/logrus"
+	"github.com/mailgun/scroll"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/memng"
@@ -20,7 +20,7 @@ import (
 	"github.com/vulcand/vulcand/supervisor"
 	"github.com/vulcand/vulcand/testutils"
 
-	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 const OK = ".*OK.*"

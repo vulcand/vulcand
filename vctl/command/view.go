@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/buger/goterm"
+	"github.com/buger/goterm"
 	"github.com/vulcand/vulcand/engine"
 )
 

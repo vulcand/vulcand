@@ -13,13 +13,13 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	logrus_syslog "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus/hooks/syslog"
-	logrus_logstash "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus/formatters/logstash"
-	etcd "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/etcd/client"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/manners"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/scroll"
+	log "github.com/Sirupsen/logrus"
+	logrus_logstash "github.com/Sirupsen/logrus/formatters/logstash"
+	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
+	etcd "github.com/coreos/etcd/client"
+	"github.com/mailgun/manners"
+	"github.com/mailgun/metrics"
+	"github.com/mailgun/scroll"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdv2ng"
@@ -73,11 +73,11 @@ func (s *Service) Start() error {
 	if s.options.Log == "console" {
 		log.SetFormatter(&log.TextFormatter{})
 	} else if s.options.Log == "syslog" {
-  		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
+		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
 		if err != nil {
 			return err
 		}
-		log.SetFormatter(&log.TextFormatter{DisableColors:true})
+		log.SetFormatter(&log.TextFormatter{DisableColors: true})
 		log.AddHook(hook)
 	} else if s.options.Log == "json" {
 		log.SetFormatter(&log.JSONFormatter{})

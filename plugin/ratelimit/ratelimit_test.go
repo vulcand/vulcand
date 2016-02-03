@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/testutils"
-	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/codegangsta/cli"
+	"github.com/mailgun/timetools"
+	"github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/plugin"
+	. "gopkg.in/check.v1"
 )
 
 func TestRL(t *testing.T) { TestingT(t) }

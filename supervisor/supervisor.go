@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	log "github.com/Sirupsen/logrus"
+	"github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/proxy"
 )

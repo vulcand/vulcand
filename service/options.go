@@ -3,9 +3,9 @@ package service
 import (
 	"flag"
 	"fmt"
-	"time"
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"strings"
+	"time"
 )
 
 type Options struct {
