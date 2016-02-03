@@ -7,7 +7,7 @@ import (
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin/connlimit"
 
-	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 )
 
 func TestEtcd(t *testing.T) { TestingT(t) }

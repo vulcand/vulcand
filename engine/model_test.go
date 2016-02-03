@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
-	. "github.com/vulcand/vulcand/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/plugin/connlimit"
+	. "gopkg.in/check.v1"
 )
 
 func TestBackend(t *testing.T) { TestingT(t) }

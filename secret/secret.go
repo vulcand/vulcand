@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/golang.org/x/crypto/nacl/secretbox"
+	"golang.org/x/crypto/nacl/secretbox"
 )
 
 func NewKeyString() (string, error) {

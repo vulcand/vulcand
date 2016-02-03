@@ -6,11 +6,11 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/memmetrics"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
+	"github.com/vulcand/oxy/memmetrics"
+	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/engine"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/timetools"
 )
 
 // RTWatcher watches and aggregates runtime metrics

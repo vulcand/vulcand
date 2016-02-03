@@ -6,11 +6,11 @@ import (
 	"net/url"
 	"sort"
 
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/forward"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/roundrobin"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/stream"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
+	log "github.com/Sirupsen/logrus"
+	"github.com/vulcand/oxy/forward"
+	"github.com/vulcand/oxy/roundrobin"
+	"github.com/vulcand/oxy/stream"
+	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/engine"
 )
 

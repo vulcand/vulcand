@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
+	"github.com/coreos/go-etcd/etcd"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"

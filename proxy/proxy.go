@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/metrics"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/mailgun/timetools"
+	"github.com/mailgun/metrics"
+	"github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/router"

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/memmetrics"
+	log "github.com/Sirupsen/logrus"
+	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/vulcand/engine"
 )
 

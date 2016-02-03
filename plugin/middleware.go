@@ -3,8 +3,8 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
+	"github.com/codegangsta/cli"
+	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/router"
 	"net/http"
 	"reflect"

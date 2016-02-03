@@ -5,14 +5,10 @@
 		"./..."
 	],
 	"Deps": [
-    {
+		{
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.8.7-55-gf7f79f7",
 			"Rev": "f7f79f729e0fbe2fcc061db48a9ba0263f588252"
-		},
-    {
-			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
@@ -28,14 +24,34 @@
 			"Rev": "bf4a526f48af7badd25d2cb02d587e1b01be3b50"
 		},
 		{
-			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v2.0.0-38-g003851b",
-			"Rev": "003851be7bb0694fe3cc457a49529a19388ee7cf"
+			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
+			"Comment": "v2.3.0-alpha.0-73-gc400d05",
+			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context",
+			"Comment": "v2.3.0-alpha.0-73-gc400d05",
+			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
 			"Comment": "v2.3.0-alpha.0-73-gc400d05",
 			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
+			"Comment": "v2.3.0-alpha.0-73-gc400d05",
+			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/types",
+			"Comment": "v2.3.0-alpha.0-73-gc400d05",
+			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-etcd/etcd",
+			"Comment": "v2.0.0-38-g003851b",
+			"Rev": "003851be7bb0694fe3cc457a49529a19388ee7cf"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
@@ -153,6 +169,10 @@
 		{
 			"ImportPath": "golang.org/x/net/context",
 			"Rev": "6460565bec1e8891e29ff478184c71b9e443ac36"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

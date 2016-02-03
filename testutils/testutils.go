@@ -3,12 +3,12 @@ package testutils
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/golang.org/x/crypto/ocsp"
+	"golang.org/x/crypto/ocsp"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 
-	routelib "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
+	routelib "github.com/vulcand/route"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin/ratelimit"
 )
