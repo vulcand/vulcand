@@ -226,8 +226,8 @@ Let's take a look at all imports used in the http://github.com/vulcand/vulcand-a
 	"io"
 	"net/http"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/utils"
+	"github.com/vulcand/vulcand/vendor/github.com/codegangsta/cli"
+	"github.com/vulcand/vulcand/vendor/github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/plugin"
  )
 
