@@ -11,13 +11,13 @@ ETCD_FLAGS := VULCAND_TEST_ETCD_NODES=${ETCD_NODES}
 VULCAN_FLAGS := VULCAND_TEST_ETCD_NODES=${ETCD_NODES} VULCAND_TEST_ETCD_PREFIX=${PREFIX} VULCAND_TEST_API_URL=${API_URL} VULCAND_TEST_SERVICE_URL=${SERVICE_URL} VULCAND_TEST_SEAL_KEY=${SEAL_KEY}
 
 test: clean
-	go test -v ./... -cover
+	go test -v $$(go list ./... | grep -v /vendor/) -cover
 
 test-with-etcd: clean
-	${ETCD_FLAGS} go test -v ./... -cover
+	${ETCD_FLAGS} go test -v $$(go list ./... | grep -v /vendor/) -cover
 
 test-with-vulcan: clean
-	${VULCAN_FLAGS} go test -v ./... -cover
+	${VULCAN_FLAGS} go test -v $$(go list ./... | grep -v /vendor/) -cover
 
 clean:
 	find . -name flymake_* -delete
