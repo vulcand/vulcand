@@ -3,22 +3,22 @@
 package etcdv2ng
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
-	"net/http"
-	"net"
-	"crypto/tls"
 
-	etcd "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/coreos/etcd/client"
-	log "github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/golang.org/x/net/context"
+	"crypto/x509"
+	log "github.com/Sirupsen/logrus"
+	etcd "github.com/coreos/etcd/client"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
-	"crypto/x509"
+	"golang.org/x/net/context"
 	"io/ioutil"
 )
 
@@ -61,7 +61,7 @@ func New(nodes []string, etcdKey string, registry *plugin.Registry, options Opti
 		return nil, err
 	}
 	if options.EtcdSyncIntervalSeconds > 0 {
-		go n.client.AutoSync(n.context, time.Duration(n.options.EtcdSyncIntervalSeconds) * time.Second)
+		go n.client.AutoSync(n.context, time.Duration(n.options.EtcdSyncIntervalSeconds)*time.Second)
 	}
 	return n, nil
 }
@@ -126,7 +126,7 @@ func (n *ng) newHttpTransport() etcd.CancelableTransport {
 
 		if tlsCert, err := tls.LoadX509KeyPair(n.options.EtcdCertFile, n.options.EtcdKeyFile); err == nil {
 			cc = &tls.Config{
-				RootCAs: rpool,
+				RootCAs:            rpool,
 				Certificates:       []tls.Certificate{tlsCert},
 				InsecureSkipVerify: true,
 			}
@@ -148,7 +148,7 @@ func (n *ng) newHttpTransport() etcd.CancelableTransport {
 			KeepAlive: 30 * time.Second,
 		}).Dial,
 		TLSHandshakeTimeout: 10 * time.Second,
-		TLSClientConfig: cc,
+		TLSClientConfig:     cc,
 	}
 
 	return tr
@@ -745,7 +745,7 @@ func (n *ng) getVal(key string) (string, error) {
 
 func (n *ng) getDirs(keys ...string) ([]string, error) {
 	var out []string
-	response, err := n.kapi.Get(n.context, strings.Join(keys, "/"), &etcd.GetOptions{Recursive: true, Sort:true, Quorum: n.requireQuorum})
+	response, err := n.kapi.Get(n.context, strings.Join(keys, "/"), &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
 		if notFound(err) {
 			return out, nil

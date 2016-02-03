@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/memmetrics"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/oxy/stream"
-	"github.com/vulcand/vulcand/Godeps/_workspace/src/github.com/vulcand/route"
+	"github.com/vulcand/oxy/memmetrics"
+	"github.com/vulcand/oxy/stream"
+	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/router"
 )
