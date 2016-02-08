@@ -19,11 +19,6 @@
 			"Rev": "9208b142303c12d8899bae836fd524ac9338b4fd"
 		},
 		{
-			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.2.0-62-gbf4a526",
-			"Rev": "bf4a526f48af7badd25d2cb02d587e1b01be3b50"
-		},
-		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
 			"Comment": "v2.3.0-alpha.0-73-gc400d05",
 			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
