@@ -2,7 +2,9 @@ package engine
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 )
 
 // TLSSettings is a JSON and API friendly version of some of the tls.Config parameters
@@ -36,6 +38,11 @@ type TLSSettings struct {
 	// TLS_RSA_WITH_AES_256_CBC_SHA
 	// TLS_RSA_WITH_AES_128_CBC_SHA
 	CipherSuites []string
+
+	// Client key/cert files and CA cert file paths
+	ClientCertFile string
+	ClientKeyFile  string
+	CACertFile     []string
 }
 
 // TLSSessionCache sets up parameters for TLS session cache
@@ -102,6 +109,22 @@ func NewTLSConfig(s *TLSSettings) (*tls.Config, error) {
 		}
 	}
 
+	// Load CA certificates
+	caCertPool := x509.NewCertPool()
+	for _, certfile := range s.CACertFile {
+		caCert, err := ioutil.ReadFile(certfile)
+		if err != nil {
+			fmt.Errorf("Failed to open CA cert file %s: %s", certfile, err)
+		}
+		caCertPool.AppendCertsFromPEM(caCert)
+	}
+
+	// Load client certificate
+	cert, err := tls.LoadX509KeyPair(s.ClientCertFile, s.ClientKeyFile)
+	if err != nil {
+		fmt.Errorf("Failed to load client key/cert pair: %s", err)
+	}
+
 	return &tls.Config{
 		MinVersion: min,
 		MaxVersion: max,
@@ -113,6 +136,9 @@ func NewTLSConfig(s *TLSSettings) (*tls.Config, error) {
 		CipherSuites:             css,
 
 		InsecureSkipVerify: s.InsecureSkipVerify,
+
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caCertPool,
 	}, nil
 }
 

@@ -15,6 +15,9 @@ func getTLSFlags() []cli.Flag {
 		cli.StringFlag{Name: "tlsSessionCache", Usage: "session cache type"},
 		cli.IntFlag{Name: "tlsSessionCacheCapacity", Usage: "session cache capacity"},
 		cli.StringSliceFlag{Name: "tlsCS", Usage: "optional list of preferred cipher suites", Value: &cli.StringSlice{}},
+		cli.StringFlag{Name: "clientCertFile", Usage: "client certificate file path"},
+		cli.StringFlag{Name: "clientKeyFile", Usage: "client certificate key file path"},
+		cli.StringSliceFlag{Name: "caCertFile", Usage: "trusted CA certificates file paths", Value: &cli.StringSlice{}},
 	}
 }
 
@@ -26,6 +29,9 @@ func getTLSSettings(c *cli.Context) (*engine.TLSSettings, error) {
 		MinVersion:               c.String("tlsMinV"),
 		MaxVersion:               c.String("tlsMaxV"),
 		CipherSuites:             c.StringSlice("tlsCS"),
+		ClientCertFile:           c.String("clientCertFile"),
+		ClientKeyFile:            c.String("clientKeyFile"),
+		CACertFile:               c.StringSlice("caCertFile"),
 	}
 	s.SessionCache.Type = c.String("tlsSessionCache")
 	if s.SessionCache.Type == engine.LRUCacheType {
