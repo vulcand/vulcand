@@ -122,7 +122,7 @@ func NewTLSConfig(s *TLSSettings) (*tls.Config, error) {
 	}
 
 	// Load client certificate
-	cert := tls.Certificate
+	var cert tls.Certificate
 	if s.ClientCertFile != "" && s.ClientKeyFile != "" {
 		cert, err = tls.LoadX509KeyPair(s.ClientCertFile, s.ClientKeyFile)
 		if err != nil {
