@@ -114,7 +114,7 @@ func NewTLSConfig(s *TLSSettings) (*tls.Config, error) {
 	for _, certfile := range s.CACertFile {
 		caCert, err := ioutil.ReadFile(certfile)
 		if err != nil {
-			fmt.Errorf("Failed to open CA cert file %s: %s", certfile, err)
+			return nil, fmt.Errorf("Failed to open CA cert file %s: %s", certfile, err)
 		}
 		caCertPool.AppendCertsFromPEM(caCert)
 	}
@@ -122,7 +122,7 @@ func NewTLSConfig(s *TLSSettings) (*tls.Config, error) {
 	// Load client certificate
 	cert, err := tls.LoadX509KeyPair(s.ClientCertFile, s.ClientKeyFile)
 	if err != nil {
-		fmt.Errorf("Failed to load client key/cert pair: %s", err)
+		return nil, fmt.Errorf("Failed to load client key/cert pair: %s", err)
 	}
 
 	return &tls.Config{
