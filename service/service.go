@@ -31,9 +31,9 @@ import (
 )
 
 func Run(registry *plugin.Registry) error {
-	options, err := ParseCommandLine()
+	options, err := ParseRunOptions()
 	if err != nil {
-		return fmt.Errorf("failed to parse command line: %s", err)
+		return fmt.Errorf("failed to parse run options: %s", err)
 	}
 	service := NewService(options, registry)
 	if err := service.Start(); err != nil {

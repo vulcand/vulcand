@@ -4,11 +4,15 @@ import (
 	"flag"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/coreos/etcd/pkg/flags"
+	"os"
 	"strings"
 	"time"
 )
 
 type Options struct {
+	*flag.FlagSet
+
 	ApiPort      int
 	ApiInterface string
 
@@ -94,45 +98,53 @@ func validateOptions(o Options) (Options, error) {
 	return o, nil
 }
 
-func ParseCommandLine() (options Options, err error) {
-	flag.Var(&options.EtcdNodes, "etcd", "Etcd discovery service API endpoints")
-	flag.StringVar(&options.EtcdKey, "etcdKey", "vulcand", "Etcd key for storing configuration")
-	flag.StringVar(&options.EtcdCaFile, "etcdCaFile", "", "Path to CA file for etcd communication")
-	flag.StringVar(&options.EtcdCertFile, "etcdCertFile", "", "Path to cert file for etcd communication")
-	flag.StringVar(&options.EtcdKeyFile, "etcdKeyFile", "", "Path to key file for etcd communication")
-	flag.StringVar(&options.EtcdConsistency, "etcdConsistency", "STRONG", "Etcd consistency (STRONG or WEAK)")
-	flag.Int64Var(&options.EtcdSyncIntervalSeconds, "etcdSyncIntervalSeconds", 0, "Interval between updating etcd cluster information. Use 0 to disable any syncing (default behavior.)")
-	flag.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
-	flag.IntVar(&options.Port, "port", 8181, "Port to listen on")
-	flag.IntVar(&options.ApiPort, "apiPort", 8182, "Port to provide api on")
+func ParseRunOptions() (options Options, err error) {
+	options.FlagSet = flag.NewFlagSet("vulcand", flag.ContinueOnError)
+	fs := options.FlagSet
 
-	flag.StringVar(&options.Interface, "interface", "", "Interface to bind to")
-	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
-	flag.StringVar(&options.CertPath, "certPath", "", "KeyPair to use (enables TLS)")
-	flag.StringVar(&options.Log, "log", "console", "Logging to use (console, json, syslog or logstash)")
+	fs.Var(&options.EtcdNodes, "etcd", "Etcd discovery service API endpoints")
+	fs.StringVar(&options.EtcdKey, "etcdKey", "vulcand", "Etcd key for storing configuration")
+	fs.StringVar(&options.EtcdCaFile, "etcdCaFile", "", "Path to CA file for etcd communication")
+	fs.StringVar(&options.EtcdCertFile, "etcdCertFile", "", "Path to cert file for etcd communication")
+	fs.StringVar(&options.EtcdKeyFile, "etcdKeyFile", "", "Path to key file for etcd communication")
+	fs.StringVar(&options.EtcdConsistency, "etcdConsistency", "STRONG", "Etcd consistency (STRONG or WEAK)")
+	fs.Int64Var(&options.EtcdSyncIntervalSeconds, "etcdSyncIntervalSeconds", 0, "Interval between updating etcd cluster information. Use 0 to disable any syncing (default behavior.)")
+	fs.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
+	fs.IntVar(&options.Port, "port", 8181, "Port to listen on")
+	fs.IntVar(&options.ApiPort, "apiPort", 8182, "Port to provide api on")
+
+	fs.StringVar(&options.Interface, "interface", "", "Interface to bind to")
+	fs.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
+	fs.StringVar(&options.CertPath, "certPath", "", "KeyPair to use (enables TLS)")
+	fs.StringVar(&options.Log, "log", "console", "Logging to use (console, json, syslog or logstash)")
 
 	options.LogSeverity.S = log.WarnLevel
-	flag.Var(&options.LogSeverity, "logSeverity", "logs at or above this level to the logging output")
+	fs.Var(&options.LogSeverity, "logSeverity", "logs at or above this level to the logging output")
 
-	flag.IntVar(&options.ServerMaxHeaderBytes, "serverMaxHeaderBytes", 1<<20, "Maximum size of request headers")
-	flag.DurationVar(&options.ServerReadTimeout, "readTimeout", time.Duration(60)*time.Second, "HTTP server read timeout (deprecated)")
-	flag.DurationVar(&options.ServerReadTimeout, "serverReadTimeout", time.Duration(60)*time.Second, "HTTP server read timeout")
-	flag.DurationVar(&options.ServerWriteTimeout, "writeTimeout", time.Duration(60)*time.Second, "HTTP server write timeout (deprecated)")
-	flag.DurationVar(&options.ServerWriteTimeout, "serverWriteTimeout", time.Duration(60)*time.Second, "HTTP server write timeout")
-	flag.DurationVar(&options.EndpointDialTimeout, "endpointDialTimeout", time.Duration(5)*time.Second, "Endpoint dial timeout")
-	flag.DurationVar(&options.EndpointReadTimeout, "endpointReadTimeout", time.Duration(50)*time.Second, "Endpoint read timeout")
+	fs.IntVar(&options.ServerMaxHeaderBytes, "serverMaxHeaderBytes", 1<<20, "Maximum size of request headers")
+	fs.DurationVar(&options.ServerReadTimeout, "readTimeout", time.Duration(60)*time.Second, "HTTP server read timeout (deprecated)")
+	fs.DurationVar(&options.ServerReadTimeout, "serverReadTimeout", time.Duration(60)*time.Second, "HTTP server read timeout")
+	fs.DurationVar(&options.ServerWriteTimeout, "writeTimeout", time.Duration(60)*time.Second, "HTTP server write timeout (deprecated)")
+	fs.DurationVar(&options.ServerWriteTimeout, "serverWriteTimeout", time.Duration(60)*time.Second, "HTTP server write timeout")
+	fs.DurationVar(&options.EndpointDialTimeout, "endpointDialTimeout", time.Duration(5)*time.Second, "Endpoint dial timeout")
+	fs.DurationVar(&options.EndpointReadTimeout, "endpointReadTimeout", time.Duration(50)*time.Second, "Endpoint read timeout")
 
-	flag.StringVar(&options.SealKey, "sealKey", "", "Seal key used to store encrypted data in the backend")
+	fs.StringVar(&options.SealKey, "sealKey", "", "Seal key used to store encrypted data in the backend")
 
-	flag.StringVar(&options.StatsdPrefix, "statsdPrefix", "", "Statsd prefix will be appended to the metrics emitted by this instance")
-	flag.StringVar(&options.StatsdAddr, "statsdAddr", "", "Statsd address in form of 'host:port'")
+	fs.StringVar(&options.StatsdPrefix, "statsdPrefix", "", "Statsd prefix will be appended to the metrics emitted by this instance")
+	fs.StringVar(&options.StatsdAddr, "statsdAddr", "", "Statsd address in form of 'host:port'")
 
-	flag.BoolVar(&options.DefaultListener, "default-listener", true, "Enables the default listener on startup (Default value: true)")
+	fs.BoolVar(&options.DefaultListener, "default-listener", true, "Enables the default listener on startup (Default value: true)")
 
-	flag.Parse()
+	options.FlagSet.Parse(os.Args[1:])
+	err = flags.SetFlagsFromEnv("VULCAND", fs)
+	if err != nil {
+		fmt.Printf("Error passing env variables: %s\n", err)
+	}
 	options, err = validateOptions(options)
 	if err != nil {
 		return options, err
 	}
+
 	return options, nil
 }
