@@ -367,7 +367,7 @@ func initProxy(ng engine.Engine, p proxy.Proxy) error {
 
 	for _, f := range fs {
 		if err := p.UpsertFrontend(f); err != nil {
-			log.Warnf("Cannot register frontend \"%v\", invalid backend config", f.Id)
+			log.Warningf("Cannot register frontend \"%v\", invalid backend config", f.Id)
 			continue
 		}
 		fk := engine.FrontendKey{Id: f.Id}
@@ -377,7 +377,7 @@ func initProxy(ng engine.Engine, p proxy.Proxy) error {
 		}
 		for _, m := range ms {
 			if err := p.UpsertMiddleware(fk, m); err != nil {
-				log.Warnf("Cannot register frontend \"%v\", invalid middleware config", f.Id)
+				log.Warningf("Cannot register frontend \"%v\", invalid middleware config", f.Id)
 				continue
 			}
 		}
