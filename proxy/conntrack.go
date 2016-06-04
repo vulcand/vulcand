@@ -6,12 +6,6 @@ import (
 	"sync"
 )
 
-
-type ConnectionTracker interface {
-	RegisterStateChange(conn net.Conn, prev http.ConnState, cur http.ConnState)
-	Counts() ConnectionStats
-}
-
 type connTracker struct {
 	mtx *sync.Mutex
 
@@ -20,7 +14,7 @@ type connTracker struct {
 	idle   map[string]int64
 }
 
-func newDefaultConnTracker() ConnectionTracker {
+func newConnTracker() *connTracker {
 	return &connTracker{
 		mtx:    &sync.Mutex{},
 		new:    make(map[string]int64),
@@ -29,7 +23,7 @@ func newDefaultConnTracker() ConnectionTracker {
 	}
 }
 
-func (c *connTracker) RegisterStateChange(conn net.Conn, prev http.ConnState, cur http.ConnState) {
+func (c *connTracker) onStateChange(conn net.Conn, prev http.ConnState, cur http.ConnState) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -60,11 +54,11 @@ func (c *connTracker) inc(conn net.Conn, state http.ConnState, v int64) {
 	m[addr] += v
 }
 
-func (c *connTracker) Counts() ConnectionStats {
+func (c *connTracker) counts() connStats {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	return ConnectionStats{
+	return connStats{
 		http.StateNew:    c.copy(c.new),
 		http.StateActive: c.copy(c.active),
 		http.StateIdle:   c.copy(c.idle),
@@ -79,4 +73,4 @@ func (c *connTracker) copy(s map[string]int64) map[string]int64 {
 	return out
 }
 
-type ConnectionStats map[http.ConnState]map[string]int64
+type connStats map[http.ConnState]map[string]int64

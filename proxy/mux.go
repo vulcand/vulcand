@@ -47,7 +47,7 @@ type mux struct {
 	state muxState
 
 	// Connection watcher
-	connTracker ConnectionTracker
+	connTracker *connTracker
 
 	// stopC used for global broadcast to all proxy systems that it's closed
 	stopC chan struct{}
@@ -73,7 +73,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		options: o,
 
 		router:      o.Router,
-		connTracker: o.ConnectionTracker,
+		connTracker: newConnTracker(),
 
 		servers:   make(map[engine.ListenerKey]*srv),
 		backends:  make(map[engine.BackendKey]*backend),
@@ -608,9 +608,6 @@ func setDefaults(o Options) Options {
 	}
 	if o.Router == nil {
 		o.Router = route.NewMux()
-	}
-	if o.ConnectionTracker == nil {
-		o.ConnectionTracker = newDefaultConnTracker()
 	}
 	return o
 }
