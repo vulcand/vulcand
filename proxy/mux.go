@@ -15,6 +15,7 @@ import (
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
 	"github.com/vulcand/route"
+	"github.com/vulcand/vulcand/conntracker"
 )
 
 // mux is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
@@ -47,7 +48,7 @@ type mux struct {
 	state muxState
 
 	// Connection watcher
-	connTracker *connTracker
+	connTracker conntracker.ConnectionTracker
 
 	// stopC used for global broadcast to all proxy systems that it's closed
 	stopC chan struct{}
@@ -73,7 +74,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		options: o,
 
 		router:      o.Router,
-		connTracker: newConnTracker(),
+		connTracker: o.ConnectionTracker,
 
 		servers:   make(map[engine.ListenerKey]*srv),
 		backends:  make(map[engine.BackendKey]*backend),
@@ -608,6 +609,9 @@ func setDefaults(o Options) Options {
 	}
 	if o.Router == nil {
 		o.Router = route.NewMux()
+	}
+	if o.ConnectionTracker == nil {
+		o.ConnectionTracker = newDefaultConnTracker()
 	}
 	return o
 }

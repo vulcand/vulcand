@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"github.com/vulcand/vulcand/conntracker"
 	"net"
 	"net/http"
 	"sync"
@@ -14,7 +15,7 @@ type connTracker struct {
 	idle   map[string]int64
 }
 
-func newConnTracker() *connTracker {
+func newDefaultConnTracker() conntracker.ConnectionTracker {
 	return &connTracker{
 		mtx:    &sync.Mutex{},
 		new:    make(map[string]int64),
@@ -23,7 +24,7 @@ func newConnTracker() *connTracker {
 	}
 }
 
-func (c *connTracker) onStateChange(conn net.Conn, prev http.ConnState, cur http.ConnState) {
+func (c *connTracker) RegisterStateChange(conn net.Conn, prev http.ConnState, cur http.ConnState) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -54,11 +55,11 @@ func (c *connTracker) inc(conn net.Conn, state http.ConnState, v int64) {
 	m[addr] += v
 }
 
-func (c *connTracker) counts() connStats {
+func (c *connTracker) Counts() conntracker.ConnectionStats {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	return connStats{
+	return conntracker.ConnectionStats{
 		http.StateNew:    c.copy(c.new),
 		http.StateActive: c.copy(c.active),
 		http.StateIdle:   c.copy(c.idle),
@@ -72,5 +73,3 @@ func (c *connTracker) copy(s map[string]int64) map[string]int64 {
 	}
 	return out
 }
-
-type connStats map[http.ConnState]map[string]int64
