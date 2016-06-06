@@ -8,6 +8,7 @@ import (
 
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
+	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/router"
@@ -58,6 +59,7 @@ type Options struct {
 	TimeProvider       timetools.TimeProvider
 	NotFoundMiddleware plugin.Middleware
 	Router             router.Router
+	ConnectionTracker  conntracker.ConnectionTracker
 }
 
 type NewProxyFn func(id int) (Proxy, error)

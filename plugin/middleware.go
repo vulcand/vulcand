@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/codegangsta/cli"
 	"github.com/vulcand/route"
+	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/router"
 	"net/http"
 	"reflect"
@@ -54,9 +55,10 @@ type SpecGetter func(string) *MiddlewareSpec
 
 // Registry contains currently registered middlewares and used to support pluggable middlewares across all modules of the vulcand
 type Registry struct {
-	specs    []*MiddlewareSpec
-	notFound Middleware
-	router   router.Router
+	specs       []*MiddlewareSpec
+	notFound    Middleware
+	router      router.Router
+	connTracker conntracker.ConnectionTracker
 }
 
 func NewRegistry() *Registry {
@@ -109,6 +111,15 @@ func (r *Registry) SetRouter(router router.Router) error {
 
 func (r *Registry) GetRouter() router.Router {
 	return r.router
+}
+
+func (r *Registry) SetConnectionTracker(connTracker conntracker.ConnectionTracker) error {
+	r.connTracker = connTracker
+	return nil
+}
+
+func (r *Registry) GetConnectionTracker() conntracker.ConnectionTracker {
+	return r.connTracker
 }
 
 func verifySignature(fn interface{}) error {
