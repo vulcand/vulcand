@@ -12,6 +12,7 @@ import (
 type ProxyWriter struct {
 	W    http.ResponseWriter
 	Code int
+	Length int64
 }
 
 func (p *ProxyWriter) StatusCode() int {
@@ -28,6 +29,7 @@ func (p *ProxyWriter) Header() http.Header {
 }
 
 func (p *ProxyWriter) Write(buf []byte) (int, error) {
+	p.Length = p.Length + int64(len(buf))
 	return p.W.Write(buf)
 }
 

@@ -118,7 +118,6 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
-<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
@@ -155,45 +154,43 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
-=======
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "6d0c34e42937724bdec6a2786c6c08645640bf33"
+			"Rev": "c175c0cc9b9ae6e4873eff504e37526934fee491"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",

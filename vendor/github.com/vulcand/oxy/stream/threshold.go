@@ -1,4 +1,4 @@
-package steam
+package stream
 
 import (
 	"fmt"

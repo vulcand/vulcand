@@ -33,7 +33,7 @@ Examples of a streaming middleware:
   stream.New(handler, stream.Retry(`IsNetworkError() && Attempts() <= 2`))
 
 */
-package steam
+package stream
 
 import (
 	"net/http"

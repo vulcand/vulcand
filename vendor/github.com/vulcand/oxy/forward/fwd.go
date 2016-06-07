@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/vulcand/oxy/utils"
+	"net/http/httputil"
 )
 
 // ReqRewriter can alter request headers and body
@@ -28,7 +29,7 @@ type optSetter func(f *Forwarder) error
 // be delegated
 func PassHostHeader(b bool) optSetter {
 	return func(f *Forwarder) error {
-		f.passHost = b
+		f.httpForwarder.passHost = b
 		return nil
 	}
 }
@@ -91,12 +92,24 @@ func Logger(l utils.Logger) optSetter {
 	}
 }
 
+// Logger specifies the logger to use.
+// Forwarder will default to oxyutils.NullLogger if no logger has been specified
+func Stream(stream bool) optSetter {
+	return func(f *Forwarder) error {
+		f.stream = stream
+		return nil
+	}
+}
+
+
 // Forwarder wraps two traffic forwarding implementations: HTTP and websockets.
 // It decides based on the specified request which implementation to use
 type Forwarder struct {
 	*httpForwarder
+	*httpStreamingForwarder
 	*websocketForwarder
 	*handlerContext
+	stream bool
 }
 
 // handlerContext defines a handler context for error reporting and logging
@@ -113,6 +126,15 @@ type httpForwarder struct {
 	passHost     bool
 }
 
+// httpStreamingForwarder is a handler that can reverse proxy
+// HTTP traffic but doesn't wait for a complete
+// response before it begins writing bytes upstream
+type httpStreamingForwarder struct {
+	rewriter     ReqRewriter
+	passHost     bool
+}
+
+
 // websocketForwarder is a handler that can reverse proxy
 // websocket traffic
 type websocketForwarder struct {
@@ -128,6 +150,7 @@ type websocketForwarder struct {
 func New(setters ...optSetter) (*Forwarder, error) {
 	f := &Forwarder{
 		httpForwarder:      &httpForwarder{},
+		httpStreamingForwarder: &httpStreamingForwarder{},
 		websocketForwarder: &websocketForwarder{},
 		handlerContext:     &handlerContext{},
 	}
@@ -166,6 +189,8 @@ func New(setters ...optSetter) (*Forwarder, error) {
 func (f *Forwarder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if isWebsocketRequest(req) {
 		f.websocketForwarder.serveHTTP(w, req, f.handlerContext)
+	} else if f.stream {
+		f.httpStreamingForwarder.serveHTTP(w, req, f.handlerContext)
 	} else {
 		f.httpForwarder.serveHTTP(w, req, f.handlerContext)
 	}
@@ -173,6 +198,7 @@ func (f *Forwarder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // serveHTTP forwards HTTP traffic using the configured transport
 func (f *httpForwarder) serveHTTP(w http.ResponseWriter, req *http.Request, ctx *handlerContext) {
+
 	start := time.Now().UTC()
 	response, err := f.roundTripper.RoundTrip(f.copyRequest(req, req.URL))
 	if err != nil {
@@ -195,6 +221,7 @@ func (f *httpForwarder) serveHTTP(w http.ResponseWriter, req *http.Request, ctx 
 
 	utils.CopyHeaders(w.Header(), response.Header)
 	w.WriteHeader(response.StatusCode)
+
 	written, err := io.Copy(w, response.Body)
 	defer response.Body.Close()
 
@@ -337,4 +364,62 @@ func isWebsocketRequest(req *http.Request) bool {
 		return false
 	}
 	return containsHeader(Connection, "upgrade") && containsHeader(Upgrade, "websocket")
+}
+
+
+
+
+// serveHTTP forwards HTTP traffic using the configured transport
+func (f *httpStreamingForwarder) serveHTTP(w http.ResponseWriter, req *http.Request, ctx *handlerContext) {
+	pw := utils.ProxyWriter{
+		W: w,
+	}
+	start := time.Now().UTC()
+	revproxy := httputil.NewSingleHostReverseProxy(req.URL)
+
+	revproxy.ServeHTTP(w, f.copyRequest(req, req.URL))
+
+	if req.TLS != nil {
+		ctx.log.Infof("Round trip: %v, code: %v, duration: %v tls:version: %x, tls:resume:%t, tls:csuite:%x, tls:server:%v",
+			req.URL, pw.Code, time.Now().UTC().Sub(start),
+			req.TLS.Version,
+			req.TLS.DidResume,
+			req.TLS.CipherSuite,
+			req.TLS.ServerName)
+	} else {
+		ctx.log.Infof("Round trip: %v, code: %v, duration: %v",
+			req.URL, pw.Code, time.Now().UTC().Sub(start))
+	}
+}
+
+// copyRequest makes a copy of the specified request to be sent using the configured
+// transport
+func (f *httpStreamingForwarder) copyRequest(req *http.Request, u *url.URL) *http.Request {
+	outReq := new(http.Request)
+	*outReq = *req // includes shallow copies of maps, but we handle this below
+
+	outReq.URL = utils.CopyURL(req.URL)
+	outReq.URL.Scheme = u.Scheme
+	outReq.URL.Host = u.Host
+	outReq.URL.Opaque = req.RequestURI
+	// raw query is already included in RequestURI, so ignore it to avoid dupes
+	outReq.URL.RawQuery = ""
+	// Do not pass client Host header unless optsetter PassHostHeader is set.
+	if !f.passHost {
+		outReq.Host = u.Host
+	}
+	outReq.Proto = "HTTP/1.1"
+	outReq.ProtoMajor = 1
+	outReq.ProtoMinor = 1
+
+	// Overwrite close flag so we can keep persistent connection for the backend servers
+	outReq.Close = false
+
+	outReq.Header = make(http.Header)
+	utils.CopyHeaders(outReq.Header, req.Header)
+
+	if f.rewriter != nil {
+		f.rewriter.Rewrite(outReq)
+	}
+	return outReq
 }
