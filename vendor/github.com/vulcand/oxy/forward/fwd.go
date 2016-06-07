@@ -42,6 +42,7 @@ func RoundTripper(r http.RoundTripper) optSetter {
 	}
 }
 
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 // Dialer mirrors the net.Dial function to be able to define alternate
 // implementations
 type Dialer func(network, address string) (net.Conn, error)
@@ -55,6 +56,8 @@ func WebsocketDial(dial Dialer) optSetter {
 	}
 }
 
+=======
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 // Rewriter defines a request rewriter for the HTTP forwarder
 func Rewriter(r ReqRewriter) optSetter {
 	return func(f *Forwarder) error {
@@ -113,7 +116,10 @@ type httpForwarder struct {
 // websocketForwarder is a handler that can reverse proxy
 // websocket traffic
 type websocketForwarder struct {
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 	dial            Dialer
+=======
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	rewriter        ReqRewriter
 	TLSClientConfig *tls.Config
 }
@@ -133,9 +139,12 @@ func New(setters ...optSetter) (*Forwarder, error) {
 	if f.httpForwarder.roundTripper == nil {
 		f.httpForwarder.roundTripper = http.DefaultTransport
 	}
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 	if f.websocketForwarder.dial == nil {
 		f.websocketForwarder.dial = net.Dial
 	}
+=======
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	if f.httpForwarder.rewriter == nil {
 		h, err := os.Hostname()
 		if err != nil {
@@ -236,6 +245,10 @@ func (f *httpForwarder) copyRequest(req *http.Request, u *url.URL) *http.Request
 func (f *websocketForwarder) serveHTTP(w http.ResponseWriter, req *http.Request, ctx *handlerContext) {
 	outReq := f.copyRequest(req)
 	host := outReq.URL.Host
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
+=======
+	dial := net.Dial
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 
 	// if host does not specify a port, use the default http port
 	if !strings.Contains(host, ":") {
@@ -246,7 +259,20 @@ func (f *websocketForwarder) serveHTTP(w http.ResponseWriter, req *http.Request,
 		}
 	}
 
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 	targetConn, err := f.dial("tcp", host)
+=======
+	if outReq.URL.Scheme == "wss" {
+		if f.TLSClientConfig == nil {
+			f.TLSClientConfig = &tls.Config{}
+		}
+		dial = func(network, address string) (net.Conn, error) {
+			return tls.Dial("tcp", host, f.TLSClientConfig)
+		}
+	}
+
+	targetConn, err := dial("tcp", host)
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	if err != nil {
 		ctx.log.Errorf("Error dialing `%v`: %v", host, err)
 		ctx.errHandler.ServeHTTP(w, req, err)
@@ -254,7 +280,11 @@ func (f *websocketForwarder) serveHTTP(w http.ResponseWriter, req *http.Request,
 	}
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 		ctx.log.Errorf("Unable to hijack the connection: does not implement http.Hijacker")
+=======
+		ctx.log.Errorf("Unable to hijack the connection: %v", err)
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 		ctx.errHandler.ServeHTTP(w, req, err)
 		return
 	}

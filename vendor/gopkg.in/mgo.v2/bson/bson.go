@@ -172,7 +172,11 @@ type ObjectId string
 func ObjectIdHex(s string) ObjectId {
 	d, err := hex.DecodeString(s)
 	if err != nil || len(d) != 12 {
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 		panic(fmt.Sprintf("invalid input to ObjectIdHex: %q", s))
+=======
+		panic(fmt.Sprintf("Invalid input to ObjectIdHex: %q", s))
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	}
 	return ObjectId(d)
 }
@@ -189,6 +193,7 @@ func IsObjectIdHex(s string) bool {
 
 // objectIdCounter is atomically incremented when generating a new ObjectId
 // using NewObjectId() function. It's used as a counter part of an id.
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 var objectIdCounter uint32 = readRandomUint32()
 
 // readRandomUint32 returns a random objectIdCounter.
@@ -200,13 +205,22 @@ func readRandomUint32() uint32 {
 	}
 	return uint32((uint32(b[0]) << 0) | (uint32(b[1]) << 8) | (uint32(b[2]) << 16) | (uint32(b[3]) << 24))
 }
+=======
+var objectIdCounter uint32 = 0
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 
 // machineId stores machine id generated once and used in subsequent calls
 // to NewObjectId function.
 var machineId = readMachineId()
 
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 // readMachineId generates and returns a machine id.
 // If this function fails to get the hostname it will cause a runtime error.
+=======
+// readMachineId generates machine id and puts it into the machineId global
+// variable. If this function fails to get the hostname, it will cause
+// a runtime error.
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 func readMachineId() []byte {
 	var sum [3]byte
 	id := sum[:]
@@ -281,11 +295,16 @@ func (id *ObjectId) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	if len(data) != 26 || data[0] != '"' || data[25] != '"' {
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 		return errors.New(fmt.Sprintf("invalid ObjectId in JSON: %s", string(data)))
+=======
+		return errors.New(fmt.Sprintf("Invalid ObjectId in JSON: %s", string(data)))
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	}
 	var buf [12]byte
 	_, err := hex.Decode(buf[:], data[1:25])
 	if err != nil {
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 		return errors.New(fmt.Sprintf("invalid ObjectId in JSON: %s (%s)", string(data), err))
 	}
 	*id = ObjectId(string(buf[:]))
@@ -310,6 +329,9 @@ func (id *ObjectId) UnmarshalText(data []byte) error {
 	_, err := hex.Decode(buf[:], data[:])
 	if err != nil {
 		return fmt.Errorf("invalid ObjectId: %s (%s)", data, err)
+=======
+		return errors.New(fmt.Sprintf("Invalid ObjectId in JSON: %s (%s)", string(data), err))
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	}
 	*id = ObjectId(string(buf[:]))
 	return nil
@@ -324,7 +346,11 @@ func (id ObjectId) Valid() bool {
 // Calling this function with an invalid id will cause a runtime panic.
 func (id ObjectId) byteSlice(start, end int) []byte {
 	if len(id) != 12 {
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 		panic(fmt.Sprintf("invalid ObjectId: %q", string(id)))
+=======
+		panic(fmt.Sprintf("Invalid ObjectId: %q", string(id)))
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	}
 	return []byte(string(id)[start:end])
 }
@@ -453,8 +479,12 @@ func handleErr(err *error) {
 }
 
 // Marshal serializes the in value, which may be a map or a struct value.
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 // In the case of struct values, only exported fields will be serialized,
 // and the order of serialized fields will match that of the struct itself.
+=======
+// In the case of struct values, only exported fields will be serialized.
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 // The lowercased field name is used as the key for each exported field,
 // but this behavior may be changed using the respective field tag.
 // The tag may also contain flags to tweak the marshalling behavior for
@@ -497,7 +527,10 @@ func Marshal(in interface{}) (out []byte, err error) {
 
 // Unmarshal deserializes data from in into the out value.  The out value
 // must be a map, a pointer to a struct, or a pointer to a bson.D value.
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 // In the case of struct values, only exported fields will be deserialized.
+=======
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 // The lowercased field name is used as the key for each exported field,
 // but this behavior may be changed using the respective field tag.
 // The tag may also contain flags to tweak the marshalling behavior for
@@ -627,7 +660,11 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 	inlineMap := -1
 	for i := 0; i != n; i++ {
 		field := st.Field(i)
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
 		if field.PkgPath != "" && !field.Anonymous {
+=======
+		if field.PkgPath != "" {
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 			continue // Private field
 		}
 
@@ -641,6 +678,27 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 			continue
 		}
 
+<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
+=======
+		// XXX Drop this after a few releases.
+		if s := strings.Index(tag, "/"); s >= 0 {
+			recommend := tag[:s]
+			for _, c := range tag[s+1:] {
+				switch c {
+				case 'c':
+					recommend += ",omitempty"
+				case 's':
+					recommend += ",minsize"
+				default:
+					msg := fmt.Sprintf("Unsupported flag %q in tag %q of type %s", string([]byte{uint8(c)}), tag, st)
+					panic(externalPanic(msg))
+				}
+			}
+			msg := fmt.Sprintf("Replace tag %q in field %s of type %s by %q", tag, field.Name, st, recommend)
+			panic(externalPanic(msg))
+		}
+
+>>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 		inline := false
 		fields := strings.Split(tag, ",")
 		if len(fields) > 1 {

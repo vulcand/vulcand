@@ -9,9 +9,10 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/oxy/roundrobin"
-	"github.com/vulcand/oxy/stream"
 	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/oxy/buffer"
+	"github.com/mailgun/oxy/stream"
 )
 
 type frontend struct {
@@ -164,11 +165,20 @@ func (f *frontend) rebuild() error {
 	if settings.FailoverPredicate == "" {
 		settings.FailoverPredicate = `IsNetworkError() && RequestMethod() == "GET" && Attempts() < 2`
 	}
-	str, err := stream.New(next,
-		stream.Logger(f.log),
-		stream.Retry(settings.FailoverPredicate),
-		stream.MaxRequestBodyBytes(settings.Limits.MaxBodyBytes),
-		stream.MemRequestBodyBytes(settings.Limits.MaxMemBodyBytes))
+
+	var str http.Handler
+
+	if settings.Stream {
+		str, err = stream.New(next,
+			stream.Logger(f.log))
+	} else {
+		str, err = buffer.New(next,
+			buffer.Logger(f.log),
+			buffer.Retry(settings.FailoverPredicate),
+			buffer.MaxRequestBodyBytes(settings.Limits.MaxBodyBytes),
+			buffer.MemRequestBodyBytes(settings.Limits.MaxMemBodyBytes))
+	}
+
 	if err != nil {
 		return err
 	}
