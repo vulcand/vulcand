@@ -375,51 +375,34 @@ func (f *httpStreamingForwarder) serveHTTP(w http.ResponseWriter, req *http.Requ
 		W: w,
 	}
 	start := time.Now().UTC()
-	revproxy := httputil.NewSingleHostReverseProxy(req.URL)
 
-	revproxy.ServeHTTP(w, f.copyRequest(req, req.URL))
+	reqUrl, err := url.ParseRequestURI(req.RequestURI)
+	if err != nil {
+		ctx.log.Errorf("Error parsing Request URI %v, err: %v", req.RequestURI, err)
+		ctx.errHandler.ServeHTTP(w, req, err)
+		return
+	}
+
+	urlcpy := utils.CopyURL(req.URL)
+	urlcpy.Scheme = req.URL.Scheme
+	urlcpy.Host = req.URL.Host
+
+	req.URL.Path = reqUrl.Path
+	req.URL.RawQuery = reqUrl.RawQuery
+
+	revproxy := httputil.NewSingleHostReverseProxy(urlcpy)
+	revproxy.FlushInterval = time.Duration(100) * time.Millisecond //Flush something every 100 milliseconds
+	revproxy.ServeHTTP(w, req)
 
 	if req.TLS != nil {
-		ctx.log.Infof("Round trip: %v, code: %v, duration: %v tls:version: %x, tls:resume:%t, tls:csuite:%x, tls:server:%v",
-			req.URL, pw.Code, time.Now().UTC().Sub(start),
+		ctx.log.Infof("Round trip: %v, code: %v, Length: %v, duration: %v tls:version: %x, tls:resume:%t, tls:csuite:%x, tls:server:%v",
+			req.URL, pw.Code, pw.Length, time.Now().UTC().Sub(start),
 			req.TLS.Version,
 			req.TLS.DidResume,
 			req.TLS.CipherSuite,
 			req.TLS.ServerName)
 	} else {
-		ctx.log.Infof("Round trip: %v, code: %v, duration: %v",
-			req.URL, pw.Code, time.Now().UTC().Sub(start))
+		ctx.log.Infof("Round trip: %v, code: %v, Length: %v, duration: %v",
+			req.URL, pw.Code, pw.Length, time.Now().UTC().Sub(start))
 	}
-}
-
-// copyRequest makes a copy of the specified request to be sent using the configured
-// transport
-func (f *httpStreamingForwarder) copyRequest(req *http.Request, u *url.URL) *http.Request {
-	outReq := new(http.Request)
-	*outReq = *req // includes shallow copies of maps, but we handle this below
-
-	outReq.URL = utils.CopyURL(req.URL)
-	outReq.URL.Scheme = u.Scheme
-	outReq.URL.Host = u.Host
-	outReq.URL.Opaque = req.RequestURI
-	// raw query is already included in RequestURI, so ignore it to avoid dupes
-	outReq.URL.RawQuery = ""
-	// Do not pass client Host header unless optsetter PassHostHeader is set.
-	if !f.passHost {
-		outReq.Host = u.Host
-	}
-	outReq.Proto = "HTTP/1.1"
-	outReq.ProtoMajor = 1
-	outReq.ProtoMinor = 1
-
-	// Overwrite close flag so we can keep persistent connection for the backend servers
-	outReq.Close = false
-
-	outReq.Header = make(http.Header)
-	utils.CopyHeaders(outReq.Header, req.Header)
-
-	if f.rewriter != nil {
-		f.rewriter.Rewrite(outReq)
-	}
-	return outReq
 }
