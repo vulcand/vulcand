@@ -12,7 +12,7 @@ import (
 	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/oxy/buffer"
-	"github.com/mailgun/oxy/stream"
+	"github.com/vulcand/oxy/stream"
 )
 
 type frontend struct {
