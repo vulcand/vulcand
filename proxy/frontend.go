@@ -117,7 +117,8 @@ func (f *frontend) rebuild() error {
 				Hostname:           settings.Hostname,
 				TrustForwardHeader: settings.TrustForwardHeader,
 			}),
-		forward.PassHostHeader(settings.PassHostHeader))
+		forward.PassHostHeader(settings.PassHostHeader),
+		forward.Stream(settings.Stream))
 
 	// rtwatcher will be observing and aggregating metrics
 	watcher, err := NewWatcher(fwd)
