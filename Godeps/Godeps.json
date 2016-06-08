@@ -118,6 +118,7 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
+<<<<<<< fe0114458bd3ba41165962d1dd1f79d7b6101f6b
 			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
@@ -156,42 +157,45 @@
 			"ImportPath": "github.com/vulcand/oxy/utils",
 			"Rev": "d409431ae8278b6301422ee9bce95b7a612ff012"
 			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+=======
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
+>>>>>>> Re-vendor oxy with the URL pointer.
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
+			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",

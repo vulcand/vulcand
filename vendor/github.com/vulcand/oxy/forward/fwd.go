@@ -165,7 +165,7 @@ const (
 	StateConnected = iota
 	StateDisconnected
 )
-type UrlForwardingStateListener func(url.URL, int)
+type UrlForwardingStateListener func(*url.URL, int)
 
 // New creates an instance of Forwarder based on the provided list of configuration options
 func New(setters ...optSetter) (*Forwarder, error) {
@@ -209,8 +209,8 @@ func New(setters ...optSetter) (*Forwarder, error) {
 // request and delegates to the proper implementation
 func (f *Forwarder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if f.stateListener != nil {
-		f.stateListener(*req.URL, StateConnected)
-		defer f.stateListener(*req.URL, StateDisconnected)
+		f.stateListener(req.URL, StateConnected)
+		defer f.stateListener(req.URL, StateDisconnected)
 	}
 	if isWebsocketRequest(req) {
 		f.websocketForwarder.serveHTTP(w, req, f.handlerContext)
