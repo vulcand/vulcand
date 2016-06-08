@@ -127,7 +127,7 @@ but the file descriptor that was given corresponded to a listener of type %T. Mo
 		manners.Options{
 			Server:       s.newHTTPServer(),
 			Listener:     listener,
-			StateHandler: s.mux.connTracker.RegisterStateChange,
+			StateHandler: s.mux.incomingConnTracker.RegisterStateChange,
 		})
 	s.state = srvStateHijacked
 	return nil
@@ -248,7 +248,7 @@ func (s *srv) start() error {
 			manners.Options{
 				Server:       s.newHTTPServer(),
 				Listener:     listener,
-				StateHandler: s.mux.connTracker.RegisterStateChange,
+				StateHandler: s.mux.incomingConnTracker.RegisterStateChange,
 			})
 		s.state = srvStateActive
 		go s.serve(s.srv)

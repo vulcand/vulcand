@@ -325,7 +325,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		DefaultListener:    constructDefaultListener(s.options),
 		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
 		Router:             s.registry.GetRouter(),
-		ConnectionTracker:  s.registry.GetConnectionTracker(),
+		IncomingConnectionTracker:  s.registry.GetIncomingConnectionTracker(),
 	})
 }
 

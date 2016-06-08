@@ -17,7 +17,7 @@ func (mx *mux) emitMetrics() error {
 	c := mx.options.MetricsClient
 
 	// Emit connection stats
-	counts := mx.connTracker.Counts()
+	counts := mx.incomingConnTracker.Counts()
 	for state, values := range counts {
 		for addr, count := range values {
 			c.Gauge(c.Metric("conns", addr, state.String()), count, 1)

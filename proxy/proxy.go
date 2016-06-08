@@ -59,7 +59,7 @@ type Options struct {
 	TimeProvider       timetools.TimeProvider
 	NotFoundMiddleware plugin.Middleware
 	Router             router.Router
-	ConnectionTracker  conntracker.ConnectionTracker
+	IncomingConnectionTracker  conntracker.ConnectionTracker
 }
 
 type NewProxyFn func(id int) (Proxy, error)

@@ -58,7 +58,7 @@ type Registry struct {
 	specs       []*MiddlewareSpec
 	notFound    Middleware
 	router      router.Router
-	connTracker conntracker.ConnectionTracker
+	incomingConnectionTracker conntracker.ConnectionTracker
 }
 
 func NewRegistry() *Registry {
@@ -113,13 +113,13 @@ func (r *Registry) GetRouter() router.Router {
 	return r.router
 }
 
-func (r *Registry) SetConnectionTracker(connTracker conntracker.ConnectionTracker) error {
-	r.connTracker = connTracker
+func (r *Registry) SetIncomingConnectionTracker(connTracker conntracker.ConnectionTracker) error {
+	r.incomingConnectionTracker = connTracker
 	return nil
 }
 
-func (r *Registry) GetConnectionTracker() conntracker.ConnectionTracker {
-	return r.connTracker
+func (r *Registry) GetIncomingConnectionTracker() conntracker.ConnectionTracker {
+	return r.incomingConnectionTracker
 }
 
 func verifySignature(fn interface{}) error {
