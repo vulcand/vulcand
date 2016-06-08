@@ -101,6 +101,19 @@ func Stream(stream bool) optSetter {
 	}
 }
 
+func StateListener(stateListener UrlForwardingStateListener) optSetter {
+	return func(f *Forwarder) error {
+		f.stateListener = stateListener
+		return nil
+	}
+}
+
+func StreamingFlushInterval(flushInterval time.Duration) optSetter {
+	return func(f *Forwarder) error {
+		f.httpStreamingForwarder.flushInterval = flushInterval
+		return nil
+	}
+}
 
 // Forwarder wraps two traffic forwarding implementations: HTTP and websockets.
 // It decides based on the specified request which implementation to use
@@ -109,6 +122,7 @@ type Forwarder struct {
 	*httpStreamingForwarder
 	*websocketForwarder
 	*handlerContext
+	stateListener UrlForwardingStateListener
 	stream bool
 }
 
@@ -132,6 +146,7 @@ type httpForwarder struct {
 type httpStreamingForwarder struct {
 	rewriter     ReqRewriter
 	passHost     bool
+	flushInterval time.Duration
 }
 
 
@@ -146,11 +161,17 @@ type websocketForwarder struct {
 	TLSClientConfig *tls.Config
 }
 
+const (
+	StateConnected = iota
+	StateDisconnected
+)
+type UrlForwardingStateListener func(url.URL, int)
+
 // New creates an instance of Forwarder based on the provided list of configuration options
 func New(setters ...optSetter) (*Forwarder, error) {
 	f := &Forwarder{
 		httpForwarder:      &httpForwarder{},
-		httpStreamingForwarder: &httpStreamingForwarder{},
+		httpStreamingForwarder: &httpStreamingForwarder{flushInterval: time.Duration(100) * time.Millisecond},
 		websocketForwarder: &websocketForwarder{},
 		handlerContext:     &handlerContext{},
 	}
@@ -187,6 +208,10 @@ func New(setters ...optSetter) (*Forwarder, error) {
 // ServeHTTP decides which forwarder to use based on the specified
 // request and delegates to the proper implementation
 func (f *Forwarder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if f.stateListener != nil {
+		f.stateListener(*req.URL, StateConnected)
+		defer f.stateListener(*req.URL, StateDisconnected)
+	}
 	if isWebsocketRequest(req) {
 		f.websocketForwarder.serveHTTP(w, req, f.handlerContext)
 	} else if f.stream {
@@ -391,7 +416,7 @@ func (f *httpStreamingForwarder) serveHTTP(w http.ResponseWriter, req *http.Requ
 	req.URL.RawQuery = reqUrl.RawQuery
 
 	revproxy := httputil.NewSingleHostReverseProxy(urlcpy)
-	revproxy.FlushInterval = time.Duration(100) * time.Millisecond //Flush something every 100 milliseconds
+	revproxy.FlushInterval = f.flushInterval //Flush something every 100 milliseconds
 	revproxy.ServeHTTP(w, req)
 
 	if req.TLS != nil {
