@@ -9,6 +9,7 @@ import (
 	"github.com/vulcand/vulcand/router"
 	"net/http"
 	"reflect"
+	"github.com/vulcand/oxy/forward"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends
@@ -59,6 +60,7 @@ type Registry struct {
 	notFound    Middleware
 	router      router.Router
 	incomingConnectionTracker conntracker.ConnectionTracker
+	outgoingConnectionTracker forward.UrlForwardingStateListener
 }
 
 func NewRegistry() *Registry {
@@ -120,6 +122,16 @@ func (r *Registry) SetIncomingConnectionTracker(connTracker conntracker.Connecti
 
 func (r *Registry) GetIncomingConnectionTracker() conntracker.ConnectionTracker {
 	return r.incomingConnectionTracker
+}
+
+
+func (r *Registry) GetOutgoingConnectionTracker() forward.UrlForwardingStateListener {
+	return r.outgoingConnectionTracker
+}
+
+func (r *Registry) SetOutgoingConnectionTracker(connTracker forward.UrlForwardingStateListener ) error {
+	r.outgoingConnectionTracker = connTracker
+	return nil
 }
 
 func verifySignature(fn interface{}) error {

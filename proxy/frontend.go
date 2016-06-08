@@ -118,7 +118,8 @@ func (f *frontend) rebuild() error {
 				TrustForwardHeader: settings.TrustForwardHeader,
 			}),
 		forward.PassHostHeader(settings.PassHostHeader),
-		forward.Stream(settings.Stream))
+		forward.Stream(settings.Stream),
+		forward.StateListener(f.mux.outgoingConnTracker))
 
 	// rtwatcher will be observing and aggregating metrics
 	watcher, err := NewWatcher(fwd)

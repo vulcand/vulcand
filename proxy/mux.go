@@ -16,6 +16,7 @@ import (
 	"github.com/mailgun/timetools"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
+	"github.com/vulcand/oxy/forward"
 )
 
 // mux is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
@@ -50,6 +51,9 @@ type mux struct {
 	// Connection watcher
 	incomingConnTracker conntracker.ConnectionTracker
 
+	// Connection watcher
+	outgoingConnTracker forward.UrlForwardingStateListener
+
 	// stopC used for global broadcast to all proxy systems that it's closed
 	stopC chan struct{}
 
@@ -75,6 +79,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 
 		router:      o.Router,
 		incomingConnTracker: o.IncomingConnectionTracker,
+		outgoingConnTracker: o.OutgoingConnectionTracker,
 
 		servers:   make(map[engine.ListenerKey]*srv),
 		backends:  make(map[engine.BackendKey]*backend),
