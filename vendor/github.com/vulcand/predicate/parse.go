@@ -103,6 +103,15 @@ func (p *predicateParser) getJoinFunction(op token.Token) (interface{}, error) {
 }
 
 func getIdentifier(node ast.Node) (string, error) {
+	sexpr, ok := node.(*ast.SelectorExpr)
+	if ok {
+		id, ok := sexpr.X.(*ast.Ident)
+		if !ok {
+			return "", fmt.Errorf("expected selector identifier, got: %T", sexpr.X)
+		}
+		return fmt.Sprintf("%s.%s", id.Name, sexpr.Sel.Name), nil
+	}
+
 	id, ok := node.(*ast.Ident)
 	if !ok {
 		return "", fmt.Errorf("expected identifier, got: %T", node)

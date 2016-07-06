@@ -10,15 +10,15 @@ import (
 )
 
 // TokenBucketSet represents a set of TokenBucket covering different time periods.
-type tokenBucketSet struct {
+type TokenBucketSet struct {
 	buckets   map[time.Duration]*tokenBucket
 	maxPeriod time.Duration
 	clock     timetools.TimeProvider
 }
 
 // newTokenBucketSet creates a `TokenBucketSet` from the specified `rates`.
-func newTokenBucketSet(rates *RateSet, clock timetools.TimeProvider) *tokenBucketSet {
-	tbs := new(tokenBucketSet)
+func NewTokenBucketSet(rates *RateSet, clock timetools.TimeProvider) *TokenBucketSet {
+	tbs := new(TokenBucketSet)
 	tbs.clock = clock
 	// In the majority of cases we will have only one bucket.
 	tbs.buckets = make(map[time.Duration]*tokenBucket, len(rates.m))
@@ -31,7 +31,7 @@ func newTokenBucketSet(rates *RateSet, clock timetools.TimeProvider) *tokenBucke
 }
 
 // Update brings the buckets in the set in accordance with the provided `rates`.
-func (tbs *tokenBucketSet) update(rates *RateSet) {
+func (tbs *TokenBucketSet) Update(rates *RateSet) {
 	// Update existing buckets and delete those that have no corresponding spec.
 	for _, bucket := range tbs.buckets {
 		if rate, ok := rates.m[bucket.period]; ok {
@@ -54,7 +54,7 @@ func (tbs *tokenBucketSet) update(rates *RateSet) {
 	}
 }
 
-func (tbs *tokenBucketSet) consume(tokens int64) (time.Duration, error) {
+func (tbs *TokenBucketSet) Consume(tokens int64) (time.Duration, error) {
 	var maxDelay time.Duration = UndefinedDelay
 	var firstErr error = nil
 	for _, tokenBucket := range tbs.buckets {
@@ -80,9 +80,13 @@ func (tbs *tokenBucketSet) consume(tokens int64) (time.Duration, error) {
 	return maxDelay, firstErr
 }
 
+func (tbs *TokenBucketSet) GetMaxPeriod() time.Duration {
+	return tbs.maxPeriod
+}
+
 // debugState returns string that reflects the current state of all buckets in
 // this set. It is intended to be used for debugging and testing only.
-func (tbs *tokenBucketSet) debugState() string {
+func (tbs *TokenBucketSet) debugState() string {
 	periods := sort.IntSlice(make([]int, 0, len(tbs.buckets)))
 	for period := range tbs.buckets {
 		periods = append(periods, int(period))

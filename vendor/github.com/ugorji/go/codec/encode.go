@@ -141,13 +141,16 @@ type simpleIoEncWriterWriter struct {
 	w  io.Writer
 	bw io.ByteWriter
 	sw ioEncStringWriter
+	bs [1]byte
 }
 
 func (o *simpleIoEncWriterWriter) WriteByte(c byte) (err error) {
 	if o.bw != nil {
 		return o.bw.WriteByte(c)
 	}
-	_, err = o.w.Write([]byte{c})
+	// _, err = o.w.Write([]byte{c})
+	o.bs[0] = c
+	_, err = o.w.Write(o.bs[:])
 	return
 }
 
@@ -239,8 +242,8 @@ func (z *bytesEncWriter) writen1(b1 byte) {
 
 func (z *bytesEncWriter) writen2(b1 byte, b2 byte) {
 	c := z.grow(2)
-	z.b[c] = b1
 	z.b[c+1] = b2
+	z.b[c] = b1
 }
 
 func (z *bytesEncWriter) atEndOfEncode() {
@@ -473,7 +476,7 @@ func (f *encFnInfo) kSlice(rv reflect.Value) {
 		for j := 0; j < l; j++ {
 			if cr != nil {
 				if ti.mbs {
-					if l%2 == 0 {
+					if j%2 == 0 {
 						cr.sendContainerState(containerMapKey)
 					} else {
 						cr.sendContainerState(containerMapValue)
@@ -1188,7 +1191,8 @@ func (e *Encoder) doEncodeValue(rv reflect.Value, fn *encFn, sptr uintptr,
 	if fn == nil {
 		rt := rv.Type()
 		rtid := reflect.ValueOf(rt).Pointer()
-		fn = e.getEncFn(rtid, rt, true, true)
+		// fn = e.getEncFn(rtid, rt, true, true)
+		fn = e.getEncFn(rtid, rt, checkFastpath, checkCodecSelfer)
 	}
 	fn.f(&fn.i, rv)
 	if sptr != 0 {
@@ -1265,7 +1269,7 @@ func (e *Encoder) getEncFn(rtid uintptr, rt reflect.Type, checkFastpath, checkCo
 	} else {
 		rk := rt.Kind()
 		if fastpathEnabled && checkFastpath && (rk == reflect.Map || rk == reflect.Slice) {
-			if rt.PkgPath() == "" {
+			if rt.PkgPath() == "" { // un-named slice or map
 				if idx := fastpathAV.index(rtid); idx != -1 {
 					fn.f = fastpathAV[idx].encfn
 				}

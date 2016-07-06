@@ -25,6 +25,11 @@ func (s Severity) String() string {
 }
 
 func SeverityFromString(s string) (Severity, error) {
+	// Treat empty severity string as INFO to preserve backwards compatibility
+	// with older configs that did not have that parameter.
+	if s == "" {
+		return SeverityInfo, nil
+	}
 	s = strings.ToUpper(s)
 	for idx, name := range severityNames {
 		if name == s {

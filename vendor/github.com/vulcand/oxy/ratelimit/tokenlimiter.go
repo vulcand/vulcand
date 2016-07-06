@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vulcand/oxy/utils"
 	"github.com/mailgun/timetools"
 	"github.com/mailgun/ttlmap"
+	"github.com/vulcand/oxy/utils"
 )
 
 const DefaultCapacity = 65536
@@ -124,18 +124,18 @@ func (tl *TokenLimiter) consumeRates(req *http.Request, source string, amount in
 
 	effectiveRates := tl.resolveRates(req)
 	bucketSetI, exists := tl.bucketSets.Get(source)
-	var bucketSet *tokenBucketSet
+	var bucketSet *TokenBucketSet
 
 	if exists {
-		bucketSet = bucketSetI.(*tokenBucketSet)
-		bucketSet.update(effectiveRates)
+		bucketSet = bucketSetI.(*TokenBucketSet)
+		bucketSet.Update(effectiveRates)
 	} else {
-		bucketSet = newTokenBucketSet(effectiveRates, tl.clock)
+		bucketSet = NewTokenBucketSet(effectiveRates, tl.clock)
 		// We set ttl as 10 times rate period. E.g. if rate is 100 requests/second per client ip
 		// the counters for this ip will expire after 10 seconds of inactivity
 		tl.bucketSets.Set(source, bucketSet, int(bucketSet.maxPeriod/time.Second)*10+1)
 	}
-	delay, err := bucketSet.consume(amount)
+	delay, err := bucketSet.Consume(amount)
 	if err != nil {
 		return err
 	}

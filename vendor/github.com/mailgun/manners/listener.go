@@ -28,6 +28,9 @@ func NewListener(l net.Listener) *GracefulListener {
 type gracefulConn struct {
 	net.Conn
 	lastHTTPState http.ConnState
+	// protected tells whether the connection is going to defer server shutdown
+	// until the current HTTP request is completed.
+	protected bool
 }
 
 type gracefulAddr struct {
@@ -37,6 +40,13 @@ type gracefulAddr struct {
 
 func (g *gracefulConn) LocalAddr() net.Addr {
 	return &gracefulAddr{g.Conn.LocalAddr(), g}
+}
+
+// retrieveGracefulConn retrieves a concrete gracefulConn instance from an
+// interface value that can either refer to it directly or refer to a tls.Conn
+// instance wrapping around a gracefulConn one.
+func retrieveGracefulConn(conn net.Conn) *gracefulConn {
+	return conn.LocalAddr().(*gracefulAddr).gconn
 }
 
 // A GracefulListener differs from a standard net.Listener in one way: if
@@ -73,7 +83,7 @@ func (l *GracefulListener) Accept() (net.Conn, error) {
 	if _, ok := conn.(*tls.Conn); ok {
 		return conn, nil
 	}
-	return &gracefulConn{conn, 0}, nil
+	return &gracefulConn{Conn: conn}, nil
 }
 
 // Close tells the wrapped listener to stop listening.  It is idempotent.
@@ -126,7 +136,7 @@ func (l *TLSListener) Accept() (c net.Conn, err error) {
 	if err != nil {
 		return
 	}
-	c = tls.Server(&gracefulConn{c, 0}, l.config)
+	c = tls.Server(&gracefulConn{Conn: c}, l.config)
 	return
 }
 
