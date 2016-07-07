@@ -1,6 +1,9 @@
 package iptools
 
-import "net"
+import (
+	"net"
+	"strings"
+)
 
 // Ranges of addresses allocated by IANA for private internets, as per RFC1918.
 var PrivateNetworks = []string{
@@ -11,15 +14,24 @@ var PrivateNetworks = []string{
 
 // GetHostIPs returns a list of IP addresses of all host's interfaces.
 func GetHostIPs() ([]net.IP, error) {
-	ifaces, err := net.InterfaceAddrs()
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
 	}
 
 	var ips []net.IP
 	for _, iface := range ifaces {
-		if ipnet, ok := iface.(*net.IPNet); ok {
-			ips = append(ips, ipnet.IP)
+		if strings.HasPrefix(iface.Name, "docker") {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok {
+				ips = append(ips, ipnet.IP)
+			}
 		}
 	}
 

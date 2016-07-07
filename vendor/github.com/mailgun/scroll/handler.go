@@ -46,6 +46,10 @@ type Spec struct {
 	// Vulcan middlewares to register with the handler. When registering, middlewares are assigned priorities
 	// according to their positions in the list: a middleware that appears in the list earlier is executed first.
 	Middlewares []middleware.Middleware
+
+	// When Handler or HandlerWithBody is used, this function will be called after every request with a log message.
+	// If nil, defaults to github.com/mailgun/log.Infof.
+	Logger func(format string, a ...interface{})
 }
 
 // Defines the signature of a handler function that can be registered by an app.
@@ -81,7 +85,11 @@ func MakeHandler(app *App, fn HandlerFunc, spec Spec) http.HandlerFunc {
 			status = http.StatusOK
 		}
 
-		log.Infof("Request(Status=%v, Method=%v, Path=%v, Form=%v, Time=%v, Error=%v)",
+		logInfo := spec.Logger
+		if logInfo == nil {
+			logInfo = log.Infof
+		}
+		logInfo("Request(Status=%v, Method=%v, Path=%v, Form=%v, Time=%v, Error=%v)",
 			status, r.Method, r.URL, r.Form, elapsedTime, err)
 
 		app.stats.TrackRequest(spec.MetricName, status, elapsedTime)

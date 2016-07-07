@@ -84,6 +84,20 @@ func GetIntField(r *http.Request, fieldName string) (int, error) {
 	return intField, nil
 }
 
+// Retrieve a request field as a float.
+// Returns `MissingFieldError` if requested field is missing.
+func GetFloatField(r *http.Request, fieldName string) (float64, error) {
+	stringField, err := GetStringField(r, fieldName)
+	if err != nil {
+		return 0, err
+	}
+	floatField, err := strconv.ParseFloat(stringField, 64)
+	if err != nil {
+		return 0, InvalidFormatError{fieldName, stringField}
+	}
+	return floatField, nil
+}
+
 // Helper method to retrieve an optional timestamp from POST request field.
 // If no timestamp provided, returns current time.
 // Returns `InvalidFormatError` if provided timestamp can't be parsed.

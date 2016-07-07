@@ -23,6 +23,8 @@ type Client struct {
 func NewClient(key string) *Client {
 	etcd := etcd.NewClient([]string{etcdMachine})
 
+	etcd.SyncCluster()
+
 	return &Client{Key: key, etcd: etcd}
 }
 

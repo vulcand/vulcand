@@ -11,6 +11,7 @@ import (
 
 const (
 	defaultFailoverPredicate = "(IsNetworkError() || ResponseCode() == 503) && Attempts() <= 2"
+	defaultPassHostHeader    = true
 )
 
 type Location struct {
@@ -26,6 +27,7 @@ type Location struct {
 
 type LocationOptions struct {
 	FailoverPredicate string `json:"FailoverPredicate"`
+	PassHostHeader    bool   `json:"PassHostHeader,omitempty"`
 }
 
 func (o LocationOptions) String() string {
@@ -44,6 +46,7 @@ func NewLocation(host string, methods []string, path, upstream string, middlewar
 		Upstream: upstream,
 		Options: LocationOptions{
 			FailoverPredicate: defaultFailoverPredicate,
+			PassHostHeader:    defaultPassHostHeader,
 		},
 		Middlewares: middlewares,
 	}

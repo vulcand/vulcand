@@ -1,52 +1,53 @@
 {
 	"ImportPath": "github.com/vulcand/vulcand",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v74",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.8.7-55-gf7f79f7",
-			"Rev": "f7f79f729e0fbe2fcc061db48a9ba0263f588252"
+			"Comment": "v0.10.0-19-gf3cfb45",
+			"Rev": "f3cfb454f4c209e6668c95216c4744b8fddb2356"
+		},
+		{
+			"ImportPath": "github.com/Sirupsen/logrus/formatters/logstash",
+			"Comment": "v0.10.0-19-gf3cfb45",
+			"Rev": "f3cfb454f4c209e6668c95216c4744b8fddb2356"
+		},
+		{
+			"ImportPath": "github.com/Sirupsen/logrus/hooks/syslog",
+			"Comment": "v0.10.0-19-gf3cfb45",
+			"Rev": "f3cfb454f4c209e6668c95216c4744b8fddb2356"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
-			"Rev": "db9aaed44abbb1be9061aa43612ede2e864c5973"
+			"Rev": "45c1d39fe6b92d222144a46a24b526a452082f0f"
 		},
 		{
 			"ImportPath": "github.com/codahale/hdrhistogram",
-			"Rev": "9208b142303c12d8899bae836fd524ac9338b4fd"
+			"Rev": "f8ad88b59a584afeee9d334eff879b104439117b"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.2.0-62-gbf4a526",
-			"Rev": "bf4a526f48af7badd25d2cb02d587e1b01be3b50"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
-			"Comment": "v2.3.0-alpha.0-73-gc400d05",
-			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context",
-			"Comment": "v2.3.0-alpha.0-73-gc400d05",
-			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+			"Comment": "v1.18.0",
+			"Rev": "1efa31f08b9333f1bd4882d61f9d668a70cd902e"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v2.3.0-alpha.0-73-gc400d05",
-			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+			"Comment": "v3.0.0-beta.0-777-g1c9e0a0",
+			"Rev": "1c9e0a0e33051fed6c05c141e6fcbfe5c7f2a899"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v2.3.0-alpha.0-73-gc400d05",
-			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+			"Comment": "v3.0.0-beta.0-777-g1c9e0a0",
+			"Rev": "1c9e0a0e33051fed6c05c141e6fcbfe5c7f2a899"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v2.3.0-alpha.0-73-gc400d05",
-			"Rev": "c400d05d0aa73e21e431c16145e558d624098018"
+			"Comment": "v3.0.0-beta.0-777-g1c9e0a0",
+			"Rev": "1c9e0a0e33051fed6c05c141e6fcbfe5c7f2a899"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
@@ -55,28 +56,30 @@
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
-			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
+			"Comment": "v1.1-4-gaed02d1",
+			"Rev": "aed02d124ae4a0e94fea4541c8effd05bf0c8296"
 		},
 		{
 			"ImportPath": "github.com/gorilla/mux",
-			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
+			"Comment": "v1.1-13-g9fa818a",
+			"Rev": "9fa818a44c2bf1396a17f9d5a3c0f6dd39d2ff8e"
 		},
 		{
 			"ImportPath": "github.com/mailgun/iptools",
-			"Rev": "fac48f4f8a866e6fd74ecd4cc74f01fe36e6ef9c"
+			"Rev": "5349e5b95891ef5cb63ed867c31c5204cae280b2"
 		},
 		{
 			"ImportPath": "github.com/mailgun/log",
-			"Rev": "44874009257d4d47ba9806f1b7f72a32a015e4d8"
+			"Rev": "2f35a4607f1abf71f97f77f99b0de8493ef6f4ef"
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",
-			"Comment": "0.3.1-19-g12f1b91",
-			"Rev": "12f1b911a179b472980f386c2e1e786d19f42da4"
+			"Comment": "0.3.1-35-gfada451",
+			"Rev": "fada45142db3f93097ca917da107aa3fad0ffcb5"
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
-			"Rev": "f8741d1789ec85faeede37702eadbf5acb945e85"
+			"Rev": "2b3c4565aafdcd40c8069e50de08ac5379787943"
 		},
 		{
 			"ImportPath": "github.com/mailgun/minheap",
@@ -88,63 +91,75 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/scroll",
-			"Rev": "77b0214e471c031b73fac913b7dda81b21ed4bd3"
+			"Rev": "f002bfcaaf217e63f09b2981c85d9deee7a85502"
+		},
+		{
+			"ImportPath": "github.com/mailgun/scroll/registry",
+			"Rev": "f002bfcaaf217e63f09b2981c85d9deee7a85502"
+		},
+		{
+			"ImportPath": "github.com/mailgun/scroll/vulcan",
+			"Rev": "f002bfcaaf217e63f09b2981c85d9deee7a85502"
+		},
+		{
+			"ImportPath": "github.com/mailgun/scroll/vulcan/middleware",
+			"Rev": "f002bfcaaf217e63f09b2981c85d9deee7a85502"
 		},
 		{
 			"ImportPath": "github.com/mailgun/timetools",
-			"Rev": "7e6055773c5137efbeb3bd2410d705fe10ab6bfd"
+			"Rev": "fd192d755b00c968d312d23f521eb0cdc6f66bd0"
 		},
 		{
 			"ImportPath": "github.com/mailgun/ttlmap",
-			"Rev": "51994f8e1aad271eb214e725379dde8bd4c90acf"
+			"Rev": "16b258d86efc53ac5cf3e550604f566c32624fab"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
-			"Rev": "ea9cd21fa0bc41ee4bdd50ac7ed8cbc7ea2ed960"
+			"Rev": "b94837a2404ab90efe9289e77a70694c355739cb"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "8d49f51577f79f0ffd7607ec9fab42b300002851"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",
-			"Rev": "cb0bff91a7ab7cf7571e661ff883fc997bc554a3"
+			"Rev": "19b9dde14240d94c804ae5736ad0e1de10bf8fe6"
 		},
 		{
 			"ImportPath": "github.com/vulcand/route",
@@ -152,41 +167,36 @@
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/nacl/secretbox",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "d81fdb778bf2c40a91b24519d60cdc5767318829"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ocsp",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "d81fdb778bf2c40a91b24519d60cdc5767318829"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/poly1305",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "d81fdb778bf2c40a91b24519d60cdc5767318829"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
-			"Rev": "4ed45ec682102c643324fae5dff8dab085b6c300"
+			"Rev": "d81fdb778bf2c40a91b24519d60cdc5767318829"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "6460565bec1e8891e29ff478184c71b9e443ac36"
+			"Rev": "b400c2eff1badec7022a8c8f5bea058b6315eed7"
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
-		},
-		{
-			"ImportPath": "gopkg.in/airbrake/gobrake.v2",
-			"Comment": "v2.0.3",
-			"Rev": "c9d51adc624b5cc4c1bf8de730a09af4878ffe2d"
+			"Rev": "62bee037599929a6e9146f29d10dd5208c43507d"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
-			"Rev": "11d3bc7aa68e238947792f30573146a3231fc0f1"
+			"Rev": "4f90aeace3a26ad7021961c297b22c42160c7b25"
 		},
 		{
-			"ImportPath": "gopkg.in/gemnasium/logrus-airbrake-hook.v2",
-			"Comment": "v2.0.0",
-			"Rev": "31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd"
+			"ImportPath": "gopkg.in/mgo.v2/bson",
+			"Comment": "r2016.02.04-3-g29cc868",
+			"Rev": "29cc868a5ca65f401ff318143f9408d02f4799cc"
 		}
 	]
 }

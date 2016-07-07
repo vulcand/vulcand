@@ -27,6 +27,9 @@ const RESET = "\033[0m"
 // Reset to default color
 const RESET_COLOR = "\033[32m"
 
+// Return curor to start of line and clean it
+const RESET_LINE = "\r\033[K"
+
 // List of possible colors
 const (
 	BLACK = iota
@@ -121,6 +124,13 @@ func MoveTo(str string, x int, y int) (out string) {
 	})
 }
 
+// Return carrier to start of line
+func ResetLine(str string) (out string) {
+	return applyTransform(str, func(idx int, line string) string {
+		return fmt.Sprintf(RESET_LINE, line)
+	})
+}
+
 // Make bold
 func Bold(str string) string {
 	return applyTransform(str, func(idx int, line string) string {
@@ -136,6 +146,15 @@ func Color(str string, color int) string {
 	return applyTransform(str, func(idx int, line string) string {
 		return fmt.Sprintf("%s%s%s", getColor(color), line, RESET)
 	})
+}
+
+func Highlight(str, substr string, color int) string {
+	hiSubstr := Color(substr, color)
+	return strings.Replace(str, substr, hiSubstr, -1)
+}
+
+func HighlightRegion(str string, from, to, color int) string {
+	return str[:from] + Color(str[from:to], color) + str[to:]
 }
 
 // Change background color of string:
@@ -197,4 +216,22 @@ func Println(a ...interface{}) {
 
 func Printf(format string, a ...interface{}) {
 	fmt.Fprintf(Screen, format, a...)
+}
+
+func Context(data string, idx, max int) string {
+	var start, end int
+
+	if len(data[:idx]) < (max / 2) {
+		start = 0
+	} else {
+		start = idx - max/2
+	}
+
+	if len(data)-idx < (max / 2) {
+		end = len(data) - 1
+	} else {
+		end = idx + max/2
+	}
+
+	return data[start:end]
 }

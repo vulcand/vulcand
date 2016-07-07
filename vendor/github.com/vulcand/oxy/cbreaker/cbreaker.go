@@ -42,7 +42,6 @@ type CircuitBreaker struct {
 	metrics *memmetrics.RTMetrics
 
 	condition hpredicate
-	duration  time.Duration
 
 	fallbackDuration time.Duration
 	recoveryDuration time.Duration

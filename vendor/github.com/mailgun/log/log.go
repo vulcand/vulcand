@@ -100,7 +100,7 @@ func Debugf(format string, args ...interface{}) {
 
 func (gl *grouplogger) Debugf(format string, args ...interface{}) {
 	for _, logger := range gl.loggers {
-		writeMessage(logger, 1, SeverityDebug, format, args...)
+		writeMessage(logger, 2, SeverityDebug, format, args...)
 	}
 }
 
@@ -111,7 +111,7 @@ func Infof(format string, args ...interface{}) {
 
 func (gl *grouplogger) Infof(format string, args ...interface{}) {
 	for _, logger := range gl.loggers {
-		writeMessage(logger, 1, SeverityInfo, format, args...)
+		writeMessage(logger, 2, SeverityInfo, format, args...)
 	}
 }
 
@@ -122,7 +122,7 @@ func Warningf(format string, args ...interface{}) {
 
 func (gl *grouplogger) Warningf(format string, args ...interface{}) {
 	for _, logger := range gl.loggers {
-		writeMessage(logger, 1, SeverityWarning, format, args...)
+		writeMessage(logger, 2, SeverityWarning, format, args...)
 	}
 }
 
@@ -133,7 +133,24 @@ func Errorf(format string, args ...interface{}) {
 
 func (gl *grouplogger) Errorf(format string, args ...interface{}) {
 	for _, logger := range gl.loggers {
-		writeMessage(logger, 1, SeverityError, format, args...)
+		writeMessage(logger, 2, SeverityError, format, args...)
+	}
+}
+
+// Logfmt logs a formatted message of the specified severity, marking it
+// attributed to a function at the specified depth on the current goroutine
+// stack.
+func Logfmt(callDepth int, sev Severity, format string, args ...interface{}) {
+	gl.Logf(callDepth, sev, format, args...)
+}
+
+func (gl *grouplogger) Logf(callDepth int, sev Severity, format string, args ...interface{}) {
+	caller := getCallerInfo(callDepth + 2)
+	for _, logger := range gl.loggers {
+		if w := logger.Writer(sev); w != nil {
+			message := logger.FormatMessage(sev, caller, format, args...)
+			io.WriteString(w, message)
+		}
 	}
 }
 
