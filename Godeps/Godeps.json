@@ -12,14 +12,13 @@
 			"Rev": "f3cfb454f4c209e6668c95216c4744b8fddb2356"
 		},
 		{
-			"ImportPath": "github.com/Sirupsen/logrus/formatters/logstash",
+			"ImportPath": "github.com/Sirupsen/logrus/hooks/syslog",
 			"Comment": "v0.10.0-19-gf3cfb45",
 			"Rev": "f3cfb454f4c209e6668c95216c4744b8fddb2356"
 		},
 		{
-			"ImportPath": "github.com/Sirupsen/logrus/hooks/syslog",
-			"Comment": "v0.10.0-19-gf3cfb45",
-			"Rev": "f3cfb454f4c209e6668c95216c4744b8fddb2356"
+			"ImportPath": "github.com/bshuster-repo/logrus-logstash-hook",
+			"Rev": "f8b7f00a4feb2088e5f7290f1c9360d1081ba0b5"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
