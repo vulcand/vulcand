@@ -14,8 +14,8 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	logrus_logstash "github.com/Sirupsen/logrus/formatters/logstash"
 	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
+	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/mailgun/manners"
 	"github.com/mailgun/metrics"
