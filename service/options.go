@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/mailgun/metrics"
 	"strings"
 	"time"
 )
@@ -38,8 +39,9 @@ type Options struct {
 
 	SealKey string
 
-	StatsdAddr   string
-	StatsdPrefix string
+	StatsdAddr    string
+	StatsdPrefix  string
+	MetricsClient metrics.Client
 
 	DefaultListener bool
 }

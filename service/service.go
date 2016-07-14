@@ -95,7 +95,9 @@ func (s *Service) Start() error {
 		ioutil.WriteFile(s.options.PidPath, []byte(fmt.Sprint(os.Getpid())), 0644)
 	}
 
-	if s.options.StatsdAddr != "" {
+	if s.options.MetricsClient != nil {
+		s.metricsClient = s.options.MetricsClient
+	} else if s.options.StatsdAddr != "" {
 		var err error
 		s.metricsClient, err = metrics.NewWithOptions(s.options.StatsdAddr, s.options.StatsdPrefix, metrics.Options{UseBuffering: true})
 		if err != nil {
@@ -325,8 +327,8 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		DefaultListener:    constructDefaultListener(s.options),
 		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
 		Router:             s.registry.GetRouter(),
-		IncomingConnectionTracker:  s.registry.GetIncomingConnectionTracker(),
-		OutgoingConnectionTracker:  s.registry.GetOutgoingConnectionTracker(),
+		IncomingConnectionTracker: s.registry.GetIncomingConnectionTracker(),
+		OutgoingConnectionTracker: s.registry.GetOutgoingConnectionTracker(),
 	})
 }
 
