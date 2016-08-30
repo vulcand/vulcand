@@ -9,7 +9,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/oxy/roundrobin"
-	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/oxy/buffer"
 	"github.com/vulcand/oxy/stream"
@@ -24,7 +23,6 @@ type frontend struct {
 	watcher     *RTWatcher
 	backend     *backend
 	middlewares map[engine.MiddlewareKey]engine.Middleware
-	log         utils.Logger
 }
 
 func newFrontend(m *mux, f engine.Frontend, b *backend) (*frontend, error) {
@@ -34,7 +32,6 @@ func newFrontend(m *mux, f engine.Frontend, b *backend) (*frontend, error) {
 		mux:         m,
 		backend:     b,
 		middlewares: make(map[engine.MiddlewareKey]engine.Middleware),
-		log:         log.StandardLogger(),
 	}
 
 	if err := fr.rebuild(); err != nil {
@@ -110,7 +107,6 @@ func (f *frontend) rebuild() error {
 
 	// set up forwarder
 	fwd, err := forward.New(
-		forward.Logger(f.log),
 		forward.RoundTripper(f.backend.transport),
 		forward.Rewriter(
 			&forward.HeaderRewriter{
@@ -134,7 +130,7 @@ func (f *frontend) rebuild() error {
 	}
 
 	// Rebalancer will readjust load balancer weights based on error ratios
-	rb, err := roundrobin.NewRebalancer(rr, roundrobin.RebalancerLogger(f.log))
+	rb, err := roundrobin.NewRebalancer(rr)
 	if err != nil {
 		return err
 	}
@@ -171,11 +167,9 @@ func (f *frontend) rebuild() error {
 	var str http.Handler
 
 	if settings.Stream {
-		str, err = stream.New(next,
-			stream.Logger(f.log))
+		str, err = stream.New(next)
 	} else {
 		str, err = buffer.New(next,
-			buffer.Logger(f.log),
 			buffer.Retry(settings.FailoverPredicate),
 			buffer.MaxRequestBodyBytes(settings.Limits.MaxBodyBytes),
 			buffer.MemRequestBodyBytes(settings.Limits.MaxMemBodyBytes))

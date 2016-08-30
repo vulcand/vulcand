@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/vulcand/oxy/utils"
 )
 
@@ -20,7 +21,6 @@ type ConnLimiter struct {
 	next             http.Handler
 
 	errHandler utils.ErrorHandler
-	log        utils.Logger
 }
 
 func New(next http.Handler, extract utils.SourceExtractor, maxConnections int64, options ...ConnLimitOption) (*ConnLimiter, error) {
@@ -40,9 +40,6 @@ func New(next http.Handler, extract utils.SourceExtractor, maxConnections int64,
 			return nil, err
 		}
 	}
-	if cl.log == nil {
-		cl.log = utils.NullLogger
-	}
 	if cl.errHandler == nil {
 		cl.errHandler = defaultErrHandler
 	}
@@ -56,12 +53,12 @@ func (cl *ConnLimiter) Wrap(h http.Handler) {
 func (cl *ConnLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token, amount, err := cl.extract.Extract(r)
 	if err != nil {
-		cl.log.Errorf("failed to extract source of the connection: %v", err)
+		log.Errorf("failed to extract source of the connection: %v", err)
 		cl.errHandler.ServeHTTP(w, r, err)
 		return
 	}
 	if err := cl.acquire(token, amount); err != nil {
-		cl.log.Infof("limiting request source %s: %v", token, err)
+		log.Infof("limiting request source %s: %v", token, err)
 		cl.errHandler.ServeHTTP(w, r, err)
 		return
 	}
@@ -119,14 +116,6 @@ func (e *ConnErrHandler) ServeHTTP(w http.ResponseWriter, req *http.Request, err
 }
 
 type ConnLimitOption func(l *ConnLimiter) error
-
-// Logger sets the logger that will be used by this middleware.
-func Logger(l utils.Logger) ConnLimitOption {
-	return func(cl *ConnLimiter) error {
-		cl.log = l
-		return nil
-	}
-}
 
 // ErrorHandler sets error handler of the server
 func ErrorHandler(h utils.ErrorHandler) ConnLimitOption {

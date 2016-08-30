@@ -10,8 +10,8 @@ import (
 // from the ServeHTTP. It can be safely passed to ServeHTTP handler,
 // wrapping the real response writer.
 type ProxyWriter struct {
-	W    http.ResponseWriter
-	Code int
+	W      http.ResponseWriter
+	Code   int
 	Length int64
 }
 

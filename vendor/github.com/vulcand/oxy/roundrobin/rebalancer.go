@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
+	"github.com/mailgun/timetools"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/oxy/utils"
-	"github.com/mailgun/timetools"
 )
 
 // RebalancerOption - functional option setter for rebalancer
@@ -42,19 +43,10 @@ type Rebalancer struct {
 	// errHandler is HTTP handler called in case of errors
 	errHandler utils.ErrorHandler
 
-	log utils.Logger
-
 	ratings []float64
 
 	// creates new meters
 	newMeter NewMeterFn
-}
-
-func RebalancerLogger(log utils.Logger) RebalancerOption {
-	return func(r *Rebalancer) error {
-		r.log = log
-		return nil
-	}
 }
 
 func RebalancerClock(clock timetools.TimeProvider) RebalancerOption {
@@ -101,9 +93,6 @@ func NewRebalancer(handler balancerHandler, opts ...RebalancerOption) (*Rebalanc
 	}
 	if rb.backoffDuration == 0 {
 		rb.backoffDuration = 10 * time.Second
-	}
-	if rb.log == nil {
-		rb.log = &utils.NOPLogger{}
 	}
 	if rb.newMeter == nil {
 		rb.newMeter = func() (Meter, error) {
@@ -270,7 +259,7 @@ func (rb *Rebalancer) adjustWeights() {
 
 func (rb *Rebalancer) applyWeights() {
 	for _, srv := range rb.servers {
-		rb.log.Infof("upsert server %v, weight %v", srv.url, srv.curWeight)
+		log.Infof("upsert server %v, weight %v", srv.url, srv.curWeight)
 		rb.next.UpsertServer(srv.url, Weight(srv.curWeight))
 	}
 }
@@ -282,7 +271,7 @@ func (rb *Rebalancer) setMarkedWeights() bool {
 		if srv.good {
 			weight := increase(srv.curWeight)
 			if weight <= FSMMaxWeight {
-				rb.log.Infof("increasing weight of %v from %v to %v", srv.url, srv.curWeight, weight)
+				log.Infof("increasing weight of %v from %v to %v", srv.url, srv.curWeight, weight)
 				srv.curWeight = weight
 				changed = true
 			}
@@ -329,7 +318,7 @@ func (rb *Rebalancer) markServers() bool {
 		}
 	}
 	if len(g) != 0 && len(b) != 0 {
-		rb.log.Infof("bad: %v good: %v, ratings: %v", b, g, rb.ratings)
+		log.Infof("bad: %v good: %v, ratings: %v", b, g, rb.ratings)
 	}
 	return len(g) != 0 && len(b) != 0
 }
@@ -343,7 +332,7 @@ func (rb *Rebalancer) convergeWeights() bool {
 		}
 		changed = true
 		newWeight := decrease(s.origWeight, s.curWeight)
-		rb.log.Infof("decreasing weight of %v from %v to %v", s.url, s.curWeight, newWeight)
+		log.Infof("decreasing weight of %v from %v to %v", s.url, s.curWeight, newWeight)
 		s.curWeight = newWeight
 	}
 	if !changed {

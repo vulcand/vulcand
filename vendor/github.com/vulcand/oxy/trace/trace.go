@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/vulcand/oxy/utils"
 )
 
@@ -40,14 +41,6 @@ func ResponseHeaders(headers ...string) Option {
 	}
 }
 
-// Logger sets optional logger for trace used to report errors
-func Logger(l utils.Logger) Option {
-	return func(t *Tracer) error {
-		t.log = l
-		return nil
-	}
-}
-
 // Tracer records request and response emitting JSON structured data to the output
 type Tracer struct {
 	errHandler  utils.ErrorHandler
@@ -55,7 +48,6 @@ type Tracer struct {
 	reqHeaders  []string
 	respHeaders []string
 	writer      io.Writer
-	log         utils.Logger
 }
 
 // New creates a new Tracer middleware that emits all the request/response information in structured format
@@ -74,9 +66,6 @@ func New(next http.Handler, writer io.Writer, opts ...Option) (*Tracer, error) {
 	if t.errHandler == nil {
 		t.errHandler = utils.DefaultHandler
 	}
-	if t.log == nil {
-		t.log = utils.NullLogger
-	}
 	return t, nil
 }
 
@@ -87,7 +76,7 @@ func (t *Tracer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	l := t.newRecord(req, pw, time.Since(start))
 	if err := json.NewEncoder(t.writer).Encode(l); err != nil {
-		t.log.Errorf("Failed to marshal request: %v", err)
+		log.Errorf("Failed to marshal request: %v", err)
 	}
 }
 

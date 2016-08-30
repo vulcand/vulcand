@@ -325,13 +325,6 @@ func (d *decoder) readArrayDocTo(out reflect.Value) {
 func (d *decoder) readSliceDoc(t reflect.Type) interface{} {
 	tmp := make([]reflect.Value, 0, 8)
 	elemType := t.Elem()
-<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
-	if elemType == typeRawDocElem {
-		d.dropElem(0x04)
-		return reflect.Zero(t).Interface()
-	}
-=======
->>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 
 	end := int(d.readInt32())
 	end += d.i - 4
@@ -444,11 +437,7 @@ func (d *decoder) readElemTo(out reflect.Value, kind byte) (good bool) {
 
 	start := d.i
 
-<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
-	if kind == 0x03 {
-=======
 	if kind == '\x03' {
->>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 		// Delegate unmarshaling of documents.
 		outt := out.Type()
 		outk := out.Kind()
@@ -467,11 +456,6 @@ func (d *decoder) readElemTo(out reflect.Value, kind byte) (good bool) {
 				out.Set(d.readDocElems(outt))
 			case typeRawDocElem:
 				out.Set(d.readRawDocElems(outt))
-<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
-			default:
-				d.readDocTo(blackHole)
-=======
->>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 			}
 			return true
 		}
@@ -739,15 +723,6 @@ func (d *decoder) readElemTo(out reflect.Value, kind byte) (good bool) {
 			out.Set(reflect.ValueOf(u).Elem())
 			return true
 		}
-<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
-		if outt == typeBinary {
-			if b, ok := in.([]byte); ok {
-				out.Set(reflect.ValueOf(Binary{Data: b}))
-				return true
-			}
-		}
-=======
->>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 	}
 
 	return false
@@ -801,21 +776,10 @@ func (d *decoder) readCStr() string {
 }
 
 func (d *decoder) readBool() bool {
-<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
-	b := d.readByte()
-	if b == 0 {
-		return false
-	}
-	if b == 1 {
-		return true
-	}
-	panic(fmt.Sprintf("encoded boolean must be 1 or 0, found %d", b))
-=======
 	if d.readByte() == 1 {
 		return true
 	}
 	return false
->>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 }
 
 func (d *decoder) readFloat64() float64 {
@@ -852,18 +816,9 @@ func (d *decoder) readByte() byte {
 }
 
 func (d *decoder) readBytes(length int32) []byte {
-<<<<<<< 60da89453ed1387bd8f3590bd8d3c27be87bc0cc
-	if length < 0 {
-		corrupted()
-	}
-	start := d.i
-	d.i += int(length)
-	if d.i < start || d.i > len(d.in) {
-=======
 	start := d.i
 	d.i += int(length)
 	if d.i > len(d.in) {
->>>>>>> Incorporated the streaming pass-through oxy version, and allowed to be choosen from the frontend.
 		corrupted()
 	}
 	return d.in[start : start+int(length)]
