@@ -117,6 +117,10 @@
 			"Rev": "b94837a2404ab90efe9289e77a70694c355739cb"
 		},
 		{
+			"ImportPath": "github.com/vulcand/oxy/buffer",
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
+		},
+		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
 			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
