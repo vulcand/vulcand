@@ -167,7 +167,8 @@ func (n *ng) GetHosts() ([]engine.Host, error) {
 	for _, hostKey := range vals {
 		host, err := n.GetHost(engine.HostKey{suffix(hostKey)})
 		if err != nil {
-			return nil, err
+			log.Warningf("Invalid host config for %v: %v\n", hostKey, err)
+			continue
 		}
 		hosts = append(hosts, *host)
 	}
@@ -234,7 +235,8 @@ func (n *ng) GetListeners() ([]engine.Listener, error) {
 	for _, p := range vals {
 		l, err := n.GetListener(engine.ListenerKey{Id: suffix(p.Key)})
 		if err != nil {
-			return nil, err
+			log.Warningf("Invalid listener config for %v: %v\n", n.etcdKey, err)
+			continue
 		}
 		ls = append(ls, *l)
 	}
@@ -293,7 +295,8 @@ func (n *ng) GetFrontends() ([]engine.Frontend, error) {
 	for _, fPath := range vals {
 		f, err := n.GetFrontend(engine.FrontendKey{suffix(fPath)})
 		if err != nil {
-			return nil, err
+			log.Warningf("Invalid frontend config for %v: %v\n", fPath, err)
+			continue
 		}
 		fs = append(fs, *f)
 	}
@@ -326,7 +329,8 @@ func (n *ng) GetBackends() ([]engine.Backend, error) {
 	for _, backendKey := range ups {
 		b, err := n.GetBackend(engine.BackendKey{Id: suffix(backendKey)})
 		if err != nil {
-			return nil, err
+			log.Warningf("Invalid backend config for %v: %v\n", backendKey, err)
+			continue
 		}
 		backends = append(backends, *b)
 	}
@@ -374,7 +378,8 @@ func (n *ng) GetMiddlewares(fk engine.FrontendKey) ([]engine.Middleware, error) 
 	for _, p := range keys {
 		m, err := n.GetMiddleware(engine.MiddlewareKey{Id: suffix(p.Key), FrontendKey: fk})
 		if err != nil {
-			return nil, err
+			log.Warningf("Invalid middleware config for %v (frontend: %v): %v\n", p.Key, fk, err)
+			continue
 		}
 		ms = append(ms, *m)
 	}
@@ -426,7 +431,8 @@ func (n *ng) GetServers(bk engine.BackendKey) ([]engine.Server, error) {
 	for _, p := range keys {
 		srv, err := n.GetServer(engine.ServerKey{Id: suffix(p.Key), BackendKey: bk})
 		if err != nil {
-			return nil, err
+			log.Warningf("Invalid server config for %v (backend: %v): %v\n", p.Key, bk, err)
+			continue
 		}
 		svs = append(svs, *srv)
 	}
