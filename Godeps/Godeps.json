@@ -118,7 +118,6 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
-<<<<<<< fe0114458bd3ba41165962d1dd1f79d7b6101f6b
 			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
@@ -155,47 +154,7 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "d409431ae8278b6301422ee9bce95b7a612ff012"
-			"Rev": "074693901d99f3edf79925f1ce233c679cfc11fa"
-=======
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
->>>>>>> Re-vendor oxy with the URL pointer.
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
-		},
-		{
-			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "e8926a1d2f3602a83db9bd068ac16386a69f25a4"
+			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",
@@ -237,11 +196,6 @@
 			"ImportPath": "gopkg.in/mgo.v2/bson",
 			"Comment": "r2016.02.04-3-g29cc868",
 			"Rev": "29cc868a5ca65f401ff318143f9408d02f4799cc"
-		},
-		{
-			"ImportPath": "gopkg.in/gemnasium/logrus-airbrake-hook.v2",
-			"Comment": "v2.0.0",
-			"Rev": "31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd"
-		},
+		}
 	]
 }
