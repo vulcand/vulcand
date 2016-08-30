@@ -7,11 +7,11 @@ import (
 	"sort"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/vulcand/oxy/buffer"
 	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/oxy/roundrobin"
-	"github.com/vulcand/vulcand/engine"
-	"github.com/vulcand/oxy/buffer"
 	"github.com/vulcand/oxy/stream"
+	"github.com/vulcand/vulcand/engine"
 )
 
 type frontend struct {

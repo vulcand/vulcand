@@ -14,9 +14,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
+	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
-	"github.com/vulcand/oxy/forward"
 )
 
 // mux is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
@@ -77,7 +77,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 
 		options: o,
 
-		router:      o.Router,
+		router:              o.Router,
 		incomingConnTracker: o.IncomingConnectionTracker,
 		outgoingConnTracker: o.OutgoingConnectionTracker,
 

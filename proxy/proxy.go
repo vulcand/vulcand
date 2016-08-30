@@ -8,11 +8,11 @@ import (
 
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
+	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/router"
-	"github.com/vulcand/oxy/forward"
 )
 
 type Proxy interface {
@@ -50,18 +50,18 @@ type Proxy interface {
 }
 
 type Options struct {
-	MetricsClient      metrics.Client
-	DialTimeout        time.Duration
-	ReadTimeout        time.Duration
-	WriteTimeout       time.Duration
-	MaxHeaderBytes     int
-	DefaultListener    *engine.Listener
-	Files              []*FileDescriptor
-	TimeProvider       timetools.TimeProvider
-	NotFoundMiddleware plugin.Middleware
-	Router             router.Router
-	IncomingConnectionTracker  conntracker.ConnectionTracker
-	OutgoingConnectionTracker  forward.UrlForwardingStateListener
+	MetricsClient             metrics.Client
+	DialTimeout               time.Duration
+	ReadTimeout               time.Duration
+	WriteTimeout              time.Duration
+	MaxHeaderBytes            int
+	DefaultListener           *engine.Listener
+	Files                     []*FileDescriptor
+	TimeProvider              timetools.TimeProvider
+	NotFoundMiddleware        plugin.Middleware
+	Router                    router.Router
+	IncomingConnectionTracker conntracker.ConnectionTracker
+	OutgoingConnectionTracker forward.UrlForwardingStateListener
 }
 
 type NewProxyFn func(id int) (Proxy, error)

@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/codegangsta/cli"
+	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/router"
 	"net/http"
 	"reflect"
-	"github.com/vulcand/oxy/forward"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends
@@ -56,9 +56,9 @@ type SpecGetter func(string) *MiddlewareSpec
 
 // Registry contains currently registered middlewares and used to support pluggable middlewares across all modules of the vulcand
 type Registry struct {
-	specs       []*MiddlewareSpec
-	notFound    Middleware
-	router      router.Router
+	specs                     []*MiddlewareSpec
+	notFound                  Middleware
+	router                    router.Router
 	incomingConnectionTracker conntracker.ConnectionTracker
 	outgoingConnectionTracker forward.UrlForwardingStateListener
 }
@@ -124,12 +124,11 @@ func (r *Registry) GetIncomingConnectionTracker() conntracker.ConnectionTracker 
 	return r.incomingConnectionTracker
 }
 
-
 func (r *Registry) GetOutgoingConnectionTracker() forward.UrlForwardingStateListener {
 	return r.outgoingConnectionTracker
 }
 
-func (r *Registry) SetOutgoingConnectionTracker(connTracker forward.UrlForwardingStateListener ) error {
+func (r *Registry) SetOutgoingConnectionTracker(connTracker forward.UrlForwardingStateListener) error {
 	r.outgoingConnectionTracker = connTracker
 	return nil
 }
