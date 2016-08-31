@@ -391,7 +391,7 @@ func (s *ServerSuite) TestOCSPStapling(c *C) {
 	c.Assert(s.mux.Start(), IsNil)
 
 	srv := NewOCSPResponder()
-	defer srv.Close()
+	srv.Close()
 
 	b := MakeBatch(Batch{
 		Addr:     "localhost:31000",
