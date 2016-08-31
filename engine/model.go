@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vulcand/oxy/buffer"
 	"github.com/vulcand/oxy/memmetrics"
-	"github.com/vulcand/oxy/stream"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/router"
@@ -227,6 +227,8 @@ type HTTPFrontendSettings struct {
 	TrustForwardHeader bool
 	// Should host header be forwarded as-is?
 	PassHostHeader bool
+	// Should Stream?
+	Stream bool
 }
 
 func NewAddress(network, address string) (*Address, error) {
@@ -278,7 +280,7 @@ func NewHTTPFrontend(router router.Router, id, backendId string, routeExpr strin
 		return nil, fmt.Errorf("route should be a valid route expression: %s", routeExpr)
 	}
 
-	if settings.FailoverPredicate != "" && !stream.IsValidExpression(settings.FailoverPredicate) {
+	if !settings.Stream && settings.FailoverPredicate != "" && !buffer.IsValidExpression(settings.FailoverPredicate) {
 		return nil, fmt.Errorf("invalid failover predicate: %s", settings.FailoverPredicate)
 	}
 

@@ -114,8 +114,6 @@ func (r *RoundRobin) nextServer() (*server, error) {
 			return srv, nil
 		}
 	}
-	// We did full circle and found no available servers
-	return nil, fmt.Errorf("no available servers")
 }
 
 func (r *RoundRobin) RemoveServer(u *url.URL) error {

@@ -31,9 +31,11 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
+
+	"github.com/mailgun/timetools"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/oxy/utils"
-	"github.com/mailgun/timetools"
 )
 
 // CircuitBreaker is http.Handler that implements circuit breaker pattern
@@ -60,7 +62,6 @@ type CircuitBreaker struct {
 	fallback http.Handler
 	next     http.Handler
 
-	log   utils.Logger
 	clock timetools.TimeProvider
 }
 
@@ -75,7 +76,6 @@ func New(next http.Handler, expression string, options ...CircuitBreakerOption) 
 		fallbackDuration: defaultFallbackDuration,
 		recoveryDuration: defaultRecoveryDuration,
 		fallback:         defaultFallback,
-		log:              utils.NullLogger,
 	}
 
 	for _, s := range options {
@@ -121,7 +121,7 @@ func (c *CircuitBreaker) activateFallback(w http.ResponseWriter, req *http.Reque
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	c.log.Infof("%v is in error state", c)
+	log.Infof("%v is in error state", c)
 
 	switch c.state {
 	case stateStandby:
@@ -186,13 +186,13 @@ func (c *CircuitBreaker) exec(s SideEffect) {
 	}
 	go func() {
 		if err := s.Exec(); err != nil {
-			c.log.Errorf("%v side effect failure: %v", c, err)
+			log.Errorf("%v side effect failure: %v", c, err)
 		}
 	}()
 }
 
 func (c *CircuitBreaker) setState(new cbState, until time.Time) {
-	c.log.Infof("%v setting state to %v, until %v", c, new, until)
+	log.Infof("%v setting state to %v, until %v", c, new, until)
 	c.state = new
 	c.until = until
 	switch new {
@@ -225,7 +225,7 @@ func (c *CircuitBreaker) checkAndSet() {
 	c.lastCheck = c.clock.UtcNow().Add(c.checkPeriod)
 
 	if c.state == stateTripped {
-		c.log.Infof("%v skip set tripped", c)
+		log.Infof("%v skip set tripped", c)
 		return
 	}
 
@@ -305,14 +305,6 @@ func OnStandby(s SideEffect) CircuitBreakerOption {
 func Fallback(h http.Handler) CircuitBreakerOption {
 	return func(c *CircuitBreaker) error {
 		c.fallback = h
-		return nil
-	}
-}
-
-// Logger adds logging for the CircuitBreaker.
-func Logger(l utils.Logger) CircuitBreakerOption {
-	return func(c *CircuitBreaker) error {
-		c.log = l
 		return nil
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/mailgun/log"
+	log "github.com/Sirupsen/logrus"
 	"github.com/vulcand/oxy/utils"
 )
 

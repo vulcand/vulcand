@@ -14,6 +14,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
+	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
 )
@@ -48,7 +49,10 @@ type mux struct {
 	state muxState
 
 	// Connection watcher
-	connTracker conntracker.ConnectionTracker
+	incomingConnTracker conntracker.ConnectionTracker
+
+	// Connection watcher
+	outgoingConnTracker forward.UrlForwardingStateListener
 
 	// stopC used for global broadcast to all proxy systems that it's closed
 	stopC chan struct{}
@@ -73,8 +77,9 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 
 		options: o,
 
-		router:      o.Router,
-		connTracker: o.ConnectionTracker,
+		router:              o.Router,
+		incomingConnTracker: o.IncomingConnectionTracker,
+		outgoingConnTracker: o.OutgoingConnectionTracker,
 
 		servers:   make(map[engine.ListenerKey]*srv),
 		backends:  make(map[engine.BackendKey]*backend),
@@ -610,8 +615,8 @@ func setDefaults(o Options) Options {
 	if o.Router == nil {
 		o.Router = route.NewMux()
 	}
-	if o.ConnectionTracker == nil {
-		o.ConnectionTracker = newDefaultConnTracker()
+	if o.IncomingConnectionTracker == nil {
+		o.IncomingConnectionTracker = newDefaultConnTracker()
 	}
 	return o
 }

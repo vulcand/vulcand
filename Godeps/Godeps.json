@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/vulcand/vulcand",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v74",
+	"GodepVersion": "v69",
 	"Packages": [
 		"./..."
 	],
@@ -117,44 +117,48 @@
 			"Rev": "b94837a2404ab90efe9289e77a70694c355739cb"
 		},
 		{
+			"ImportPath": "github.com/vulcand/oxy/buffer",
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
+		},
+		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "40720199a16cdfb3854ff58ad91d290a7dd56de0"
+			"Rev": "ecfb10010e7aa51f244b35b8f6e09abef5494f4b"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",
@@ -194,8 +198,8 @@
 		},
 		{
 			"ImportPath": "gopkg.in/mgo.v2/bson",
-			"Comment": "r2016.02.04-3-g29cc868",
-			"Rev": "29cc868a5ca65f401ff318143f9408d02f4799cc"
+			"Comment": "r2015.06.03-5-g22287ba",
+			"Rev": "22287bab4379e1fbf6002fb4eb769888f3fb224c"
 		}
 	]
 }
