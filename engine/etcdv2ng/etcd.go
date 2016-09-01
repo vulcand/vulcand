@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"crypto/x509"
+	"io/ioutil"
+
 	log "github.com/Sirupsen/logrus"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
 	"golang.org/x/net/context"
-	"io/ioutil"
 )
 
 type ng struct {
@@ -505,6 +506,12 @@ func (n *ng) Subscribe(changes chan interface{}, cancelC chan bool) error {
 	for {
 		response, err := w.Next(n.context)
 		if err != nil {
+			if err.(etcd.Error).Code == etcd.ErrorCodeEventIndexCleared {
+				log.Debugf("401 received: ignoring error")
+				w = n.kapi.Watcher(n.etcdKey, &etcd.WatcherOptions{AfterIndex: 0, Recursive: true})
+				continue
+			}
+
 			switch err {
 			case context.Canceled:
 				log.Infof("Stop watching: graceful shutdown")
