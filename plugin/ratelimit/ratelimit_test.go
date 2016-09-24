@@ -336,8 +336,7 @@ func (s *RateLimitSuite) TestRequestProcessingAmbiguousConfig(c *C) {
 
 	// When/Then: The last of configured rates with the same period is applied,
 	// which 2 request/second, note that the default rate is 1 request/second.
-	hdr := testutils.Header("X-Rates", `[{"PeriodSeconds": 1, "Requests": 10},
-					                  {"PeriodSeconds": 1, "Requests": 2}]`)
+	hdr := testutils.Header("X-Rates", `[{"PeriodSeconds": 1, "Requests": 10}, {"PeriodSeconds": 1, "Requests": 2}]`)
 
 	re, _, err := testutils.Get(srv.URL, hdr)
 	c.Assert(err, IsNil)
