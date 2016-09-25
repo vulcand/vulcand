@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -148,7 +149,7 @@ func (c *ProxyController) getFrontends(w http.ResponseWriter, r *http.Request, p
 }
 
 func (c *ProxyController) getTopFrontends(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	limit, err := strconv.Atoi(r.Form.Get("limit"))
+	limit, err := strconv.Atoi(formGet(r.Form, "limit", "0"))
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -245,7 +246,7 @@ func (c *ProxyController) getBackends(w http.ResponseWriter, r *http.Request, pa
 }
 
 func (c *ProxyController) getTopServers(w http.ResponseWriter, r *http.Request, params map[string]string) (interface{}, error) {
-	limit, err := strconv.Atoi(r.Form.Get("limit"))
+	limit, err := strconv.Atoi(formGet(r.Form, "limit", "0"))
 	if err != nil {
 		return nil, formatError(err)
 	}
@@ -360,6 +361,13 @@ func (c *ProxyController) deleteMiddleware(w http.ResponseWriter, r *http.Reques
 		return nil, formatError(err)
 	}
 	return scroll.Response{"message": "Middleware deleted"}, nil
+}
+
+func formGet(form url.Values, key, def string) string {
+	if value := form.Get(key); value != "" {
+		return value
+	}
+	return def
 }
 
 func formatError(e error) error {
