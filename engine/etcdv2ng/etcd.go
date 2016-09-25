@@ -4,38 +4,35 @@ package etcdv2ng
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
-	"crypto/x509"
 	log "github.com/Sirupsen/logrus"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
 	"golang.org/x/net/context"
-	"io/ioutil"
 )
 
 type ng struct {
-	nodes            []string
-	registry         *plugin.Registry
-	etcdKey          string
-	client           etcd.Client
-	kapi             etcd.KeysAPI
-	context          context.Context
-	cancelFunc       context.CancelFunc
-	cancelC          chan bool
-	stopC            chan bool
-	syncClusterStopC chan bool
-	logsev           log.Level
-	options          Options
-	requireQuorum    bool
+	nodes         []string
+	registry      *plugin.Registry
+	etcdKey       string
+	client        etcd.Client
+	kapi          etcd.KeysAPI
+	context       context.Context
+	cancelFunc    context.CancelFunc
+	logsev        log.Level
+	options       Options
+	requireQuorum bool
 }
 
 type Options struct {
@@ -49,13 +46,10 @@ type Options struct {
 
 func New(nodes []string, etcdKey string, registry *plugin.Registry, options Options) (engine.Engine, error) {
 	n := &ng{
-		nodes:            nodes,
-		registry:         registry,
-		etcdKey:          etcdKey,
-		cancelC:          make(chan bool, 1),
-		stopC:            make(chan bool, 1),
-		syncClusterStopC: make(chan bool, 1),
-		options:          options,
+		nodes:    nodes,
+		registry: registry,
+		etcdKey:  etcdKey,
+		options:  options,
 	}
 	if err := n.reconnect(); err != nil {
 		return nil, err
@@ -67,10 +61,150 @@ func New(nodes []string, etcdKey string, registry *plugin.Registry, options Opti
 }
 
 func (n *ng) Close() {
-	n.syncClusterStopC <- true
 	if n.cancelFunc != nil {
 		n.cancelFunc()
 	}
+}
+
+func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
+	response, err := n.kapi.Get(n.context, n.etcdKey, &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
+	if err != nil {
+		return nil, err
+	}
+	var s engine.Snapshot
+	for _, node := range response.Node.Nodes {
+		switch suffix(node.Key) {
+		case "frontends":
+			s.FrontendSpecs, err = n.parseFrontends(node)
+			if err != nil {
+				return nil, err
+			}
+		case "backends":
+			s.BackendSpecs, err = n.parseBackends(node)
+			if err != nil {
+				return nil, err
+			}
+		case "hosts":
+			s.Hosts, err = n.parseHosts(node)
+			if err != nil {
+				return nil, err
+			}
+		case "listeners":
+			s.Listeners, err = n.parseListeners(node)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &s, nil
+}
+
+func (n *ng) parseFrontends(node *etcd.Node) ([]engine.FrontendSpec, error) {
+	frontendSpecs := make([]engine.FrontendSpec, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		frontendId := suffix(node.Key)
+		for _, node := range node.Nodes {
+			switch suffix(node.Key) {
+			case "frontend":
+				frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), []byte(node.Value), frontendId)
+				if err != nil {
+					return nil, err
+				}
+				frontendSpecs[idx].Frontend = *frontend
+			case "middlewares":
+				middlewares := make([]engine.Middleware, len(node.Nodes))
+				for idx, node := range node.Nodes {
+					middlewareId := suffix(node.Key)
+					middleware, err := engine.MiddlewareFromJSON([]byte(node.Value), n.registry.GetSpec, middlewareId)
+					if err != nil {
+						return nil, err
+					}
+					middlewares[idx] = *middleware
+				}
+				frontendSpecs[idx].Middlewares = middlewares
+			}
+		}
+		if frontendSpecs[idx].Frontend.Id != frontendId {
+			return nil, fmt.Errorf("Frontend %s parameters missing", frontendId)
+		}
+	}
+	return frontendSpecs, nil
+}
+
+func (n *ng) parseBackends(node *etcd.Node) ([]engine.BackendSpec, error) {
+	backendSpecs := make([]engine.BackendSpec, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		backendId := suffix(node.Key)
+		for _, node := range node.Nodes {
+			switch suffix(node.Key) {
+			case "backend":
+				backend, err := engine.BackendFromJSON([]byte(node.Value), backendId)
+				if err != nil {
+					return nil, err
+				}
+				backendSpecs[idx].Backend = *backend
+			case "servers":
+				servers := make([]engine.Server, len(node.Nodes))
+				for idx, node := range node.Nodes {
+					serverId := suffix(node.Key)
+					server, err := engine.ServerFromJSON([]byte(node.Value), serverId)
+					if err != nil {
+						return nil, err
+					}
+					servers[idx] = *server
+				}
+				backendSpecs[idx].Servers = servers
+			}
+		}
+		if backendSpecs[idx].Backend.Id != backendId {
+			return nil, fmt.Errorf("Backend %s parameters missing", backendId)
+		}
+	}
+	return backendSpecs, nil
+}
+
+func (n *ng) parseHosts(node *etcd.Node) ([]engine.Host, error) {
+	hosts := make([]engine.Host, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		hostname := suffix(node.Key)
+		for _, node := range node.Nodes {
+			switch suffix(node.Key) {
+			case "host":
+				var sealedHost host
+				if err := json.Unmarshal([]byte(node.Value), &sealedHost); err != nil {
+					return nil, err
+				}
+				var keyPair *engine.KeyPair
+				if len(sealedHost.Settings.KeyPair) != 0 {
+					if err := n.openSealedJSONVal(sealedHost.Settings.KeyPair, &keyPair); err != nil {
+						return nil, err
+					}
+				}
+				host, err := engine.NewHost(hostname, engine.HostSettings{Default: sealedHost.Settings.Default, KeyPair: keyPair, OCSP: sealedHost.Settings.OCSP})
+				if err != nil {
+					return nil, err
+				}
+				hosts[idx] = *host
+			}
+		}
+		if hosts[idx].Name != hostname {
+			return nil, fmt.Errorf("Host %s parameters missing", hostname)
+		}
+	}
+	return hosts, nil
+}
+
+func (n *ng) parseListeners(node *etcd.Node) ([]engine.Listener, error) {
+	listeners := make([]engine.Listener, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		listenerId := suffix(node.Key)
+		listener, err := engine.ListenerFromJSON([]byte(node.Value), listenerId)
+		if err != nil {
+			return nil, err
+		}
+		listeners[idx] = *listener
+	}
+	return listeners, nil
 }
 
 func (n *ng) GetLogSeverity() log.Level {
@@ -809,8 +943,11 @@ type Pair struct {
 }
 
 func suffix(key string) string {
-	vals := strings.Split(key, "/")
-	return vals[len(vals)-1]
+	lastSlashIdx := strings.LastIndex(key, "/")
+	if lastSlashIdx == -1 {
+		return key
+	}
+	return key[lastSlashIdx+1:]
 }
 
 func join(keys ...string) string {

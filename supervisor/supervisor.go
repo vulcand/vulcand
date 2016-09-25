@@ -311,6 +311,51 @@ func (s *Supervisor) Stop(wait bool) {
 
 // initProxy reads the configuration from the engine and configures the server
 func initProxy(ng engine.Engine, p proxy.Proxy) error {
+	snapshot, err := ng.GetSnapshot()
+	if err != nil {
+		return err
+	}
+	// Some legacy engines do not implement `GetSnapshot` so we resort to old
+	// and slow method of obtaining configuration from Etcd piece by piece.
+	if snapshot == nil {
+		return initProxySlow(ng, p)
+	}
+	for _, h := range snapshot.Hosts {
+		if err := p.UpsertHost(h); err != nil {
+			return err
+		}
+	}
+	for _, bs := range snapshot.BackendSpecs {
+		if err := p.UpsertBackend(bs.Backend); err != nil {
+			return err
+		}
+		for _, server := range bs.Servers {
+			if err := p.UpsertServer(bs.Backend.GetUniqueId(), server); err != nil {
+				return err
+			}
+		}
+	}
+	for _, l := range snapshot.Listeners {
+		if err := p.UpsertListener(l); err != nil {
+			return err
+		}
+	}
+	for _, fs := range snapshot.FrontendSpecs {
+		if err := p.UpsertFrontend(fs.Frontend); err != nil {
+			return err
+		}
+		for _, m := range fs.Middlewares {
+			if err := p.UpsertMiddleware(fs.Frontend.GetKey(), m); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// initProxySlow reads configuration from Etcd piece by piece. That may take
+// several minutes on large configurations!
+func initProxySlow(ng engine.Engine, p proxy.Proxy) error {
 	hosts, err := ng.GetHosts()
 	if err != nil {
 		return err

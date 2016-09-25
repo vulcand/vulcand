@@ -52,6 +52,10 @@ func (m *Mem) emit(val interface{}) {
 func (m *Mem) Close() {
 }
 
+func (n *Mem) GetSnapshot() (*engine.Snapshot, error) {
+	return nil, nil
+}
+
 func (m *Mem) GetLogSeverity() log.Level {
 	return m.LogSeverity
 }

@@ -715,3 +715,23 @@ type TransportSettings struct {
 	KeepAlive TransportKeepAlive
 	TLS       *tls.Config
 }
+
+// FrontendSpec fully specifies a particular frontend.
+type FrontendSpec struct {
+	Frontend    Frontend
+	Middlewares []Middleware
+}
+
+// BackendSpec fully specifies a particular backend.
+type BackendSpec struct {
+	Backend Backend
+	Servers []Server
+}
+
+// Snapshot represents system config at a given time.
+type Snapshot struct {
+	FrontendSpecs []FrontendSpec
+	BackendSpecs  []BackendSpec
+	Hosts         []Host
+	Listeners     []Listener
+}

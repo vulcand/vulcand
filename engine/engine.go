@@ -14,6 +14,9 @@ type NewEngineFn func() (Engine, error)
 // Engines should pass the following acceptance suite to be compatible:
 // engine/test/suite.go, see engine/etcdng/etcd_test.go and engine/memng/mem_test.go for details
 type Engine interface {
+	// GetSnapshot returns a complete configuration snapshot.
+	GetSnapshot() (*Snapshot, error)
+
 	// GetHosts returns list of hosts registered in the storage engine
 	// Returns empty list in case if there are no hosts.
 	GetHosts() ([]Host, error)
