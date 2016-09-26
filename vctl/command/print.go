@@ -106,3 +106,7 @@ func (cmd *Command) printFrontend(f *engine.Frontend, ms []engine.Middleware) {
 func writeS(w io.Writer, v string) {
 	w.Write([]byte(v))
 }
+
+func PrintError(cmd *Command, err error) {
+	cmd.printError(err)
+}

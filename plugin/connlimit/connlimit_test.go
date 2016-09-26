@@ -57,7 +57,7 @@ func (s *ConnLimitSuite) TestNewConnLimitFromCli(c *C) {
 	app := cli.NewApp()
 	app.Name = "test"
 	executed := false
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		executed = true
 		out, err := FromCli(ctx)
 		c.Assert(out, NotNil)
@@ -66,6 +66,8 @@ func (s *ConnLimitSuite) TestNewConnLimitFromCli(c *C) {
 		cl := out.(*ConnLimit)
 		c.Assert(cl.Variable, Equals, "client.ip")
 		c.Assert(cl.Connections, Equals, int64(10))
+
+		return nil
 	}
 	app.Flags = CliFlags()
 	app.Run([]string{"test", "--var=client.ip", "--connections=10"})

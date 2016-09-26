@@ -131,7 +131,7 @@ func (s *RateLimitSuite) TestFromCli(c *C) {
 	app.Name = "test"
 	app.Flags = GetSpec().CliFlags
 	executed := false
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		executed = true
 		out, err := FromCli(ctx)
 		c.Assert(out, NotNil)
@@ -141,6 +141,8 @@ func (s *RateLimitSuite) TestFromCli(c *C) {
 		m, err := rl.NewHandler(nil)
 		c.Assert(m, NotNil)
 		c.Assert(err, IsNil)
+
+		return nil
 	}
 	app.Run([]string{"test", "--var=client.ip", "--requests=10", "--burst=3", "--period=4"})
 	c.Assert(executed, Equals, true)
