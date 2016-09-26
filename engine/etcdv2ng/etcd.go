@@ -72,7 +72,7 @@ func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	var s engine.Snapshot
+	s := &engine.Snapshot{Index: response.Index}
 	for _, node := range response.Node.Nodes {
 		switch suffix(node.Key) {
 		case "frontends":
@@ -97,7 +97,7 @@ func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 			}
 		}
 	}
-	return &s, nil
+	return s, nil
 }
 
 func (n *ng) parseFrontends(node *etcd.Node) ([]engine.FrontendSpec, error) {
@@ -635,8 +635,8 @@ func (n *ng) backendUsedBy(bk engine.BackendKey) ([]engine.Frontend, error) {
 
 // Subscribe watches etcd changes and generates structured events telling vulcand to add or delete frontends, hosts etc.
 // It is a blocking function.
-func (n *ng) Subscribe(changes chan interface{}, cancelC chan bool) error {
-	w := n.kapi.Watcher(n.etcdKey, &etcd.WatcherOptions{AfterIndex: 0, Recursive: true})
+func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan bool) error {
+	w := n.kapi.Watcher(n.etcdKey, &etcd.WatcherOptions{AfterIndex: afterIdx, Recursive: true})
 	for {
 		response, err := w.Next(n.context)
 		if err != nil {

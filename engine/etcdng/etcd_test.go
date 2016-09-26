@@ -85,7 +85,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 
 	s.changesC = make(chan interface{})
 	s.stopC = make(chan bool)
-	go s.ng.Subscribe(s.changesC, s.stopC)
+	go s.ng.Subscribe(s.changesC, 0, s.stopC)
 
 	s.suite.ChangesC = s.changesC
 	s.suite.Engine = engine

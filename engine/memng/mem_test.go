@@ -23,7 +23,7 @@ func (s *MemSuite) SetUpTest(c *C) {
 
 	s.suite.ChangesC = make(chan interface{})
 	s.stopC = make(chan bool)
-	go engine.Subscribe(s.suite.ChangesC, s.stopC)
+	go engine.Subscribe(s.suite.ChangesC, 0, s.stopC)
 	s.suite.Engine = engine
 }
 

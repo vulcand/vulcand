@@ -738,6 +738,7 @@ type BackendSpec struct {
 
 // Snapshot represents system config at a given time.
 type Snapshot struct {
+	Index         uint64
 	FrontendSpecs []FrontendSpec
 	BackendSpecs  []BackendSpec
 	Hosts         []Host

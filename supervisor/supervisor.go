@@ -157,7 +157,8 @@ func (s *Supervisor) init() error {
 		}
 	}()
 
-	if err := initProxy(s.engine, proxy); err != nil {
+	var configIdx uint64
+	if configIdx, err = initProxy(s.engine, proxy); err != nil {
 		return err
 	}
 
@@ -205,7 +206,7 @@ func (s *Supervisor) init() error {
 	// In case of any error it notifies supervisor of the error by sending an error to the channel triggering reload.
 	go func() {
 		cancelC := make(chan bool)
-		if err := s.engine.Subscribe(changesC, cancelC); err != nil {
+		if err := s.engine.Subscribe(changesC, configIdx, cancelC); err != nil {
 			log.Infof("%v engine watcher got error: '%v' will restart", proxy, err)
 			close(cancelC)
 			close(changesC)
@@ -310,47 +311,47 @@ func (s *Supervisor) Stop(wait bool) {
 }
 
 // initProxy reads the configuration from the engine and configures the server
-func initProxy(ng engine.Engine, p proxy.Proxy) error {
+func initProxy(ng engine.Engine, p proxy.Proxy) (uint64, error) {
 	snapshot, err := ng.GetSnapshot()
 	if err != nil {
 		// Some legacy engines do not implement `GetSnapshot` so we resort to
 		// a slow method of obtaining configuration from Etcd.
 		if _, ok := err.(*engine.SnapshotNotSupportedError); ok {
-			return initProxySlow(ng, p)
+			return 0, initProxySlow(ng, p)
 		}
-		return err
+		return 0, err
 	}
 	for _, h := range snapshot.Hosts {
 		if err := p.UpsertHost(h); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	for _, bs := range snapshot.BackendSpecs {
 		if err := p.UpsertBackend(bs.Backend); err != nil {
-			return err
+			return 0, err
 		}
 		for _, server := range bs.Servers {
 			if err := p.UpsertServer(bs.Backend.GetUniqueId(), server); err != nil {
-				return err
+				return 0, err
 			}
 		}
 	}
 	for _, l := range snapshot.Listeners {
 		if err := p.UpsertListener(l); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	for _, fs := range snapshot.FrontendSpecs {
 		if err := p.UpsertFrontend(fs.Frontend); err != nil {
-			return err
+			return 0, err
 		}
 		for _, m := range fs.Middlewares {
 			if err := p.UpsertMiddleware(fs.Frontend.GetKey(), m); err != nil {
-				return err
+				return 0, err
 			}
 		}
 	}
-	return nil
+	return snapshot.Index, nil
 }
 
 // initProxySlow reads configuration from Etcd piece by piece. That may take

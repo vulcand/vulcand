@@ -84,7 +84,7 @@ type Engine interface {
 	// It should be a blocking function generating events from change.go to the changes channel.
 	// Each change should be an instance of the struct provided in events.go
 	// In  case if cancel channel is closed, the subscribe events should no longer be generated.
-	Subscribe(events chan interface{}, cancel chan bool) error
+	Subscribe(events chan interface{}, afterIdx uint64, cancel chan bool) error
 
 	// GetRegistry returns registry with the supported plugins. It should be stored by Engine instance.
 	GetRegistry() *plugin.Registry
