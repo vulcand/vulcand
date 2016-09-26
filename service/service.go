@@ -71,22 +71,30 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 
 func (s *Service) Start() error {
 	if s.options.Log == "console" {
+		log.SetOutput(os.Stdout)
 		log.SetFormatter(&log.TextFormatter{})
 	} else if s.options.Log == "syslog" {
-		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
+		devNull, err := os.OpenFile("/dev/null", os.O_WRONLY, 0)
+		if err != nil {
+			panic(err)
+		}
+		log.SetOutput(devNull)
+		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO|syslog.LOG_MAIL, "vulcand")
 		if err != nil {
 			return err
 		}
 		log.SetFormatter(&log.TextFormatter{DisableColors: true})
 		log.AddHook(hook)
 	} else if s.options.Log == "json" {
+		log.SetOutput(os.Stdout)
 		log.SetFormatter(&log.JSONFormatter{})
 	} else if s.options.Log == "logstash" {
+		log.SetOutput(os.Stdout)
 		log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
 	} else {
+		log.SetOutput(os.Stdout)
 		log.Warnf("Invalid logger type %v, fallback to default.", s.options.Log)
 	}
-	log.SetOutput(os.Stdout)
 	log.SetLevel(s.options.LogSeverity.S)
 
 	log.Infof("Service starts with options: %#v", s.options)
