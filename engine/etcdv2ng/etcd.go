@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"errors"
 	log "github.com/Sirupsen/logrus"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/vulcand/vulcand/engine"
@@ -299,7 +300,7 @@ func (n *ng) GetHosts() ([]engine.Host, error) {
 		return nil, err
 	}
 	for _, hostKey := range vals {
-		host, err := n.GetHost(engine.HostKey{suffix(hostKey)})
+		host, err := n.GetHost(engine.HostKey{Name: suffix(hostKey)})
 		if err != nil {
 			log.Warningf("Invalid host config for %v: %v\n", hostKey, err)
 			continue
@@ -396,11 +397,11 @@ func (n *ng) UpsertListener(listener engine.Listener) error {
 	return n.setJSONVal(n.path("listeners", listener.Id), listener, noTTL)
 }
 
-func (s *ng) DeleteListener(key engine.ListenerKey) error {
+func (n *ng) DeleteListener(key engine.ListenerKey) error {
 	if key.Id == "" {
 		return &engine.InvalidFormatError{Message: "listener id can not be empty"}
 	}
-	return s.deleteKey(s.path("listeners", key.Id))
+	return n.deleteKey(n.path("listeners", key.Id))
 }
 
 func (n *ng) UpsertFrontend(f engine.Frontend, ttl time.Duration) error {
@@ -427,7 +428,7 @@ func (n *ng) GetFrontends() ([]engine.Frontend, error) {
 		return nil, err
 	}
 	for _, fPath := range vals {
-		f, err := n.GetFrontend(engine.FrontendKey{suffix(fPath)})
+		f, err := n.GetFrontend(engine.FrontendKey{Id: suffix(fPath)})
 		if err != nil {
 			log.Warningf("Invalid frontend config for %v: %v\n", fPath, err)
 			continue
@@ -590,7 +591,7 @@ func (n *ng) DeleteServer(sk engine.ServerKey) error {
 
 func (n *ng) openSealedJSONVal(bytes []byte, val interface{}) error {
 	if n.options.Box == nil {
-		return fmt.Errorf("need secretbox to open sealed data")
+		return errors.New("need secretbox to open sealed data")
 	}
 	sv, err := secret.SealedValueFromJSON([]byte(bytes))
 	if err != nil {
@@ -605,7 +606,7 @@ func (n *ng) openSealedJSONVal(bytes []byte, val interface{}) error {
 
 func (n *ng) sealJSONVal(val interface{}) ([]byte, error) {
 	if n.options.Box == nil {
-		return nil, fmt.Errorf("this backend does not support encryption")
+		return nil, errors.New("this backend does not support encryption")
 	}
 	bytes, err := json.Marshal(val)
 	if err != nil {
@@ -668,21 +669,21 @@ func (n *ng) Subscribe(changes chan interface{}, cancelC chan bool) error {
 type MatcherFn func(*etcd.Response) (interface{}, error)
 
 // Dispatches etcd key changes changes to the etcd to the matching functions
-func (s *ng) parseChange(response *etcd.Response) (interface{}, error) {
+func (n *ng) parseChange(response *etcd.Response) (interface{}, error) {
 	matchers := []MatcherFn{
 		// Host updates
-		s.parseHostChange,
+		n.parseHostChange,
 
 		// Listener updates
-		s.parseListenerChange,
+		n.parseListenerChange,
 
 		// Frontend updates
-		s.parseFrontendChange,
-		s.parseFrontendMiddlewareChange,
+		n.parseFrontendChange,
+		n.parseFrontendMiddlewareChange,
 
 		// Backend updates
-		s.parseBackendChange,
-		s.parseBackendServerChange,
+		n.parseBackendChange,
+		n.parseBackendServerChange,
 	}
 	for _, matcher := range matchers {
 		a, err := matcher(response)
@@ -703,7 +704,7 @@ func (n *ng) parseHostChange(r *etcd.Response) (interface{}, error) {
 
 	switch r.Action {
 	case createA, setA:
-		host, err := n.GetHost(engine.HostKey{hostname})
+		host, err := n.GetHost(engine.HostKey{Name: hostname})
 		if err != nil {
 			return nil, err
 		}
@@ -712,7 +713,7 @@ func (n *ng) parseHostChange(r *etcd.Response) (interface{}, error) {
 		}, nil
 	case deleteA, expireA:
 		return &engine.HostDeleted{
-			HostKey: engine.HostKey{hostname},
+			HostKey: engine.HostKey{Name: hostname},
 		}, nil
 	}
 	return nil, fmt.Errorf("unsupported action for host: %s", r.Action)
@@ -768,7 +769,7 @@ func (n *ng) parseFrontendChange(r *etcd.Response) (interface{}, error) {
 	return nil, fmt.Errorf("unsupported action on the frontend: %v %v", r.Node.Key, r.Action)
 }
 
-func (s *ng) parseFrontendMiddlewareChange(r *etcd.Response) (interface{}, error) {
+func (n *ng) parseFrontendMiddlewareChange(r *etcd.Response) (interface{}, error) {
 	out := regexp.MustCompile("/frontends/([^/]+)/middlewares/([^/]+)$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
@@ -779,7 +780,7 @@ func (s *ng) parseFrontendMiddlewareChange(r *etcd.Response) (interface{}, error
 
 	switch r.Action {
 	case createA, setA:
-		m, err := s.GetMiddleware(mk)
+		m, err := n.GetMiddleware(mk)
 		if err != nil {
 			return nil, err
 		}
@@ -950,10 +951,6 @@ func suffix(key string) string {
 	return key[lastSlashIdx+1:]
 }
 
-func join(keys ...string) string {
-	return strings.Join(keys, "/")
-}
-
 func notFound(e error) bool {
 	err, ok := e.(etcd.Error)
 	return ok && err.Code == etcd.ErrorCodeKeyNotFound
@@ -978,8 +975,6 @@ func convertErr(e error) error {
 func isDir(n *etcd.Node) bool {
 	return n != nil && n.Dir == true
 }
-
-const encryptionSecretBox = "secretbox.v1"
 
 func responseToString(r *etcd.Response) string {
 	return fmt.Sprintf("%s %s %d", r.Action, r.Node.Key, r.Index)
