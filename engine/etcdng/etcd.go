@@ -63,6 +63,10 @@ func (s *ng) Close() {
 	}
 }
 
+func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
+	return nil, &engine.SnapshotNotSupportedError{}
+}
+
 func (n *ng) GetLogSeverity() log.Level {
 	return n.logsev
 }
@@ -430,9 +434,9 @@ func (n *ng) backendUsedBy(bk engine.BackendKey) ([]engine.Frontend, error) {
 
 // Subscribe watches etcd changes and generates structured events telling vulcand to add or delete frontends, hosts etc.
 // It is a blocking function.
-func (n *ng) Subscribe(changes chan interface{}, cancelC chan bool) error {
+func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan bool) error {
 	// This index helps us to get changes in sequence, as they were performed by clients.
-	waitIndex := uint64(0)
+	waitIndex := afterIdx
 	for {
 		response, err := n.client.Watch(n.etcdKey, waitIndex, true, nil, cancelC)
 		if err != nil {

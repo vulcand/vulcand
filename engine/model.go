@@ -591,7 +591,7 @@ func (n *NotFoundError) Error() string {
 	if n.Message != "" {
 		return n.Message
 	} else {
-		return "Object not found"
+		return "object not found"
 	}
 }
 
@@ -603,7 +603,7 @@ func (n *InvalidFormatError) Error() string {
 	if n.Message != "" {
 		return n.Message
 	} else {
-		return "Invalid format"
+		return "invalid format"
 	}
 }
 
@@ -613,6 +613,14 @@ type AlreadyExistsError struct {
 
 func (n *AlreadyExistsError) Error() string {
 	return n.Message
+}
+
+type SnapshotNotSupportedError struct {
+	Message string
+}
+
+func (e *SnapshotNotSupportedError) Error() string {
+	return e.Message
 }
 
 type Counters struct {
@@ -714,4 +722,25 @@ type TransportSettings struct {
 	Timeouts  TransportTimeouts
 	KeepAlive TransportKeepAlive
 	TLS       *tls.Config
+}
+
+// FrontendSpec fully specifies a particular frontend.
+type FrontendSpec struct {
+	Frontend    Frontend
+	Middlewares []Middleware
+}
+
+// BackendSpec fully specifies a particular backend.
+type BackendSpec struct {
+	Backend Backend
+	Servers []Server
+}
+
+// Snapshot represents system config at a given time.
+type Snapshot struct {
+	Index         uint64
+	FrontendSpecs []FrontendSpec
+	BackendSpecs  []BackendSpec
+	Hosts         []Host
+	Listeners     []Listener
 }

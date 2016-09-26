@@ -14,6 +14,9 @@ type NewEngineFn func() (Engine, error)
 // Engines should pass the following acceptance suite to be compatible:
 // engine/test/suite.go, see engine/etcdng/etcd_test.go and engine/memng/mem_test.go for details
 type Engine interface {
+	// GetSnapshot returns a complete configuration snapshot.
+	GetSnapshot() (*Snapshot, error)
+
 	// GetHosts returns list of hosts registered in the storage engine
 	// Returns empty list in case if there are no hosts.
 	GetHosts() ([]Host, error)
@@ -81,7 +84,7 @@ type Engine interface {
 	// It should be a blocking function generating events from change.go to the changes channel.
 	// Each change should be an instance of the struct provided in events.go
 	// In  case if cancel channel is closed, the subscribe events should no longer be generated.
-	Subscribe(events chan interface{}, cancel chan bool) error
+	Subscribe(events chan interface{}, afterIdx uint64, cancel chan bool) error
 
 	// GetRegistry returns registry with the supported plugins. It should be stored by Engine instance.
 	GetRegistry() *plugin.Registry
