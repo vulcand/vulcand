@@ -64,7 +64,7 @@ func (s *ng) Close() {
 }
 
 func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
-	return nil, nil
+	return nil, &engine.SnapshotNotSupportedError{}
 }
 
 func (n *ng) GetLogSeverity() log.Level {

@@ -53,7 +53,7 @@ func (m *Mem) Close() {
 }
 
 func (n *Mem) GetSnapshot() (*engine.Snapshot, error) {
-	return nil, nil
+	return nil, &engine.SnapshotNotSupportedError{}
 }
 
 func (m *Mem) GetLogSeverity() log.Level {

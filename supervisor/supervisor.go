@@ -313,12 +313,12 @@ func (s *Supervisor) Stop(wait bool) {
 func initProxy(ng engine.Engine, p proxy.Proxy) error {
 	snapshot, err := ng.GetSnapshot()
 	if err != nil {
+		// Some legacy engines do not implement `GetSnapshot` so we resort to
+		// a slow method of obtaining configuration from Etcd.
+		if _, ok := err.(*engine.SnapshotNotSupportedError); ok {
+			return initProxySlow(ng, p)
+		}
 		return err
-	}
-	// Some legacy engines do not implement `GetSnapshot` so we resort to old
-	// and slow method of obtaining configuration from Etcd piece by piece.
-	if snapshot == nil {
-		return initProxySlow(ng, p)
 	}
 	for _, h := range snapshot.Hosts {
 		if err := p.UpsertHost(h); err != nil {
