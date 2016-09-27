@@ -70,25 +70,7 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 }
 
 func (s *Service) Start() error {
-	if s.options.Log == "console" {
-		log.SetFormatter(&log.TextFormatter{})
-	} else if s.options.Log == "syslog" {
-		hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
-		if err != nil {
-			return err
-		}
-		log.SetFormatter(&log.TextFormatter{DisableColors: true})
-		log.AddHook(hook)
-	} else if s.options.Log == "json" {
-		log.SetFormatter(&log.JSONFormatter{})
-	} else if s.options.Log == "logstash" {
-		log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
-	} else {
-		log.Warnf("Invalid logger type %v, fallback to default.", s.options.Log)
-	}
-	log.SetOutput(os.Stdout)
-	log.SetLevel(s.options.LogSeverity.S)
-
+	s.initLogger()
 	log.Infof("Service starts with options: %#v", s.options)
 
 	if s.options.PidPath != "" {
@@ -170,6 +152,47 @@ func (s *Service) Start() error {
 			return err
 		}
 	}
+}
+
+// initLogger initializes logger specified in the service options. This
+// function never fails. In case of any error a console logger with the text
+// formatter is initialized and the error details are logged as a warning.
+func (s *Service) initLogger() {
+	log.SetLevel(s.options.LogSeverity.S)
+	var err error
+	if s.options.Log == "console" {
+		log.SetOutput(os.Stdout)
+		log.SetFormatter(&log.TextFormatter{})
+		return
+	}
+	if s.options.Log == "syslog" {
+		var devNull *os.File
+		devNull, err = os.OpenFile("/dev/null", os.O_WRONLY, 0)
+		if err == nil {
+			var hook *logrus_syslog.SyslogHook
+			hook, err = logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO|syslog.LOG_MAIL, "vulcand")
+			if err == nil {
+				log.SetOutput(devNull)
+				log.SetFormatter(&log.TextFormatter{DisableColors: true})
+				log.AddHook(hook)
+				return
+			}
+		}
+	}
+	if s.options.Log == "json" {
+		log.SetOutput(os.Stdout)
+		log.SetFormatter(&log.JSONFormatter{})
+		return
+	}
+	if s.options.Log == "logstash" {
+		log.SetOutput(os.Stdout)
+		log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
+		return
+	}
+
+	log.SetOutput(os.Stdout)
+	log.SetFormatter(&log.TextFormatter{})
+	log.Warnf("Failed to initialized logger. Fallback to default: logger=%s, err=(%s)", s.options.Log, err)
 }
 
 func (s *Service) getFiles() (*proxy.FileDescriptor, []*proxy.FileDescriptor, error) {
