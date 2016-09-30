@@ -54,35 +54,33 @@ func NewHostCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) printHostsAction(c *cli.Context) {
+func (cmd *Command) printHostsAction(c *cli.Context) error {
 	hosts, err := cmd.client.GetHosts()
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printHosts(hosts)
+	return nil
 }
 
-func (cmd *Command) printHostAction(c *cli.Context) {
+func (cmd *Command) printHostAction(c *cli.Context) error {
 	host, err := cmd.client.GetHost(engine.HostKey{Name: c.String("name")})
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printHost(host)
+	return nil
 }
 
-func (cmd *Command) upsertHostAction(c *cli.Context) {
+func (cmd *Command) upsertHostAction(c *cli.Context) error {
 	host, err := engine.NewHost(c.String("name"), engine.HostSettings{})
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	if c.String("cert") != "" || c.String("privateKey") != "" {
 		keyPair, err := readKeyPair(c.String("cert"), c.String("privateKey"))
 		if err != nil {
-			cmd.printError(fmt.Errorf("failed to read key pair: %s", err))
-			return
+			return fmt.Errorf("failed to read key pair: %s", err)
 		}
 		host.Settings.KeyPair = keyPair
 	}
@@ -93,16 +91,16 @@ func (cmd *Command) upsertHostAction(c *cli.Context) {
 		Responders:         c.StringSlice("ocspResponder"),
 	}
 	if err := cmd.client.UpsertHost(*host); err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("host added")
+	return nil
 }
 
-func (cmd *Command) deleteHostAction(c *cli.Context) {
+func (cmd *Command) deleteHostAction(c *cli.Context) error {
 	if err := cmd.client.DeleteHost(engine.HostKey{Name: c.String("name")}); err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("host deleted")
+	return nil
 }

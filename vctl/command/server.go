@@ -51,42 +51,41 @@ func NewServerCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) upsertServerAction(c *cli.Context) {
+func (cmd *Command) upsertServerAction(c *cli.Context) error {
 	s, err := engine.NewServer(c.String("id"), c.String("url"))
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	if err := cmd.client.UpsertServer(engine.BackendKey{Id: c.String("backend")}, *s, c.Duration("ttl")); err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("server upserted")
+	return nil
 }
 
-func (cmd *Command) deleteServerAction(c *cli.Context) {
+func (cmd *Command) deleteServerAction(c *cli.Context) error {
 	sk := engine.ServerKey{BackendKey: engine.BackendKey{Id: c.String("backend")}, Id: c.String("id")}
 	if err := cmd.client.DeleteServer(sk); err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("Server %v deleted", sk.Id)
+	return nil
 }
 
-func (cmd *Command) printServersAction(c *cli.Context) {
+func (cmd *Command) printServersAction(c *cli.Context) error {
 	srvs, err := cmd.client.GetServers(engine.BackendKey{Id: c.String("backend")})
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printServers(srvs)
+	return nil
 }
 
-func (cmd *Command) printServerAction(c *cli.Context) {
+func (cmd *Command) printServerAction(c *cli.Context) error {
 	s, err := cmd.client.GetServer(engine.ServerKey{Id: c.String("id"), BackendKey: engine.BackendKey{Id: c.String("backend")}})
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printServer(s)
+	return nil
 }

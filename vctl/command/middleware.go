@@ -48,30 +48,28 @@ func makeMiddlewareCommands(cmd *Command, spec *plugin.MiddlewareSpec) cli.Comma
 	}
 }
 
-func makeUpsertMiddlewareAction(cmd *Command, spec *plugin.MiddlewareSpec) func(c *cli.Context) {
-	return func(c *cli.Context) {
+func makeUpsertMiddlewareAction(cmd *Command, spec *plugin.MiddlewareSpec) cli.ActionFunc {
+	return func(c *cli.Context) error {
 		m, err := spec.FromCli(c)
 		if err != nil {
-			cmd.printError(err)
-		} else {
-			mi := engine.Middleware{Id: c.String("id"), Middleware: m, Type: spec.Type, Priority: c.Int("priority")}
-			err := cmd.client.UpsertMiddleware(engine.FrontendKey{Id: c.String("frontend")}, mi, c.Duration("ttl"))
-			if err != nil {
-				cmd.printError(err)
-				return
-			}
-			cmd.printOk("%v upserted", spec.Type)
+			return err
 		}
+		mi := engine.Middleware{Id: c.String("id"), Middleware: m, Type: spec.Type, Priority: c.Int("priority")}
+		if err = cmd.client.UpsertMiddleware(engine.FrontendKey{Id: c.String("frontend")}, mi, c.Duration("ttl")); err != nil {
+			return err
+		}
+		cmd.printOk("%v upserted", spec.Type)
+		return nil
 	}
 }
 
-func makeDeleteMiddlewareAction(cmd *Command, spec *plugin.MiddlewareSpec) func(c *cli.Context) {
-	return func(c *cli.Context) {
+func makeDeleteMiddlewareAction(cmd *Command, spec *plugin.MiddlewareSpec) cli.ActionFunc {
+	return func(c *cli.Context) error {
 		mk := engine.MiddlewareKey{FrontendKey: engine.FrontendKey{Id: c.String("frontend")}, Id: c.String("id")}
 		if err := cmd.client.DeleteMiddleware(mk); err != nil {
-			cmd.printError(err)
-			return
+			return err
 		}
 		cmd.printOk("%v deleted", spec.Type)
+		return nil
 	}
 }
