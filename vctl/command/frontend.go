@@ -48,56 +48,53 @@ func NewFrontendCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) printFrontendsAction(c *cli.Context) {
+func (cmd *Command) printFrontendsAction(c *cli.Context) error {
 	fs, err := cmd.client.GetFrontends()
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printFrontends(fs)
+	return nil
 }
 
-func (cmd *Command) printFrontendAction(c *cli.Context) {
+func (cmd *Command) printFrontendAction(c *cli.Context) error {
 	fk := engine.FrontendKey{Id: c.String("id")}
 	frontend, err := cmd.client.GetFrontend(fk)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 
 	ms, err := cmd.client.GetMiddlewares(fk)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printFrontend(frontend, ms)
+	return nil
 }
 
-func (cmd *Command) upsertFrontendAction(c *cli.Context) {
+func (cmd *Command) upsertFrontendAction(c *cli.Context) error {
 	settings, err := getFrontendSettings(c)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	f, err := engine.NewHTTPFrontend(route.NewMux(), c.String("id"), c.String("b"), c.String("route"), settings)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	if err := cmd.client.UpsertFrontend(*f, c.Duration("ttl")); err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("frontend upserted")
+	return nil
 }
 
-func (cmd *Command) deleteFrontendAction(c *cli.Context) {
+func (cmd *Command) deleteFrontendAction(c *cli.Context) error {
 	err := cmd.client.DeleteFrontend(engine.FrontendKey{Id: c.String("id")})
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("frontend deleted")
+	return nil
 }
 
 func getFrontendSettings(c *cli.Context) (engine.HTTPFrontendSettings, error) {

@@ -37,40 +37,36 @@ func NewKeyCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) generateKeyAction(c *cli.Context) {
+func (cmd *Command) generateKeyAction(c *cli.Context) error {
 	key, err := secret.NewKeyString()
 	if err != nil {
-		cmd.printError(fmt.Errorf("unable to generate key: %v", err))
-		return
+		return fmt.Errorf("unable to generate key: %v", err)
 	}
 	stream, closer, err := getStream(c)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	if closer != nil {
 		defer closer.Close()
 	}
 	_, err = stream.Write([]byte(key))
 	if err != nil {
-		cmd.printError(fmt.Errorf("failed writing to output stream, error %s", err))
-		return
+		return fmt.Errorf("failed writing to output stream, error %s", err)
 	}
+	return nil
 }
 
-func (cmd *Command) sealKeyPairAction(c *cli.Context) {
+func (cmd *Command) sealKeyPairAction(c *cli.Context) error {
 	// Read the key and get a box
 	box, err := readBox(c.String("sealKey"))
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 
 	// Read keyPairificate
 	stream, closer, err := getStream(c)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	if closer != nil {
 		defer closer.Close()
@@ -78,21 +74,19 @@ func (cmd *Command) sealKeyPairAction(c *cli.Context) {
 
 	keyPair, err := readKeyPair(c.String("cert"), c.String("privateKey"))
 	if err != nil {
-		cmd.printError(fmt.Errorf("failed to read key pair: %s", err))
-		return
+		return fmt.Errorf("failed to read key pair: %s", err)
 	}
 
 	bytes, err := secret.SealKeyPairToJSON(box, keyPair)
 	if err != nil {
-		cmd.printError(fmt.Errorf("failed to seal key pair: %s", err))
-		return
+		return fmt.Errorf("failed to seal key pair: %s", err)
 	}
 
 	_, err = stream.Write(bytes)
 	if err != nil {
-		cmd.printError(fmt.Errorf("failed writing to output stream, error %s", err))
-		return
+		return fmt.Errorf("failed writing to output stream, error %s", err)
 	}
+	return nil
 }
 
 func getStream(c *cli.Context) (io.Writer, io.Closer, error) {

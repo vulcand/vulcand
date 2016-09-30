@@ -48,49 +48,48 @@ func NewListenerCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) upsertListenerAction(c *cli.Context) {
+func (cmd *Command) upsertListenerAction(c *cli.Context) error {
 	var settings *engine.HTTPSListenerSettings
 	if c.String("proto") == engine.HTTPS {
 		s, err := getTLSSettings(c)
 		if err != nil {
-			cmd.printError(err)
-			return
+			return err
 		}
 		settings = &engine.HTTPSListenerSettings{TLS: *s}
 	}
 	listener, err := engine.NewListener(c.String("id"), c.String("proto"), c.String("net"), c.String("addr"), c.String("scope"), settings)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	if err := cmd.client.UpsertListener(*listener); err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("listener upserted")
+	return nil
 }
 
-func (cmd *Command) deleteListenerAction(c *cli.Context) {
+func (cmd *Command) deleteListenerAction(c *cli.Context) error {
 	if err := cmd.client.DeleteListener(engine.ListenerKey{Id: c.String("id")}); err != nil {
-		cmd.printError(err)
+		return err
 	}
 	cmd.printOk("listener deleted")
+	return nil
 }
 
-func (cmd *Command) printListenersAction(c *cli.Context) {
+func (cmd *Command) printListenersAction(c *cli.Context) error {
 	ls, err := cmd.client.GetListeners()
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printListeners(ls)
+	return nil
 }
 
-func (cmd *Command) printListenerAction(c *cli.Context) {
+func (cmd *Command) printListenerAction(c *cli.Context) error {
 	l, err := cmd.client.GetListener(engine.ListenerKey{Id: c.String("id")})
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printListener(l)
+	return nil
 }

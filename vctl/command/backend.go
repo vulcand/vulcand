@@ -44,50 +44,48 @@ func NewBackendCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) upsertBackendAction(c *cli.Context) {
+func (cmd *Command) upsertBackendAction(c *cli.Context) error {
 	settings, err := getBackendSettings(c)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	b, err := engine.NewHTTPBackend(c.String("id"), settings)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printResult("%s upserted", b, cmd.client.UpsertBackend(*b))
+	return nil
 }
 
-func (cmd *Command) deleteBackendAction(c *cli.Context) {
+func (cmd *Command) deleteBackendAction(c *cli.Context) error {
 	if err := cmd.client.DeleteBackend(engine.BackendKey{Id: c.String("id")}); err != nil {
-		cmd.printError(err)
-	} else {
-		cmd.printOk("backend deleted")
+		return err
 	}
+	cmd.printOk("backend deleted")
+	return nil
 }
 
-func (cmd *Command) printBackendAction(c *cli.Context) {
+func (cmd *Command) printBackendAction(c *cli.Context) error {
 	bk := engine.BackendKey{Id: c.String("id")}
 	b, err := cmd.client.GetBackend(bk)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	srvs, err := cmd.client.GetServers(bk)
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printBackend(b, srvs)
+	return nil
 }
 
-func (cmd *Command) listBackendsAction(c *cli.Context) {
+func (cmd *Command) listBackendsAction(c *cli.Context) error {
 	out, err := cmd.client.GetBackends()
 	if err != nil {
-		cmd.printError(err)
-	} else {
-		cmd.printBackends(out)
+		return err
 	}
+	cmd.printBackends(out)
+	return nil
 }
 
 func getBackendSettings(c *cli.Context) (engine.HTTPBackendSettings, error) {

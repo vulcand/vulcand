@@ -22,8 +22,9 @@ func NewTopCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) topAction(c *cli.Context) {
+func (cmd *Command) topAction(c *cli.Context) error {
 	cmd.overviewAction(c.String("backend"), c.Int("refresh"), c.Int("limit"))
+	return nil
 }
 
 func (cmd *Command) overviewAction(backendId string, watch int, limit int) {

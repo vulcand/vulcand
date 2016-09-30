@@ -27,24 +27,23 @@ func NewLogCommand(cmd *Command) cli.Command {
 	}
 }
 
-func (cmd *Command) updateLogSeverityAction(c *cli.Context) {
+func (cmd *Command) updateLogSeverityAction(c *cli.Context) error {
 	sev, err := log.ParseLevel(strings.ToLower(c.String("severity")))
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	if err := cmd.client.UpdateLogSeverity(sev); err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("log severity updated")
+	return nil
 }
 
-func (cmd *Command) getLogSeverityAction(c *cli.Context) {
+func (cmd *Command) getLogSeverityAction(c *cli.Context) error {
 	sev, err := cmd.client.GetLogSeverity()
 	if err != nil {
-		cmd.printError(err)
-		return
+		return err
 	}
 	cmd.printOk("severity: %v", sev)
+	return nil
 }
