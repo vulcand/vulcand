@@ -25,7 +25,7 @@ func (m *mux) emitMetrics() error {
 	}
 
 	// Emit frontend metrics stats
-	frontends, err := m.topFrontends(nil)
+	frontends, err := m.TopFrontends(nil)
 	if err != nil {
 		log.Errorf("failed to get top frontends: %v", err)
 		return err
@@ -51,7 +51,11 @@ func (m *mux) emitMetrics() error {
 	return nil
 }
 
-func (m *mux) frontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
+func (m *mux) FrontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
+	log.Infof("%s FrontendStats", m)
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
 	f, ok := m.frontends[key]
 	if !ok {
 		return nil, fmt.Errorf("%v not found", key)
@@ -59,7 +63,11 @@ func (m *mux) frontendStats(key engine.FrontendKey) (*engine.RoundTripStats, err
 	return f.watcher.rtStats()
 }
 
-func (m *mux) backendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
+func (m *mux) BackendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
+	log.Infof("%s BackendStats", m)
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
 	rtm, err := memmetrics.NewRTMetrics()
 	if err != nil {
 		return nil, err
@@ -75,7 +83,11 @@ func (m *mux) backendStats(key engine.BackendKey) (*engine.RoundTripStats, error
 	return engine.NewRoundTripStats(rtm)
 }
 
-func (m *mux) serverStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
+func (m *mux) ServerStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
+	log.Infof("%s ServerStats", m)
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
 	b, ok := m.backends[key.BackendKey]
 	if !ok {
 		return nil, fmt.Errorf("%v not found", key.BackendKey)
@@ -105,7 +117,13 @@ func (m *mux) serverStats(key engine.ServerKey) (*engine.RoundTripStats, error) 
 	return engine.NewRoundTripStats(rtm)
 }
 
-func (m *mux) topFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
+// TopFrontends returns locations sorted by criteria (faulty, slow, most used)
+// if hostname or backendId is present, will filter out locations for that host or backendId
+func (m *mux) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
+	log.Infof("%s TopFrontends", m)
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
 	frontends := []engine.Frontend{}
 	for _, m := range m.frontends {
 		if key != nil && key.Id != m.backend.backend.Id {
@@ -123,7 +141,13 @@ func (m *mux) topFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
 	return frontends, nil
 }
 
-func (m *mux) topServers(key *engine.BackendKey) ([]engine.Server, error) {
+// TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
+// if backendId is not empty, will filter out endpoints for that backendId
+func (m *mux) TopServers(key *engine.BackendKey) ([]engine.Server, error) {
+	log.Infof("%s TopServers", m)
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
 	metrics := map[string]*sval{}
 	for _, f := range m.frontends {
 		if key != nil && key.Id != f.backend.backend.Id {

@@ -39,10 +39,10 @@ type mux struct {
 	// Wait group for graceful shutdown
 	wg *sync.WaitGroup
 
-	// Read write mutex for serlialized operations
+	// Read write mutex for serialized operations
 	mtx *sync.RWMutex
 
-	// Router will be shared between mulitple listeners
+	// Router will be shared between multiple listeners
 	router router.Router
 
 	// Current server stats
@@ -153,55 +153,6 @@ func (m *mux) GetFiles() ([]*FileDescriptor, error) {
 		}
 	}
 	return fds, nil
-}
-
-func (m *mux) FrontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
-	log.Infof("%s FrontendStats", m)
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	return m.frontendStats(key)
-}
-
-func (m *mux) ServerStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
-	log.Infof("%s ServerStats", m)
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	return m.serverStats(key)
-}
-
-func (m *mux) BackendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
-	log.Infof("%s BackendStats", m)
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	return m.backendStats(key)
-}
-
-// TopFrontends returns locations sorted by criteria (faulty, slow, most used)
-// if hostname or backendId is present, will filter out locations for that host or backendId
-func (m *mux) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
-	log.Infof("%s TopFrontends", m)
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	return m.topFrontends(key)
-}
-
-// TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
-// if backendId is not empty, will filter out endpoints for that backendId
-func (m *mux) TopServers(key *engine.BackendKey) ([]engine.Server, error) {
-	log.Infof("%s TopServers", m)
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	return m.topServers(key)
 }
 
 func (m *mux) TakeFiles(files []*FileDescriptor) error {
@@ -599,11 +550,6 @@ func (s muxState) String() string {
 	}
 	return "undefined"
 }
-
-const (
-	Metrics = "_metrics"
-	PerfMon = "_perfMon"
-)
 
 func setDefaults(o Options) Options {
 	if o.MetricsClient == nil {
