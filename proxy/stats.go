@@ -13,11 +13,11 @@ import (
 	"github.com/vulcand/vulcand/engine"
 )
 
-func (mx *mux) emitMetrics() error {
-	c := mx.options.MetricsClient
+func (m *mux) emitMetrics() error {
+	c := m.options.MetricsClient
 
 	// Emit connection stats
-	counts := mx.incomingConnTracker.Counts()
+	counts := m.incomingConnTracker.Counts()
 	for state, values := range counts {
 		for addr, count := range values {
 			c.Gauge(c.Metric("conns", addr, state.String()), count, 1)
@@ -25,58 +25,58 @@ func (mx *mux) emitMetrics() error {
 	}
 
 	// Emit frontend metrics stats
-	frontends, err := mx.topFrontends(nil)
+	frontends, err := m.topFrontends(nil)
 	if err != nil {
 		log.Errorf("failed to get top frontends: %v", err)
 		return err
 	}
 	for _, f := range frontends {
-		m := c.Metric("frontend", strings.Replace(f.Id, ".", "_", -1))
+		fem := c.Metric("frontend", strings.Replace(f.Id, ".", "_", -1))
 		s := f.Stats
 		for _, scode := range s.Counters.StatusCodes {
 			// response codes counters
-			c.Gauge(m.Metric("code", strconv.Itoa(scode.Code)), scode.Count, 1)
+			c.Gauge(fem.Metric("code", strconv.Itoa(scode.Code)), scode.Count, 1)
 		}
 		// network errors
-		c.Gauge(m.Metric("neterr"), s.Counters.NetErrors, 1)
+		c.Gauge(fem.Metric("neterr"), s.Counters.NetErrors, 1)
 		// requests
-		c.Gauge(m.Metric("reqs"), s.Counters.Total, 1)
+		c.Gauge(fem.Metric("reqs"), s.Counters.Total, 1)
 
 		// round trip times in microsecond resolution
 		for _, b := range s.LatencyBrackets {
-			c.Gauge(m.Metric("rtt", strconv.Itoa(int(b.Quantile*10.0))), int64(b.Value/time.Microsecond), 1)
+			c.Gauge(fem.Metric("rtt", strconv.Itoa(int(b.Quantile*10.0))), int64(b.Value/time.Microsecond), 1)
 		}
 	}
 
 	return nil
 }
 
-func (mx *mux) frontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
-	f, ok := mx.frontends[key]
+func (m *mux) frontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
+	f, ok := m.frontends[key]
 	if !ok {
 		return nil, fmt.Errorf("%v not found", key)
 	}
 	return f.watcher.rtStats()
 }
 
-func (mx *mux) backendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
-	m, err := memmetrics.NewRTMetrics()
+func (m *mux) backendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
+	rtm, err := memmetrics.NewRTMetrics()
 	if err != nil {
 		return nil, err
 	}
-	for _, f := range mx.frontends {
+	for _, f := range m.frontends {
 		if f.backend.backend.Id != key.Id {
 			continue
 		}
-		if err := f.watcher.collectMetrics(m); err != nil {
+		if err := f.watcher.collectMetrics(rtm); err != nil {
 			return nil, err
 		}
 	}
-	return engine.NewRoundTripStats(m)
+	return engine.NewRoundTripStats(rtm)
 }
 
-func (mx *mux) serverStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
-	b, ok := mx.backends[key.BackendKey]
+func (m *mux) serverStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
+	b, ok := m.backends[key.BackendKey]
 	if !ok {
 		return nil, fmt.Errorf("%v not found", key.BackendKey)
 	}
@@ -90,24 +90,24 @@ func (mx *mux) serverStats(key engine.ServerKey) (*engine.RoundTripStats, error)
 		return nil, err
 	}
 
-	m, err := memmetrics.NewRTMetrics()
+	rtm, err := memmetrics.NewRTMetrics()
 	if err != nil {
 		return nil, err
 	}
-	for _, f := range mx.frontends {
+	for _, f := range m.frontends {
 		if f.backend.backend.Id != key.BackendKey.Id {
 			continue
 		}
-		if err := f.watcher.collectServerMetrics(m, u); err != nil {
+		if err := f.watcher.collectServerMetrics(rtm, u); err != nil {
 			return nil, err
 		}
 	}
-	return engine.NewRoundTripStats(m)
+	return engine.NewRoundTripStats(rtm)
 }
 
-func (mx *mux) topFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
+func (m *mux) topFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
 	frontends := []engine.Frontend{}
-	for _, m := range mx.frontends {
+	for _, m := range m.frontends {
 		if key != nil && key.Id != m.backend.backend.Id {
 			continue
 		}
@@ -123,9 +123,9 @@ func (mx *mux) topFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
 	return frontends, nil
 }
 
-func (mx *mux) topServers(key *engine.BackendKey) ([]engine.Server, error) {
+func (m *mux) topServers(key *engine.BackendKey) ([]engine.Server, error) {
 	metrics := map[string]*sval{}
-	for _, f := range mx.frontends {
+	for _, f := range m.frontends {
 		if key != nil && key.Id != f.backend.backend.Id {
 			continue
 		}
@@ -139,14 +139,14 @@ func (mx *mux) topServers(key *engine.BackendKey) ([]engine.Server, error) {
 				metrics[s.URL] = sval
 				val = sval
 			}
-			if err := f.watcher.collectServerMetrics(val.m, val.u); err != nil {
+			if err := f.watcher.collectServerMetrics(val.rtm, val.url); err != nil {
 				return nil, err
 			}
 		}
 	}
 	servers := make([]engine.Server, 0, len(metrics))
 	for _, v := range metrics {
-		stats, err := engine.NewRoundTripStats(v.m)
+		stats, err := engine.NewRoundTripStats(v.rtm)
 		if err != nil {
 			return nil, err
 		}
@@ -158,13 +158,13 @@ func (mx *mux) topServers(key *engine.BackendKey) ([]engine.Server, error) {
 }
 
 type sval struct {
-	u   *url.URL
+	url *url.URL
 	srv *engine.Server
-	m   *memmetrics.RTMetrics
+	rtm *memmetrics.RTMetrics
 }
 
 func newSval(s engine.Server) (*sval, error) {
-	m, err := memmetrics.NewRTMetrics()
+	rtm, err := memmetrics.NewRTMetrics()
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func newSval(s engine.Server) (*sval, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &sval{srv: &s, m: m, u: u}, nil
+	return &sval{srv: &s, rtm: rtm, url: u}, nil
 }
 
 type frontendSorter struct {
