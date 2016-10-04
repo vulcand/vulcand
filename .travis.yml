@@ -1,9 +1,6 @@
 language: go
 go:
-  - 1.5.4
   - 1.6.3
   - 1.7.1
-env:
-  - GO15VENDOREXPERIMENT=1
 script:
-  - go test -v $(go list ./... | grep -v '/vendor/')
+  - go test -v -p 1 --race $(go list ./... | grep -v '/vendor/')
