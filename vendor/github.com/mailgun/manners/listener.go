@@ -2,9 +2,9 @@ package manners
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -22,31 +22,6 @@ func NewListener(l net.Listener) *GracefulListener {
 		mutex:    &sync.RWMutex{},
 		open:     true,
 	}
-}
-
-// A gracefulCon wraps a normal net.Conn and tracks the last known http state.
-type gracefulConn struct {
-	net.Conn
-	lastHTTPState http.ConnState
-	// protected tells whether the connection is going to defer server shutdown
-	// until the current HTTP request is completed.
-	protected bool
-}
-
-type gracefulAddr struct {
-	net.Addr
-	gconn *gracefulConn
-}
-
-func (g *gracefulConn) LocalAddr() net.Addr {
-	return &gracefulAddr{g.Conn.LocalAddr(), g}
-}
-
-// retrieveGracefulConn retrieves a concrete gracefulConn instance from an
-// interface value that can either refer to it directly or refer to a tls.Conn
-// instance wrapping around a gracefulConn one.
-func retrieveGracefulConn(conn net.Conn) *gracefulConn {
-	return conn.LocalAddr().(*gracefulAddr).gconn
 }
 
 // A GracefulListener differs from a standard net.Listener in one way: if
@@ -73,17 +48,11 @@ func (l *GracefulListener) Accept() (net.Conn, error) {
 	conn, err := l.listener.Accept()
 	if err != nil {
 		if l.isClosed() {
-			err = listenerAlreadyClosed{err}
+			err = fmt.Errorf("listener already closed: err=(%s)", err)
 		}
 		return nil, err
 	}
-
-	// don't wrap connection if it's tls so we won't break
-	// http server internal logic that relies on the type
-	if _, ok := conn.(*tls.Conn); ok {
-		return conn, nil
-	}
-	return &gracefulConn{Conn: conn}, nil
+	return conn, nil
 }
 
 // Close tells the wrapped listener to stop listening.  It is idempotent.
@@ -106,7 +75,7 @@ func (l *GracefulListener) Clone() (net.Listener, error) {
 	defer l.mutex.Unlock()
 
 	if !l.open {
-		return nil, fmt.Errorf("listener is already closed")
+		return nil, errors.New("listener is already closed")
 	}
 
 	file, err := l.GetFile()
@@ -136,7 +105,7 @@ func (l *TLSListener) Accept() (c net.Conn, err error) {
 	if err != nil {
 		return
 	}
-	c = tls.Server(&gracefulConn{Conn: c}, l.config)
+	c = tls.Server(c, l.config)
 	return
 }
 
@@ -149,10 +118,6 @@ func NewTLSListener(inner net.Listener, config *tls.Config) net.Listener {
 	l.Listener = inner
 	l.config = config
 	return l
-}
-
-type listenerAlreadyClosed struct {
-	error
 }
 
 // TCPKeepAliveListener sets TCP keep-alive timeouts on accepted
