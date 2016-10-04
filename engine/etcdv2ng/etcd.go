@@ -100,7 +100,7 @@ func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 	return s, nil
 }
 
-func (n *ng) parseFrontends(node *etcd.Node) ([]engine.FrontendSpec, error) {
+func (n *ng) parseFrontends(node *etcd.Node, skipMiddlewares ...bool) ([]engine.FrontendSpec, error) {
 	frontendSpecs := make([]engine.FrontendSpec, len(node.Nodes))
 	for idx, node := range node.Nodes {
 		frontendId := suffix(node.Key)
@@ -113,6 +113,9 @@ func (n *ng) parseFrontends(node *etcd.Node) ([]engine.FrontendSpec, error) {
 				}
 				frontendSpecs[idx].Frontend = *frontend
 			case "middlewares":
+				if len(skipMiddlewares) == 1 && skipMiddlewares[0] {
+					break
+				}
 				middlewares := make([]engine.Middleware, len(node.Nodes))
 				for idx, node := range node.Nodes {
 					middlewareId := suffix(node.Key)
@@ -132,7 +135,7 @@ func (n *ng) parseFrontends(node *etcd.Node) ([]engine.FrontendSpec, error) {
 	return frontendSpecs, nil
 }
 
-func (n *ng) parseBackends(node *etcd.Node) ([]engine.BackendSpec, error) {
+func (n *ng) parseBackends(node *etcd.Node, skipServers ...bool) ([]engine.BackendSpec, error) {
 	backendSpecs := make([]engine.BackendSpec, len(node.Nodes))
 	for idx, node := range node.Nodes {
 		backendId := suffix(node.Key)
@@ -145,6 +148,9 @@ func (n *ng) parseBackends(node *etcd.Node) ([]engine.BackendSpec, error) {
 				}
 				backendSpecs[idx].Backend = *backend
 			case "servers":
+				if len(skipServers) == 1 && skipServers[0] {
+					break
+				}
 				servers := make([]engine.Server, len(node.Nodes))
 				for idx, node := range node.Nodes {
 					serverId := suffix(node.Key)
@@ -422,20 +428,20 @@ func (n *ng) UpsertFrontend(f engine.Frontend, ttl time.Duration) error {
 }
 
 func (n *ng) GetFrontends() ([]engine.Frontend, error) {
-	fs := []engine.Frontend{}
-	vals, err := n.getDirs(n.etcdKey, "frontends")
+	key := fmt.Sprintf("%s/frontends", n.etcdKey)
+	response, err := n.kapi.Get(n.context, key, &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
 		return nil, err
 	}
-	for _, fPath := range vals {
-		f, err := n.GetFrontend(engine.FrontendKey{Id: suffix(fPath)})
-		if err != nil {
-			log.Warningf("Invalid frontend config for %v: %v\n", fPath, err)
-			continue
-		}
-		fs = append(fs, *f)
+	frontendSpecs, err := n.parseFrontends(response.Node, true)
+	if err != nil {
+		return nil, err
 	}
-	return fs, nil
+	frontends := make([]engine.Frontend, len(frontendSpecs))
+	for i, frontendSpec := range frontendSpecs {
+		frontends[i] = frontendSpec.Frontend
+	}
+	return frontends, nil
 }
 
 func (n *ng) GetFrontend(key engine.FrontendKey) (*engine.Frontend, error) {
@@ -456,18 +462,17 @@ func (n *ng) DeleteFrontend(fk engine.FrontendKey) error {
 }
 
 func (n *ng) GetBackends() ([]engine.Backend, error) {
-	backends := []engine.Backend{}
-	ups, err := n.getDirs(n.etcdKey, "backends")
+	response, err := n.kapi.Get(n.context, fmt.Sprintf("%s/backends", n.etcdKey), &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
 		return nil, err
 	}
-	for _, backendKey := range ups {
-		b, err := n.GetBackend(engine.BackendKey{Id: suffix(backendKey)})
-		if err != nil {
-			log.Warningf("Invalid backend config for %v: %v\n", backendKey, err)
-			continue
-		}
-		backends = append(backends, *b)
+	backendSpecs, err := n.parseBackends(response.Node, true)
+	if err != nil {
+		return nil, err
+	}
+	backends := make([]engine.Backend, len(backendSpecs))
+	for i, backendSpec := range backendSpecs {
+		backends[i] = backendSpec.Backend
 	}
 	return backends, nil
 }
