@@ -65,7 +65,7 @@ type mux struct {
 }
 
 func (m *mux) String() string {
-	return fmt.Sprintf("mux(%d, %v)", m.id, m.state)
+	return fmt.Sprintf("mux_%d", m.id)
 }
 
 func New(id int, st stapler.Stapler, o Options) (*mux, error) {
