@@ -57,7 +57,7 @@ func (s *RewriteSuite) TestNewRewriteFromCLIOK(c *C) {
 	app := cli.NewApp()
 	app.Name = "test"
 	executed := false
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		executed = true
 		out, err := FromCli(ctx)
 		c.Assert(out, NotNil)
@@ -69,6 +69,8 @@ func (s *RewriteSuite) TestNewRewriteFromCLIOK(c *C) {
 		c.Assert(rw.Replacement, Equals, "$1")
 		c.Assert(rw.RewriteBody, Equals, true)
 		c.Assert(rw.Redirect, Equals, true)
+
+		return nil
 	}
 	app.Flags = CliFlags()
 	app.Run([]string{"test", "--regexp=^/foo(.*)", "--replacement=$1", "--rewriteBody", "--redirect"})

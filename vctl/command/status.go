@@ -35,13 +35,13 @@ func (cmd *Command) overviewAction(backendId string, watch int, limit int) {
 	for {
 		frontends, err := cmd.client.TopFrontends(bk, limit)
 		if err != nil {
-			cmd.printError(err)
+			cmd.PrintError(err)
 			frontends = []engine.Frontend{}
 		}
 
 		servers, err := cmd.client.TopServers(bk, limit)
 		if err != nil {
-			cmd.printError(err)
+			cmd.PrintError(err)
 			servers = []engine.Server{}
 		}
 		t := time.Now()

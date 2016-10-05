@@ -1,9 +1,10 @@
 package command
 
 import (
+	"strings"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
-	"strings"
 )
 
 func NewLogCommand(cmd *Command) cli.Command {

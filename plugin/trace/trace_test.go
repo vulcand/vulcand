@@ -141,7 +141,7 @@ func (s *TraceSuite) TestNewFromCLI(c *C) {
 	app := cli.NewApp()
 	app.Name = "test"
 	executed := false
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		executed = true
 		out, err := FromCli(ctx)
 		c.Assert(out, NotNil)
@@ -151,6 +151,8 @@ func (s *TraceSuite) TestNewFromCLI(c *C) {
 		c.Assert(t.Addr, Equals, "syslog://localhost:5000?sev=INFO&f=MAIL")
 		c.Assert(t.ReqHeaders, DeepEquals, []string{"X-A", "X-B"})
 		c.Assert(t.RespHeaders, DeepEquals, []string{"X-C", "X-D"})
+
+		return nil
 	}
 	app.Flags = CliFlags()
 	app.Run([]string{"test", "--addr=syslog://localhost:5000?sev=INFO&f=MAIL", "--reqHeader=X-A", "--reqHeader=X-B", "--respHeader=X-C", "--respHeader=X-D"})

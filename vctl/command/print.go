@@ -11,7 +11,7 @@ import (
 
 func (cmd *Command) printResult(format string, in interface{}, err error) {
 	if err != nil {
-		cmd.printError(err)
+		cmd.PrintError(err)
 	} else {
 		cmd.printOk(format, fmt.Sprintf("%v", in))
 	}
@@ -19,13 +19,13 @@ func (cmd *Command) printResult(format string, in interface{}, err error) {
 
 func (cmd *Command) printStatus(in interface{}, err error) {
 	if err != nil {
-		cmd.printError(err)
+		cmd.PrintError(err)
 	} else {
 		cmd.printOk("%s", in)
 	}
 }
 
-func (cmd *Command) printError(err error) {
+func (cmd *Command) PrintError(err error) {
 	fmt.Fprint(cmd.out, goterm.Color(fmt.Sprintf("ERROR: %s", err), goterm.RED)+"\n")
 }
 

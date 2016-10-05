@@ -168,7 +168,7 @@ func (s *SpecSuite) TestNewCircuitBreakerFromCli(c *C) {
 	app := cli.NewApp()
 	app.Name = "test"
 	executed := false
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		executed = true
 		out, err := FromCli(ctx)
 		c.Assert(out, NotNil)
@@ -182,6 +182,8 @@ func (s *SpecSuite) TestNewCircuitBreakerFromCli(c *C) {
 		c.Assert(cl.FallbackDuration, Equals, 11*time.Second)
 		c.Assert(cl.RecoveryDuration, Equals, 12*time.Second)
 		c.Assert(cl.CheckPeriod, Equals, 14*time.Millisecond)
+
+		return nil
 	}
 	app.Flags = CliFlags()
 	app.Run([]string{"test",
