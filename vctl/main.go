@@ -13,6 +13,6 @@ func main() {
 	cmd := command.NewCommand(registry.GetRegistry())
 	err := cmd.Run(os.Args)
 	if err != nil {
-		command.PrintError(cmd, err)
+		cmd.PrintError(err)
 	}
 }
