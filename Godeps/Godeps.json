@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/vulcand/vulcand",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v69",
+	"GodepVersion": "v74",
 	"Packages": [
 		"./..."
 	],
@@ -73,8 +73,8 @@
 		},
 		{
 			"ImportPath": "github.com/mailgun/manners",
-			"Comment": "0.3.1-35-gfada451",
-			"Rev": "fada45142db3f93097ca917da107aa3fad0ffcb5"
+			"Comment": "0.4.0-17-ga585afd",
+			"Rev": "a585afd9d65c0e05f6c003f921e71ebc05074f4f"
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",

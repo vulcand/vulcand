@@ -47,12 +47,15 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 // StateHandler can be called by the server if the state of the connection changes.
 // Notice that it passed previous state and the new state as parameters.
 type StateHandler func(net.Conn, http.ConnState, http.ConnState)
 
+// Options used by NewWithOptions to provide parameters for a GracefulServer
+// instance to be created.
 type Options struct {
 	Server       *http.Server
 	StateHandler StateHandler
@@ -70,34 +73,31 @@ type Options struct {
 // It must be initialized by calling NewServer or NewWithServer
 type GracefulServer struct {
 	*http.Server
-
 	shutdown         chan bool
 	shutdownFinished chan bool
 	wg               waitGroup
+	routinesCount    int32
 	listener         *GracefulListener
 	stateHandler     StateHandler
+	connToProps      map[net.Conn]connProperties
+	connToPropsMtx   sync.RWMutex
 
 	up chan net.Listener // Only used by test code.
 }
 
 // NewServer creates a new GracefulServer.
 func NewServer() *GracefulServer {
-	return NewWithServer(new(http.Server))
+	return NewWithOptions(Options{})
 }
 
 // NewWithServer wraps an existing http.Server object and returns a
 // GracefulServer that supports all of the original Server operations.
 func NewWithServer(s *http.Server) *GracefulServer {
-	return &GracefulServer{
-		Server:           s,
-		shutdown:         make(chan bool),
-		shutdownFinished: make(chan bool, 1),
-		wg:               new(sync.WaitGroup),
-	}
+	return NewWithOptions(Options{Server: s})
 }
 
+// NewWithOptions creates a GracefulServer instance with the specified options.
 func NewWithOptions(o Options) *GracefulServer {
-	// Set up listener
 	var listener *GracefulListener
 	if o.Listener != nil {
 		g, ok := o.Listener.(*GracefulListener)
@@ -107,53 +107,56 @@ func NewWithOptions(o Options) *GracefulServer {
 			listener = g
 		}
 	}
-
+	if o.Server == nil {
+		o.Server = new(http.Server)
+	}
 	return &GracefulServer{
-		listener:         listener,
 		Server:           o.Server,
+		listener:         listener,
 		stateHandler:     o.StateHandler,
 		shutdown:         make(chan bool),
 		shutdownFinished: make(chan bool, 1),
 		wg:               new(sync.WaitGroup),
+		connToProps:      make(map[net.Conn]connProperties),
 	}
 }
 
 // Close stops the server from accepting new requets and begins shutting down.
 // It returns true if it's the first time Close is called.
-func (s *GracefulServer) Close() bool {
-	return <-s.shutdown
+func (gs *GracefulServer) Close() bool {
+	return <-gs.shutdown
 }
 
 // BlockingClose is similar to Close, except that it blocks until the last
 // connection has been closed.
-func (s *GracefulServer) BlockingClose() bool {
-	result := s.Close()
-	<-s.shutdownFinished
+func (gs *GracefulServer) BlockingClose() bool {
+	result := gs.Close()
+	<-gs.shutdownFinished
 	return result
 }
 
 // ListenAndServe provides a graceful equivalent of net/http.Serve.ListenAndServe.
-func (s *GracefulServer) ListenAndServe() error {
-	if s.listener == nil {
-		oldListener, err := net.Listen("tcp", s.Addr)
+func (gs *GracefulServer) ListenAndServe() error {
+	if gs.listener == nil {
+		oldListener, err := net.Listen("tcp", gs.Addr)
 		if err != nil {
 			return err
 		}
-		s.listener = NewListener(oldListener.(*net.TCPListener))
+		gs.listener = NewListener(oldListener.(*net.TCPListener))
 	}
-	return s.Serve(s.listener)
+	return gs.Serve(gs.listener)
 }
 
 // ListenAndServeTLS provides a graceful equivalent of net/http.Serve.ListenAndServeTLS.
-func (s *GracefulServer) ListenAndServeTLS(certFile, keyFile string) error {
+func (gs *GracefulServer) ListenAndServeTLS(certFile, keyFile string) error {
 	// direct lift from net/http/server.go
-	addr := s.Addr
+	addr := gs.Addr
 	if addr == "" {
 		addr = ":https"
 	}
 	config := &tls.Config{}
-	if s.TLSConfig != nil {
-		*config = *s.TLSConfig
+	if gs.TLSConfig != nil {
+		*config = *gs.TLSConfig
 	}
 	if config.NextProtos == nil {
 		config.NextProtos = []string{"http/1.1"}
@@ -166,26 +169,26 @@ func (s *GracefulServer) ListenAndServeTLS(certFile, keyFile string) error {
 		return err
 	}
 
-	return s.ListenAndServeTLSWithConfig(config)
+	return gs.ListenAndServeTLSWithConfig(config)
 }
 
 // ListenAndServeTLS provides a graceful equivalent of net/http.Serve.ListenAndServeTLS.
-func (s *GracefulServer) ListenAndServeTLSWithConfig(config *tls.Config) error {
-	addr := s.Addr
+func (gs *GracefulServer) ListenAndServeTLSWithConfig(config *tls.Config) error {
+	addr := gs.Addr
 	if addr == "" {
 		addr = ":https"
 	}
 
-	if s.listener == nil {
+	if gs.listener == nil {
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			return err
 		}
 
 		tlsListener := NewTLSListener(TCPKeepAliveListener{ln.(*net.TCPListener)}, config)
-		s.listener = NewListener(tlsListener)
+		gs.listener = NewListener(tlsListener)
 	}
-	return s.Serve(s.listener)
+	return gs.Serve(gs.listener)
 }
 
 func (gs *GracefulServer) GetFile() (*os.File, error) {
@@ -193,7 +196,8 @@ func (gs *GracefulServer) GetFile() (*os.File, error) {
 }
 
 func (gs *GracefulServer) HijackListener(s *http.Server, config *tls.Config) (*GracefulServer, error) {
-	listener, err := gs.listener.Clone()
+	listenerUnsafePtr := unsafe.Pointer(gs.listener)
+	listener, err := (*GracefulListener)(atomic.LoadPointer(&listenerUnsafePtr)).Clone()
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +215,7 @@ func (gs *GracefulServer) HijackListener(s *http.Server, config *tls.Config) (*G
 //
 // If listener is not an instance of *GracefulListener it will be wrapped
 // to become one.
-func (s *GracefulServer) Serve(listener net.Listener) error {
+func (gs *GracefulServer) Serve(listener net.Listener) error {
 	// Accept a net.Listener to preserve the interface compatibility with the
 	// standard http.Server. If it is not a GracefulListener then wrap it into
 	// one.
@@ -220,64 +224,74 @@ func (s *GracefulServer) Serve(listener net.Listener) error {
 		gracefulListener = NewListener(listener)
 		listener = gracefulListener
 	}
-	s.listener = gracefulListener
+	listenerUnsafePtr := unsafe.Pointer(gs.listener)
+	atomic.StorePointer(&listenerUnsafePtr, unsafe.Pointer(gracefulListener))
 
 	// Wrap the server HTTP handler into graceful one, that will close kept
 	// alive connections if a new request is received after shutdown.
-	gracefulHandler := newGracefulHandler(s.Server.Handler)
-	s.Server.Handler = gracefulHandler
+	gracefulHandler := newGracefulHandler(gs.Server.Handler)
+	gs.Server.Handler = gracefulHandler
 
 	// Start a goroutine that waits for a shutdown signal and will stop the
 	// listener when it receives the signal. That in turn will result in
 	// unblocking of the http.Serve call.
 	go func() {
-		s.shutdown <- true
-		close(s.shutdown)
+		gs.shutdown <- true
+		close(gs.shutdown)
 		gracefulHandler.Close()
-		s.Server.SetKeepAlivesEnabled(false)
+		gs.Server.SetKeepAlivesEnabled(false)
 		gracefulListener.Close()
 	}()
 
-	originalConnState := s.Server.ConnState
+	originalConnState := gs.Server.ConnState
 
 	// s.ConnState is invoked by the net/http.Server every time a connection
 	// changes state. It keeps track of each connection's state over time,
 	// enabling manners to handle persisted connections correctly.
-	s.ConnState = func(conn net.Conn, newState http.ConnState) {
-		gracefulConn := retrieveGracefulConn(conn)
-		oldState := gracefulConn.lastHTTPState
-		gracefulConn.lastHTTPState = newState
+	gs.ConnState = func(conn net.Conn, newState http.ConnState) {
+		gs.connToPropsMtx.RLock()
+		connProps := gs.connToProps[conn]
+		gs.connToPropsMtx.RUnlock()
 
 		switch newState {
 
 		case http.StateNew:
 			// New connection -> StateNew
-			gracefulConn.protected = true
-			s.StartRoutine()
+			connProps.protected = true
+			gs.StartRoutine()
 
 		case http.StateActive:
 			// (StateNew, StateIdle) -> StateActive
 			if gracefulHandler.IsClosed() {
-				gracefulConn.Close()
+				conn.Close()
 				break
 			}
 
-			if !gracefulConn.protected {
-				gracefulConn.protected = true
-				s.StartRoutine()
+			if !connProps.protected {
+				connProps.protected = true
+				gs.StartRoutine()
 			}
 
 		default:
 			// (StateNew, StateActive) -> (StateIdle, StateClosed, StateHiJacked)
-			if gracefulConn.protected {
-				s.FinishRoutine()
-				gracefulConn.protected = false
+			if connProps.protected {
+				gs.FinishRoutine()
+				connProps.protected = false
 			}
 		}
 
-		if s.stateHandler != nil {
-			s.stateHandler(conn, oldState, newState)
+		if gs.stateHandler != nil {
+			gs.stateHandler(conn, connProps.state, newState)
 		}
+		connProps.state = newState
+
+		gs.connToPropsMtx.Lock()
+		if newState == http.StateClosed || newState == http.StateHijacked {
+			delete(gs.connToProps, conn)
+		} else {
+			gs.connToProps[conn] = connProps
+		}
+		gs.connToPropsMtx.Unlock()
 
 		if originalConnState != nil {
 			originalConnState(conn, newState)
@@ -286,33 +300,40 @@ func (s *GracefulServer) Serve(listener net.Listener) error {
 
 	// A hook to allow the server to notify others when it is ready to receive
 	// requests; only used by tests.
-	if s.up != nil {
-		s.up <- listener
+	if gs.up != nil {
+		gs.up <- listener
 	}
 
-	err := s.Server.Serve(listener)
+	err := gs.Server.Serve(listener)
 	// An error returned on shutdown is not worth reporting.
-	if _, ok = err.(listenerAlreadyClosed); ok {
+	if err != nil && gracefulHandler.IsClosed() {
 		err = nil
 	}
 
 	// Wait for pending requests to complete regardless the Serve result.
-	s.wg.Wait()
-	s.shutdownFinished <- true
+	gs.wg.Wait()
+	gs.shutdownFinished <- true
 	return err
 }
 
 // StartRoutine increments the server's WaitGroup. Use this if a web request
 // starts more goroutines and these goroutines are not guaranteed to finish
 // before the request.
-func (s *GracefulServer) StartRoutine() {
-	s.wg.Add(1)
+func (gs *GracefulServer) StartRoutine() {
+	gs.wg.Add(1)
+	atomic.AddInt32(&gs.routinesCount, 1)
 }
 
 // FinishRoutine decrements the server's WaitGroup. Use this to complement
 // StartRoutine().
-func (s *GracefulServer) FinishRoutine() {
-	s.wg.Done()
+func (gs *GracefulServer) FinishRoutine() {
+	gs.wg.Done()
+	atomic.AddInt32(&gs.routinesCount, -1)
+}
+
+// RoutinesCount returns the number of currently running routines
+func (gs *GracefulServer) RoutinesCount() int {
+	return int(atomic.LoadInt32(&gs.routinesCount))
 }
 
 // gracefulHandler is used by GracefulServer to prevent calling ServeHTTP on
@@ -345,4 +366,14 @@ func (gh *gracefulHandler) Close() {
 
 func (gh *gracefulHandler) IsClosed() bool {
 	return atomic.LoadInt32(&gh.closed) == 1
+}
+
+// connProperties is used to keep track of various properties of connections
+// maintained by a gracefulServer.
+type connProperties struct {
+	// Last known connection state.
+	state http.ConnState
+	// Tells whether the connection is going to defer server shutdown until
+	// the current HTTP request is completed.
+	protected bool
 }
