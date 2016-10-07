@@ -675,20 +675,14 @@ type MatcherFn func(*etcd.Response) (interface{}, error)
 
 // Dispatches etcd key changes changes to the etcd to the matching functions
 func (n *ng) parseChange(response *etcd.Response) (interface{}, error) {
+	// Order parsers from the most to the least frequently used.
 	matchers := []MatcherFn{
-		// Host updates
-		n.parseHostChange,
-
-		// Listener updates
-		n.parseListenerChange,
-
-		// Frontend updates
-		n.parseFrontendChange,
-		n.parseFrontendMiddlewareChange,
-
-		// Backend updates
-		n.parseBackendChange,
 		n.parseBackendServerChange,
+		n.parseBackendChange,
+		n.parseFrontendMiddlewareChange,
+		n.parseFrontendChange,
+		n.parseHostChange,
+		n.parseListenerChange,
 	}
 	for _, matcher := range matchers {
 		a, err := matcher(response)
