@@ -27,8 +27,9 @@ type Options struct {
 	EtcdConsistency         string
 	EtcdSyncIntervalSeconds int64
 
-	Log         string
-	LogSeverity SeverityFlag
+	Log          string
+	LogSeverity  SeverityFlag
+	LogFormatter log.Formatter // if set, .Log will be ignored
 
 	ServerReadTimeout    time.Duration
 	ServerWriteTimeout   time.Duration
@@ -45,6 +46,7 @@ type Options struct {
 
 	DefaultListener bool
 }
+
 
 type SeverityFlag struct {
 	S log.Level
