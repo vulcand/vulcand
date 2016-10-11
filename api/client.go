@@ -20,12 +20,13 @@ import (
 const CurrentVersion = "v2"
 
 type Client struct {
-	Addr     string
-	Registry *plugin.Registry
+	Addr       string
+	Registry   *plugin.Registry
+	HttpClient *http.Client
 }
 
 func NewClient(addr string, registry *plugin.Registry) *Client {
-	return &Client{Addr: addr, Registry: registry}
+	return &Client{Addr: addr, Registry: registry, HttpClient: http.DefaultClient}
 }
 
 func (c *Client) GetStatus() error {
@@ -258,7 +259,7 @@ func (c *Client) PutForm(endpoint string, values url.Values) error {
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		return http.DefaultClient.Do(req)
+		return c.HttpClient.Do(req)
 	})
 	if err != nil {
 		return err
@@ -272,7 +273,7 @@ func (c *Client) Post(endpoint string, in interface{}) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		return http.Post(endpoint, "application/json", bytes.NewBuffer(data))
+		return c.HttpClient.Post(endpoint, "application/json", bytes.NewBuffer(data))
 	})
 }
 
@@ -287,7 +288,7 @@ func (c *Client) Put(endpoint string, in interface{}) ([]byte, error) {
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "application/json")
-		re, err := http.DefaultClient.Do(req)
+		re, err := c.HttpClient.Do(req)
 		return re, err
 	})
 }
@@ -298,7 +299,7 @@ func (c *Client) Delete(endpoint string) error {
 		if err != nil {
 			return nil, err
 		}
-		return http.DefaultClient.Do(req)
+		return c.HttpClient.Do(req)
 	})
 	if err != nil {
 		return err
@@ -315,7 +316,7 @@ func (c *Client) Get(u string, params url.Values) ([]byte, error) {
 	}
 	baseUrl.RawQuery = params.Encode()
 	return c.RoundTrip(func() (*http.Response, error) {
-		return http.Get(baseUrl.String())
+		return c.HttpClient.Get(baseUrl.String())
 	})
 }
 
