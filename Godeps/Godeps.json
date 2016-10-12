@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/vulcand/vulcand",
-	"GoVersion": "go1.6",
+	"GoVersion": "go1.7",
 	"GodepVersion": "v74",
 	"Packages": [
 		"./..."
@@ -35,6 +35,11 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/clientv3",
 			"Comment": "v3.0.12",
 			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
 		},
@@ -195,6 +200,98 @@
 			"ImportPath": "gopkg.in/mgo.v2/bson",
 			"Comment": "r2015.06.03-5-g22287ba",
 			"Rev": "22287bab4379e1fbf6002fb4eb769888f3fb224c"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/auth/authpb",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/etcdserver/etcdserverpb",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/mvcc/mvccpb",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/tlsutil",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
+		},
+		{
+			"ImportPath": "github.com/ghodss/yaml",
+			"Rev": "aa0c862057666179de291b67d9f093d12b5a8473"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/credentials",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/grpclog",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/metadata",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "github.com/golang/protobuf/proto",
+			"Rev": "3b06fc7a4cad73efce5fe6217ab6c33e7231ab4a"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/codes",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "github.com/grpc-ecosystem/grpc-gateway/runtime",
+			"Comment": "v1.1.0",
+			"Rev": "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
+		},
+		{
+			"ImportPath": "github.com/grpc-ecosystem/grpc-gateway/utilities",
+			"Comment": "v1.1.0",
+			"Rev": "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/candiedyaml",
+			"Rev": "99c3df83b51532e3615f851d8c2dbb638f5313bf"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/internal",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/naming",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/transport",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+		},
+		{
+			"ImportPath": "github.com/golang/protobuf/jsonpb",
+			"Rev": "3b06fc7a4cad73efce5fe6217ab6c33e7231ab4a"
+		},
+		{
+			"ImportPath": "github.com/grpc-ecosystem/grpc-gateway/runtime/internal",
+			"Comment": "v1.1.0",
+			"Rev": "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc/peer",
+			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
 		}
 	]
 }
