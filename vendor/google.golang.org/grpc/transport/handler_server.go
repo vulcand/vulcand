@@ -65,7 +65,7 @@ func NewServerHandlerTransport(w http.ResponseWriter, r *http.Request) (ServerTr
 	if r.Method != "POST" {
 		return nil, errors.New("invalid gRPC request method")
 	}
-	if !strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+	if !validContentType(r.Header.Get("Content-Type")) {
 		return nil, errors.New("invalid gRPC request content-type")
 	}
 	if _, ok := w.(http.Flusher); !ok {
@@ -83,7 +83,7 @@ func NewServerHandlerTransport(w http.ResponseWriter, r *http.Request) (ServerTr
 	}
 
 	if v := r.Header.Get("grpc-timeout"); v != "" {
-		to, err := timeoutDecode(v)
+		to, err := decodeTimeout(v)
 		if err != nil {
 			return nil, StreamErrorf(codes.Internal, "malformed time-out: %v", err)
 		}
@@ -97,7 +97,7 @@ func NewServerHandlerTransport(w http.ResponseWriter, r *http.Request) (ServerTr
 	}
 	for k, vv := range r.Header {
 		k = strings.ToLower(k)
-		if isReservedHeader(k) && !isWhitelistedPseudoHeader(k){
+		if isReservedHeader(k) && !isWhitelistedPseudoHeader(k) {
 			continue
 		}
 		for _, v := range vv {
@@ -194,7 +194,7 @@ func (ht *serverHandlerTransport) WriteStatus(s *Stream, statusCode codes.Code, 
 		h := ht.rw.Header()
 		h.Set("Grpc-Status", fmt.Sprintf("%d", statusCode))
 		if statusDesc != "" {
-			h.Set("Grpc-Message", statusDesc)
+			h.Set("Grpc-Message", encodeGrpcMessage(statusDesc))
 		}
 		if md := s.Trailer(); len(md) > 0 {
 			for k, vv := range md {
@@ -312,7 +312,7 @@ func (ht *serverHandlerTransport) HandleStreams(startStream func(*Stream)) {
 		Addr: ht.RemoteAddr(),
 	}
 	if req.TLS != nil {
-		pr.AuthInfo = credentials.TLSInfo{*req.TLS}
+		pr.AuthInfo = credentials.TLSInfo{State: *req.TLS}
 	}
 	ctx = metadata.NewContext(ctx, ht.headerMD)
 	ctx = peer.NewContext(ctx, pr)
@@ -368,6 +368,10 @@ func (ht *serverHandlerTransport) runStream() {
 			return
 		}
 	}
+}
+
+func (ht *serverHandlerTransport) Drain() {
+	panic("Drain() is not implemented")
 }
 
 // mapRecvMsgError returns the non-nil err into the appropriate

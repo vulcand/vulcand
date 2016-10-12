@@ -600,8 +600,8 @@ func (n *ng) backendUsedBy(bk engine.BackendKey) ([]engine.Frontend, error) {
 // Subscribe watches etcd changes and generates structured events telling vulcand to add or delete frontends, hosts etc.
 // It is a blocking function.
 func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan bool) error {
-	n.client.NewWatcher()
-	watchChan := n.client.Watch(n.context, n.etcdKey, etcd.WithRev(afterIdx), etcd.WithPrefix())
+	watcher := n.client.Watch()
+	watchChan := watcher.Watch(n.context, n.etcdKey, etcd.WithRev(afterIdx), etcd.WithPrefix())
 	for {
 		response := <- watchChan
 		if response.Cancelled {

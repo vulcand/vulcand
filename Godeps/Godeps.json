@@ -232,37 +232,42 @@
 		},
 		{
 			"ImportPath": "google.golang.org/grpc",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/credentials",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/grpclog",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/metadata",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "github.com/golang/protobuf/proto",
-			"Rev": "3b06fc7a4cad73efce5fe6217ab6c33e7231ab4a"
+			"Rev": "98fa357170587e470c5f27d3c3ea0947b71eb455"
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/codes",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "github.com/grpc-ecosystem/grpc-gateway/runtime",
-			"Comment": "v1.1.0",
-			"Rev": "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
+			"Comment": "v1.1.0-14-g372984b",
+			"Rev": "372984b6925646ccd2e7987037106b4337def2a9"
 		},
 		{
 			"ImportPath": "github.com/grpc-ecosystem/grpc-gateway/utilities",
-			"Comment": "v1.1.0",
-			"Rev": "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
+			"Comment": "v1.1.0-14-g372984b",
+			"Rev": "372984b6925646ccd2e7987037106b4337def2a9"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/candiedyaml",
@@ -270,28 +275,32 @@
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/internal",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/naming",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/transport",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		},
 		{
 			"ImportPath": "github.com/golang/protobuf/jsonpb",
-			"Rev": "3b06fc7a4cad73efce5fe6217ab6c33e7231ab4a"
+			"Rev": "98fa357170587e470c5f27d3c3ea0947b71eb455"
 		},
 		{
 			"ImportPath": "github.com/grpc-ecosystem/grpc-gateway/runtime/internal",
-			"Comment": "v1.1.0",
-			"Rev": "a8f25bd1ab549f8b87afd48aa9181221e9d439bb"
+			"Comment": "v1.1.0-14-g372984b",
+			"Rev": "372984b6925646ccd2e7987037106b4337def2a9"
 		},
 		{
 			"ImportPath": "google.golang.org/grpc/peer",
-			"Rev": "b60d3e9ed84da5710af43964e78bc44de74b72aa"
+			"Comment": "v1.0.1-GA",
+			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
 		}
 	]
 }
