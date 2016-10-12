@@ -649,7 +649,7 @@ func (n *ng) parseChange(response etcd.WatchResponse) (interface{}, error) {
 }
 
 func (n *ng) parseHostChange(r etcd.WatchResponse) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)(?:/host)?$").FindStringSubmatch(r.)
+	out := regexp.MustCompile("/hosts/([^/]+)(?:/host)?$").FindStringSubmatch(r.Events)
 	if len(out) != 2 {
 		return nil, nil
 	}
