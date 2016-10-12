@@ -83,18 +83,18 @@ func (s *Service) Start() error {
 			}
 			case "syslog": {
 				hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
-				if err != nil {
-					return err
+				if err == nil {
+					log.SetFormatter(&log.TextFormatter{DisableColors: true})
+					log.AddHook(hook)
+				} else {
+					setFallbackLogFormatter(s.options)
 				}
-				log.SetFormatter(&log.TextFormatter{DisableColors: true})
-				log.AddHook(hook)
 			}
 			case "logstash": {
 				log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
 			}
 			default:
-				log.Warnf("Invalid logger type %v, fallback to default.", s.options.Log)
-				log.SetFormatter(&log.TextFormatter{})
+				setFallbackLogFormatter(s.options)
 		}
 	}
 	log.SetOutput(os.Stdout)
@@ -438,6 +438,11 @@ func filesFromString(in string) ([]*proxy.FileDescriptor, error) {
 		}
 	}
 	return files, nil
+}
+
+func setFallbackLogFormatter(options Options) {
+	log.Warnf("Invalid logger ty pe %v, and no LogFormatter %v, fallback to default.", options.Log, options.LogFormatter)
+	log.SetFormatter(&log.TextFormatter{})
 }
 
 const vulcandFilesKey = "VULCAND_FILES_KEY"
