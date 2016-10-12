@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/vulcand/vulcand",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v69",
+	"GodepVersion": "v74",
 	"Packages": [
 		"./..."
 	],
