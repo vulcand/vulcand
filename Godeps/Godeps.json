@@ -35,12 +35,18 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
+			"Comment": "v3.0.12",
+			"Rev": "2d1e2e8e646e65f73ca0d9ee905a5343d6135a50"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
