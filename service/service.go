@@ -303,7 +303,7 @@ func (s *Service) newEngine() error {
 			s.options.EtcdNodes,
 			s.options.EtcdKey,
 			s.registry,
-			etcdv2ng.Options{
+			etcdv3ng.Options{
 				EtcdCaFile:              s.options.EtcdCaFile,
 				EtcdCertFile:            s.options.EtcdCertFile,
 				EtcdKeyFile:             s.options.EtcdKeyFile,

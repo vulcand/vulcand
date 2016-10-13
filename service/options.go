@@ -19,7 +19,7 @@ type Options struct {
 	Interface string
 	CertPath  string
 
-	EtcdApiVersion		int64
+	EtcdApiVersion		int
 	EtcdNodes               listOptions
 	EtcdKey                 string
 	EtcdCaFile              string
@@ -101,6 +101,7 @@ func validateOptions(o Options) (Options, error) {
 
 func ParseCommandLine() (options Options, err error) {
 	flag.Var(&options.EtcdNodes, "etcd", "Etcd discovery service API endpoints")
+	flag.IntVar(&options.EtcdApiVersion, "etcdApiVer", 2, "Etcd Client API version (When 3, Etcd 3.x API is used. All other values default to v2.)")
 	flag.StringVar(&options.EtcdKey, "etcdKey", "vulcand", "Etcd key for storing configuration")
 	flag.StringVar(&options.EtcdCaFile, "etcdCaFile", "", "Path to CA file for etcd communication")
 	flag.StringVar(&options.EtcdCertFile, "etcdCertFile", "", "Path to cert file for etcd communication")
