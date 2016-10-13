@@ -65,7 +65,7 @@ func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &engine.Snapshot{Index: response.Header.Revision}
+	s := &engine.Snapshot{Index: uint64(response.Header.Revision)}
 	for _, keyValue := range response.Kvs {
 		switch suffix(string(keyValue.Key)) {
 		case "frontends":
