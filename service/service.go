@@ -28,6 +28,7 @@ import (
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
+	"github.com/vulcand/vulcand/engine/etcdv3ng"
 )
 
 func Run(registry *plugin.Registry) error {
@@ -295,18 +296,35 @@ func (s *Service) newEngine() error {
 	if err != nil {
 		return err
 	}
-	ng, err := etcdv2ng.New(
-		s.options.EtcdNodes,
-		s.options.EtcdKey,
-		s.registry,
-		etcdv2ng.Options{
-			EtcdCaFile:              s.options.EtcdCaFile,
-			EtcdCertFile:            s.options.EtcdCertFile,
-			EtcdKeyFile:             s.options.EtcdKeyFile,
-			EtcdConsistency:         s.options.EtcdConsistency,
-			EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
-			Box: box,
-		})
+	var ng engine.Engine
+
+	if s.options.EtcdApiVersion == 3 {
+		ng, err = etcdv3ng.New(
+			s.options.EtcdNodes,
+			s.options.EtcdKey,
+			s.registry,
+			etcdv2ng.Options{
+				EtcdCaFile:              s.options.EtcdCaFile,
+				EtcdCertFile:            s.options.EtcdCertFile,
+				EtcdKeyFile:             s.options.EtcdKeyFile,
+				EtcdConsistency:         s.options.EtcdConsistency,
+				EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
+				Box: box,
+			})
+	} else {
+		ng, err = etcdv2ng.New(
+			s.options.EtcdNodes,
+			s.options.EtcdKey,
+			s.registry,
+			etcdv2ng.Options{
+				EtcdCaFile:              s.options.EtcdCaFile,
+				EtcdCertFile:            s.options.EtcdCertFile,
+				EtcdKeyFile:             s.options.EtcdKeyFile,
+				EtcdConsistency:         s.options.EtcdConsistency,
+				EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
+				Box: box,
+			})
+	}
 	if err != nil {
 		return err
 	}

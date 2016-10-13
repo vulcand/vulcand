@@ -19,6 +19,7 @@ type Options struct {
 	Interface string
 	CertPath  string
 
+	EtcdApiVersion		int64
 	EtcdNodes               listOptions
 	EtcdKey                 string
 	EtcdCaFile              string
