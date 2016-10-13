@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	etcd "github.com/coreos/etcd/client"
+	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/vulcand/vulcand/engine/test"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/secret"
@@ -22,8 +22,7 @@ type EtcdSuite struct {
 	nodes       []string
 	etcdPrefix  string
 	consistency string
-	client      etcd.Client
-	kapi        etcd.KeysAPI
+	client      *etcd.Client
 	context     context.Context
 	changesC    chan interface{}
 	key         string
@@ -72,10 +71,10 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.ng = engine.(*ng)
 	s.client = s.ng.client
-	s.kapi = s.ng.kapi
+	s.context = context.Background()
 
 	// Delete all values under the given prefix
-	_, err = s.kapi.Get(s.context, s.etcdPrefix, &etcd.GetOptions{Recursive: false, Sort: false})
+	_, err = s.client.Get(s.context, s.etcdPrefix)
 	if err != nil {
 		// There's no key like this
 		if !notFound(err) {
@@ -83,7 +82,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 			c.Assert(err, IsNil)
 		}
 	} else {
-		_, err = s.ng.kapi.Delete(s.context, s.etcdPrefix, &etcd.DeleteOptions{Recursive: true})
+		_, err = s.ng.client.Delete(s.context, s.etcdPrefix, etcd.WithPrefix())
 		c.Assert(err, IsNil)
 	}
 

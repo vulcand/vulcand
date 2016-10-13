@@ -134,6 +134,7 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 }
 
 func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([]engine.BackendSpec, error) {
+	fmt.Printf("ParseBackends: %++v", keyValues)
 	backendSpecs := []engine.BackendSpec{}
 
 	for _, keyValue := range keyValues {
@@ -235,6 +236,11 @@ func (n *ng) reconnect() error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	n.context = ctx
 	n.cancelFunc = cancelFunc
+
+	if n.client != nil { //be sure to close the v3 client explicitly
+		n.client.Close()
+	}
+
 	n.client = client
 	n.requireQuorum = true
 	if n.options.EtcdConsistency == "WEAK" {
@@ -941,7 +947,7 @@ func convertErr(e error) error {
 }
 
 func eventToString(e *etcd.Event) string {
-	return fmt.Sprintf("%s: $v -> %v", e.Type, e.PrevKv, e.Kv)
+	return fmt.Sprintf("%s: %v -> %v", e.Type, e.PrevKv, e.Kv)
 }
 
 func filterBySuffix(keys []*mvccpb.KeyValue, suffix string) ([]*mvccpb.KeyValue) {
