@@ -70,6 +70,9 @@ func (n *ng) Close() {
 func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 	response, err := n.kapi.Get(n.context, n.etcdKey, &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
+		if notFound(err) {
+			return &engine.Snapshot{}, nil
+		}
 		return nil, err
 	}
 	s := &engine.Snapshot{Index: response.Index}
@@ -431,6 +434,9 @@ func (n *ng) GetFrontends() ([]engine.Frontend, error) {
 	key := fmt.Sprintf("%s/frontends", n.etcdKey)
 	response, err := n.kapi.Get(n.context, key, &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
+		if notFound(err) {
+			return []engine.Frontend{}, nil
+		}
 		return nil, err
 	}
 	frontendSpecs, err := n.parseFrontends(response.Node, true)
@@ -464,6 +470,9 @@ func (n *ng) DeleteFrontend(fk engine.FrontendKey) error {
 func (n *ng) GetBackends() ([]engine.Backend, error) {
 	response, err := n.kapi.Get(n.context, fmt.Sprintf("%s/backends", n.etcdKey), &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
+		if notFound(err) {
+			return []engine.Backend{}, nil
+		}
 		return nil, err
 	}
 	backendSpecs, err := n.parseBackends(response.Node, true)
