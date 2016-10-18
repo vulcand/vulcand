@@ -12,12 +12,12 @@ import (
 	"errors"
 	log "github.com/Sirupsen/logrus"
 	etcd "github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
 	"golang.org/x/net/context"
-	"github.com/coreos/etcd/mvcc/mvccpb"
-	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 )
 
 type ng struct {
@@ -43,11 +43,11 @@ type Options struct {
 
 var (
 	frontendIdRegex = regexp.MustCompile("/frontends/([^/]+)(?:/frontend)?$")
-	backendIdRegex = regexp.MustCompile("/backends/([^/]+)(?:/backend)?$")
-	hostnameRegex = regexp.MustCompile("/hosts/([^/]+)(?:/host)?$")
+	backendIdRegex  = regexp.MustCompile("/backends/([^/]+)(?:/backend)?$")
+	hostnameRegex   = regexp.MustCompile("/hosts/([^/]+)(?:/host)?$")
 	listenerIdRegex = regexp.MustCompile("/listeners/([^/]+)")
 	middlewareRegex = regexp.MustCompile("/frontends/([^/]+)/middlewares/([^/]+)$")
-	serverRegex = regexp.MustCompile("/backends/([^/]+)/servers/([^/]+)$")
+	serverRegex     = regexp.MustCompile("/backends/([^/]+)/servers/([^/]+)$")
 )
 
 func New(nodes []string, etcdKey string, registry *plugin.Registry, options Options) (engine.Engine, error) {
@@ -123,11 +123,11 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 				middlewares := []engine.Middleware{}
 				for _, subKeyValue := range subKeyValues {
 					if middlewareId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "middlewares" {
-							middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
-							if err != nil {
-								return nil, err
-							}
-							middlewares = append(middlewares, *middleware)
+						middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
+						if err != nil {
+							return nil, err
+						}
+						middlewares = append(middlewares, *middleware)
 					}
 				}
 
@@ -893,7 +893,6 @@ func (n *ng) getVals(keys ...string) ([]Pair, error) {
 		return nil, err
 	}
 
-
 	for _, keyValue := range response.Kvs {
 		out = append(out, Pair{string(keyValue.Key), string(keyValue.Value)})
 	}
@@ -953,7 +952,7 @@ func eventToString(e *etcd.Event) string {
 	return fmt.Sprintf("%s: %v -> %v", e.Type, e.PrevKv, e.Kv)
 }
 
-func filterBySuffix(keys []*mvccpb.KeyValue, suffix string) ([]*mvccpb.KeyValue) {
+func filterBySuffix(keys []*mvccpb.KeyValue, suffix string) []*mvccpb.KeyValue {
 	returnValue := []*mvccpb.KeyValue{}
 	for _, key := range keys {
 		if strings.Index(string(key.Key), suffix) == 0 {

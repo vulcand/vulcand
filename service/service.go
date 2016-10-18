@@ -23,12 +23,12 @@ import (
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdv2ng"
+	"github.com/vulcand/vulcand/engine/etcdv3ng"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
-	"github.com/vulcand/vulcand/engine/etcdv3ng"
 )
 
 func Run(registry *plugin.Registry) error {
@@ -76,13 +76,16 @@ func (s *Service) Start() error {
 		log.SetFormatter(s.options.LogFormatter)
 	} else {
 		switch s.options.Log {
-			case "console": {
+		case "console":
+			{
 				log.SetFormatter(&log.TextFormatter{})
 			}
-			case "json": {
+		case "json":
+			{
 				log.SetFormatter(&log.JSONFormatter{})
 			}
-			case "syslog": {
+		case "syslog":
+			{
 				hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
 				if err == nil {
 					log.SetFormatter(&log.TextFormatter{DisableColors: true})
@@ -91,11 +94,12 @@ func (s *Service) Start() error {
 					setFallbackLogFormatter(s.options)
 				}
 			}
-			case "logstash": {
+		case "logstash":
+			{
 				log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
 			}
-			default:
-				setFallbackLogFormatter(s.options)
+		default:
+			setFallbackLogFormatter(s.options)
 		}
 	}
 	log.SetOutput(os.Stdout)

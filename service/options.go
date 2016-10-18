@@ -19,7 +19,7 @@ type Options struct {
 	Interface string
 	CertPath  string
 
-	EtcdApiVersion		int
+	EtcdApiVersion          int
 	EtcdNodes               listOptions
 	EtcdKey                 string
 	EtcdCaFile              string
@@ -47,7 +47,6 @@ type Options struct {
 
 	DefaultListener bool
 }
-
 
 type SeverityFlag struct {
 	S log.Level
