@@ -186,7 +186,19 @@
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "b400c2eff1badec7022a8c8f5bea058b6315eed7"
+			"Rev": "6dba816f1056709e29a1c442883cab1336d3c083"
+		},
+		{
+			"ImportPath": "golang.org/x/net/http2",
+			"Rev": "6dba816f1056709e29a1c442883cab1336d3c083"
+		},
+		{
+			"ImportPath": "golang.org/x/net/http2/hpack",
+			"Rev": "6dba816f1056709e29a1c442883cab1336d3c083"
+		},
+		{
+			"ImportPath": "golang.org/x/net/trace",
+			"Rev": "6dba816f1056709e29a1c442883cab1336d3c083"
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
@@ -301,6 +313,18 @@
 			"ImportPath": "google.golang.org/grpc/peer",
 			"Comment": "v1.0.1-GA",
 			"Rev": "0032a855ba5c8a3c8e0d71c2deef354b70af1584"
+		},
+		{
+			"ImportPath": "golang.org/x/net/idna",
+			"Rev": "6dba816f1056709e29a1c442883cab1336d3c083"
+		},
+		{
+			"ImportPath": "golang.org/x/net/lex/httplex",
+			"Rev": "6dba816f1056709e29a1c442883cab1336d3c083"
+		},
+		{
+			"ImportPath": "golang.org/x/net/internal/timeseries",
+			"Rev": "6dba816f1056709e29a1c442883cab1336d3c083"
 		}
 	]
 }
