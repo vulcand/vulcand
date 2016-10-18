@@ -41,6 +41,15 @@ type Options struct {
 	Box                     *secret.Box
 }
 
+var (
+	frontendIdRegex = regexp.MustCompile("/frontends/([^/]+)(?:/frontend)?$")
+	backendIdRegex = regexp.MustCompile("/backends/([^/]+)(?:/backend)?$")
+	hostnameRegex = regexp.MustCompile("/hosts/([^/]+)(?:/host)?$")
+	listenerIdRegex = regexp.MustCompile("/listeners/([^/]+)")
+	middlewareRegex = regexp.MustCompile("/frontends/([^/]+)/middlewares/([^/]+)$")
+	serverRegex = regexp.MustCompile("/backends/([^/]+)/servers/([^/]+)$")
+)
+
 func New(nodes []string, etcdKey string, registry *plugin.Registry, options Options) (engine.Engine, error) {
 	n := &ng{
 		nodes:    nodes,
@@ -95,77 +104,74 @@ func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 
 func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...bool) ([]engine.FrontendSpec, error) {
 	frontendSpecs := []engine.FrontendSpec{}
-
 	for _, keyValue := range keyValues {
-		if frontendId := suffix(string(keyValue.Key)); suffix(prefix(string(keyValue.Key))) == "frontend" {
+		if frontendIds := frontendIdRegex.FindStringSubmatch(string(keyValue.Key)); len(frontendIds) == 2 {
+			frontendId := frontendIds[1]
 			frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), []byte(keyValue.Value), frontendId)
 			if err != nil {
 				return nil, err
 			}
 
-			if len(skipMiddlewares) == 1 && skipMiddlewares[0] {
-				break
-			}
-
-			//get all keys under this frontend
-			subKeyValues := filterBySuffix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
-
-			middlewares := []engine.Middleware{}
-			for _, subKeyValue := range subKeyValues {
-				if middlewareId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "middlewares" {
-						middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
-						if err != nil {
-							return nil, err
-						}
-						middlewares = append(middlewares, *middleware)
-				}
-			}
-
-
 			frontendSpec := engine.FrontendSpec{
 				Frontend: *frontend,
-				Middlewares: middlewares,
+			}
+
+			if len(skipMiddlewares) != 1 || !skipMiddlewares[0] {
+				//get all keys under this frontend
+				subKeyValues := filterBySuffix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
+
+				middlewares := []engine.Middleware{}
+				for _, subKeyValue := range subKeyValues {
+					if middlewareId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "middlewares" {
+							middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
+							if err != nil {
+								return nil, err
+							}
+							middlewares = append(middlewares, *middleware)
+					}
+				}
+
+				frontendSpec.Middlewares = middlewares
 			}
 
 			frontendSpecs = append(frontendSpecs, frontendSpec)
 		}
 	}
+
 	return frontendSpecs, nil
 }
 
 func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([]engine.BackendSpec, error) {
-	fmt.Printf("ParseBackends: %++v", keyValues)
 	backendSpecs := []engine.BackendSpec{}
 
 	for _, keyValue := range keyValues {
-		if backendId := suffix(string(keyValue.Key)); suffix(prefix(string(keyValue.Key))) == "backend" {
+		if backendIds := backendIdRegex.FindStringSubmatch(string(keyValue.Key)); len(backendIds) == 2 {
+			backendId := backendIds[1]
 			backend, err := engine.BackendFromJSON([]byte(keyValue.Value), backendId)
 			if err != nil {
 				return nil, err
 			}
 
-			if len(skipServers) == 1 && skipServers[0] {
-				break
-			}
-
-			//get all keys under this frontend
-			subKeyValues := filterBySuffix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
-
-			servers := []engine.Server{}
-
-			for _, subKeyValue := range subKeyValues {
-				if serverId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "servers" {
-					server, err := engine.ServerFromJSON([]byte(subKeyValue.Value), serverId)
-					if err != nil {
-						return nil, err
-					}
-					servers = append(servers, *server)
-				}
-			}
-
 			backendSpec := engine.BackendSpec{
 				Backend: *backend,
-				Servers: servers,
+			}
+
+			if len(skipServers) != 1 || !skipServers[0] {
+				//get all keys under this frontend
+				subKeyValues := filterBySuffix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
+				servers := []engine.Server{}
+
+				for _, subKeyValue := range subKeyValues {
+					if serverId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "servers" {
+						server, err := engine.ServerFromJSON([]byte(subKeyValue.Value), serverId)
+						if err != nil {
+							return nil, err
+						}
+						servers = append(servers, *server)
+					}
+				}
+
+				backendSpec.Servers = servers
 			}
 
 			backendSpecs = append(backendSpecs, backendSpec)
@@ -178,7 +184,9 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 func (n *ng) parseHosts(keyValues []*mvccpb.KeyValue) ([]engine.Host, error) {
 	hosts := []engine.Host{}
 	for _, keyValue := range keyValues {
-		if hostname := suffix(string(keyValue.Key)); suffix(prefix(string(keyValue.Key))) == "host" {
+		if hostnames := hostnameRegex.FindStringSubmatch(string(keyValue.Key)); len(hostnames) == 2 {
+			hostname := hostnames[1]
+
 			var sealedHost host
 			if err := json.Unmarshal([]byte(keyValue.Value), &sealedHost); err != nil {
 				return nil, err
@@ -205,7 +213,9 @@ func (n *ng) parseHosts(keyValues []*mvccpb.KeyValue) ([]engine.Host, error) {
 func (n *ng) parseListeners(keyValues []*mvccpb.KeyValue) ([]engine.Listener, error) {
 	listeners := []engine.Listener{}
 	for _, keyValue := range keyValues {
-		if listenerId := suffix(string(keyValue.Key)); suffix(prefix(string(keyValue.Key))) == "listeners" {
+		if listenerIds := listenerIdRegex.FindStringSubmatch(string(keyValue.Key)); len(listenerIds) == 2 {
+			listenerId := listenerIds[1]
+
 			listener, err := engine.ListenerFromJSON([]byte(keyValue.Value), listenerId)
 			if err != nil {
 				return nil, err
@@ -261,12 +271,12 @@ func (n *ng) GetRegistry() *plugin.Registry {
 
 func (n *ng) GetHosts() ([]engine.Host, error) {
 	hosts := []engine.Host{}
-	vals, err := n.getKeysByImmediatePrefix(n.etcdKey, "hosts")
+	vals, err := n.getKeysBySecondPrefix(n.etcdKey, "hosts")
 	if err != nil {
 		return nil, err
 	}
 	for _, hostKey := range vals {
-		host, err := n.GetHost(engine.HostKey{Name: suffix(hostKey)})
+		host, err := n.GetHost(engine.HostKey{Name: suffix(prefix(hostKey))})
 		if err != nil {
 			log.Warningf("Invalid host config for %v: %v\n", hostKey, err)
 			continue
@@ -377,20 +387,8 @@ func (n *ng) UpsertFrontend(f engine.Frontend, ttl time.Duration) error {
 	if _, err := n.GetBackend(engine.BackendKey{Id: f.BackendId}); err != nil {
 		return err
 	}
-	if err := n.setJSONVal(n.path("frontends", f.Id, "frontend"), f, noTTL); err != nil {
-		return err
-	}
-	if ttl == 0 {
-		return nil
-	}
 
-	lgr, err := n.client.Grant(n.context, int64(ttl.Seconds()))
-	if err != nil {
-		return err
-	}
-
-	_, err = n.client.Put(n.context, n.path("frontends", f.Id), "", etcd.WithLease(lgr.ID))
-	return convertErr(err)
+	return n.setJSONVal(n.path("frontends", f.Id, "frontend"), f, ttl)
 }
 
 func (n *ng) GetFrontends() ([]engine.Frontend, error) {
@@ -610,6 +608,7 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan b
 	watcher := etcd.NewWatcher(n.client)
 	defer watcher.Close()
 
+	log.Infof("Begin watching: etcd revision %d", afterIdx)
 	watchChan := watcher.Watch(n.context, n.etcdKey, etcd.WithRev(int64(afterIdx)), etcd.WithPrefix())
 
 	for response := range watchChan {
@@ -666,7 +665,7 @@ func (n *ng) parseChange(e *etcd.Event) (interface{}, error) {
 }
 
 func (n *ng) parseHostChange(e *etcd.Event) (interface{}, error) {
-	out := regexp.MustCompile("/hosts/([^/]+)(?:/host)?$").FindStringSubmatch(string(e.Kv.Key))
+	out := hostnameRegex.FindStringSubmatch(string(e.Kv.Key))
 	if len(out) != 2 {
 		return nil, nil
 	}
@@ -691,7 +690,7 @@ func (n *ng) parseHostChange(e *etcd.Event) (interface{}, error) {
 }
 
 func (n *ng) parseListenerChange(e *etcd.Event) (interface{}, error) {
-	out := regexp.MustCompile("/listeners/([^/]+)").FindStringSubmatch(string(e.Kv.Key))
+	out := listenerIdRegex.FindStringSubmatch(string(e.Kv.Key))
 	if len(out) != 2 {
 		return nil, nil
 	}
@@ -716,7 +715,7 @@ func (n *ng) parseListenerChange(e *etcd.Event) (interface{}, error) {
 }
 
 func (n *ng) parseFrontendChange(e *etcd.Event) (interface{}, error) {
-	out := regexp.MustCompile("/frontends/([^/]+)(?:/frontend)?$").FindStringSubmatch(string(e.Kv.Key))
+	out := frontendIdRegex.FindStringSubmatch(string(e.Kv.Key))
 	if len(out) != 2 {
 		return nil, nil
 	}
@@ -739,7 +738,7 @@ func (n *ng) parseFrontendChange(e *etcd.Event) (interface{}, error) {
 }
 
 func (n *ng) parseFrontendMiddlewareChange(e *etcd.Event) (interface{}, error) {
-	out := regexp.MustCompile("/frontends/([^/]+)/middlewares/([^/]+)$").FindStringSubmatch(string(e.Kv.Key))
+	out := middlewareRegex.FindStringSubmatch(string(e.Kv.Key))
 	if len(out) != 3 {
 		return nil, nil
 	}
@@ -766,7 +765,7 @@ func (n *ng) parseFrontendMiddlewareChange(e *etcd.Event) (interface{}, error) {
 }
 
 func (n *ng) parseBackendChange(e *etcd.Event) (interface{}, error) {
-	out := regexp.MustCompile("/backends/([^/]+)(?:/backend)?$").FindStringSubmatch(string(e.Kv.Key))
+	out := backendIdRegex.FindStringSubmatch(string(e.Kv.Key))
 	if len(out) != 2 {
 		return nil, nil
 	}
@@ -789,7 +788,7 @@ func (n *ng) parseBackendChange(e *etcd.Event) (interface{}, error) {
 }
 
 func (n *ng) parseBackendServerChange(e *etcd.Event) (interface{}, error) {
-	out := regexp.MustCompile("/backends/([^/]+)/servers/([^/]+)$").FindStringSubmatch(string(e.Kv.Key))
+	out := serverRegex.FindStringSubmatch(string(e.Kv.Key))
 	if len(out) != 3 {
 		return nil, nil
 	}
@@ -827,12 +826,16 @@ func (n *ng) setJSONVal(key string, v interface{}, ttl time.Duration) error {
 }
 
 func (n *ng) setVal(key string, val []byte, ttl time.Duration) error {
-	glr, err := n.client.Grant(n.context, int64(ttl.Seconds()))
-	if err != nil {
-		return err
+	ops := []etcd.OpOption{}
+	if ttl > 0 {
+		lgr, err := n.client.Grant(n.context, int64(ttl.Seconds()))
+		if err != nil {
+			return err
+		}
+		ops = append(ops, etcd.WithLease(lgr.ID))
 	}
 
-	_, err = n.client.Put(n.context, key, string(val), etcd.WithLease(glr.ID))
+	_, err := n.client.Put(n.context, key, string(val), ops...)
 	return convertErr(err)
 }
 
@@ -857,7 +860,7 @@ func (n *ng) getVal(key string) (string, error) {
 	return string(response.Kvs[0].Value), nil
 }
 
-func (n *ng) getKeysByImmediatePrefix(keys ...string) ([]string, error) {
+func (n *ng) getKeysBySecondPrefix(keys ...string) ([]string, error) {
 	var out []string
 	targetPrefix := strings.Join(keys, "/")
 	response, err := n.client.Get(n.context, targetPrefix, etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
@@ -868,12 +871,12 @@ func (n *ng) getKeysByImmediatePrefix(keys ...string) ([]string, error) {
 		return nil, err
 	}
 
-
 	//If /this/is/prefix then
-	// allow /this/is/prefix/one
-	// disallow /this/is/prefix/one/two
+	// allow /this/is/prefix/one/two
+	// disallow /this/is/prefix/one/two/three
+	// disallow /this/is/prefix/one
 	for _, keyValue := range response.Kvs {
-		if prefix(string(keyValue.Key)) == targetPrefix {
+		if prefix(prefix(string(keyValue.Key))) == targetPrefix {
 			out = append(out, string(keyValue.Key))
 		}
 	}

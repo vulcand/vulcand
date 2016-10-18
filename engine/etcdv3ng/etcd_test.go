@@ -88,7 +88,13 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 
 	s.changesC = make(chan interface{})
 	s.stopC = make(chan bool)
-	go s.ng.Subscribe(s.changesC, 0, s.stopC)
+
+	//find current index, so we only watch from now onwards
+	response, err := s.ng.client.Get(s.ng.context, "/")
+	c.Assert(response, NotNil)
+	c.Assert(err, IsNil)
+
+	go s.ng.Subscribe(s.changesC, uint64(response.Header.Revision+1), s.stopC)
 
 	s.suite.ChangesC = s.changesC
 	s.suite.Engine = engine

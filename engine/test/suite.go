@@ -23,7 +23,7 @@ func (s *EngineSuite) collectChanges(c *C, expected int) []interface{} {
 		select {
 		case changes[i] = <-s.ChangesC:
 			// successfully collected changes
-		case <-time.After(2 * time.Second):
+		case <-time.After(10 * time.Second):
 			c.Fatalf("Timeout occured")
 		}
 	}
