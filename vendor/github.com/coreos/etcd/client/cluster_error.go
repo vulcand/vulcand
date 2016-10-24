@@ -21,11 +21,7 @@ type ClusterError struct {
 }
 
 func (ce *ClusterError) Error() string {
-	s := ErrClusterUnavailable.Error()
-	for i, e := range ce.Errors {
-		s += fmt.Sprintf("; error #%d: %s\n", i, e)
-	}
-	return s
+	return ErrClusterUnavailable.Error()
 }
 
 func (ce *ClusterError) Detail() string {

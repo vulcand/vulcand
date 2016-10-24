@@ -1,15 +1,16 @@
-package etcdng
+package etcdv3ng
 
 import (
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/coreos/go-etcd/etcd"
+	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/vulcand/vulcand/engine/test"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/secret"
 
+	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 )
 
@@ -22,6 +23,7 @@ type EtcdSuite struct {
 	etcdPrefix  string
 	consistency string
 	client      *etcd.Client
+	context     context.Context
 	changesC    chan interface{}
 	key         string
 	stopC       chan bool
@@ -29,7 +31,7 @@ type EtcdSuite struct {
 
 var _ = Suite(&EtcdSuite{
 	etcdPrefix:  "/vulcandtest",
-	consistency: etcd.STRONG_CONSISTENCY,
+	consistency: "STRONG",
 })
 
 func (s *EtcdSuite) SetUpSuite(c *C) {
@@ -69,9 +71,10 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.ng = engine.(*ng)
 	s.client = s.ng.client
+	s.context = context.Background()
 
 	// Delete all values under the given prefix
-	_, err = s.client.Get(s.etcdPrefix, false, false)
+	_, err = s.client.Get(s.context, s.etcdPrefix)
 	if err != nil {
 		// There's no key like this
 		if !notFound(err) {
@@ -79,13 +82,19 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 			c.Assert(err, IsNil)
 		}
 	} else {
-		_, err = s.ng.client.Delete(s.etcdPrefix, true)
+		_, err = s.ng.client.Delete(s.context, s.etcdPrefix, etcd.WithPrefix())
 		c.Assert(err, IsNil)
 	}
 
 	s.changesC = make(chan interface{})
 	s.stopC = make(chan bool)
-	go s.ng.Subscribe(s.changesC, 0, s.stopC)
+
+	//find current index, so we only watch from now onwards
+	response, err := s.ng.client.Get(s.ng.context, "/")
+	c.Assert(response, NotNil)
+	c.Assert(err, IsNil)
+
+	go s.ng.Subscribe(s.changesC, uint64(response.Header.Revision+1), s.stopC)
 
 	s.suite.ChangesC = s.changesC
 	s.suite.Engine = engine

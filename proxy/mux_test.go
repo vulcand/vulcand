@@ -418,7 +418,7 @@ func (s *ServerSuite) TestOCSPStapling(c *C) {
 	fmt.Fprintf(conn, "GET / HTTP/1.1\r\n\r\n")
 	re := conn.OCSPResponse()
 	c.Assert(re, DeepEquals, OCSPResponseBytes)
-	
+
 	conn.Close()
 
 	// Make sure that deleting the host clears the cache
