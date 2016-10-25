@@ -116,7 +116,7 @@ func (f *frontend) rebuild() error {
 			}),
 		forward.PassHostHeader(settings.PassHostHeader),
 		forward.Stream(settings.Stream),
-		forward.StreamingFlushInterval(time.Duration(settings.StreamFlushIntervalNanoSecs) * time.Nanosecond),
+		forward.StreamingFlushInterval(time.Duration(settings.StreamFlushIntervalNanoSecs)*time.Nanosecond),
 		forward.StateListener(f.mux.outgoingConnTracker))
 
 	// rtwatcher will be observing and aggregating metrics
