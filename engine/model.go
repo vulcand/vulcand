@@ -230,7 +230,7 @@ type HTTPFrontendSettings struct {
 	// Should Stream?
 	Stream bool
 	// How frequently should we flush the stream?
-	StreamFlushIntervalNanoSecs uint64
+	StreamFlushIntervalNanoSecs int64
 }
 
 func NewAddress(network, address string) (*Address, error) {
