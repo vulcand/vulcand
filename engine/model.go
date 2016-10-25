@@ -229,6 +229,8 @@ type HTTPFrontendSettings struct {
 	PassHostHeader bool
 	// Should Stream?
 	Stream bool
+	// How frequently should we flush the stream?
+	StreamFlushIntervalNanoSecs int64
 }
 
 func NewAddress(network, address string) (*Address, error) {

@@ -12,6 +12,7 @@ import (
 	"github.com/vulcand/oxy/roundrobin"
 	"github.com/vulcand/oxy/stream"
 	"github.com/vulcand/vulcand/engine"
+	"time"
 )
 
 type frontend struct {
@@ -115,6 +116,7 @@ func (f *frontend) rebuild() error {
 			}),
 		forward.PassHostHeader(settings.PassHostHeader),
 		forward.Stream(settings.Stream),
+		forward.StreamingFlushInterval(time.Duration(settings.StreamFlushIntervalNanoSecs)*time.Nanosecond),
 		forward.StateListener(f.mux.outgoingConnTracker))
 
 	// rtwatcher will be observing and aggregating metrics
