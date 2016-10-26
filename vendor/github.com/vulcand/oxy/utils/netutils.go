@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	log "github.com/Sirupsen/logrus"
 )
 
 // ProxyWriter helps to capture response headers and status code
@@ -44,6 +45,15 @@ func (p *ProxyWriter) Flush() {
 	}
 }
 
+func (p *ProxyWriter) CloseNotify() <-chan bool {
+	if cn, ok := p.W.(http.CloseNotifier); ok {
+		return cn.CloseNotify()
+	}
+	log.Warning("Upstream ResponseWriter does not implement http.CloseNotifier. Returning dummy channel.")
+	return make(<-chan bool)
+}
+
+
 func NewBufferWriter(w io.WriteCloser) *BufferWriter {
 	return &BufferWriter{
 		W: w,
@@ -72,6 +82,14 @@ func (b *BufferWriter) Write(buf []byte) (int, error) {
 // WriteHeader sets rw.Code.
 func (b *BufferWriter) WriteHeader(code int) {
 	b.Code = code
+}
+
+func (b *BufferWriter) CloseNotify() <-chan bool {
+	if cn, ok := b.W.(http.CloseNotifier); ok {
+		return cn.CloseNotify()
+	}
+	log.Warning("Upstream ResponseWriter does not implement http.CloseNotifier. Returning dummy channel.")
+	return make(<-chan bool)
 }
 
 type nopWriteCloser struct {
