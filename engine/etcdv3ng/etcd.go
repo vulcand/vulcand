@@ -75,29 +75,22 @@ func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 		return nil, err
 	}
 	s := &engine.Snapshot{Index: uint64(response.Header.Revision)}
-	for _, keyValue := range response.Kvs {
-		switch suffix(string(keyValue.Key)) {
-		case "frontends":
-			s.FrontendSpecs, err = n.parseFrontends(filterBySuffix(response.Kvs, string(keyValue.Key)))
-			if err != nil {
-				return nil, err
-			}
-		case "backends":
-			s.BackendSpecs, err = n.parseBackends(filterBySuffix(response.Kvs, string(keyValue.Key)))
-			if err != nil {
-				return nil, err
-			}
-		case "hosts":
-			s.Hosts, err = n.parseHosts(filterBySuffix(response.Kvs, string(keyValue.Key)))
-			if err != nil {
-				return nil, err
-			}
-		case "listeners":
-			s.Listeners, err = n.parseListeners(filterBySuffix(response.Kvs, string(keyValue.Key)))
-			if err != nil {
-				return nil, err
-			}
-		}
+
+	s.FrontendSpecs, err = n.parseFrontends(filterByPrefix(response.Kvs, n.etcdKey + "/frontends"))
+	if err != nil {
+		return nil, err
+	}
+	s.BackendSpecs, err = n.parseBackends(filterByPrefix(response.Kvs, n.etcdKey + "/backends"))
+	if err != nil {
+		return nil, err
+	}
+	s.Hosts, err = n.parseHosts(filterByPrefix(response.Kvs, n.etcdKey + "/hosts"))
+	if err != nil {
+		return nil, err
+	}
+	s.Listeners, err = n.parseListeners(filterByPrefix(response.Kvs, n.etcdKey + "/listeners"))
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -118,7 +111,7 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 
 			if len(skipMiddlewares) != 1 || !skipMiddlewares[0] {
 				//get all keys under this frontend
-				subKeyValues := filterBySuffix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
+				subKeyValues := filterByPrefix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
 
 				middlewares := []engine.Middleware{}
 				for _, subKeyValue := range subKeyValues {
@@ -158,7 +151,7 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 
 			if len(skipServers) != 1 || !skipServers[0] {
 				//get all keys under this frontend
-				subKeyValues := filterBySuffix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
+				subKeyValues := filterByPrefix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
 				servers := []engine.Server{}
 
 				for _, subKeyValue := range subKeyValues {
@@ -952,10 +945,10 @@ func eventToString(e *etcd.Event) string {
 	return fmt.Sprintf("%s: %v -> %v", e.Type, e.PrevKv, e.Kv)
 }
 
-func filterBySuffix(keys []*mvccpb.KeyValue, suffix string) []*mvccpb.KeyValue {
+func filterByPrefix(keys []*mvccpb.KeyValue, prefix string) []*mvccpb.KeyValue {
 	returnValue := []*mvccpb.KeyValue{}
 	for _, key := range keys {
-		if strings.Index(string(key.Key), suffix) == 0 {
+		if strings.Index(string(key.Key), prefix) == 0 {
 			returnValue = append(returnValue, key)
 		}
 	}
