@@ -1,4 +1,3 @@
-[![Build Status](https://drone.io/github.com/mailgun/minheap/status.png)](https://drone.io/github.com/mailgun/minheap/latest)
 [![Build Status](https://travis-ci.org/mailgun/ttlmap.png)](https://travis-ci.org/mailgun/ttlmap)
 
 TtlMap
@@ -17,3 +16,9 @@ if exists {
    val := valI.(string)
 }
 ```
+
+The ttlmap is not thread safe by default. You can either create a thread safe
+instance with `ttlmap.NewConcurrent` that is effectively using `sync.RWLock`,
+or implement locking in you application. Beware though that at the application
+level `sync.RWLock` cannot be used, because `ttlmap.Get` can occasionally
+modifies the internal data structure.

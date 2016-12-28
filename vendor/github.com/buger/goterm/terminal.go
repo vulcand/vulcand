@@ -57,7 +57,8 @@ func getBgColor(code int) string {
 // Check percent flag: num & PCT
 //
 // Reset percent flag: num & 0xFF
-const PCT = 0x80000000
+const shift = uint(^uint(0)>>63) << 4
+const PCT = 0x8000 << shift
 
 type winsize struct {
 	Row    uint16

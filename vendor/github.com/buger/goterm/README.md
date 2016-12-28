@@ -41,7 +41,7 @@ and run `go run ./examples/time_example.go`
 Print red bold message on white background:
 
 ```go    
-tm.Println(tm.Backgound(tm.Color(tm.Bold("Important header"), tm.RED), tm.WHITE))
+tm.Println(tm.Background(tm.Color(tm.Bold("Important header"), tm.RED), tm.WHITE))
 ```
 
 

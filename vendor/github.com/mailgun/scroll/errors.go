@@ -64,6 +64,14 @@ func (e UnsafeFieldError) Error() string {
 	return fmt.Sprintf("field %q is unsafe: %v", e.Field, e.Description)
 }
 
+type RateLimitError struct {
+	Description string
+}
+
+func (e RateLimitError) Error() string {
+	return fmt.Sprintf("Rate Limited: %v. Try again later (and slower).", e.Description)
+}
+
 func responseAndStatusFor(err error) (Response, int) {
 	switch err.(type) {
 	case GenericAPIError, MissingFieldError, InvalidFormatError, InvalidParameterError, UnsafeFieldError:
@@ -72,6 +80,8 @@ func responseAndStatusFor(err error) (Response, int) {
 		return Response{"message": err.Error()}, http.StatusNotFound
 	case ConflictError:
 		return Response{"message": err.Error()}, http.StatusConflict
+	case RateLimitError:
+		return Response{"message": err.Error()}, 429 // temporary until we upgrade to Go 1.6 and can use http.StatusTooManyRequests
 	default:
 		return Response{"message": "Internal Server Error"}, http.StatusInternalServerError
 	}
