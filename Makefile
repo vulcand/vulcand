@@ -30,9 +30,8 @@ test-package-with-etcd: clean
 	${ETCD_FLAGS} go test -v ./$(p)
 
 update:
-	rm -rf Godeps/
-	find . -iregex .*go | xargs sed -i 's:".*Godeps/_workspace/src/:":g'
-	godep save -r ./...
+	rm -rf Godeps/ vendor/
+	godep save ./...
 
 test-grep-etcdng: clean
 	${ETCD_FLAGS} go test -v ./engine/etcdng -check.f=$(e)

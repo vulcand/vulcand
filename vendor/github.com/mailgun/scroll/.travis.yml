@@ -1,14 +1,15 @@
 language: go
 go:
-- '1.4'
+  - 1.7.3
 install:
-- go get github.com/coreos/etcd
-- go get -t -v ./...
-- go build -v ./...
+  - docker-compose up -d
+  - go get -u github.com/Masterminds/glide
+  - glide install
 script:
-- etcd &
-- go test -v ./...
-- kill %1
-sudo: false
+  - go test $(glide novendor)
+  - docker-compose down
+sudo: required
+services:
+  - docker
 notifications:
   email: false

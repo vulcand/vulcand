@@ -1,0 +1,69 @@
+package: github.com/mailgun/scroll
+import:
+- package: github.com/coreos/etcd
+  version: ~3.0.15
+  subpackages:
+  - client
+- package: github.com/gorilla/mux
+  version: master
+- package: github.com/mailgun/iptools
+  version: master
+- package: github.com/mailgun/log
+  version: master
+- package: github.com/mailgun/manners
+  version: master
+- package: github.com/mailgun/metrics
+  version: master
+- package: github.com/coreos/go-semver
+  version: master
+  subpackages:
+  - semver
+- package: github.com/coreos/go-systemd
+  version: master
+  subpackages:
+  - daemon
+- package: github.com/coreos/pkg
+  version: master
+  subpackages:
+  - capnslog
+- package: github.com/stretchr/testify
+  version: master
+  subpackages:
+  - http
+- package: github.com/bgentry/speakeasy
+  version: master
+- package: github.com/dustin/go-humanize
+  version: master
+- package: github.com/olekukonko/tablewriter
+  version: master
+- package: github.com/mattn/go-runewidth
+  version: master
+- package: github.com/urfave/cli
+  version: master
+- package: github.com/kr/pty
+  version: master
+- package: gopkg.in/cheggaaa/pb.v1
+  version: master
+- package: github.com/akrennmair/gopcap
+  version: master
+- package: github.com/spacejam/loghisto
+  version: master
+- package: github.com/godbus/dbus
+  version: master
+- package: gopkg.in/yaml.v1
+  version: master
+- package: gopkg.in/tomb.v2
+  version: master
+- package: github.com/golang/glog
+  version: master
+- package: github.com/fatih/color
+  version: master
+- package: github.com/mattn/go-colorable
+  version: master
+- package: github.com/mattn/go-isatty
+  version: master
+- package: golang.org/x/net
+  subpackages:
+  - context
+testImport:
+- package: gopkg.in/check.v1

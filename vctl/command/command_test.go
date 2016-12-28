@@ -48,7 +48,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	sv.Start()
 	s.sv = sv
 
-	app := scroll.NewApp()
+	app, _ := scroll.NewApp()
 	api.InitProxyController(s.ng, sv, app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 

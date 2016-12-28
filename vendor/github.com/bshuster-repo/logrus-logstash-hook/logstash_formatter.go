@@ -3,6 +3,7 @@ package logrus_logstash
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
 )
@@ -17,8 +18,17 @@ type LogstashFormatter struct {
 }
 
 func (f *LogstashFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	return f.FormatWithPrefix(entry, "")
+}
+
+func (f *LogstashFormatter) FormatWithPrefix(entry *logrus.Entry, prefix string) ([]byte, error) {
 	fields := make(logrus.Fields)
 	for k, v := range entry.Data {
+		//remvove the prefix when sending the fields to logstash
+		if prefix != "" && strings.HasPrefix(k, prefix) {
+			k = strings.TrimPrefix(k, prefix)
+		}
+
 		switch v := v.(type) {
 		case error:
 			// Otherwise errors are ignored by `encoding/json`
@@ -29,12 +39,13 @@ func (f *LogstashFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	fields["@version"] = 1
+	fields["@version"] = "1"
 
 	timeStampFormat := f.TimestampFormat
 
 	if timeStampFormat == "" {
-		timeStampFormat = logrus.DefaultTimestampFormat
+		//timeStampFormat = logrus.DefaultTimestampFormat
+		timeStampFormat = "2006-01-02 15:04:05.000"
 	}
 
 	fields["@timestamp"] = entry.Time.Format(timeStampFormat)

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/mailgun/log"
-
-	"github.com/mailgun/scroll/vulcan/middleware"
+	"github.com/mailgun/scroll/vulcand"
 )
 
 // Response objects that apps' handlers are advised to return.
@@ -45,11 +45,25 @@ type Spec struct {
 
 	// Vulcan middlewares to register with the handler. When registering, middlewares are assigned priorities
 	// according to their positions in the list: a middleware that appears in the list earlier is executed first.
-	Middlewares []middleware.Middleware
+	Middlewares []vulcand.Middleware
 
 	// When Handler or HandlerWithBody is used, this function will be called after every request with a log message.
 	// If nil, defaults to github.com/mailgun/log.Infof.
-	Logger func(format string, a ...interface{})
+	LogRequest func(r *http.Request, status int, elapsedTime time.Duration, err error)
+
+}
+
+// Given a map of parameters url decode each parameter
+func DecodeParams(src map[string]string) map[string]string {
+	results := make(map[string]string, len(src))
+	for key, param := range src {
+		encoded, err := url.QueryUnescape(param)
+		if err != nil {
+			encoded = param
+		}
+		results[key] = encoded
+	}
+	return results
 }
 
 // Defines the signature of a handler function that can be registered by an app.
@@ -75,7 +89,7 @@ func MakeHandler(app *App, fn HandlerFunc, spec Spec) http.HandlerFunc {
 		}
 
 		start := time.Now()
-		response, err := fn(w, r, mux.Vars(r))
+		response, err := fn(w, r, DecodeParams(mux.Vars(r)))
 		elapsedTime := time.Since(start)
 
 		var status int
@@ -85,12 +99,7 @@ func MakeHandler(app *App, fn HandlerFunc, spec Spec) http.HandlerFunc {
 			status = http.StatusOK
 		}
 
-		logInfo := spec.Logger
-		if logInfo == nil {
-			logInfo = log.Infof
-		}
-		logInfo("Request(Status=%v, Method=%v, Path=%v, Form=%v, Time=%v, Error=%v)",
-			status, r.Method, r.URL, r.Form, elapsedTime, err)
+		spec.LogRequest(r, status, elapsedTime, err)
 
 		app.stats.TrackRequest(spec.MetricName, status, elapsedTime)
 
@@ -128,8 +137,7 @@ func MakeHandlerWithBody(app *App, fn HandlerWithBodyFunc, spec Spec) http.Handl
 			status = http.StatusOK
 		}
 
-		log.Infof("Request(Status=%v, Method=%v, Path=%v, Form=%v, Time=%v, Error=%v)",
-			status, r.Method, r.URL, r.Form, elapsedTime, err)
+		spec.LogRequest(r, status, elapsedTime, err)
 
 		app.stats.TrackRequest(spec.MetricName, status, elapsedTime)
 
@@ -161,7 +169,7 @@ func ReplyError(w http.ResponseWriter, err error) {
 	Reply(w, response, status)
 }
 
-// Helper that replies with the 500 code and happened error message.
+// ReplyInternalError logs the error message and replies with a 500 status code.
 func ReplyInternalError(w http.ResponseWriter, message string) {
 	log.Errorf("Internal server error: %v", message)
 	Reply(w, Response{"message": message}, http.StatusInternalServerError)
@@ -195,8 +203,16 @@ func parseForm(r *http.Request) error {
 	}
 }
 
+//Log request
+func logRequest(r *http.Request, status int, elapsedTime time.Duration, err error) {
+	log.Infof("Request(Status=%v, Method=%v, Path=%v, Form=%v, Time=%v, Error=%v)",
+		status, r.Method, r.URL, r.Form, elapsedTime, err)
+}
+
 // Determine whether the request is multipart/form-data or not.
 func isMultipart(r *http.Request) bool {
 	contentType := r.Header.Get("Content-Type")
 	return strings.HasPrefix(contentType, "multipart/form-data")
 }
+
+

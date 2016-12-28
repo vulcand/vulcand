@@ -366,7 +366,11 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 }
 
 func (s *Service) initApi() error {
-	s.apiApp = scroll.NewApp()
+	var err error
+	s.apiApp, err = scroll.NewApp()
+	if err != nil {
+		return err
+	}
 	api.InitProxyController(s.ng, s.supervisor, s.apiApp)
 	return nil
 }
