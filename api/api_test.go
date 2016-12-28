@@ -39,7 +39,7 @@ func (s *ApiSuite) SetUpTest(c *C) {
 
 	sv := supervisor.New(newProxy, s.ng, make(chan error), supervisor.Options{})
 
-	app := scroll.NewApp()
+	app, _ := scroll.NewApp()
 	InitProxyController(s.ng, sv, app)
 	s.testServer = httptest.NewServer(app.GetHandler())
 	s.client = NewClient(s.testServer.URL, registry.GetRegistry())
