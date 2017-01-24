@@ -151,7 +151,7 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 
 			if len(skipServers) != 1 || !skipServers[0] {
 				//get all keys under this frontend
-				subKeyValues := filterByPrefix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
+				subKeyValues := filterByPrefix(keyValues, prefix(string(keyValue.Key))) //Get all keys below this backend "/vulcand/backends/foo/*"
 				servers := []engine.Server{}
 
 				for _, subKeyValue := range subKeyValues {
