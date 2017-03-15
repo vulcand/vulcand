@@ -3,7 +3,6 @@
 package etcdv3ng
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
+	"github.com/vulcand/vulcand/utils/json"
 	"golang.org/x/net/context"
 )
 
