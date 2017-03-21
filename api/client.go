@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
+	"github.com/vulcand/vulcand/utils/json"
 
 	log "github.com/Sirupsen/logrus"
 )
