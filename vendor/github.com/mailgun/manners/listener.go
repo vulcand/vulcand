@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	proxyproto "github.com/armon/go-proxyproto"
 )
 
 // NewListener wraps an existing listener for use with
@@ -150,6 +152,8 @@ func getListenerFile(listener net.Listener) (*os.File, error) {
 		return t.TCPListener.File()
 	case *TCPKeepAliveListener:
 		return t.TCPListener.File()
+	case *proxyproto.Listener:
+		return getListenerFile(t.Listener)
 	case *TLSListener:
 		return getListenerFile(t.Listener)
 	}

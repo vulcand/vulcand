@@ -101,6 +101,9 @@ func (a *Address) Equals(o Address) bool {
 }
 
 func (l *Listener) SettingsEquals(o *Listener) bool {
+	if o.ProxyProtocol != l.ProxyProtocol {
+		return false
+	}
 	if l.Settings == nil && o.Settings == nil {
 		return true
 	}
