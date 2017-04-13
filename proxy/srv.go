@@ -4,13 +4,15 @@ import (
 	"crypto/tls"
 
 	"fmt"
-	"golang.org/x/crypto/ocsp"
 	"net"
 	"net/http"
+
+	"golang.org/x/crypto/ocsp"
 
 	"github.com/vulcand/vulcand/engine"
 
 	log "github.com/Sirupsen/logrus"
+	proxyproto "github.com/armon/go-proxyproto"
 	"github.com/mailgun/manners"
 	"github.com/vulcand/route"
 )
@@ -73,6 +75,10 @@ func (s *srv) isTLS() bool {
 	return s.listener.Protocol == engine.HTTPS
 }
 
+func (s *srv) isProxyProto() bool {
+	return s.listener.ProxyProtocol == engine.PROXY_PROTO_V1
+}
+
 func (s *srv) updateListener(l engine.Listener) error {
 	// We can not listen for different protocols on the same socket
 	if s.listener.Protocol != l.Protocol {
@@ -109,18 +115,27 @@ func (s *srv) takeFile(f *FileDescriptor) error {
 		return err
 	}
 
-	if s.isTLS() {
-		tcpListener, ok := listener.(*net.TCPListener)
-		if !ok {
-			return fmt.Errorf(`%s failed to take file descriptor - it is running in TLS mode so I need a TCP listener, 
+	tcpListener, ok := listener.(*net.TCPListener)
+	if !ok {
+		return fmt.Errorf(`%s failed to take file descriptor - I need a TCP listener, 
 but the file descriptor that was given corresponded to a listener of type %T. More about file descriptor: %s`, listener, s, f)
+	}
+
+	listener = &manners.TCPKeepAliveListener{TCPListener: tcpListener}
+
+	if s.isProxyProto() {
+		listener = &proxyproto.Listener{
+			Listener:           listener,
+			ProxyHeaderTimeout: s.options.ReadTimeout,
 		}
+	}
+
+	if s.isTLS() {
 		config, err := s.newTLSConfig()
 		if err != nil {
 			return err
 		}
-		listener = manners.NewTLSListener(
-			manners.TCPKeepAliveListener{tcpListener}, config)
+		listener = manners.NewTLSListener(listener, config)
 	}
 
 	s.srv = manners.NewWithOptions(
@@ -147,17 +162,26 @@ func (s *srv) reload() error {
 		return nil
 	}
 
-	var config *tls.Config
+	gracefulServer, err := s.srv.HijackListener(s.newHTTPServer(), func(listener net.Listener) (net.Listener, error) {
+		listener = &manners.TCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}
 
-	if s.isTLS() {
-		cfg, err := s.newTLSConfig()
-		if err != nil {
-			return err
+		if s.isProxyProto() {
+			listener = &proxyproto.Listener{
+				Listener:           listener,
+				ProxyHeaderTimeout: s.options.ReadTimeout,
+			}
 		}
-		config = cfg
-	}
 
-	gracefulServer, err := s.srv.HijackListener(s.newHTTPServer(), config)
+		if s.isTLS() {
+			config, err := s.newTLSConfig()
+			if err != nil {
+				return nil, err
+			}
+			listener = manners.NewTLSListener(listener, config)
+		}
+
+		return listener, nil
+	})
 	if err != nil {
 		return err
 	}
@@ -236,13 +260,21 @@ func (s *srv) start() error {
 			return err
 		}
 
+		listener = &manners.TCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}
+
+		if s.isProxyProto() {
+			listener = &proxyproto.Listener{
+				Listener:           listener,
+				ProxyHeaderTimeout: s.options.ReadTimeout,
+			}
+		}
+
 		if s.isTLS() {
 			config, err := s.newTLSConfig()
 			if err != nil {
 				return err
 			}
-			listener = manners.NewTLSListener(
-				manners.TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
+			listener = manners.NewTLSListener(listener, config)
 		}
 		s.srv = manners.NewWithOptions(
 			manners.Options{
