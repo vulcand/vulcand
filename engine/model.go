@@ -435,7 +435,7 @@ func transportSettings(s HTTPBackendSettings) (*TransportSettings, error) {
 	// Keep Alive parameters
 	if len(s.KeepAlive.Period) != 0 {
 		if t.KeepAlive.Period, err = time.ParseDuration(s.KeepAlive.Period); err != nil {
-			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
+			return nil, fmt.Errorf("invalid keepalive period: %s", err)
 		}
 	}
 	t.KeepAlive.MaxIdleConnsPerHost = s.KeepAlive.MaxIdleConnsPerHost
