@@ -78,6 +78,8 @@ type Listener struct {
 	Scope string
 	// Settings provides listener-type specific settings, e.g. TLS settings for HTTPS listener
 	Settings *HTTPSListenerSettings `json:",omitempty"`
+	// Expect a ProxyProtocol Header on this listener: http://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+	ProxyProtocol string
 }
 
 func (l *Listener) TLSConfig() (*tls.Config, error) {
@@ -99,6 +101,9 @@ func (a *Address) Equals(o Address) bool {
 }
 
 func (l *Listener) SettingsEquals(o *Listener) bool {
+	if o.ProxyProtocol != l.ProxyProtocol {
+		return false
+	}
 	if l.Settings == nil && o.Settings == nil {
 		return true
 	}
@@ -246,7 +251,7 @@ func NewAddress(network, address string) (*Address, error) {
 	return &Address{Network: network, Address: address}, nil
 }
 
-func NewListener(id, protocol, network, address, scope string, settings *HTTPSListenerSettings) (*Listener, error) {
+func NewListener(id, protocol, network, address, scope, proxyHeader string, settings *HTTPSListenerSettings) (*Listener, error) {
 	protocol = strings.ToLower(protocol)
 	if protocol != HTTP && protocol != HTTPS {
 		return nil, fmt.Errorf("unsupported protocol '%s', supported protocols are http and https", protocol)
@@ -263,12 +268,27 @@ func NewListener(id, protocol, network, address, scope string, settings *HTTPSLi
 		return nil, err
 	}
 
+	proxyHeader = strings.ToUpper(proxyHeader)
+	switch proxyHeader {
+	case "PROXY_V1":
+		break
+	case "":
+		break
+	case "NONE":
+		proxyHeader = ""
+		break
+	default:
+		return nil, fmt.Errorf("Unsupported Proxy Header '%s', must be `PROXY_V1` or `NONE`", proxyHeader)
+
+	}
+
 	return &Listener{
-		Scope:    scope,
-		Id:       id,
-		Address:  *a,
-		Protocol: protocol,
-		Settings: settings,
+		Scope:         scope,
+		Id:            id,
+		Address:       *a,
+		Protocol:      protocol,
+		Settings:      settings,
+		ProxyProtocol: proxyHeader,
 	}, nil
 }
 
@@ -697,11 +717,12 @@ func (u BackendKey) String() string {
 }
 
 const (
-	HTTP  = "http"
-	HTTPS = "https"
-	TCP   = "tcp"
-	UNIX  = "unix"
-	NoTTL = 0
+	HTTP           = "http"
+	HTTPS          = "https"
+	TCP            = "tcp"
+	UNIX           = "unix"
+	PROXY_PROTO_V1 = "PROXY_V1"
+	NoTTL          = 0
 )
 
 type TransportTimeouts struct {

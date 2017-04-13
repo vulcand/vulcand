@@ -195,15 +195,20 @@ func (gs *GracefulServer) GetFile() (*os.File, error) {
 	return gs.listener.GetFile()
 }
 
-func (gs *GracefulServer) HijackListener(s *http.Server, config *tls.Config) (*GracefulServer, error) {
+type ListenerMutateFunc func(net.Listener) (net.Listener, error)
+
+func (gs *GracefulServer) HijackListener(s *http.Server, fn ListenerMutateFunc) (*GracefulServer, error) {
 	listenerUnsafePtr := unsafe.Pointer(gs.listener)
 	listener, err := (*GracefulListener)(atomic.LoadPointer(&listenerUnsafePtr)).Clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if config != nil {
-		listener = NewTLSListener(TCPKeepAliveListener{listener.(*net.TCPListener)}, config)
+	if fn != nil {
+		listener, err = fn(listener)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	other := NewWithServer(s)

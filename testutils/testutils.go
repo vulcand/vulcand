@@ -3,10 +3,11 @@ package testutils
 import (
 	"encoding/hex"
 	"fmt"
-	"golang.org/x/crypto/ocsp"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
+
+	"golang.org/x/crypto/ocsp"
 
 	routelib "github.com/vulcand/route"
 	"github.com/vulcand/vulcand/engine"
@@ -101,7 +102,7 @@ func MakeHost(name string, keyPair *engine.KeyPair) engine.Host {
 }
 
 func MakeListener(addr string, protocol string) engine.Listener {
-	l, err := engine.NewListener(UID("listener"), protocol, engine.TCP, addr, "", nil)
+	l, err := engine.NewListener(UID("listener"), protocol, engine.TCP, addr, "", "", nil)
 	if err != nil {
 		panic(err)
 	}
