@@ -148,6 +148,8 @@ func getListenerFile(listener net.Listener) (*os.File, error) {
 		return t.File()
 	case TCPKeepAliveListener:
 		return t.TCPListener.File()
+	case *TCPKeepAliveListener:
+		return t.TCPListener.File()
 	case *TLSListener:
 		return getListenerFile(t.Listener)
 	}
