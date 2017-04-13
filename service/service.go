@@ -31,13 +31,47 @@ import (
 	"github.com/vulcand/vulcand/supervisor"
 )
 
+type ControlCode int
+
+const (
+	ControlCodeGracefulShutdown ControlCode = iota
+	ControlCodeImmediateShutdown
+	ControlCodeForkChild
+)
+
+func waitForSignals() chan ControlCode {
+	sigC := make(chan os.Signal, 1024)
+	signal.Notify(sigC, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGUSR2)
+	controlC := make(chan ControlCode, 1024)
+
+	go func() {
+		for {
+			signal := <-sigC
+			log.Infof("Got signal '%s'", signal)
+
+			switch signal {
+			case syscall.SIGTERM, syscall.SIGINT:
+				controlC <- ControlCodeGracefulShutdown
+			case syscall.SIGKILL:
+				controlC <- ControlCodeImmediateShutdown
+			case syscall.SIGUSR2:
+				controlC <- ControlCodeForkChild
+			default:
+				log.Infof("Ignoring signal '%s'", signal)
+			}
+		}
+	}()
+
+	return controlC
+}
+
 func Run(registry *plugin.Registry) error {
 	options, err := ParseCommandLine()
 	if err != nil {
 		return fmt.Errorf("failed to parse command line: %s", err)
 	}
 	service := NewService(options, registry)
-	if err := service.Start(); err != nil {
+	if err := service.Start(waitForSignals()); err != nil {
 		log.Errorf("Failed to start service: %v", err)
 		return fmt.Errorf("service start failure: %s", err)
 	} else {
@@ -52,7 +86,6 @@ type Service struct {
 	registry      *plugin.Registry
 	apiApp        *scroll.App
 	errorC        chan error
-	sigC          chan os.Signal
 	supervisor    *supervisor.Supervisor
 	metricsClient metrics.Client
 	apiServer     *manners.GracefulServer
@@ -65,12 +98,10 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 		registry: registry,
 		options:  options,
 		errorC:   make(chan error),
-		// Channel receiving signals has to be non blocking, otherwise the service can miss a signal.
-		sigC: make(chan os.Signal, 1024),
 	}
 }
 
-func (s *Service) Start() error {
+func (s *Service) Start(controlC chan ControlCode) error {
 	// if .LogFormatter is set, it'll be used in log.SetFormatter() and .Log will be ignored.
 	if s.options.LogFormatter != nil {
 		log.SetFormatter(s.options.LogFormatter)
@@ -150,37 +181,44 @@ func (s *Service) Start() error {
 	if s.metricsClient != nil {
 		go s.reportSystemMetrics()
 	}
-	signal.Notify(s.sigC, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGUSR2, syscall.SIGCHLD)
+
+	sigC := make(chan os.Signal, 1024)
+	signal.Notify(sigC, syscall.SIGCHLD)
 
 	// Block until a signal is received or we got an error
 	for {
 		select {
-		case signal := <-s.sigC:
+		case signal := <-sigC:
 			switch signal {
-			case syscall.SIGTERM, syscall.SIGINT:
-				log.Infof("Got signal '%s', shutting down gracefully", signal)
-				s.supervisor.Stop(true)
-				log.Infof("All servers stopped")
-				return nil
-			case syscall.SIGKILL:
-				log.Infof("Got signal '%s', exiting now without waiting", signal)
-				s.supervisor.Stop(false)
-				return nil
-			case syscall.SIGUSR2:
-				log.Infof("Got signal '%s', forking a new self", signal)
-				if err := s.startChild(); err != nil {
-					log.Infof("Failed to start self: %s", err)
-				} else {
-					log.Infof("Successfully started self")
-				}
 			case syscall.SIGCHLD:
 				log.Warningf("Child exited, got '%s', collecting status", signal)
 				var wait syscall.WaitStatus
 				syscall.Wait4(-1, &wait, syscall.WNOHANG, nil)
 				log.Warningf("Collected exit status from child")
 			default:
-				log.Infof("Ignoring '%s'", signal)
+				log.Infof("Ignoring signal '%s'", signal)
 			}
+
+		case controlCode := <-controlC:
+			switch controlCode {
+			case ControlCodeGracefulShutdown:
+				log.Info("Got graceful shutdown control code")
+				s.supervisor.Stop(true)
+				log.Infof("All servers stopped")
+				return nil
+			case ControlCodeImmediateShutdown:
+				log.Info("Got immediate shutdown control code")
+				s.supervisor.Stop(true)
+				return nil
+			case ControlCodeForkChild:
+				log.Infof("Got fork child control code")
+				if err := s.startChild(); err != nil {
+					log.Infof("Failed to start self: %s", err)
+				} else {
+					log.Infof("Successfully started self")
+				}
+			}
+
 		case err := <-s.errorC:
 			log.Infof("Got request to shutdown with error: %s", err)
 			return err
