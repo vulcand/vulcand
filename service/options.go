@@ -3,10 +3,11 @@ package service
 import (
 	"flag"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/mailgun/metrics"
 	"strings"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/mailgun/metrics"
 )
 
 type Options struct {
@@ -46,6 +47,8 @@ type Options struct {
 	MetricsClient metrics.Client
 
 	DefaultListener bool
+
+	MemProfileRate int
 }
 
 type SeverityFlag struct {
@@ -133,6 +136,8 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.StatsdAddr, "statsdAddr", "", "Statsd address in form of 'host:port'")
 
 	flag.BoolVar(&options.DefaultListener, "default-listener", true, "Enables the default listener on startup (Default value: true)")
+
+	flag.IntVar(&options.MemProfileRate, "memProfileRate", 0, "Heap profile rate in bytes (disabled if 0)")
 
 	flag.Parse()
 	options, err = validateOptions(options)
