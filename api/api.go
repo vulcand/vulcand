@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +32,8 @@ func InitProxyController(ng engine.Engine, stats engine.StatsProvider, app *scro
 
 	app.AddHandler(scroll.Spec{Paths: []string{"/v1/status"}, Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
 	app.AddHandler(scroll.Spec{Paths: []string{"/v2/status"}, Methods: []string{"GET"}, HandlerWithBody: c.getStatus})
+
+	app.AddHandler(scroll.Spec{Paths: []string{"/v2/pprof/heap"}, Methods: []string{"GET"}, RawHandler: http.HandlerFunc(getHeapProfile)})
 
 	app.AddHandler(scroll.Spec{Paths: []string{"/v2/log/severity"}, Methods: []string{"GET"}, Handler: c.getLogSeverity})
 	app.AddHandler(scroll.Spec{Paths: []string{"/v2/log/severity"}, Methods: []string{"PUT"}, Handler: c.updateLogSeverity})
@@ -546,4 +550,16 @@ func parseServerPack(v []byte) (*engine.Server, time.Duration, error) {
 		}
 	}
 	return s, ttl, nil
+}
+
+// getHeapProfile responds with a pprof-formatted heap profile.
+func getHeapProfile(w http.ResponseWriter, r *http.Request) {
+	// Ensure up-to-date data.
+	runtime.GC()
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if err := pprof.Lookup("heap").WriteTo(w, 0); err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Could not get heap profile: %s\n", err)
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -70,6 +71,10 @@ func Run(registry *plugin.Registry) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse command line: %s", err)
 	}
+	if options.MemProfileRate > 0 {
+		runtime.MemProfileRate = options.MemProfileRate
+	}
+
 	service := NewService(options, registry)
 	if err := service.Start(waitForSignals()); err != nil {
 		log.Errorf("Failed to start service: %v", err)
