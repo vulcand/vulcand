@@ -158,9 +158,12 @@ func (s *Supervisor) init() error {
 		}
 	}()
 
-	var configIdx uint64
-	if configIdx, err = initProxy(s.engine, proxy); err != nil {
-		return err
+	snapshot, err := s.engine.GetSnapshot()
+	if err != nil {
+		return errors.Wrap(err, "failed to get snapshot")
+	}
+	if err = proxy.Init(*snapshot); err != nil {
+		return errors.Wrap(err, "failed to init mux")
 	}
 
 	// This is the first start, pass the files that could have been passed
@@ -207,7 +210,7 @@ func (s *Supervisor) init() error {
 	// In case of any error it notifies supervisor of the error by sending an error to the channel triggering reload.
 	go func() {
 		cancelC := make(chan bool)
-		if err := s.engine.Subscribe(changesC, configIdx, cancelC); err != nil {
+		if err := s.engine.Subscribe(changesC, snapshot.Index, cancelC); err != nil {
 			log.Infof("%v engine watcher got error: '%v' will restart", proxy, err)
 			close(cancelC)
 			close(changesC)
@@ -309,45 +312,6 @@ func (s *Supervisor) Stop(wait bool) {
 		<-s.closeC
 		log.Infof("All operations stopped")
 	}
-}
-
-// initProxy reads the configuration from the engine and configures the server
-func initProxy(ng engine.Engine, p proxy.Proxy) (uint64, error) {
-	snapshot, err := ng.GetSnapshot()
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to get snapshot")
-	}
-	for _, h := range snapshot.Hosts {
-		if err := p.UpsertHost(h); err != nil {
-			return 0, err
-		}
-	}
-	for _, bs := range snapshot.BackendSpecs {
-		if err := p.UpsertBackend(bs.Backend); err != nil {
-			return 0, err
-		}
-		for _, server := range bs.Servers {
-			if err := p.UpsertServer(bs.Backend.GetUniqueId(), server); err != nil {
-				return 0, err
-			}
-		}
-	}
-	for _, l := range snapshot.Listeners {
-		if err := p.UpsertListener(l); err != nil {
-			return 0, err
-		}
-	}
-	for _, fs := range snapshot.FrontendSpecs {
-		if err := p.UpsertFrontend(fs.Frontend); err != nil {
-			return 0, err
-		}
-		for _, m := range fs.Middlewares {
-			if err := p.UpsertMiddleware(fs.Frontend.GetKey(), m); err != nil {
-				return 0, err
-			}
-		}
-	}
-	return snapshot.Index, nil
 }
 
 func setDefaults(o Options) Options {

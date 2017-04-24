@@ -7,16 +7,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vulcand/vulcand/engine"
-	"github.com/vulcand/vulcand/router"
-	"github.com/vulcand/vulcand/stapler"
-
 	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
 	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
+	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/router"
+	"github.com/vulcand/vulcand/stapler"
 )
 
 // mux is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
@@ -135,6 +134,40 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		}
 	}()
 	return m, nil
+}
+
+func (m *mux) Init(ss engine.Snapshot) error {
+	for _, h := range ss.Hosts {
+		if err := m.UpsertHost(h); err != nil {
+			return err
+		}
+	}
+	for _, bs := range ss.BackendSpecs {
+		if err := m.UpsertBackend(bs.Backend); err != nil {
+			return err
+		}
+		for _, server := range bs.Servers {
+			if err := m.UpsertServer(bs.Backend.GetUniqueId(), server); err != nil {
+				return err
+			}
+		}
+	}
+	for _, l := range ss.Listeners {
+		if err := m.UpsertListener(l); err != nil {
+			return err
+		}
+	}
+	for _, fs := range ss.FrontendSpecs {
+		if err := m.UpsertFrontend(fs.Frontend); err != nil {
+			return err
+		}
+		for _, mw := range fs.Middlewares {
+			if err := m.UpsertMiddleware(fs.Frontend.GetKey(), mw); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (m *mux) GetFiles() ([]*FileDescriptor, error) {

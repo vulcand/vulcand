@@ -18,6 +18,8 @@ import (
 type Proxy interface {
 	engine.StatsProvider
 
+	Init(snapshot engine.Snapshot) error
+
 	UpsertHost(engine.Host) error
 	DeleteHost(engine.HostKey) error
 
