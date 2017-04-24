@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/vulcand/oxy/buffer"
@@ -12,7 +13,6 @@ import (
 	"github.com/vulcand/oxy/roundrobin"
 	"github.com/vulcand/oxy/stream"
 	"github.com/vulcand/vulcand/engine"
-	"time"
 )
 
 type frontend struct {
@@ -26,7 +26,7 @@ type frontend struct {
 	middlewares map[engine.MiddlewareKey]engine.Middleware
 }
 
-func newFrontend(m *mux, f engine.Frontend, b *backend) (*frontend, error) {
+func newFrontend(m *mux, f engine.Frontend, b *backend) *frontend {
 	fr := &frontend{
 		key:         engine.FrontendKey{Id: f.Id},
 		frontend:    f,
@@ -34,12 +34,7 @@ func newFrontend(m *mux, f engine.Frontend, b *backend) (*frontend, error) {
 		backend:     b,
 		middlewares: make(map[engine.MiddlewareKey]engine.Middleware),
 	}
-
-	if err := fr.rebuild(); err != nil {
-		return nil, err
-	}
-	b.linkFrontend(engine.FrontendKey{f.Id}, fr)
-	return fr, nil
+	return fr
 }
 
 func (f *frontend) String() string {
@@ -69,8 +64,6 @@ func syncServers(m *mux, rb *roundrobin.Rebalancer, backend *backend, w *RTWatch
 		if _, exists := existingServers[s.String()]; !exists {
 			if err := rb.UpsertServer(s); err != nil {
 				log.Errorf("%v failed to add %v, err: %s", m, s, err)
-			} else {
-				log.Infof("%v add %v", m, s)
 			}
 			w.upsertServer(s)
 		}
