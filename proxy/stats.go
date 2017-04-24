@@ -52,7 +52,6 @@ func (m *mux) emitMetrics() error {
 }
 
 func (m *mux) FrontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
-	log.Infof("%s FrontendStats", m)
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -64,7 +63,6 @@ func (m *mux) FrontendStats(key engine.FrontendKey) (*engine.RoundTripStats, err
 }
 
 func (m *mux) BackendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
-	log.Infof("%s BackendStats", m)
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -84,7 +82,6 @@ func (m *mux) BackendStats(key engine.BackendKey) (*engine.RoundTripStats, error
 }
 
 func (m *mux) ServerStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
-	log.Infof("%s ServerStats", m)
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -120,7 +117,6 @@ func (m *mux) ServerStats(key engine.ServerKey) (*engine.RoundTripStats, error) 
 // TopFrontends returns locations sorted by criteria (faulty, slow, most used)
 // if hostname or backendId is present, will filter out locations for that host or backendId
 func (m *mux) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
-	log.Infof("%s TopFrontends", m)
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -144,7 +140,6 @@ func (m *mux) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
 // TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
 // if backendId is not empty, will filter out endpoints for that backendId
 func (m *mux) TopServers(key *engine.BackendKey) ([]engine.Server, error) {
-	log.Infof("%s TopServers", m)
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
