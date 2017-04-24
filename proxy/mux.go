@@ -103,37 +103,6 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 			return nil, err
 		}
 	}
-
-	// Subscribe to staple responses and kick staple updates
-	m.stapler.Subscribe(m.stapleUpdatesC, m.stopC)
-
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		for {
-			select {
-			case <-m.stopC:
-				log.Infof("%v stop listening for staple updates", m)
-				return
-			case e := <-m.stapleUpdatesC:
-				m.processStapleUpdate(e)
-			}
-		}
-	}()
-
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		for {
-			select {
-			case <-m.stopC:
-				log.Infof("%v stop emitting metrics", m)
-				return
-			case <-time.After(time.Second):
-				m.emitMetrics()
-			}
-		}
-	}()
 	return m, nil
 }
 
@@ -245,13 +214,43 @@ func (m *mux) TakeFiles(files []*FileDescriptor) error {
 
 func (m *mux) Start() error {
 	log.Infof("%s start", m)
-
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
 	if m.state != stateInit {
 		return fmt.Errorf("%s can start only from init state, got %d", m, m.state)
 	}
+
+	// Subscribe to staple responses and kick staple updates
+	m.stapler.Subscribe(m.stapleUpdatesC, m.stopC)
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		for {
+			select {
+			case <-m.stopC:
+				log.Infof("%v stop listening for staple updates", m)
+				return
+			case e := <-m.stapleUpdatesC:
+				m.processStapleUpdate(e)
+			}
+		}
+	}()
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		for {
+			select {
+			case <-m.stopC:
+				log.Infof("%v stop emitting metrics", m)
+				return
+			case <-time.After(time.Second):
+				m.emitMetrics()
+			}
+		}
+	}()
 
 	m.state = stateActive
 	for _, s := range m.servers {
