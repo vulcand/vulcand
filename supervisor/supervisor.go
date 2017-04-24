@@ -7,6 +7,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/timetools"
+	"github.com/pkg/errors"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/proxy"
 )
@@ -314,12 +315,7 @@ func (s *Supervisor) Stop(wait bool) {
 func initProxy(ng engine.Engine, p proxy.Proxy) (uint64, error) {
 	snapshot, err := ng.GetSnapshot()
 	if err != nil {
-		// Some legacy engines do not implement `GetSnapshot` so we resort to
-		// a slow method of obtaining configuration from Etcd.
-		if _, ok := err.(*engine.SnapshotNotSupportedError); ok {
-			return 0, initProxySlow(ng, p)
-		}
-		return 0, err
+		return 0, errors.Wrap(err, "failed to get snapshot")
 	}
 	for _, h := range snapshot.Hosts {
 		if err := p.UpsertHost(h); err != nil {
@@ -352,83 +348,6 @@ func initProxy(ng engine.Engine, p proxy.Proxy) (uint64, error) {
 		}
 	}
 	return snapshot.Index, nil
-}
-
-// initProxySlow reads configuration from Etcd piece by piece. That may take
-// several minutes on large configurations!
-func initProxySlow(ng engine.Engine, p proxy.Proxy) error {
-	hosts, err := ng.GetHosts()
-	if err != nil {
-		return err
-	}
-
-	for _, h := range hosts {
-		if err := p.UpsertHost(h); err != nil {
-			return err
-		}
-	}
-
-	bs, err := ng.GetBackends()
-	if err != nil {
-		return err
-	}
-
-	for _, b := range bs {
-		if err := p.UpsertBackend(b); err != nil {
-			return err
-		}
-
-		bk := engine.BackendKey{Id: b.Id}
-		servers, err := ng.GetServers(bk)
-		if err != nil {
-			return err
-		}
-
-		for _, s := range servers {
-			if err := p.UpsertServer(bk, s); err != nil {
-				return err
-			}
-		}
-	}
-
-	ls, err := ng.GetListeners()
-	if err != nil {
-		return err
-	}
-
-	for _, l := range ls {
-		if err := p.UpsertListener(l); err != nil {
-			return err
-		}
-	}
-
-	fs, err := ng.GetFrontends()
-	if err != nil {
-		return err
-	}
-
-	if len(fs) == 0 {
-		log.Warningf("No frontends found")
-	}
-
-	for _, f := range fs {
-		if err := p.UpsertFrontend(f); err != nil {
-			log.Warningf("Cannot register frontend \"%v\", invalid backend config", f.Id)
-			continue
-		}
-		fk := engine.FrontendKey{Id: f.Id}
-		ms, err := ng.GetMiddlewares(fk)
-		if err != nil {
-			return err
-		}
-		for _, m := range ms {
-			if err := p.UpsertMiddleware(fk, m); err != nil {
-				log.Warningf("Cannot register frontend \"%v\", invalid middleware config", f.Id)
-				continue
-			}
-		}
-	}
-	return nil
 }
 
 func setDefaults(o Options) Options {
