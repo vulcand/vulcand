@@ -637,14 +637,6 @@ func (n *AlreadyExistsError) Error() string {
 	return n.Message
 }
 
-type SnapshotNotSupportedError struct {
-	Message string
-}
-
-func (e *SnapshotNotSupportedError) Error() string {
-	return e.Message
-}
-
 type Counters struct {
 	Period      time.Duration
 	NetErrors   int64
