@@ -12,10 +12,12 @@ import (
 	"github.com/vulcand/vulcand/proxy"
 )
 
-// Supervisor watches changes to the dynamic backends and applies those changes to the server in real time.
-// Supervisor handles lifetime of the proxy as well, and does graceful restarts and recoveries in case of failures.
+// Supervisor watches changes to the dynamic backends and applies those changes
+// to the server in real time. Supervisor handles lifetime of the proxy as well,
+// and does graceful restarts and recoveries in case of failures.
 type Supervisor struct {
-	// lastId allows to create iterative server instance versions for debugging purposes.
+	// lastId allows to create iterative server instance versions for debugging
+	// purposes.
 	lastId int
 
 	// wg allows to wait for graceful shutdowns
@@ -35,11 +37,13 @@ type Supervisor struct {
 	// engine is used for reading configuration details
 	engine engine.Engine
 
-	// errorC is a channel will be used to notify the calling party of the errors.
+	// errorC is a channel used to notify the calling party of the errors.
 	errorC chan error
-	// restartC channel is used internally to trigger graceful restarts on errors and configuration changes.
+	// restartC channel is used internally to trigger graceful restarts on
+	// errors and configuration changes.
 	restartC chan error
-	// closeC is a channel to tell everyone to stop working and exit at the earliest convenience.
+	// closeC is a channel to tell everyone to stop working and exit at the
+	// earliest convenience.
 	closeC chan bool
 	// broadcastCloseC is a channel to broadcast the beginning of a close.
 	broadcastCloseC chan bool
@@ -124,7 +128,8 @@ func (s *Supervisor) BackendStats(key engine.BackendKey) (*engine.RoundTripStats
 }
 
 // TopFrontends returns locations sorted by criteria (faulty, slow, most used)
-// if hostname or backendId is present, will filter out locations for that host or backendId
+// if hostname or backendId is present, will filter out locations for that host
+// or backendId.
 func (s *Supervisor) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
 	p := s.getCurrentProxy()
 	if p != nil {
@@ -134,7 +139,7 @@ func (s *Supervisor) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, er
 }
 
 // TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
-// if backendId is not empty, will filter out endpoints for that backendId
+// if backendId is not empty, will filter out endpoints for that backendId.
 func (s *Supervisor) TopServers(key *engine.BackendKey) ([]engine.Server, error) {
 	p := s.getCurrentProxy()
 	if p != nil {
@@ -144,94 +149,88 @@ func (s *Supervisor) TopServers(key *engine.BackendKey) ([]engine.Server, error)
 }
 
 func (s *Supervisor) init() error {
-	proxy, err := s.newProxy(s.lastId)
-	s.lastId += 1
-	if err != nil {
-		return err
-	}
-
-	stopNewProxy := true
-
-	defer func() {
-		if stopNewProxy {
-			proxy.Stop(true)
-		}
-	}()
-
 	snapshot, err := s.engine.GetSnapshot()
 	if err != nil {
 		return errors.Wrap(err, "failed to get snapshot")
 	}
-	if err = proxy.Init(*snapshot); err != nil {
+
+	checkpoint := time.Now()
+	newProxy, err := s.newProxy(s.lastId)
+	s.lastId += 1
+	if err != nil {
+		return errors.Wrap(err, "failed to create mux")
+	}
+	if err = newProxy.Init(*snapshot); err != nil {
 		return errors.Wrap(err, "failed to init mux")
 	}
+	log.Infof("%v initial setup done, took=%v", newProxy, time.Now().Sub(checkpoint))
 
 	// This is the first start, pass the files that could have been passed
 	// to us by the parent process
 	if s.lastId == 1 && len(s.options.Files) != 0 {
-		log.Infof("Passing files %v to %v", s.options.Files, proxy)
-		if err := proxy.TakeFiles(s.options.Files); err != nil {
-			return err
+		log.Infof("Passing files %v to %v", s.options.Files, newProxy)
+		if err := newProxy.TakeFiles(s.options.Files); err != nil {
+			return errors.Wrap(err, "failed to inherit files from parrent process")
 		}
 	}
-
-	log.Infof("%v init() initial setup done", proxy)
 
 	oldProxy := s.getCurrentProxy()
 	if oldProxy != nil {
+		log.Infof("%v taking files from %v to %v", s, oldProxy, newProxy)
 		files, err := oldProxy.GetFiles()
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "cannot get file list from %v", oldProxy)
 		}
-		log.Infof("%v taking files from %v to %v", s, oldProxy, proxy)
-		if err := proxy.TakeFiles(files); err != nil {
-			return err
+		if err := newProxy.TakeFiles(files); err != nil {
+			return errors.Wrapf(err, "failed to take files from %v", oldProxy)
 		}
 	}
 
-	if err := proxy.Start(); err != nil {
-		return err
+	if err := newProxy.Start(); err != nil {
+		return errors.Wrapf(err, "failed to start new mux %v", newProxy)
 	}
 
 	if oldProxy != nil {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
+			checkpoint := time.Now()
 			oldProxy.Stop(true)
+			log.Infof("%v old mux stopped %v, took=%v", s, oldProxy, time.Now().Sub(checkpoint))
 		}()
 	}
 
 	// Watch and configure this instance of server
-	stopNewProxy = false
-	s.setCurrentProxy(proxy)
+	s.setCurrentProxy(newProxy)
 	changesC := make(chan interface{})
 
-	// This goroutine will connect to the backend and emit the changes to the changesC channel.
-	// In case of any error it notifies supervisor of the error by sending an error to the channel triggering reload.
+	// This goroutine will connect to the backend and emit changes to the
+	// changesC channel. In case of any error it notifies supervisor of the
+	// error by sending an error to the channel triggering reload.
 	go func() {
 		cancelC := make(chan bool)
+		defer close(cancelC)
 		if err := s.engine.Subscribe(changesC, snapshot.Index, cancelC); err != nil {
-			log.Infof("%v engine watcher got error: '%v' will restart", proxy, err)
-			close(cancelC)
+			log.Infof("%v engine watcher got error: '%v' will restart", newProxy, err)
 			close(changesC)
 			s.restartC <- err
-		} else {
-			close(cancelC)
-			// Graceful shutdown without restart
-			log.Infof("%v engine watcher got nil error, gracefully shutdown", proxy)
-			s.broadcastCloseC <- true
+			return
 		}
+		// Graceful shutdown without restart
+		log.Infof("%v engine watcher got nil error, gracefully shutdown", newProxy)
+		s.broadcastCloseC <- true
 	}()
 
-	// This goroutine will listen for changes arriving to the changes channel and reconfigure the given server
+	// This goroutine will listen for changes arriving to the changes channel
+	// and reconfigure the given server.
 	go func() {
 		for {
 			change := <-changesC
 			if change == nil {
-				log.Infof("Stop watching changes for %s", proxy)
+				log.Infof("Stop watching changes for %s", newProxy)
 				return
 			}
-			if err := processChange(proxy, change); err != nil {
+			if err := processChange(newProxy, change); err != nil {
 				log.Errorf("failed to process change %#v, err: %s", change, err)
 			}
 		}
@@ -251,7 +250,7 @@ func (s *Supervisor) stop() {
 	close(s.closeC)
 }
 
-// supervise() listens for error notifications and triggers graceful restart
+// supervise listens for error notifications and triggers graceful restart.
 func (s *Supervisor) supervise() {
 	for {
 		select {
@@ -265,7 +264,8 @@ func (s *Supervisor) supervise() {
 			for {
 				s.options.Clock.Sleep(retryPeriod)
 				log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
-				// We failed to initialize server, this error can not be recovered, so send an error and exit
+				// We failed to initialize server, this error can not be
+				// recovered, so send an error and exit.
 				if err := s.init(); err != nil {
 					log.Infof("Failed to initialize %s, will retry", err)
 				} else {
@@ -321,7 +321,8 @@ func setDefaults(o Options) Options {
 	return o
 }
 
-// processChange takes the backend change notification emitted by the backend and applies it to the server
+// processChange takes the backend change notification emitted by the backend
+// and applies it to the server.
 func processChange(p proxy.Proxy, ch interface{}) error {
 	switch change := ch.(type) {
 	case *engine.HostUpserted:
