@@ -58,16 +58,16 @@ func (s *SupervisorSuite) TestInitFromExistingConfig(c *C) {
 	defer e.Close()
 
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
+	// When
 	c.Assert(s.sv.Start(), IsNil)
 
+	// Then
 	time.Sleep(10 * time.Millisecond)
-
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
@@ -77,15 +77,15 @@ func (s *SupervisorSuite) TestInitOnTheFly(c *C) {
 
 	s.sv.Start()
 
+	// When
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
+	// Then
 	time.Sleep(10 * time.Millisecond)
-
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
@@ -113,7 +113,6 @@ func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
 	defer e.Close()
 
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
@@ -135,7 +134,6 @@ func (s *SupervisorSuite) TestTransferFiles(c *C) {
 	defer e.Close()
 
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)

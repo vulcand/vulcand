@@ -11,6 +11,7 @@ import (
 	routelib "github.com/vulcand/route"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin/ratelimit"
+	"golang.org/x/crypto/ocsp"
 )
 
 func init() {
@@ -64,33 +65,53 @@ func (b BatchVal) FrontendURL(path string) string {
 	return MakeURL(b.L, path)
 }
 
-func MakeBatch(b Batch) BatchVal {
+func MakeBatch(b Batch) (bv BatchVal) {
 	if b.Host == "" {
 		b.Host = "localhost"
 	}
-	if b.Protocol == "" {
-		b.Protocol = engine.HTTP
+	be := MakeBackend()
+	beSrv := MakeServer(b.URL)
+
+	bv.H = MakeHost(b.Host, b.KeyPair)
+	if b.Addr != "" {
+		if b.Protocol == "" {
+			b.Protocol = engine.HTTP
+		}
+		bv.L = MakeListener(b.Addr, b.Protocol)
+		bv.LK = engine.ListenerKey{Id: bv.L.Id}
 	}
-	h := MakeHost(b.Host, b.KeyPair)
-	bk := MakeBackend()
-	l := MakeListener(b.Addr, b.Protocol)
-	f := MakeFrontend(b.Route, bk.Id)
-	s := MakeServer(b.URL)
-	return BatchVal{
-		H: h,
+	bv.F = MakeFrontend(b.Route, be.Id)
+	bv.FK = engine.FrontendKey{Id: bv.F.Id}
+	bv.B = be
+	bv.BK = engine.BackendKey{Id: be.Id}
+	bv.S = beSrv
+	bv.SK = engine.ServerKey{BackendKey: engine.BackendKey{Id: be.Id}, Id: beSrv.Id}
+	return bv
+}
 
-		L:  l,
-		LK: engine.ListenerKey{Id: l.Id},
-
-		F:  f,
-		FK: engine.FrontendKey{Id: f.Id},
-
-		B:  bk,
-		BK: engine.BackendKey{Id: bk.Id},
-
-		S:  s,
-		SK: engine.ServerKey{BackendKey: engine.BackendKey{Id: bk.Id}, Id: s.Id},
+func (bv *BatchVal) Snapshot() engine.Snapshot {
+	return engine.Snapshot{
+		Hosts:     []engine.Host{bv.H},
+		Listeners: []engine.Listener{bv.L},
+		BackendSpecs: []engine.BackendSpec{
+			{Backend: bv.B, Servers: []engine.Server{bv.S}},
+		},
+		FrontendSpecs: []engine.FrontendSpec{
+			{Frontend: bv.F},
+		},
 	}
+}
+
+func MakeSnapshot(bvs ...BatchVal) engine.Snapshot {
+	var ss engine.Snapshot
+	for _, bv := range bvs {
+		bss := bv.Snapshot()
+		ss.Hosts = append(ss.Hosts, bss.Hosts...)
+		ss.BackendSpecs = append(ss.BackendSpecs, bss.BackendSpecs...)
+		ss.Listeners = append(ss.Listeners, bss.Listeners...)
+		ss.FrontendSpecs = append(ss.FrontendSpecs, bss.FrontendSpecs...)
+	}
+	return ss
 }
 
 func MakeHost(name string, keyPair *engine.KeyPair) engine.Host {
@@ -101,7 +122,7 @@ func MakeHost(name string, keyPair *engine.KeyPair) engine.Host {
 }
 
 func MakeListener(addr string, protocol string) engine.Listener {
-	l, err := engine.NewListener(UID("listener"), protocol, engine.TCP, addr, "", nil)
+	l, err := engine.NewListener(fmt.Sprintf("listener_%v", addr), protocol, engine.TCP, addr, "", "", nil)
 	if err != nil {
 		panic(err)
 	}

@@ -288,13 +288,8 @@ func (s *ServerSuite) TestServerUpdateHTTPS(c *C) {
 		Protocol: engine.HTTPS,
 		KeyPair:  &engine.KeyPair{Key: localhostKey, Cert: localhostCert},
 	})
-
 	b.L.Settings = &engine.HTTPSListenerSettings{TLS: engine.TLSSettings{MinVersion: "VersionTLS11"}}
-	c.Assert(s.mux.UpsertHost(b.H), IsNil)
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
-
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
 	c.Assert(s.mux.Start(), IsNil)
 
 	config := &tls.Config{
@@ -338,12 +333,7 @@ func (s *ServerSuite) TestBackendHTTPS(c *C) {
 		Route: `Path("/")`,
 		URL:   e.URL,
 	})
-
-	c.Assert(s.mux.UpsertHost(b.H), IsNil)
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
-
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
 	c.Assert(s.mux.Start(), IsNil)
 
 	re, _, err := testutils.Get(b.FrontendURL("/"))
@@ -362,7 +352,6 @@ func (s *ServerSuite) TestBackendHTTPS(c *C) {
 func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
-	c.Assert(s.mux.Start(), IsNil)
 
 	b := MakeBatch(Batch{
 		Addr:     "localhost:31000",
@@ -371,11 +360,8 @@ func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 		Protocol: engine.HTTPS,
 		KeyPair:  &engine.KeyPair{Key: localhostKey, Cert: localhostCert},
 	})
-
-	c.Assert(s.mux.UpsertHost(b.H), IsNil)
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 
@@ -388,8 +374,6 @@ func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 func (s *ServerSuite) TestOCSPStapling(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
-	c.Assert(s.mux.Start(), IsNil)
-
 	srv := NewOCSPResponder()
 	defer srv.Close()
 
@@ -399,16 +383,12 @@ func (s *ServerSuite) TestOCSPStapling(c *C) {
 		URL:      e.URL,
 		Protocol: engine.HTTPS,
 	})
-
 	b.H.Settings = engine.HostSettings{
 		KeyPair: &engine.KeyPair{Key: LocalhostKey, Cert: LocalhostCertChain},
 		OCSP:    engine.OCSPSettings{Enabled: true, Period: "1h", Responders: []string{srv.URL}, SkipSignatureCheck: true},
 	}
-
-	c.Assert(s.mux.UpsertHost(b.H), IsNil)
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
 	conn, err := tls.Dial("tcp", b.L.Address.Address, &tls.Config{
 		InsecureSkipVerify: true,
@@ -431,7 +411,6 @@ func (s *ServerSuite) TestOCSPStapling(c *C) {
 func (s *ServerSuite) TestOCSPResponderDown(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
-	c.Assert(s.mux.Start(), IsNil)
 
 	srv := NewOCSPResponder()
 	srv.Close()
@@ -442,16 +421,12 @@ func (s *ServerSuite) TestOCSPResponderDown(c *C) {
 		URL:      e.URL,
 		Protocol: engine.HTTPS,
 	})
-
 	b.H.Settings = engine.HostSettings{
 		KeyPair: &engine.KeyPair{Key: LocalhostKey, Cert: LocalhostCertChain},
 		OCSP:    engine.OCSPSettings{Enabled: true, Period: "1h", Responders: []string{srv.URL}, SkipSignatureCheck: true},
 	}
-
-	c.Assert(s.mux.UpsertHost(b.H), IsNil)
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
 	conn, err := tls.Dial("tcp", b.L.Address.Address, &tls.Config{
 		InsecureSkipVerify: true,
@@ -475,8 +450,6 @@ func (s *ServerSuite) TestSNI(c *C) {
 	e2 := testutils.NewResponder("Hi, I'm endpoint 2")
 	defer e2.Close()
 
-	c.Assert(s.mux.Start(), IsNil)
-
 	b := MakeBatch(Batch{
 		Host:     "localhost",
 		Addr:     "localhost:41000",
@@ -485,7 +458,6 @@ func (s *ServerSuite) TestSNI(c *C) {
 		Protocol: engine.HTTPS,
 		KeyPair:  &engine.KeyPair{Key: localhostKey, Cert: localhostCert},
 	})
-
 	b2 := MakeBatch(Batch{
 		Host:     "otherhost",
 		Addr:     "localhost:41000",
@@ -495,18 +467,10 @@ func (s *ServerSuite) TestSNI(c *C) {
 		KeyPair:  &engine.KeyPair{Key: localhostKey2, Cert: localhostCert2},
 	})
 	b2.H.Settings.Default = true
+	c.Assert(s.mux.Init(MakeSnapshot(b, b2)), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
-	c.Assert(s.mux.UpsertHost(b.H), IsNil)
-	c.Assert(s.mux.UpsertHost(b2.H), IsNil)
-
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertServer(b2.BK, b2.S), IsNil)
-
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b2.F), IsNil)
-
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
-
+	// When/Then
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "Hi, I'm endpoint 1")
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "Hi, I'm endpoint 2")
 }
@@ -555,17 +519,13 @@ func (s *ServerSuite) TestMiddlewareOrder(c *C) {
 	})
 	defer e.Close()
 
-	c.Assert(s.mux.Start(), IsNil)
-
 	b := MakeBatch(Batch{
 		Addr:  "localhost:31000",
 		Route: `Path("/")`,
 		URL:   e.URL,
 	})
-
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
 	a1 := engine.Middleware{
 		Priority:   0,
@@ -592,17 +552,13 @@ func (s *ServerSuite) TestMiddlewareUpdate(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint 1")
 	defer e.Close()
 
-	c.Assert(s.mux.Start(), IsNil)
-
 	b := MakeBatch(Batch{
 		Addr:  "localhost:31000",
 		Route: `Path("/")`,
 		URL:   e.URL,
 	})
-
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
 	// 1 request per second
 	rl := MakeRateLimit(UID("rl"), 1, "client.ip", 1, 1)
@@ -632,17 +588,13 @@ func (s *ServerSuite) TestFrontendOptionsCRUD(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint 1")
 	defer e.Close()
 
-	c.Assert(s.mux.Start(), IsNil)
-
 	b := MakeBatch(Batch{
 		Addr:  "localhost:31000",
 		Route: `Path("/")`,
 		URL:   e.URL,
 	})
-
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
 	body := "Hello, this request is longer than 8 bytes"
 	response, bodyBytes, err := testutils.MakeRequest(MakeURL(b.L, "/"), testutils.Body(body))
@@ -713,8 +665,6 @@ func (s *ServerSuite) TestFrontendSwitchBackend(c *C) {
 }
 
 func (s *ServerSuite) TestFrontendUpdateRoute(c *C) {
-	c.Assert(s.mux.Start(), IsNil)
-
 	e := testutils.NewResponder("hola")
 	defer e.Close()
 
@@ -723,10 +673,8 @@ func (s *ServerSuite) TestFrontendUpdateRoute(c *C) {
 		Route: `Path("/")`,
 		URL:   e.URL,
 	})
-
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "hola")
 
