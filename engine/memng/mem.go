@@ -362,7 +362,7 @@ func (m *Mem) DeleteServer(sk engine.ServerKey) error {
 	return &engine.NotFoundError{}
 }
 
-func (m *Mem) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan bool) error {
+func (m *Mem) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan struct{}) error {
 	for {
 		select {
 		case <-cancelC:

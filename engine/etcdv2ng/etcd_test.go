@@ -27,7 +27,7 @@ type EtcdSuite struct {
 	context     context.Context
 	changesC    chan interface{}
 	key         string
-	stopC       chan bool
+	stopC       chan struct{}
 }
 
 var _ = Suite(&EtcdSuite{
@@ -88,7 +88,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	}
 
 	s.changesC = make(chan interface{})
-	s.stopC = make(chan bool)
+	s.stopC = make(chan struct{})
 	go s.ng.Subscribe(s.changesC, 0, s.stopC)
 
 	s.suite.ChangesC = s.changesC
