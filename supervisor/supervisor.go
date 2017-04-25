@@ -14,7 +14,7 @@ import (
 
 const (
 	retryPeriod       = 5 * time.Second
-	changesBufferSize = 0
+	changesBufferSize = 2000
 )
 
 // Supervisor watches changes to the dynamic backends and applies those changes
