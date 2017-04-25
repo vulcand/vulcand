@@ -37,7 +37,7 @@ func (s *ApiSuite) SetUpTest(c *C) {
 
 	s.ng = memng.New(registry.GetRegistry())
 
-	sv := supervisor.New(newProxy, s.ng, make(chan error), supervisor.Options{})
+	sv := supervisor.New(newProxy, s.ng, supervisor.Options{})
 
 	app, _ := scroll.NewApp()
 	InitProxyController(s.ng, sv, app)

@@ -32,7 +32,7 @@ type CmdSuite struct {
 	out        *bytes.Buffer
 	cmd        *Command
 	testServer *httptest.Server
-	sv         *supervisor.Supervisor
+	sup        *supervisor.Supervisor
 }
 
 var _ = Suite(&CmdSuite{})
@@ -44,9 +44,9 @@ func (s *CmdSuite) SetUpTest(c *C) {
 		return proxy.New(id, stapler.New(), proxy.Options{})
 	}
 
-	sv := supervisor.New(newProxy, s.ng, make(chan error), supervisor.Options{})
+	sv := supervisor.New(newProxy, s.ng, supervisor.Options{})
 	sv.Start()
-	s.sv = sv
+	s.sup = sv
 
 	app, _ := scroll.NewApp()
 	api.InitProxyController(s.ng, sv, app)
@@ -57,7 +57,7 @@ func (s *CmdSuite) SetUpTest(c *C) {
 }
 
 func (s *CmdSuite) TearDownTest(c *C) {
-	s.sv.Stop(true)
+	s.sup.Stop()
 }
 
 func (s *CmdSuite) runString(in string) string {

@@ -76,19 +76,19 @@ func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
 	}
 	s := &engine.Snapshot{Index: uint64(response.Header.Revision)}
 
-	s.FrontendSpecs, err = n.parseFrontends(filterByPrefix(response.Kvs, n.etcdKey + "/frontends"))
+	s.FrontendSpecs, err = n.parseFrontends(filterByPrefix(response.Kvs, n.etcdKey+"/frontends"))
 	if err != nil {
 		return nil, err
 	}
-	s.BackendSpecs, err = n.parseBackends(filterByPrefix(response.Kvs, n.etcdKey + "/backends"))
+	s.BackendSpecs, err = n.parseBackends(filterByPrefix(response.Kvs, n.etcdKey+"/backends"))
 	if err != nil {
 		return nil, err
 	}
-	s.Hosts, err = n.parseHosts(filterByPrefix(response.Kvs, n.etcdKey + "/hosts"))
+	s.Hosts, err = n.parseHosts(filterByPrefix(response.Kvs, n.etcdKey+"/hosts"))
 	if err != nil {
 		return nil, err
 	}
-	s.Listeners, err = n.parseListeners(filterByPrefix(response.Kvs, n.etcdKey + "/listeners"))
+	s.Listeners, err = n.parseListeners(filterByPrefix(response.Kvs, n.etcdKey+"/listeners"))
 	if err != nil {
 		return nil, err
 	}
@@ -597,7 +597,7 @@ func (n *ng) backendUsedBy(bk engine.BackendKey) ([]engine.Frontend, error) {
 
 // Subscribe watches etcd changes and generates structured events telling vulcand to add or delete frontends, hosts etc.
 // It is a blocking function.
-func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan bool) error {
+func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan struct{}) error {
 	watcher := etcd.NewWatcher(n.client)
 	defer watcher.Close()
 
