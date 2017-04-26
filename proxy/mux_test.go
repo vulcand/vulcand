@@ -100,7 +100,7 @@ func (s *ServerSuite) TestServerUpsertSame(c *C) {
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 
 	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(len(s.mux.backends[b.BK].servers), Equals, 1)
+	c.Assert(len(s.mux.backends[b.BK].backend.srvCfgs), Equals, 1)
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }

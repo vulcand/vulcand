@@ -6,16 +6,15 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/mailgun/timetools"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/engine"
-
-	"github.com/mailgun/timetools"
 )
 
 // RTWatcher watches and aggregates runtime metrics
 type RTWatcher struct {
-	mtx   *sync.Mutex
+	mtx   sync.Mutex
 	m     *memmetrics.RTMetrics
 	srvs  map[surl]*memmetrics.RTMetrics
 	clock timetools.TimeProvider
@@ -29,7 +28,6 @@ func NewWatcher(next http.Handler) (*RTWatcher, error) {
 	}
 
 	return &RTWatcher{
-		mtx:   &sync.Mutex{},
 		m:     m,
 		clock: &timetools.RealTime{},
 		next:  next,

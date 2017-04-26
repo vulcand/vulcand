@@ -16,7 +16,6 @@ import (
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
 	"github.com/vulcand/vulcand/testutils"
-
 	. "gopkg.in/check.v1"
 )
 
