@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vulcand/vulcand/engine"
-	"github.com/vulcand/vulcand/router"
-	"github.com/vulcand/vulcand/stapler"
-
 	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
+	"github.com/pkg/errors"
 	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
+	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/router"
+	"github.com/vulcand/vulcand/stapler"
 )
 
 // mux is capable of listening on multiple interfaces, graceful shutdowns and updating TLS certificates
@@ -103,38 +103,69 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 			return nil, err
 		}
 	}
-
-	// Subscribe to staple responses and kick staple updates
-	m.stapler.Subscribe(m.stapleUpdatesC, m.stopC)
-
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		for {
-			select {
-			case <-m.stopC:
-				log.Infof("%v stop listening for staple updates", m)
-				return
-			case e := <-m.stapleUpdatesC:
-				m.processStapleUpdate(e)
-			}
-		}
-	}()
-
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		for {
-			select {
-			case <-m.stopC:
-				log.Infof("%v stop emitting metrics", m)
-				return
-			case <-time.After(time.Second):
-				m.emitMetrics()
-			}
-		}
-	}()
 	return m, nil
+}
+
+func (m *mux) Init(ss engine.Snapshot) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	for _, host := range ss.Hosts {
+		m.hosts[engine.HostKey{Name: host.Name}] = host
+	}
+
+	for _, bes := range ss.BackendSpecs {
+		beKey := engine.BackendKey{Id: bes.Backend.Id}
+		be, err := newBackend(m, bes.Backend)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create backend %v", bes.Backend.Id)
+		}
+		be.servers = make([]engine.Server, len(bes.Servers))
+		for i, beSrv := range bes.Servers {
+			if _, err := url.ParseRequestURI(beSrv.URL); err != nil {
+				return errors.Wrapf(err, "failed to parse %v", beSrv)
+			}
+			be.servers[i] = beSrv
+		}
+		m.backends[beKey] = be
+	}
+
+	for _, l := range ss.Listeners {
+		for _, feSrv := range m.servers {
+			if feSrv.listener.Address == l.Address {
+				// This only exists to simplify test fixture configuration.
+				if feSrv.listener.Id == l.Id {
+					continue
+				}
+				return errors.Errorf("%v conflicts with existing %v", l.Id, feSrv.listener.Id)
+			}
+		}
+		feSrv, err := newSrv(m, l)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create server %v", l.Id)
+		}
+		m.servers[engine.ListenerKey{Id: l.Id}] = feSrv
+	}
+
+	for _, fes := range ss.FrontendSpecs {
+		feKey := engine.FrontendKey{fes.Frontend.Id}
+		be, ok := m.backends[engine.BackendKey{Id: fes.Frontend.BackendId}]
+		if !ok {
+			return errors.Errorf("unknown backend %v in frontend %v",
+				fes.Frontend.BackendId, fes.Frontend.Id)
+		}
+		fe := newFrontend(m, fes.Frontend, be)
+		for _, mw := range fes.Middlewares {
+			fe.middlewares[engine.MiddlewareKey{FrontendKey: feKey, Id: mw.Id}] = mw
+		}
+
+		if err := fe.rebuild(); err != nil {
+			return errors.Wrapf(err, "failed to rebuild frontend %v", fes.Frontend.Id)
+		}
+		be.linkFrontend(feKey, fe)
+		m.frontends[feKey] = fe
+	}
+	return nil
 }
 
 func (m *mux) GetFiles() ([]*FileDescriptor, error) {
@@ -183,13 +214,43 @@ func (m *mux) TakeFiles(files []*FileDescriptor) error {
 
 func (m *mux) Start() error {
 	log.Infof("%s start", m)
-
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
 	if m.state != stateInit {
 		return fmt.Errorf("%s can start only from init state, got %d", m, m.state)
 	}
+
+	// Subscribe to staple responses and kick staple updates
+	m.stapler.Subscribe(m.stapleUpdatesC, m.stopC)
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		for {
+			select {
+			case <-m.stopC:
+				log.Infof("%v stop listening for staple updates", m)
+				return
+			case e := <-m.stapleUpdatesC:
+				m.processStapleUpdate(e)
+			}
+		}
+	}()
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		for {
+			select {
+			case <-m.stopC:
+				log.Infof("%v stop emitting metrics", m)
+				return
+			case <-time.After(time.Second):
+				m.emitMetrics()
+			}
+		}
+	}()
 
 	m.state = stateActive
 	for _, s := range m.servers {
@@ -401,11 +462,11 @@ func (m *mux) upsertFrontend(fe engine.Frontend) (*frontend, error) {
 		return f, f.update(fe, b)
 	}
 
-	f, err := newFrontend(m, fe, b)
-	if err != nil {
+	f = newFrontend(m, fe, b)
+	if err := f.rebuild(); err != nil {
 		return nil, err
 	}
-
+	b.linkFrontend(fk, f)
 	m.frontends[fk] = f
 	return f, nil
 }

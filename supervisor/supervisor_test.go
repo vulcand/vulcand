@@ -24,33 +24,24 @@ func newProxy(id int) (proxy.Proxy, error) {
 }
 
 type SupervisorSuite struct {
-	clock  *timetools.FreezedTime
-	errorC chan error
-	sv     *Supervisor
-	ng     *memng.Mem
+	clock *timetools.FreezedTime
+	ng    *memng.Mem
 }
 
 func (s *SupervisorSuite) SetUpTest(c *C) {
 	s.ng = memng.New(registry.GetRegistry()).(*memng.Mem)
-
-	s.errorC = make(chan error)
-
 	s.clock = &timetools.FreezedTime{
 		CurrentTime: time.Date(2012, 3, 4, 5, 6, 7, 0, time.UTC),
 	}
-
-	s.sv = New(newProxy, s.ng, s.errorC, Options{Clock: s.clock})
-}
-
-func (s *SupervisorSuite) TearDownTest(c *C) {
-	s.sv.Stop(true)
 }
 
 var _ = Suite(&SupervisorSuite{})
 
 func (s *SupervisorSuite) TestStartStopEmpty(c *C) {
-	s.sv.Start()
-	fmt.Println("Stop")
+	sup := New(newProxy, s.ng, Options{Clock: s.clock})
+	err := sup.Start()
+	c.Assert(err, IsNil)
+	defer sup.Stop()
 }
 
 func (s *SupervisorSuite) TestInitFromExistingConfig(c *C) {
@@ -58,16 +49,19 @@ func (s *SupervisorSuite) TestInitFromExistingConfig(c *C) {
 	defer e.Close()
 
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
-	c.Assert(s.sv.Start(), IsNil)
+	sup := New(newProxy, s.ng, Options{Clock: s.clock})
 
+	// When
+	c.Assert(sup.Start(), IsNil)
+	defer sup.Stop()
+
+	// Then
 	time.Sleep(10 * time.Millisecond)
-
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
@@ -75,17 +69,20 @@ func (s *SupervisorSuite) TestInitOnTheFly(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	s.sv.Start()
+	sup := New(newProxy, s.ng, Options{Clock: s.clock})
+	err := sup.Start()
+	c.Assert(err, IsNil)
+	defer sup.Stop()
 
+	// When
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
+	// Then
 	time.Sleep(10 * time.Millisecond)
-
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
 
@@ -93,14 +90,16 @@ func (s *SupervisorSuite) TestGracefulShutdown(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()
 
-	s.sv.Start()
-
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertListener(b.L), IsNil)
+
+	sup := New(newProxy, s.ng, Options{Clock: s.clock})
+	err := sup.Start()
+	c.Assert(err, IsNil)
+	defer sup.Stop()
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -113,13 +112,15 @@ func (s *SupervisorSuite) TestRestartOnBackendErrors(c *C) {
 	defer e.Close()
 
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
-	s.sv.Start()
+	sup := New(newProxy, s.ng, Options{Clock: s.clock})
+	err := sup.Start()
+	c.Assert(err, IsNil)
+	defer sup.Stop()
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -135,26 +136,28 @@ func (s *SupervisorSuite) TestTransferFiles(c *C) {
 	defer e.Close()
 
 	b := MakeBatch(Batch{Addr: "localhost:11800", Route: `Path("/")`, URL: e.URL})
-
 	c.Assert(s.ng.UpsertBackend(b.B), IsNil)
 	c.Assert(s.ng.UpsertServer(b.BK, b.S, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertFrontend(b.F, engine.NoTTL), IsNil)
 	c.Assert(s.ng.UpsertListener(b.L), IsNil)
 
-	s.sv.Start()
+	sup := New(newProxy, s.ng, Options{Clock: s.clock})
+	err := sup.Start()
+	c.Assert(err, IsNil)
 
 	time.Sleep(10 * time.Millisecond)
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 
-	files, err := s.sv.GetFiles()
+	files, err := sup.GetFiles()
 	c.Assert(err, IsNil)
 
-	errorC := make(chan error)
+	sup2 := New(newProxy, s.ng, Options{Clock: s.clock, Files: files})
+	err = sup2.Start()
+	c.Assert(err, IsNil)
+	defer sup2.Stop()
 
-	sv2 := New(newProxy, s.ng, errorC, Options{Clock: s.clock, Files: files})
-	sv2.Start()
-	s.sv.Stop(true)
+	sup.Stop()
 
 	time.Sleep(10 * time.Millisecond)
 

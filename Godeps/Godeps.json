@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/vulcand/vulcand",
 	"GoVersion": "go1.7",
-	"GodepVersion": "v75",
+	"GodepVersion": "v79",
 	"Packages": [
 		"./..."
 	],
@@ -15,6 +15,10 @@
 			"ImportPath": "github.com/Sirupsen/logrus/hooks/syslog",
 			"Comment": "v0.11.0-25-g881bee4",
 			"Rev": "881bee4e20a5d11a6a88a5667c6f292072ac1963"
+		},
+		{
+			"ImportPath": "github.com/armon/go-proxyproto",
+			"Rev": "3daa90aec0039a806299b9078f4422fee950f33c"
 		},
 		{
 			"ImportPath": "github.com/beorn7/perks/quantile",
@@ -169,6 +173,11 @@
 			"ImportPath": "github.com/matttproud/golang_protobuf_extensions/pbutil",
 			"Comment": "v1.0.0-2-gc12348c",
 			"Rev": "c12348ce28de40eed0136aa2b644d0ee0650e56c"
+		},
+		{
+			"ImportPath": "github.com/pkg/errors",
+			"Comment": "v0.8.0",
+			"Rev": "645ef00459ed84a119197bfb8d8205042c6df63d"
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/prometheus",

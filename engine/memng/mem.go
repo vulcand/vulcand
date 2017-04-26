@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
+	"github.com/pkg/errors"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 // Mem is exported to provide easy access to its internals
@@ -52,8 +52,50 @@ func (m *Mem) emit(val interface{}) {
 func (m *Mem) Close() {
 }
 
-func (n *Mem) GetSnapshot() (*engine.Snapshot, error) {
-	return nil, &engine.SnapshotNotSupportedError{}
+func (m *Mem) GetSnapshot() (*engine.Snapshot, error) {
+	var ss engine.Snapshot
+	var err error
+
+	if ss.Hosts, err = m.GetHosts(); err != nil {
+		return nil, errors.Wrap(err, "failed to get hosts")
+	}
+
+	if ss.Listeners, err = m.GetListeners(); err != nil {
+		return nil, errors.Wrap(err, "failed to get listeners")
+	}
+
+	backends, err := m.GetBackends()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get backends")
+	}
+	for _, be := range backends {
+		bes := engine.BackendSpec{Backend: be}
+		servers, err := m.GetServers(engine.BackendKey{Id: be.Id})
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get servers of %v", be.Id)
+		}
+		for _, svr := range servers {
+			bes.Servers = append(bes.Servers, svr)
+		}
+		ss.BackendSpecs = append(ss.BackendSpecs, bes)
+	}
+
+	frontends, err := m.GetFrontends()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get frontends")
+	}
+	for _, fe := range frontends {
+		fes := engine.FrontendSpec{Frontend: fe}
+		middlewares, err := m.GetMiddlewares(engine.FrontendKey{Id: fe.Id})
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get middlewares of %v", fe.Id)
+		}
+		for _, mw := range middlewares {
+			fes.Middlewares = append(fes.Middlewares, mw)
+		}
+		ss.FrontendSpecs = append(ss.FrontendSpecs, fes)
+	}
+	return &ss, nil
 }
 
 func (m *Mem) GetLogSeverity() log.Level {
@@ -320,7 +362,7 @@ func (m *Mem) DeleteServer(sk engine.ServerKey) error {
 	return &engine.NotFoundError{}
 }
 
-func (m *Mem) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan bool) error {
+func (m *Mem) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan struct{}) error {
 	for {
 		select {
 		case <-cancelC:

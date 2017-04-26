@@ -13,7 +13,7 @@ func TestMem(t *testing.T) { TestingT(t) }
 
 type MemSuite struct {
 	suite test.EngineSuite
-	stopC chan bool
+	stopC chan struct{}
 }
 
 var _ = Suite(&MemSuite{})
@@ -22,7 +22,7 @@ func (s *MemSuite) SetUpTest(c *C) {
 	engine := New(registry.GetRegistry())
 
 	s.suite.ChangesC = make(chan interface{})
-	s.stopC = make(chan bool)
+	s.stopC = make(chan struct{})
 	go engine.Subscribe(s.suite.ChangesC, 0, s.stopC)
 	s.suite.Engine = engine
 }

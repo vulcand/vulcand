@@ -7,26 +7,33 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/timetools"
+	"github.com/pkg/errors"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/proxy"
 )
 
-// Supervisor watches changes to the dynamic backends and applies those changes to the server in real time.
-// Supervisor handles lifetime of the proxy as well, and does graceful restarts and recoveries in case of failures.
+const (
+	retryPeriod       = 5 * time.Second
+	changesBufferSize = 2000
+)
+
+// Supervisor watches changes to the dynamic backends and applies those changes
+// to the server in real time. Supervisor handles lifetime of the proxy as well,
+// and does graceful restarts and recoveries in case of failures.
 type Supervisor struct {
-	// lastId allows to create iterative server instance versions for debugging purposes.
+	// lastId allows to create iterative server instance versions for debugging
+	// purposes.
 	lastId int
 
-	// wg allows to wait for graceful shutdowns
-	wg *sync.WaitGroup
+	options Options
 
-	mtx *sync.RWMutex
+	mtx sync.RWMutex
 
 	// srv is the current active server
 	proxy proxy.Proxy
 
-	// newProxy returns new server instance every time is called.
-	newProxy proxy.NewProxyFn
+	// newProxyFn returns new mux instance every time is called.
+	newProxyFn proxy.NewProxyFn
 
 	// timeProvider is used to mock time in tests
 	timeProvider timetools.TimeProvider
@@ -34,18 +41,12 @@ type Supervisor struct {
 	// engine is used for reading configuration details
 	engine engine.Engine
 
-	// errorC is a channel will be used to notify the calling party of the errors.
-	errorC chan error
-	// restartC channel is used internally to trigger graceful restarts on errors and configuration changes.
-	restartC chan error
-	// closeC is a channel to tell everyone to stop working and exit at the earliest convenience.
-	closeC chan bool
-	// broadcastCloseC is a channel to broadcast the beginning of a close.
-	broadcastCloseC chan bool
+	watcherWg      sync.WaitGroup
+	watcherCancelC chan struct{}
+	watcherErrorC  chan struct{}
 
-	options Options
-
-	state supervisorState
+	stopWg sync.WaitGroup
+	stopC  chan struct{}
 }
 
 type Options struct {
@@ -53,34 +54,32 @@ type Options struct {
 	Files []*proxy.FileDescriptor
 }
 
-func New(newProxy proxy.NewProxyFn, engine engine.Engine, errorC chan error, options Options) *Supervisor {
+func New(newProxy proxy.NewProxyFn, engine engine.Engine, options Options) *Supervisor {
 	return &Supervisor{
-		wg:              &sync.WaitGroup{},
-		mtx:             &sync.RWMutex{},
-		newProxy:        newProxy,
-		engine:          engine,
-		options:         setDefaults(options),
-		errorC:          errorC,
-		restartC:        make(chan error),
-		closeC:          make(chan bool),
-		broadcastCloseC: make(chan bool, 10),
+		newProxyFn: newProxy,
+		engine:     engine,
+		options:    setDefaults(options),
+		stopC:      make(chan struct{}),
 	}
 }
 
+func (s *Supervisor) Start() error {
+	if err := s.init(); err != nil {
+		return errors.Wrap(err, "initialization failed")
+	}
+	s.stopWg.Add(1)
+	go s.run()
+	return nil
+}
+
+func (s *Supervisor) Stop() {
+	close(s.stopC)
+	s.stopWg.Wait()
+	log.Infof("All operations stopped")
+}
+
 func (s *Supervisor) String() string {
-	return fmt.Sprintf("Supervisor(%v)", s.state)
-}
-
-func (s *Supervisor) getCurrentProxy() proxy.Proxy {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-	return s.proxy
-}
-
-func (s *Supervisor) setCurrentProxy(p proxy.Proxy) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-	s.proxy = p
+	return "sup"
 }
 
 func (s *Supervisor) GetFiles() ([]*proxy.FileDescriptor, error) {
@@ -90,12 +89,6 @@ func (s *Supervisor) GetFiles() ([]*proxy.FileDescriptor, error) {
 		return s.proxy.GetFiles()
 	}
 	return []*proxy.FileDescriptor{}, nil
-}
-
-func (s *Supervisor) setState(state supervisorState) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-	s.state = state
 }
 
 func (s *Supervisor) FrontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
@@ -123,7 +116,8 @@ func (s *Supervisor) BackendStats(key engine.BackendKey) (*engine.RoundTripStats
 }
 
 // TopFrontends returns locations sorted by criteria (faulty, slow, most used)
-// if hostname or backendId is present, will filter out locations for that host or backendId
+// if hostname or backendId is present, will filter out locations for that host
+// or backendId.
 func (s *Supervisor) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
 	p := s.getCurrentProxy()
 	if p != nil {
@@ -133,7 +127,7 @@ func (s *Supervisor) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, er
 }
 
 // TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
-// if backendId is not empty, will filter out endpoints for that backendId
+// if backendId is not empty, will filter out endpoints for that backendId.
 func (s *Supervisor) TopServers(key *engine.BackendKey) ([]engine.Server, error) {
 	p := s.getCurrentProxy()
 	if p != nil {
@@ -142,293 +136,151 @@ func (s *Supervisor) TopServers(key *engine.BackendKey) ([]engine.Server, error)
 	return nil, fmt.Errorf("no current proxy")
 }
 
+func (s *Supervisor) getCurrentProxy() proxy.Proxy {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	return s.proxy
+}
+
+func (s *Supervisor) setCurrentProxy(p proxy.Proxy) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.proxy = p
+}
+
 func (s *Supervisor) init() error {
-	proxy, err := s.newProxy(s.lastId)
-	s.lastId += 1
+	snapshot, err := s.engine.GetSnapshot()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get snapshot")
 	}
 
-	stopNewProxy := true
+	newMuxId := s.lastId
+	s.lastId += 1
 
+	// Subscribe for updates right away so we can get beyond 1000 updates hard
+	// coded Etcd limit. This way we will be able to survive handle larger
+	// update bursts that happen while multiplexer is being initialized and
+	// therefore does not handle updates.
+	cancelWatcher := true
+	changesC := make(chan interface{}, changesBufferSize)
+	s.watcherErrorC = make(chan struct{})
+	s.watcherCancelC = make(chan struct{})
+	s.watcherWg.Add(1)
+	go func() {
+		defer s.watcherWg.Done()
+		defer close(changesC)
+		if err := s.engine.Subscribe(changesC, snapshot.Index, s.watcherCancelC); err != nil {
+			log.Infof("mux_%d engine watcher failed: '%v' will restart", newMuxId, err)
+			s.watcherErrorC <- struct{}{}
+			return
+		}
+		log.Infof("nux_%d engine watcher shutdown", newMuxId)
+	}()
+	// Make sure watcher goroutine is stopped if initialization fails.
 	defer func() {
-		if stopNewProxy {
-			proxy.Stop(true)
+		if cancelWatcher {
+			close(s.watcherCancelC)
+			s.watcherWg.Wait()
 		}
 	}()
 
-	var configIdx uint64
-	if configIdx, err = initProxy(s.engine, proxy); err != nil {
-		return err
+	checkpoint := time.Now()
+	newProxy, err := s.newProxyFn(newMuxId)
+	if err != nil {
+		return errors.Wrap(err, "failed to create mux")
 	}
+	if err = newProxy.Init(*snapshot); err != nil {
+		return errors.Wrap(err, "failed to init mux")
+	}
+	log.Infof("%v initial setup done, took=%v", newProxy, time.Now().Sub(checkpoint))
 
-	// This is the first start, pass the files that could have been passed
-	// to us by the parent process
+	// If it is initialization on process sturtup then take over files from the
+	// parrent process if any.
 	if s.lastId == 1 && len(s.options.Files) != 0 {
-		log.Infof("Passing files %v to %v", s.options.Files, proxy)
-		if err := proxy.TakeFiles(s.options.Files); err != nil {
-			return err
+		log.Infof("Passing files %v to %v", s.options.Files, newProxy)
+		if err := newProxy.TakeFiles(s.options.Files); err != nil {
+			return errors.Wrap(err, "failed to inherit files from parrent process")
 		}
 	}
 
-	log.Infof("%v init() initial setup done", proxy)
-
+	// If it is recovery from the previous multiplexer failure then take over
+	// files from the failed multiplexer.
 	oldProxy := s.getCurrentProxy()
 	if oldProxy != nil {
+		log.Infof("%v taking files from %v to %v", s, oldProxy, newProxy)
 		files, err := oldProxy.GetFiles()
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "cannot get file list from %v", oldProxy)
 		}
-		log.Infof("%v taking files from %v to %v", s, oldProxy, proxy)
-		if err := proxy.TakeFiles(files); err != nil {
-			return err
+		if err := newProxy.TakeFiles(files); err != nil {
+			return errors.Wrapf(err, "failed to take files from %v", oldProxy)
 		}
 	}
 
-	if err := proxy.Start(); err != nil {
-		return err
+	if err := newProxy.Start(); err != nil {
+		return errors.Wrapf(err, "failed to start new mux %v", newProxy)
 	}
+	s.setCurrentProxy(newProxy)
+	// A new multiplexer has been successfully started therefore we do not need
+	// to cancel the watcher, the supervisor run thread will take care of it.
+	cancelWatcher = false
 
+	// Shutdown the old mux on the background.
 	if oldProxy != nil {
-		s.wg.Add(1)
+		s.stopWg.Add(1)
 		go func() {
-			defer s.wg.Done()
+			defer s.stopWg.Done()
+			checkpoint := time.Now()
 			oldProxy.Stop(true)
+			log.Infof("%v old mux stopped %v, took=%v", s, oldProxy, time.Now().Sub(checkpoint))
 		}()
 	}
 
-	// Watch and configure this instance of server
-	stopNewProxy = false
-	s.setCurrentProxy(proxy)
-	changesC := make(chan interface{})
-
-	// This goroutine will connect to the backend and emit the changes to the changesC channel.
-	// In case of any error it notifies supervisor of the error by sending an error to the channel triggering reload.
+	// This goroutine will listen for changes arriving to the changes channel
+	// and reconfigure the given server.
+	s.watcherWg.Add(1)
 	go func() {
-		cancelC := make(chan bool)
-		if err := s.engine.Subscribe(changesC, configIdx, cancelC); err != nil {
-			log.Infof("%v engine watcher got error: '%v' will restart", proxy, err)
-			close(cancelC)
-			close(changesC)
-			s.restartC <- err
-		} else {
-			close(cancelC)
-			// Graceful shutdown without restart
-			log.Infof("%v engine watcher got nil error, gracefully shutdown", proxy)
-			s.broadcastCloseC <- true
-		}
-	}()
-
-	// This goroutine will listen for changes arriving to the changes channel and reconfigure the given server
-	go func() {
-		for {
-			change := <-changesC
-			if change == nil {
-				log.Infof("Stop watching changes for %s", proxy)
-				return
-			}
-			if err := processChange(proxy, change); err != nil {
-				log.Errorf("failed to process change %#v, err: %s", change, err)
+		defer s.watcherWg.Done()
+		for change := range changesC {
+			if err := processChange(newProxy, change); err != nil {
+				log.Errorf("%v failed to process, change=%#v, err=%s", newProxy, change, err)
 			}
 		}
+		log.Infof("%v change processor shutdown", newProxy)
 	}()
 	return nil
 }
 
-func (s *Supervisor) stop() {
-	srv := s.getCurrentProxy()
-	if srv != nil {
-		srv.Stop(true)
-		log.Infof("%s was stopped by supervisor", srv)
-	}
-	log.Infof("Wait for any outstanding operations to complete")
-	s.wg.Wait()
-	log.Infof("All outstanding operations have been completed, signalling stop")
-	close(s.closeC)
-}
-
-// supervise() listens for error notifications and triggers graceful restart
-func (s *Supervisor) supervise() {
+// supervise listens for error notifications and triggers graceful restart.
+func (s *Supervisor) run() {
+	defer s.stopWg.Done()
 	for {
 		select {
-		case err := <-s.restartC:
-			// This means graceful shutdown, do nothing and return
-			if err == nil {
-				log.Infof("watchErrors - graceful shutdown")
-				s.stop()
+		case <-s.watcherErrorC:
+			s.watcherWg.Wait()
+			s.watcherErrorC = nil
+		case <-s.stopC:
+			close(s.watcherCancelC)
+			s.watcherWg.Wait()
+			if s.proxy != nil {
+				s.proxy.Stop(true)
+			}
+			return
+		}
+
+		err := s.init()
+		// In case of an error keep trying to initialize making pauses between
+		// attempts.
+		for err != nil {
+			log.Errorf("sup failed to reinit, err=%v", err)
+			select {
+			case <-time.After(retryPeriod):
+			case <-s.stopC:
 				return
 			}
-			for {
-				s.options.Clock.Sleep(retryPeriod)
-				log.Infof("supervise() restarting %s on error: %s", s.proxy, err)
-				// We failed to initialize server, this error can not be recovered, so send an error and exit
-				if err := s.init(); err != nil {
-					log.Infof("Failed to initialize %s, will retry", err)
-				} else {
-					break
-				}
-			}
-
-		case <-s.broadcastCloseC:
-			s.Stop(false)
+			err = s.init()
 		}
 	}
-}
-
-func (s *Supervisor) Start() error {
-	if s.checkAndSetState(supervisorStateActive) {
-		return fmt.Errorf("%v already started", s)
-	}
-	defer s.setState(supervisorStateActive)
-	go s.supervise()
-	return s.init()
-}
-
-func (s *Supervisor) checkAndSetState(state supervisorState) bool {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	if s.state == state {
-		return true
-	}
-
-	s.state = state
-	return false
-}
-
-func (s *Supervisor) Stop(wait bool) {
-
-	// It was already stopped
-	if s.checkAndSetState(supervisorStateStopped) {
-		return
-	}
-
-	close(s.restartC)
-	if wait {
-		<-s.closeC
-		log.Infof("All operations stopped")
-	}
-}
-
-// initProxy reads the configuration from the engine and configures the server
-func initProxy(ng engine.Engine, p proxy.Proxy) (uint64, error) {
-	snapshot, err := ng.GetSnapshot()
-	if err != nil {
-		// Some legacy engines do not implement `GetSnapshot` so we resort to
-		// a slow method of obtaining configuration from Etcd.
-		if _, ok := err.(*engine.SnapshotNotSupportedError); ok {
-			return 0, initProxySlow(ng, p)
-		}
-		return 0, err
-	}
-	for _, h := range snapshot.Hosts {
-		if err := p.UpsertHost(h); err != nil {
-			return 0, err
-		}
-	}
-	for _, bs := range snapshot.BackendSpecs {
-		if err := p.UpsertBackend(bs.Backend); err != nil {
-			return 0, err
-		}
-		for _, server := range bs.Servers {
-			if err := p.UpsertServer(bs.Backend.GetUniqueId(), server); err != nil {
-				return 0, err
-			}
-		}
-	}
-	for _, l := range snapshot.Listeners {
-		if err := p.UpsertListener(l); err != nil {
-			return 0, err
-		}
-	}
-	for _, fs := range snapshot.FrontendSpecs {
-		if err := p.UpsertFrontend(fs.Frontend); err != nil {
-			return 0, err
-		}
-		for _, m := range fs.Middlewares {
-			if err := p.UpsertMiddleware(fs.Frontend.GetKey(), m); err != nil {
-				return 0, err
-			}
-		}
-	}
-	return snapshot.Index, nil
-}
-
-// initProxySlow reads configuration from Etcd piece by piece. That may take
-// several minutes on large configurations!
-func initProxySlow(ng engine.Engine, p proxy.Proxy) error {
-	hosts, err := ng.GetHosts()
-	if err != nil {
-		return err
-	}
-
-	for _, h := range hosts {
-		if err := p.UpsertHost(h); err != nil {
-			return err
-		}
-	}
-
-	bs, err := ng.GetBackends()
-	if err != nil {
-		return err
-	}
-
-	for _, b := range bs {
-		if err := p.UpsertBackend(b); err != nil {
-			return err
-		}
-
-		bk := engine.BackendKey{Id: b.Id}
-		servers, err := ng.GetServers(bk)
-		if err != nil {
-			return err
-		}
-
-		for _, s := range servers {
-			if err := p.UpsertServer(bk, s); err != nil {
-				return err
-			}
-		}
-	}
-
-	ls, err := ng.GetListeners()
-	if err != nil {
-		return err
-	}
-
-	for _, l := range ls {
-		if err := p.UpsertListener(l); err != nil {
-			return err
-		}
-	}
-
-	fs, err := ng.GetFrontends()
-	if err != nil {
-		return err
-	}
-
-	if len(fs) == 0 {
-		log.Warningf("No frontends found")
-	}
-
-	for _, f := range fs {
-		if err := p.UpsertFrontend(f); err != nil {
-			log.Warningf("Cannot register frontend \"%v\", invalid backend config", f.Id)
-			continue
-		}
-		fk := engine.FrontendKey{Id: f.Id}
-		ms, err := ng.GetMiddlewares(fk)
-		if err != nil {
-			return err
-		}
-		for _, m := range ms {
-			if err := p.UpsertMiddleware(fk, m); err != nil {
-				log.Warningf("Cannot register frontend \"%v\", invalid middleware config", f.Id)
-				continue
-			}
-		}
-	}
-	return nil
 }
 
 func setDefaults(o Options) Options {
@@ -438,7 +290,8 @@ func setDefaults(o Options) Options {
 	return o
 }
 
-// processChange takes the backend change notification emitted by the backend and applies it to the server
+// processChange takes the backend change notification emitted by the backend
+// and applies it to the server.
 func processChange(p proxy.Proxy, ch interface{}) error {
 	switch change := ch.(type) {
 	case *engine.HostUpserted:
@@ -474,27 +327,4 @@ func processChange(p proxy.Proxy, ch interface{}) error {
 		return p.DeleteServer(change.ServerKey)
 	}
 	return fmt.Errorf("unsupported change: %#v", ch)
-}
-
-const retryPeriod = 5 * time.Second
-
-type supervisorState int
-
-const (
-	supervisorStateCreated = iota
-	supervisorStateActive
-	supervisorStateStopped
-)
-
-func (s supervisorState) String() string {
-	switch s {
-	case supervisorStateCreated:
-		return "created"
-	case supervisorStateActive:
-		return "active"
-	case supervisorStateStopped:
-		return "stopped"
-	default:
-		return "unkown"
-	}
 }
