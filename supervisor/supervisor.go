@@ -163,7 +163,7 @@ func (s *Supervisor) init() error {
 	// therefore does not handle updates.
 	cancelWatcher := true
 	changesC := make(chan interface{}, changesBufferSize)
-	s.watcherErrorC = make(chan struct{})
+	s.watcherErrorC = make(chan struct{}, 1)
 	s.watcherCancelC = make(chan struct{})
 	s.watcherWg.Add(1)
 	go func() {
@@ -261,6 +261,7 @@ func (s *Supervisor) run() {
 			s.watcherErrorC = nil
 		case <-s.stopC:
 			close(s.watcherCancelC)
+			s.engine.Close()
 			s.watcherWg.Wait()
 			if s.proxy != nil {
 				s.proxy.Stop(true)

@@ -27,7 +27,7 @@ type mux struct {
 	// Each listener address has a server associated with it
 	servers map[engine.ListenerKey]*srv
 
-	backends map[engine.BackendKey]*backend
+	backends map[engine.BackendKey]backendEntry
 
 	frontends map[engine.FrontendKey]*frontend
 
@@ -37,10 +37,10 @@ type mux struct {
 	options Options
 
 	// Wait group for graceful shutdown
-	wg *sync.WaitGroup
+	wg sync.WaitGroup
 
 	// Read write mutex for serialized operations
-	mtx *sync.RWMutex
+	mtx sync.RWMutex
 
 	// Router will be shared between multiple listeners
 	router router.Router
@@ -64,6 +64,22 @@ type mux struct {
 	stapleUpdatesC chan *stapler.StapleUpdated
 }
 
+type backendEntry struct {
+	backend   *backend
+	frontends map[engine.FrontendKey]*frontend
+}
+
+func newBackendEntry(beCfg engine.Backend, opts Options, beSrvCfgs []engine.Server) (backendEntry, error) {
+	be, err := newBackend(beCfg, opts, beSrvCfgs)
+	if err != nil {
+		return backendEntry{}, errors.Wrap(err, "failed to create backend")
+	}
+	return backendEntry{
+		backend:   be,
+		frontends: make(map[engine.FrontendKey]*frontend),
+	}, nil
+}
+
 func (m *mux) String() string {
 	return fmt.Sprintf("mux_%d", m.id)
 }
@@ -71,10 +87,7 @@ func (m *mux) String() string {
 func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 	o = setDefaults(o)
 	m := &mux{
-		id:  id,
-		wg:  &sync.WaitGroup{},
-		mtx: &sync.RWMutex{},
-
+		id:      id,
 		options: o,
 
 		router:              o.Router,
@@ -82,7 +95,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 		outgoingConnTracker: o.OutgoingConnectionTracker,
 
 		servers:   make(map[engine.ListenerKey]*srv),
-		backends:  make(map[engine.BackendKey]*backend),
+		backends:  make(map[engine.BackendKey]backendEntry),
 		frontends: make(map[engine.FrontendKey]*frontend),
 		hosts:     make(map[engine.HostKey]engine.Host),
 
@@ -116,18 +129,18 @@ func (m *mux) Init(ss engine.Snapshot) error {
 
 	for _, bes := range ss.BackendSpecs {
 		beKey := engine.BackendKey{Id: bes.Backend.Id}
-		be, err := newBackend(m, bes.Backend)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create backend %v", bes.Backend.Id)
-		}
-		be.servers = make([]engine.Server, len(bes.Servers))
-		for i, beSrv := range bes.Servers {
-			if _, err := url.ParseRequestURI(beSrv.URL); err != nil {
-				return errors.Wrapf(err, "failed to parse %v", beSrv)
+		srvCfgs := make([]engine.Server, len(bes.Servers))
+		for i, beSrvCfg := range bes.Servers {
+			if _, err := url.ParseRequestURI(beSrvCfg.URL); err != nil {
+				return errors.Wrapf(err, "failed to parse %v", beSrvCfg)
 			}
-			be.servers[i] = beSrv
+			srvCfgs[i] = beSrvCfg
 		}
-		m.backends[beKey] = be
+		beEnt, err := newBackendEntry(bes.Backend, m.options, srvCfgs)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create backend entry %v", bes.Backend.Id)
+		}
+		m.backends[beKey] = beEnt
 	}
 
 	for _, l := range ss.Listeners {
@@ -149,21 +162,22 @@ func (m *mux) Init(ss engine.Snapshot) error {
 
 	for _, fes := range ss.FrontendSpecs {
 		feKey := engine.FrontendKey{fes.Frontend.Id}
-		be, ok := m.backends[engine.BackendKey{Id: fes.Frontend.BackendId}]
+		beEnt, ok := m.backends[engine.BackendKey{Id: fes.Frontend.BackendId}]
 		if !ok {
 			return errors.Errorf("unknown backend %v in frontend %v",
 				fes.Frontend.BackendId, fes.Frontend.Id)
 		}
-		fe := newFrontend(m, fes.Frontend, be)
+		mwCfgs := make(map[engine.MiddlewareKey]engine.Middleware)
 		for _, mw := range fes.Middlewares {
-			fe.middlewares[engine.MiddlewareKey{FrontendKey: feKey, Id: mw.Id}] = mw
+			mwCfgs[engine.MiddlewareKey{FrontendKey: feKey, Id: mw.Id}] = mw
 		}
-
-		if err := fe.rebuild(); err != nil {
-			return errors.Wrapf(err, "failed to rebuild frontend %v", fes.Frontend.Id)
+		fe := newFrontend(fes.Frontend, beEnt.backend, mwCfgs, m.outgoingConnTracker)
+		if err := m.router.Handle(fes.Frontend.Route, fe); err != nil {
+			return errors.Wrapf(err, "cannot add route %v for frontend %v",
+				fes.Frontend.Route, fes.Frontend.Id)
 		}
-		be.linkFrontend(feKey, fe)
 		m.frontends[feKey] = fe
+		beEnt.frontends[feKey] = fe
 	}
 	return nil
 }
@@ -174,8 +188,8 @@ func (m *mux) GetFiles() ([]*FileDescriptor, error) {
 
 	fds := []*FileDescriptor{}
 
-	for _, srv := range m.servers {
-		fd, err := srv.GetFile()
+	for _, feSrv := range m.servers {
+		fd, err := feSrv.GetFile()
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +261,9 @@ func (m *mux) Start() error {
 				log.Infof("%v stop emitting metrics", m)
 				return
 			case <-time.After(time.Second):
-				m.emitMetrics()
+				if err := m.emitMetrics(); err != nil {
+					log.Errorf("%v failed to emit metrics, err=%v", m, err)
+				}
 			}
 		}
 	}()
@@ -265,7 +281,6 @@ func (m *mux) Start() error {
 
 func (m *mux) Stop(wait bool) {
 	log.Infof("%s Stop(%t)", m, wait)
-
 	m.stopServers()
 
 	if wait {
@@ -298,13 +313,12 @@ func (m *mux) stopServers() {
 	}
 }
 
-func (m *mux) UpsertHost(host engine.Host) error {
-	log.Infof("%s UpsertHost %s", m, &host)
-
+func (m *mux) UpsertHost(hostCfg engine.Host) error {
+	log.Infof("%s UpsertHost %s", m, &hostCfg)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	m.hosts[engine.HostKey{Name: host.Name}] = host
+	m.hosts[engine.HostKey{Name: hostCfg.Name}] = hostCfg
 
 	for _, s := range m.servers {
 		if s.isTLS() {
@@ -314,22 +328,21 @@ func (m *mux) UpsertHost(host engine.Host) error {
 	return nil
 }
 
-func (m *mux) DeleteHost(hk engine.HostKey) error {
-	log.Infof("%s DeleteHost %v", m, &hk)
-
+func (m *mux) DeleteHost(hostKey engine.HostKey) error {
+	log.Infof("%s DeleteHost %v", m, &hostKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	host, exists := m.hosts[hk]
+	host, exists := m.hosts[hostKey]
 	if !exists {
-		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", hk)}
+		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", hostKey)}
 	}
 
 	// delete host from the hosts list
-	delete(m.hosts, hk)
+	delete(m.hosts, hostKey)
 
 	// delete staple from the cache
-	m.stapler.DeleteHost(hk)
+	m.stapler.DeleteHost(hostKey)
 
 	if host.Settings.KeyPair == nil {
 		return nil
@@ -341,236 +354,242 @@ func (m *mux) DeleteHost(hk engine.HostKey) error {
 	return nil
 }
 
-func (m *mux) UpsertListener(l engine.Listener) error {
-	log.Infof("%v UpsertListener %v", m, &l)
+func (m *mux) UpsertListener(listenerCfg engine.Listener) error {
+	log.Infof("%v UpsertListener %v", m, &listenerCfg)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	return m.upsertListener(l)
+	return m.upsertListener(listenerCfg)
 }
 
-func (m *mux) DeleteListener(lk engine.ListenerKey) error {
-	log.Infof("%v DeleteListener %v", m, &lk)
+func (m *mux) DeleteListener(listenerKey engine.ListenerKey) error {
+	log.Infof("%v DeleteListener %v", m, &listenerKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	s, exists := m.servers[lk]
+	s, exists := m.servers[listenerKey]
 	if !exists {
-		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", lk)}
+		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", listenerKey)}
 	}
 
-	delete(m.servers, lk)
+	delete(m.servers, listenerKey)
 	s.shutdown()
 	return nil
 }
 
-func (m *mux) upsertListener(l engine.Listener) error {
-	lk := engine.ListenerKey{Id: l.Id}
-	s, exists := m.servers[lk]
+func (m *mux) upsertListener(listenerCfg engine.Listener) error {
+	listenerKey := engine.ListenerKey{Id: listenerCfg.Id}
+	feSrv, exists := m.servers[listenerKey]
 	if exists {
-		return s.updateListener(l)
+		return feSrv.updateListener(listenerCfg)
 	}
 
 	// Check if there's a listener with the same address
 	for _, srv := range m.servers {
-		if srv.listener.Address == l.Address {
-			return &engine.AlreadyExistsError{Message: fmt.Sprintf("%v conflicts with existing %v", l, srv.listener)}
+		if srv.listener.Address == listenerCfg.Address {
+			return &engine.AlreadyExistsError{Message: fmt.Sprintf("%v conflicts with existing %v", listenerCfg, srv.listener)}
 		}
 	}
 
 	var err error
-	if s, err = newSrv(m, l); err != nil {
+	if feSrv, err = newSrv(m, listenerCfg); err != nil {
 		return err
 	}
-	m.servers[lk] = s
+	m.servers[listenerKey] = feSrv
 	// If we are active, start the server immediatelly
 	if m.state == stateActive {
 		log.Infof("Mux is in active state, starting the HTTP server")
-		if err := s.start(); err != nil {
+		if err := feSrv.start(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *mux) UpsertBackend(b engine.Backend) error {
-	log.Infof("%v UpsertBackend %v", m, &b)
-
+func (m *mux) UpsertBackend(beCfg engine.Backend) error {
+	log.Infof("%v UpsertBackend %v", m, &beCfg)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	_, err := m.upsertBackend(b)
-	return err
-}
-
-func (m *mux) upsertBackend(be engine.Backend) (*backend, error) {
-	bk := engine.BackendKey{Id: be.Id}
-	b, ok := m.backends[bk]
+	beKey := engine.BackendKey{Id: beCfg.Id}
+	beEnt, ok := m.backends[beKey]
 	if ok {
-		return b, b.update(be)
+		mutated, err := beEnt.backend.update(beCfg, m.options)
+		if err != nil {
+			return errors.Wrapf(err, "failed to update backend %v", beKey.Id)
+		}
+		if mutated {
+			for _, fe := range beEnt.frontends {
+				fe.onBackendMutated()
+			}
+		}
+		return nil
 	}
-	b, err := newBackend(m, be)
+
+	beEnt, err := newBackendEntry(beCfg, m.options, nil)
 	if err != nil {
-		return nil, err
+		return errors.Wrapf(err, "failed to create backend %v", beKey.Id)
 	}
-	m.backends[bk] = b
-	return b, nil
-}
-
-func (m *mux) DeleteBackend(bk engine.BackendKey) error {
-	log.Infof("%v DeleteBackend %s", m, &bk)
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	b, ok := m.backends[bk]
-	if !ok {
-		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", bk)}
-	}
-
-	//delete backend from being referenced - it is no longer in etcd
-	//and future frontend additions to etcd shouldn't see a
-	//magical backend just because vulcan is holding a reference to it.
-	delete(m.backends, bk)
-
-	if len(b.frontends) != 0 {
-		return fmt.Errorf("%v is used by frontends: %v", b, b.frontends)
-	}
-
-	b.Close()
+	m.backends[beKey] = beEnt
 	return nil
 }
 
-func (m *mux) UpsertFrontend(f engine.Frontend) error {
-	log.Infof("%v UpsertFrontend %v", m, &f)
-
+func (m *mux) DeleteBackend(beKey engine.BackendKey) error {
+	log.Infof("%v DeleteBackend %s", m, &beKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	_, err := m.upsertFrontend(f)
-	return err
+	beEnt, ok := m.backends[beKey]
+	if !ok {
+		return errors.Errorf("backend missing %v", beKey.Id)
+	}
+
+	// Delete backend from being referenced - it is no longer in etcd and
+	// future frontend additions to etcd shouldn't see a magical backend just
+	// because vulcan is holding a reference to it.
+	delete(m.backends, beKey)
+
+	if len(beEnt.frontends) != 0 {
+		return errors.Errorf("%v is used by frontends: %v", beEnt.backend.id, beEnt.frontends)
+	}
+
+	beEnt.backend.close()
+	return nil
 }
 
-func (m *mux) upsertFrontend(fe engine.Frontend) (*frontend, error) {
-	bk := engine.BackendKey{Id: fe.BackendId}
-	b, ok := m.backends[bk]
+func (m *mux) UpsertFrontend(feCfg engine.Frontend) error {
+	log.Infof("%v UpsertFrontend %v", m, &feCfg)
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	beEnt, ok := m.backends[engine.BackendKey{Id: feCfg.BackendId}]
 	if !ok {
-		return nil, &engine.NotFoundError{Message: fmt.Sprintf("%v not found", bk)}
+		return errors.Errorf("missing backend %v referenced by frontend %v", feCfg.BackendId, feCfg.Id)
 	}
-	fk := engine.FrontendKey{Id: fe.Id}
-	f, ok := m.frontends[fk]
+
+	feKey := engine.FrontendKey{Id: feCfg.Id}
+	fe, ok := m.frontends[feKey]
 	if ok {
-		return f, f.update(fe, b)
+		if feCfg.BackendId != fe.backend.id {
+			oldBeEnt, ok := m.backends[engine.BackendKey{Id: fe.backend.id}]
+			if ok {
+				delete(oldBeEnt.frontends, feKey)
+			} else {
+				log.Warnf("Missing backend %v referenced by frontend %v", fe.backend.id, feCfg.Id)
+			}
+			beEnt.frontends[feKey] = fe
+		}
+
+		oldRoute := fe.cfg.Route
+		if oldRoute != feCfg.Route {
+			log.Infof("updating route from %v to %v", oldRoute, feCfg.Route)
+			if err := m.router.Remove(oldRoute); err != nil {
+				log.Errorf("Failed to remove route %v for frontend %v", oldRoute, feCfg.Id)
+			}
+		}
+		fe.update(feCfg, beEnt.backend)
+		if oldRoute != feCfg.Route {
+			if err := m.router.Handle(feCfg.Route, fe); err != nil {
+				return errors.Wrapf(err, "cannot add route %v for frontend %v", feCfg.Route, feCfg.Id)
+			}
+		}
+		return nil
 	}
-
-	f = newFrontend(m, fe, b)
-	if err := f.rebuild(); err != nil {
-		return nil, err
+	fe = newFrontend(feCfg, beEnt.backend, nil, m.outgoingConnTracker)
+	m.frontends[feKey] = fe
+	beEnt.frontends[feKey] = fe
+	if err := m.router.Handle(feCfg.Route, fe); err != nil {
+		return errors.Wrapf(err, "cannot add route %v for frontend %v", feCfg.Route, feCfg.Id)
 	}
-	b.linkFrontend(fk, f)
-	m.frontends[fk] = f
-	return f, nil
-}
-
-func (m *mux) DeleteFrontend(fk engine.FrontendKey) error {
-	log.Infof("%v DeleteFrontend %v", m, &fk)
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	return m.deleteFrontend(fk)
-}
-
-func (m *mux) deleteFrontend(fk engine.FrontendKey) error {
-	f, ok := m.frontends[fk]
-	if !ok {
-		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", fk)}
-	}
-	if err := f.remove(); err != nil {
-		return err
-	}
-	delete(m.frontends, fk)
 	return nil
 }
 
-func (m *mux) UpsertMiddleware(fk engine.FrontendKey, mi engine.Middleware) error {
-	log.Infof("%v UpsertMiddleware %v, %v", m, &fk, &mi)
-
+func (m *mux) DeleteFrontend(feKey engine.FrontendKey) error {
+	log.Infof("%v DeleteFrontend %v", m, &feKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	return m.upsertMiddleware(fk, mi)
-}
-
-func (m *mux) upsertMiddleware(fk engine.FrontendKey, mi engine.Middleware) error {
-	f, ok := m.frontends[fk]
+	fe, ok := m.frontends[feKey]
 	if !ok {
-		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", fk)}
+		return errors.Errorf("missing frontend %v", feKey.Id)
 	}
-	return f.upsertMiddleware(fk, mi)
+
+	m.router.Remove(fe.cfg.Route)
+	delete(m.frontends, feKey)
+
+	beEnt, ok := m.backends[engine.BackendKey{Id: fe.backend.id}]
+	if !ok {
+		return errors.Errorf("missing backend %v referenced by frontend %v", fe.backend.id, fe.cfg.Id)
+	}
+	delete(beEnt.frontends, feKey)
+	return nil
 }
 
-func (m *mux) DeleteMiddleware(mk engine.MiddlewareKey) error {
-	log.Infof("%v DeleteMiddleware(%v %v)", m, &mk)
-
+func (m *mux) UpsertMiddleware(feKey engine.FrontendKey, mwCfg engine.Middleware) error {
+	log.Infof("%v UpsertMiddleware %v, %v", m, &feKey, &mwCfg)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	f, ok := m.frontends[mk.FrontendKey]
+	fe, ok := m.frontends[feKey]
 	if !ok {
-		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", mk)}
+		return errors.Errorf("missing frontend %v referenced by middleware %v", feKey.Id, mwCfg.Id)
 	}
-
-	return f.deleteMiddleware(mk)
+	fe.upsertMiddleware(mwCfg)
+	return nil
 }
 
-func (m *mux) UpsertServer(bk engine.BackendKey, srv engine.Server) error {
-	log.Infof("%v UpsertServer %v %v", m, &bk, &srv)
-
+func (m *mux) DeleteMiddleware(mwKey engine.MiddlewareKey) error {
+	log.Infof("%v DeleteMiddleware(%v %v)", m, &mwKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if _, err := url.ParseRequestURI(srv.URL); err != nil {
-		return fmt.Errorf("failed to parse %v, error: %v", srv, err)
+	fe, ok := m.frontends[mwKey.FrontendKey]
+	if !ok {
+		return errors.Errorf("missing frontend %v referenced by middleware %v", mwKey.FrontendKey.Id, mwKey.Id)
+	}
+	fe.deleteMiddleware(mwKey)
+	return nil
+}
+
+func (m *mux) UpsertServer(beKey engine.BackendKey, beSrvCfg engine.Server) error {
+	log.Infof("%v UpsertServer %v %v", m, &beKey, &beSrvCfg)
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if _, err := url.ParseRequestURI(beSrvCfg.URL); err != nil {
+		return errors.Wrapf(err, "failed to parse %v", beSrvCfg)
 	}
 
-	b, ok := m.backends[bk]
+	beEnt, ok := m.backends[beKey]
+	// If backend type is unknown then assume insecure HTTP.
 	if !ok {
-		var err error
-		if b, err = m.upsertBackend(engine.Backend{Id: bk.Id, Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}); err != nil {
-			return err
+		beCfg := engine.Backend{Id: beKey.Id, Type: engine.HTTP, Settings: engine.HTTPBackendSettings{}}
+		beEnt, _ = newBackendEntry(beCfg, m.options, nil)
+		m.backends[beKey] = beEnt
+	}
+	if beEnt.backend.upsertServer(beSrvCfg) {
+		for _, fe := range beEnt.frontends {
+			fe.onBackendMutated()
 		}
 	}
-
-	return b.upsertServer(srv)
+	return nil
 }
 
-func (m *mux) DeleteServer(sk engine.ServerKey) error {
-	log.Infof("%v DeleteServer %v", m, &sk)
-
+func (m *mux) DeleteServer(feSrvKey engine.ServerKey) error {
+	log.Infof("%v DeleteServer %v", m, &feSrvKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	b, ok := m.backends[sk.BackendKey]
+	beEnt, ok := m.backends[feSrvKey.BackendKey]
 	if !ok {
-		return &engine.NotFoundError{Message: fmt.Sprintf("%v not found", sk.BackendKey)}
+		return errors.Errorf("missing backend %v ", feSrvKey.BackendKey.Id)
 	}
-
-	return b.deleteServer(sk)
-}
-
-func (m *mux) transportSettings(b engine.Backend) (*engine.TransportSettings, error) {
-	s, err := b.TransportSettings()
-	if err != nil {
-		return nil, err
+	if beEnt.backend.deleteServer(feSrvKey) {
+		for _, fe := range beEnt.frontends {
+			fe.onBackendMutated()
+		}
 	}
-	// Apply global defaults if options are not set
-	if s.Timeouts.Dial == 0 {
-		s.Timeouts.Dial = m.options.DialTimeout
-	}
-	if s.Timeouts.Read == 0 {
-		s.Timeouts.Read = m.options.ReadTimeout
-	}
-	return s, nil
+	return nil
 }
 
 func (m *mux) processStapleUpdate(e *stapler.StapleUpdated) error {
@@ -583,10 +602,10 @@ func (m *mux) processStapleUpdate(e *stapler.StapleUpdated) error {
 		return nil
 	}
 
-	for _, s := range m.servers {
-		if s.isTLS() {
+	for _, feSrv := range m.servers {
+		if feSrv.isTLS() {
 			// each server will ask stapler for the new OCSP response during reload
-			s.reload()
+			feSrv.reload()
 		}
 	}
 	return nil

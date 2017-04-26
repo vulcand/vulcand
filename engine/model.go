@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/vulcand/oxy/buffer"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/route"
@@ -365,13 +366,51 @@ type HTTPBackendSettings struct {
 }
 
 func (s *HTTPBackendSettings) Equals(o HTTPBackendSettings) bool {
-	return (s.Timeouts.Read == o.Timeouts.Read &&
+	return s.Timeouts.Read == o.Timeouts.Read &&
 		s.Timeouts.Dial == o.Timeouts.Dial &&
 		s.Timeouts.TLSHandshake == o.Timeouts.TLSHandshake &&
 		s.KeepAlive.Period == o.KeepAlive.Period &&
 		s.KeepAlive.MaxIdleConnsPerHost == o.KeepAlive.MaxIdleConnsPerHost &&
 		((s.TLS == nil && o.TLS == nil) ||
-			((s.TLS != nil && o.TLS != nil) && s.TLS.Equals(o.TLS))))
+			((s.TLS != nil && o.TLS != nil) && s.TLS.Equals(o.TLS)))
+}
+
+func (s *HTTPBackendSettings) TransportSettings() (TransportSettings, error) {
+	var t TransportSettings
+	var err error
+	// Connection timeouts
+	if len(s.Timeouts.Read) != 0 {
+		if t.Timeouts.Read, err = time.ParseDuration(s.Timeouts.Read); err != nil {
+			return TransportSettings{}, errors.Wrap(err, "invalid read timeout")
+		}
+	}
+	if len(s.Timeouts.Dial) != 0 {
+		if t.Timeouts.Dial, err = time.ParseDuration(s.Timeouts.Dial); err != nil {
+			return TransportSettings{}, errors.Wrap(err, "invalid dial timeout")
+		}
+	}
+	if len(s.Timeouts.TLSHandshake) != 0 {
+		if t.Timeouts.TLSHandshake, err = time.ParseDuration(s.Timeouts.TLSHandshake); err != nil {
+			return TransportSettings{}, errors.Wrap(err, "invalid tls handshake timeout")
+		}
+	}
+
+	// Keep Alive parameters
+	if len(s.KeepAlive.Period) != 0 {
+		if t.KeepAlive.Period, err = time.ParseDuration(s.KeepAlive.Period); err != nil {
+			return TransportSettings{}, errors.Wrap(err, "invalid keepalive period")
+		}
+	}
+	t.KeepAlive.MaxIdleConnsPerHost = s.KeepAlive.MaxIdleConnsPerHost
+
+	if s.TLS != nil {
+		config, err := NewTLSConfig(s.TLS)
+		if err != nil {
+			return TransportSettings{}, errors.Wrap(err, "invalid TLS config")
+		}
+		t.TLS = config
+	}
+	return t, nil
 }
 
 type MiddlewareKey struct {
@@ -402,7 +441,7 @@ type Backend struct {
 
 // NewBackend creates a new instance of the backend object
 func NewHTTPBackend(id string, s HTTPBackendSettings) (*Backend, error) {
-	if _, err := transportSettings(s); err != nil {
+	if _, err := s.TransportSettings(); err != nil {
 		return nil, err
 	}
 	return &Backend{
@@ -428,46 +467,9 @@ func (b *Backend) GetUniqueId() BackendKey {
 	return BackendKey{Id: b.Id}
 }
 
-func (b *Backend) TransportSettings() (*TransportSettings, error) {
-	return transportSettings(b.Settings.(HTTPBackendSettings))
-}
-
-func transportSettings(s HTTPBackendSettings) (*TransportSettings, error) {
-	t := &TransportSettings{}
-	var err error
-	// Connection timeouts
-	if len(s.Timeouts.Read) != 0 {
-		if t.Timeouts.Read, err = time.ParseDuration(s.Timeouts.Read); err != nil {
-			return nil, fmt.Errorf("invalid read timeout: %s", err)
-		}
-	}
-	if len(s.Timeouts.Dial) != 0 {
-		if t.Timeouts.Dial, err = time.ParseDuration(s.Timeouts.Dial); err != nil {
-			return nil, fmt.Errorf("invalid dial timeout: %s", err)
-		}
-	}
-	if len(s.Timeouts.TLSHandshake) != 0 {
-		if t.Timeouts.TLSHandshake, err = time.ParseDuration(s.Timeouts.TLSHandshake); err != nil {
-			return nil, fmt.Errorf("invalid tls handshake timeout: %s", err)
-		}
-	}
-
-	// Keep Alive parameters
-	if len(s.KeepAlive.Period) != 0 {
-		if t.KeepAlive.Period, err = time.ParseDuration(s.KeepAlive.Period); err != nil {
-			return nil, fmt.Errorf("invalid keepalive period: %s", err)
-		}
-	}
-	t.KeepAlive.MaxIdleConnsPerHost = s.KeepAlive.MaxIdleConnsPerHost
-
-	if s.TLS != nil {
-		config, err := NewTLSConfig(s.TLS)
-		if err != nil {
-			return nil, err
-		}
-		t.TLS = config
-	}
-	return t, nil
+func (b *Backend) TransportSettings() (TransportSettings, error) {
+	httpCfg := b.Settings.(HTTPBackendSettings)
+	return httpCfg.TransportSettings()
 }
 
 // Server is a final destination of the request

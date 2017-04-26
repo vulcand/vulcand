@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/pkg/errors"
 	"github.com/vulcand/oxy/buffer"
 	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/oxy/roundrobin"
@@ -15,134 +17,164 @@ import (
 	"github.com/vulcand/vulcand/engine"
 )
 
+var errorHandler = &DefaultNotFound{}
+
 type frontend struct {
-	key         engine.FrontendKey
-	mux         *mux
-	frontend    engine.Frontend
-	lb          *roundrobin.Rebalancer
-	handler     http.Handler
-	watcher     *RTWatcher
-	backend     *backend
-	middlewares map[engine.MiddlewareKey]engine.Middleware
+	mu      sync.Mutex
+	ready   bool
+	cfg     engine.Frontend
+	mwCfgs  map[engine.MiddlewareKey]engine.Middleware
+	backend *backend
+	connTck forward.UrlForwardingStateListener
+	handler http.Handler
+	watcher *RTWatcher
 }
 
-func newFrontend(m *mux, f engine.Frontend, b *backend) *frontend {
-	fr := &frontend{
-		key:         engine.FrontendKey{Id: f.Id},
-		frontend:    f,
-		mux:         m,
-		backend:     b,
-		middlewares: make(map[engine.MiddlewareKey]engine.Middleware),
+func newFrontend(cfg engine.Frontend, be *backend, mwCfgs map[engine.MiddlewareKey]engine.Middleware,
+	connTck forward.UrlForwardingStateListener,
+) *frontend {
+	if mwCfgs == nil {
+		mwCfgs = make(map[engine.MiddlewareKey]engine.Middleware)
 	}
-	return fr
+	fe := frontend{
+		cfg:     cfg,
+		mwCfgs:  mwCfgs,
+		backend: be,
+		connTck: connTck,
+	}
+	return &fe
 }
 
-func (f *frontend) String() string {
-	return fmt.Sprintf("%v frontend(wrap=%v)", f.mux, &f.frontend)
+func (fe *frontend) String() string {
+	return fmt.Sprintf("frontend(%v)", fe.cfg.Id)
 }
 
-// syncs backend servers and rebalancer state
-func syncServers(m *mux, rb *roundrobin.Rebalancer, backend *backend, w *RTWatcher) error {
-	// First, collect and parse servers to add
-	newServers := map[string]*url.URL{}
-	for _, s := range backend.servers {
-		u, err := url.Parse(s.URL)
-		if err != nil {
-			return fmt.Errorf("failed to parse url %v", s.URL)
-		}
-		newServers[s.URL] = u
-	}
+func (fe *frontend) update(feCfg engine.Frontend, be *backend) {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
 
-	// Memorize what endpoints exist in load balancer at the moment
-	existingServers := map[string]*url.URL{}
-	for _, s := range rb.Servers() {
-		existingServers[s.String()] = s
+	if !feCfg.HTTPSettings().Equals(fe.cfg.HTTPSettings()) {
+		fe.cfg = feCfg
+		fe.ready = false
 	}
-
-	// First, add endpoints, that should be added and are not in lb
-	for _, s := range newServers {
-		if _, exists := existingServers[s.String()]; !exists {
-			if err := rb.UpsertServer(s); err != nil {
-				log.Errorf("%v failed to add %v, err: %s", m, s, err)
-			}
-			w.upsertServer(s)
-		}
+	if be != fe.backend {
+		fe.backend = be
+		fe.ready = false
 	}
+}
 
-	// Second, remove endpoints that should not be there any more
-	for k, v := range existingServers {
-		if _, exists := newServers[k]; !exists {
-			if err := rb.RemoveServer(v); err != nil {
-				log.Errorf("%v failed to remove %v, err: %v", m, v, err)
-			} else {
-				log.Infof("%v removed %v", m, v)
-			}
-			w.removeServer(v)
-		}
+func (fe *frontend) upsertMiddleware(mwCfg engine.Middleware) {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+
+	mwKey := engine.MiddlewareKey{FrontendKey: engine.FrontendKey{Id: fe.cfg.Id}, Id: mwCfg.Id}
+	fe.mwCfgs[mwKey] = mwCfg
+	fe.ready = false
+}
+
+func (fe *frontend) deleteMiddleware(mwKey engine.MiddlewareKey) {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+
+	if _, ok := fe.mwCfgs[mwKey]; !ok {
+		return
+	}
+	delete(fe.mwCfgs, mwKey)
+	fe.ready = false
+}
+
+func (fe *frontend) onBackendMutated() {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+
+	fe.ready = false
+}
+
+func (fe *frontend) getWatcher() *RTWatcher {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+
+	if fe.ready {
+		return fe.watcher
 	}
 	return nil
 }
 
-func (f *frontend) updateTransport(t *http.Transport) error {
-	return f.rebuild()
+func (fe *frontend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fe.getHandler().ServeHTTP(w, r)
 }
 
-func (f *frontend) sortedMiddlewares() []engine.Middleware {
-	vals := make([]engine.Middleware, 0, len(f.middlewares))
-	for _, m := range f.middlewares {
+func (fe *frontend) getHandler() http.Handler {
+	fe.mu.Lock()
+	defer fe.mu.Unlock()
+
+	if !fe.ready {
+		if err := fe.rebuild(); err != nil {
+			log.Errorf("failed to rebuild frontend %v, err=%v", fe.cfg.Id, err)
+			return errorHandler
+		}
+		fe.ready = true
+	}
+	return fe.handler
+}
+
+func (fe *frontend) sortedMiddlewares() []engine.Middleware {
+	vals := make([]engine.Middleware, 0, len(fe.mwCfgs))
+	for _, m := range fe.mwCfgs {
 		vals = append(vals, m)
 	}
 	sort.Sort(sort.Reverse(&middlewareSorter{ms: vals}))
 	return vals
 }
 
-func (f *frontend) rebuild() error {
-	settings := f.frontend.HTTPSettings()
+func (fe *frontend) rebuild() error {
+	httpCfg := fe.cfg.HTTPSettings()
+	httpTp, beSrvCfgs := fe.backend.snapshot()
 
 	// set up forwarder
 	fwd, err := forward.New(
-		forward.RoundTripper(f.backend.transport),
+		forward.RoundTripper(httpTp),
 		forward.Rewriter(
 			&forward.HeaderRewriter{
-				Hostname:           settings.Hostname,
-				TrustForwardHeader: settings.TrustForwardHeader,
+				Hostname:           httpCfg.Hostname,
+				TrustForwardHeader: httpCfg.TrustForwardHeader,
 			}),
-		forward.PassHostHeader(settings.PassHostHeader),
-		forward.Stream(settings.Stream),
-		forward.StreamingFlushInterval(time.Duration(settings.StreamFlushIntervalNanoSecs)*time.Nanosecond),
-		forward.StateListener(f.mux.outgoingConnTracker))
+		forward.PassHostHeader(httpCfg.PassHostHeader),
+		forward.Stream(httpCfg.Stream),
+		forward.StreamingFlushInterval(time.Duration(httpCfg.StreamFlushIntervalNanoSecs)*time.Nanosecond),
+		forward.StateListener(fe.connTck))
 
 	// rtwatcher will be observing and aggregating metrics
 	watcher, err := NewWatcher(fwd)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "cannot create watcher")
 	}
 
 	// Create a load balancer
 	rr, err := roundrobin.New(watcher)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "cannot create load balancer")
 	}
 
 	// Rebalancer will readjust load balancer weights based on error ratios
 	rb, err := roundrobin.NewRebalancer(rr)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "cannot create rebalancer")
 	}
 
 	// create middlewares sorted by priority and chain them
-	middlewares := f.sortedMiddlewares()
+	middlewares := fe.sortedMiddlewares()
 	handlers := make([]http.Handler, len(middlewares))
-	for i, m := range middlewares {
+	for i, mw := range middlewares {
 		var prev http.Handler
 		if i == 0 {
 			prev = rb
 		} else {
 			prev = handlers[i-1]
 		}
-		h, err := m.Middleware.NewHandler(prev)
+		h, err := mw.Middleware.NewHandler(prev)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "cannot get middleware %v handler", mw.Id)
 		}
 		handlers[i] = h
 	}
@@ -155,97 +187,70 @@ func (f *frontend) rebuild() error {
 	}
 
 	// stream will retry and replay requests, fix encodings
-	if settings.FailoverPredicate == "" {
-		settings.FailoverPredicate = `IsNetworkError() && RequestMethod() == "GET" && Attempts() < 2`
+	if httpCfg.FailoverPredicate == "" {
+		httpCfg.FailoverPredicate = `IsNetworkError() && RequestMethod() == "GET" && Attempts() < 2`
 	}
 
-	var str http.Handler
-
-	if settings.Stream {
-		str, err = stream.New(next)
+	var topHandler http.Handler
+	if httpCfg.Stream {
+		topHandler, err = stream.New(next)
 	} else {
-		str, err = buffer.New(next,
-			buffer.Retry(settings.FailoverPredicate),
-			buffer.MaxRequestBodyBytes(settings.Limits.MaxBodyBytes),
-			buffer.MemRequestBodyBytes(settings.Limits.MaxMemBodyBytes))
+		topHandler, err = buffer.New(next,
+			buffer.Retry(httpCfg.FailoverPredicate),
+			buffer.MaxRequestBodyBytes(httpCfg.Limits.MaxBodyBytes),
+			buffer.MemRequestBodyBytes(httpCfg.Limits.MaxMemBodyBytes))
 	}
-
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create handler")
 	}
 
-	if err := syncServers(f.mux, rb, f.backend, watcher); err != nil {
-		return err
-	}
+	syncServers(rb, beSrvCfgs, watcher)
 
-	// Add the frontend to the router
-	if err := f.mux.router.Handle(f.frontend.Route, str); err != nil {
-		return err
-	}
-
-	f.lb = rb
-	f.handler = str
-	f.watcher = watcher
+	fe.handler = topHandler
+	fe.watcher = watcher
 	return nil
 }
 
-func (f *frontend) upsertMiddleware(fk engine.FrontendKey, mi engine.Middleware) error {
-	f.middlewares[engine.MiddlewareKey{FrontendKey: fk, Id: mi.Id}] = mi
-	return f.rebuild()
-}
-
-func (f *frontend) deleteMiddleware(mk engine.MiddlewareKey) error {
-	delete(f.middlewares, mk)
-	return f.rebuild()
-}
-
-func (f *frontend) updateBackend(b *backend) error {
-	oldb := f.backend
-	f.backend = b
-
-	// Switching backends, set the new transport and perform switch
-	if b.backend.Id != oldb.backend.Id {
-		log.Infof("%v updating backend from %v to %v", f, &oldb, &f.backend)
-		oldb.unlinkFrontend(f.key)
-		b.linkFrontend(f.key, f)
-		return f.rebuild()
-	}
-	return syncServers(f.mux, f.lb, f.backend, f.watcher)
-}
-
-// TODO: implement rollback in case of suboperation failure
-func (f *frontend) update(ef engine.Frontend, b *backend) error {
-	oldf := f.frontend
-	f.frontend = ef
-
-	if err := f.updateBackend(b); err != nil {
-		return err
-	}
-
-	if oldf.Route != ef.Route {
-		log.Infof("%v updating route from %v to %v", oldf.Route, ef.Route)
-		if err := f.mux.router.Handle(ef.Route, f.handler); err != nil {
-			return err
+// syncs backend servers and rebalancer state
+func syncServers(balancer *roundrobin.Rebalancer, beSrvCfgs []engine.Server, watcher *RTWatcher) {
+	// First, collect and parse servers to add
+	newServers := map[string]*url.URL{}
+	for _, beSrvCfg := range beSrvCfgs {
+		u, err := url.Parse(beSrvCfg.URL)
+		if err != nil {
+			log.Errorf("failed to parse url %v", beSrvCfg.URL)
+			continue
 		}
-		if err := f.mux.router.Remove(oldf.Route); err != nil {
-			return err
+		newServers[beSrvCfg.URL] = u
+	}
+
+	// Memorize what endpoints exist in load balancer at the moment
+	existingServers := map[string]*url.URL{}
+	for _, s := range balancer.Servers() {
+		existingServers[s.String()] = s
+	}
+
+	// First, add endpoints, that should be added and are not in lb
+	for _, s := range newServers {
+		if _, exists := existingServers[s.String()]; !exists {
+			if err := balancer.UpsertServer(s); err != nil {
+				log.Errorf("failed to add %v, err: %s", s, err)
+			}
+			watcher.upsertServer(s)
 		}
 	}
 
-	olds := oldf.HTTPSettings()
-	news := ef.HTTPSettings()
-	if !olds.Equals(news) {
-		if err := f.rebuild(); err != nil {
-			return err
+	// Second, remove endpoints that should not be there any more
+	for k, v := range existingServers {
+		if _, exists := newServers[k]; !exists {
+			if err := balancer.RemoveServer(v); err != nil {
+				log.Errorf("failed to remove %v, err: %v", v, err)
+			} else {
+				log.Infof("removed %v", v)
+			}
+			watcher.removeServer(v)
 		}
 	}
-
-	return nil
-}
-
-func (f *frontend) remove() error {
-	f.backend.unlinkFrontend(f.key)
-	return f.mux.router.Remove(f.frontend.Route)
 }
 
 type middlewareSorter struct {

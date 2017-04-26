@@ -1,10 +1,11 @@
 package proxy
 
 import (
-	"github.com/vulcand/vulcand/conntracker"
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/vulcand/vulcand/conntracker"
 )
 
 type connTracker struct {
