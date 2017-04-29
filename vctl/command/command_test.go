@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/mailgun/scroll"
+	"github.com/gorilla/mux"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/memng"
@@ -48,9 +48,9 @@ func (s *CmdSuite) SetUpTest(c *C) {
 	sv.Start()
 	s.sup = sv
 
-	app, _ := scroll.NewApp()
-	api.InitProxyController(s.ng, sv, app)
-	s.testServer = httptest.NewServer(app.GetHandler())
+	router := mux.NewRouter()
+	api.InitProxyController(s.ng, sv, router)
+	s.testServer = httptest.NewServer(router)
 
 	s.out = &bytes.Buffer{}
 	s.cmd = &Command{registry: registry.GetRegistry(), out: s.out, vulcanUrl: s.testServer.URL}
