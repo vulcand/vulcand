@@ -18,9 +18,9 @@ import (
 	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
 	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
 	etcd "github.com/coreos/etcd/client"
+	"github.com/gorilla/mux"
 	"github.com/mailgun/manners"
 	"github.com/mailgun/metrics"
-	"github.com/mailgun/scroll"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdv2ng"
@@ -89,7 +89,6 @@ type Service struct {
 	client        etcd.Client
 	options       Options
 	registry      *plugin.Registry
-	apiApp        *scroll.App
 	errorC        chan error
 	supervisor    *supervisor.Supervisor
 	metricsClient metrics.Client
@@ -171,10 +170,6 @@ func (s *Service) Start(controlC chan ControlCode) error {
 
 	// Tells configurator to perform initial proxy configuration and start watching changes
 	if err := s.supervisor.Start(); err != nil {
-		return err
-	}
-
-	if err := s.initApi(); err != nil {
 		return err
 	}
 
@@ -407,22 +402,15 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 	})
 }
 
-func (s *Service) initApi() error {
-	var err error
-	s.apiApp, err = scroll.NewApp()
-	if err != nil {
-		return err
-	}
-	api.InitProxyController(s.ng, s.supervisor, s.apiApp)
-	return nil
-}
-
 func (s *Service) startApi(file *proxy.FileDescriptor) error {
 	addr := fmt.Sprintf("%s:%d", s.options.ApiInterface, s.options.ApiPort)
 
+	router := mux.NewRouter()
+	api.InitProxyController(s.ng, s.supervisor, router)
+
 	server := &http.Server{
 		Addr:           addr,
-		Handler:        s.apiApp.GetHandler(),
+		Handler:        router,
 		ReadTimeout:    s.options.ServerReadTimeout,
 		WriteTimeout:   s.options.ServerWriteTimeout,
 		MaxHeaderBytes: 1 << 20,

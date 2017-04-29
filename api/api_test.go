@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/mailgun/scroll"
+	"github.com/gorilla/mux"
 	oxytest "github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/memng"
@@ -39,9 +39,9 @@ func (s *ApiSuite) SetUpTest(c *C) {
 
 	sv := supervisor.New(newProxy, s.ng, supervisor.Options{})
 
-	app, _ := scroll.NewApp()
-	InitProxyController(s.ng, sv, app)
-	s.testServer = httptest.NewServer(app.GetHandler())
+	router := mux.NewRouter()
+	InitProxyController(s.ng, sv, router)
+	s.testServer = httptest.NewServer(router)
 	s.client = NewClient(s.testServer.URL, registry.GetRegistry())
 }
 
