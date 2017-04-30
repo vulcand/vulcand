@@ -133,10 +133,6 @@
 			"Rev": "5349e5b95891ef5cb63ed867c31c5204cae280b2"
 		},
 		{
-			"ImportPath": "github.com/mailgun/log",
-			"Rev": "2f35a4607f1abf71f97f77f99b0de8493ef6f4ef"
-		},
-		{
 			"ImportPath": "github.com/mailgun/manners",
 			"Comment": "0.3.1-40-ga585afd",
 			"Rev": "a585afd9d65c0e05f6c003f921e71ebc05074f4f"
@@ -152,14 +148,6 @@
 		{
 			"ImportPath": "github.com/mailgun/multibuf",
 			"Rev": "565402cd71fbd9c12aa7e295324ea357e970a61e"
-		},
-		{
-			"ImportPath": "github.com/mailgun/scroll",
-			"Rev": "14d49b52a7a8f8a18072fde74c0d882a740eb1d6"
-		},
-		{
-			"ImportPath": "github.com/mailgun/scroll/vulcand",
-			"Rev": "14d49b52a7a8f8a18072fde74c0d882a740eb1d6"
 		},
 		{
 			"ImportPath": "github.com/mailgun/timetools",
