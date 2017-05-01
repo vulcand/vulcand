@@ -52,7 +52,7 @@ Set severity
 
 .. code-block:: url
 
-     PUT 'multipart/form-data' /v1/log/severity
+     PUT 'multipart/form-data' /v2/log/severity
 
 .. container:: ptable
 
