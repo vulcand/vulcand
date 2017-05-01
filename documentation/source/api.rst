@@ -174,11 +174,11 @@ Example response:
 .. code-block:: json
 
  {
-   "Id": "12", 
-   "Protocol": "https", 
+   "Id": "12",
+   "Protocol": "https",
    "Address":
      {
-        "Network":"tcp", 
+        "Network":"tcp",
         "Address":"localhost:8184"
      }
  }
@@ -430,7 +430,7 @@ Upsert frontend
 
 .. code-block:: url
 
-    POST 'application/json' /v1/hosts/<hostname>/frontends
+    POST 'application/json' /v2/frontends
 
 Add a frontend to the host. Params:
 
@@ -625,7 +625,7 @@ JSON parameters explained
 
 
 Delete connection limit
-+++++++++++++++++++++++ 
++++++++++++++++++++++++
 
 .. code-block:: url
 
