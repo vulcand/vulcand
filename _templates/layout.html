@@ -1,8 +1,5 @@
 {% extends "basic/layout.html" %}
-{% if corpsite_hostname == ""  %}
-  {% set corpsite_hostname = "www.mailgun.com" %}
-{% endif %}
-{% set css_url = "//" + corpsite_hostname + "/static/css/main.css" %}
+{% set css_url = "//www.mailgun.com/static/css/main.css" %}
 {%- block doctype -%}
 <!doctype html>
 <!--[if lt IE 7]> <html class="lt-ie9 lt-ie8 lt-ie7 documentation"> <![endif]-->
@@ -43,9 +40,6 @@
     <!-- <link rel="stylesheet" href="_static/docs.css" /> -->
     <link rel="stylesheet" href="{{css_url}}" />
     <meta name="viewport" content="width=device-width">
-    {% if corpsite_hostname == "" %}
-    <meta name="robots" content="noindex">
-    {% endif %}
 
 {%- endblock %}
 {%- block header %}{% endblock %}
