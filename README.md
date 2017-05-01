@@ -1,12 +1,1 @@
-Vulcand Documentation
-=====================
-
-Vulcand documentation.
-
-To run in development mode:
-
-```
-make install install-devmode
-make run-devmode
-```
-
+### [Read the docs!](http://vulcand.readthedocs.io/en/latest/)
