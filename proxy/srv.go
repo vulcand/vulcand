@@ -2,19 +2,16 @@ package proxy
 
 import (
 	"crypto/tls"
-
 	"fmt"
 	"net"
 	"net/http"
-
-	"golang.org/x/crypto/ocsp"
-
-	"github.com/vulcand/vulcand/engine"
 
 	log "github.com/Sirupsen/logrus"
 	proxyproto "github.com/armon/go-proxyproto"
 	"github.com/mailgun/manners"
 	"github.com/vulcand/route"
+	"github.com/vulcand/vulcand/engine"
+	"golang.org/x/crypto/ocsp"
 )
 
 // srv contains all that is necessary to run the HTTP(s) server. server does not work on its own,

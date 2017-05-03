@@ -1,14 +1,13 @@
 package proxy
 
 import (
-	"fmt"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/pkg/errors"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/vulcand/engine"
 )
@@ -27,12 +26,11 @@ func (m *mux) emitMetrics() error {
 	// Emit frontend metrics stats
 	frontends, err := m.TopFrontends(nil)
 	if err != nil {
-		log.Errorf("failed to get top frontends: %v", err)
-		return err
+		return errors.Wrap(err, "failed to get top frontends")
 	}
-	for _, f := range frontends {
-		fem := c.Metric("frontend", strings.Replace(f.Id, ".", "_", -1))
-		s := f.Stats
+	for _, fe := range frontends {
+		fem := c.Metric("frontend", strings.Replace(fe.Id, ".", "_", -1))
+		s := fe.Stats
 		for _, scode := range s.Counters.StatusCodes {
 			// response codes counters
 			c.Gauge(fem.Metric("code", strconv.Itoa(scode.Code)), scode.Count, 1)
@@ -47,68 +45,79 @@ func (m *mux) emitMetrics() error {
 			c.Gauge(fem.Metric("rtt", strconv.Itoa(int(b.Quantile*10.0))), int64(b.Value/time.Microsecond), 1)
 		}
 	}
-
 	return nil
 }
 
-func (m *mux) FrontendStats(key engine.FrontendKey) (*engine.RoundTripStats, error) {
+func (m *mux) FrontendStats(feKey engine.FrontendKey) (*engine.RoundTripStats, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	f, ok := m.frontends[key]
+	fe, ok := m.frontends[feKey]
 	if !ok {
-		return nil, fmt.Errorf("%v not found", key)
+		return nil, errors.Errorf("%v not found", feKey.Id)
 	}
-	return f.watcher.rtStats()
+	watcher := fe.getWatcher()
+	if watcher == nil {
+		return nil, errors.Errorf("%v not used", feKey.Id)
+	}
+	return watcher.rtStats()
 }
 
-func (m *mux) BackendStats(key engine.BackendKey) (*engine.RoundTripStats, error) {
+func (m *mux) BackendStats(beKey engine.BackendKey) (*engine.RoundTripStats, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	rtm, err := memmetrics.NewRTMetrics()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create RTM")
 	}
-	for _, f := range m.frontends {
-		if f.backend.backend.Id != key.Id {
+	for _, fe := range m.frontends {
+		if fe.backend.id != beKey.Id {
 			continue
 		}
-		if err := f.watcher.collectMetrics(rtm); err != nil {
-			return nil, err
+		watcher := fe.getWatcher()
+		if watcher == nil {
+			continue
+		}
+		if err := watcher.collectMetrics(rtm); err != nil {
+			return nil, errors.Wrapf(err, "failed to collect metrics for %v", fe.cfg.Id)
 		}
 	}
 	return engine.NewRoundTripStats(rtm)
 }
 
-func (m *mux) ServerStats(key engine.ServerKey) (*engine.RoundTripStats, error) {
+func (m *mux) ServerStats(beSrvKey engine.ServerKey) (*engine.RoundTripStats, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	b, ok := m.backends[key.BackendKey]
+	beEnt, ok := m.backends[beSrvKey.BackendKey]
 	if !ok {
-		return nil, fmt.Errorf("%v not found", key.BackendKey)
+		return nil, errors.Errorf("%v not found", beSrvKey.BackendKey)
 	}
-	srv, ok := b.findServer(key)
+	beSrvCfg, ok := beEnt.backend.findServer(beSrvKey)
 	if !ok {
-		return nil, fmt.Errorf("%v not found", key)
+		return nil, errors.Errorf("%v not found", beSrvKey)
 	}
 
-	u, err := url.Parse(srv.URL)
+	u, err := url.Parse(beSrvCfg.URL)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "bad backend server url %v", beSrvCfg)
 	}
 
 	rtm, err := memmetrics.NewRTMetrics()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create RTM")
 	}
-	for _, f := range m.frontends {
-		if f.backend.backend.Id != key.BackendKey.Id {
+	for _, fe := range m.frontends {
+		if fe.backend.id != beSrvKey.BackendKey.Id {
 			continue
 		}
-		if err := f.watcher.collectServerMetrics(rtm, u); err != nil {
-			return nil, err
+		watcher := fe.getWatcher()
+		if watcher == nil {
+			continue
+		}
+		if err := watcher.collectServerMetrics(rtm, u); err != nil {
+			return nil, errors.Wrapf(err, "failed to collect metrics for %v", fe.cfg.Id)
 		}
 	}
 	return engine.NewRoundTripStats(rtm)
@@ -116,64 +125,72 @@ func (m *mux) ServerStats(key engine.ServerKey) (*engine.RoundTripStats, error) 
 
 // TopFrontends returns locations sorted by criteria (faulty, slow, most used)
 // if hostname or backendId is present, will filter out locations for that host or backendId
-func (m *mux) TopFrontends(key *engine.BackendKey) ([]engine.Frontend, error) {
+func (m *mux) TopFrontends(beKey *engine.BackendKey) ([]engine.Frontend, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	frontends := []engine.Frontend{}
-	for _, m := range m.frontends {
-		if key != nil && key.Id != m.backend.backend.Id {
+	feCfgs := []engine.Frontend{}
+	for _, fe := range m.frontends {
+		if beKey != nil && beKey.Id != fe.backend.id {
 			continue
 		}
-		f := m.frontend
-		stats, err := m.watcher.rtStats()
-		if err != nil {
-			return nil, err
+		watcher := fe.getWatcher()
+		if watcher == nil {
+			continue
 		}
-		f.Stats = stats
-		frontends = append(frontends, f)
+		feCfg := fe.cfg
+		stats, err := watcher.rtStats()
+		if err != nil {
+			return nil, errors.Wrapf(err, "cannot get stats from %v", fe.cfg.Id)
+		}
+		feCfg.Stats = stats
+		feCfgs = append(feCfgs, feCfg)
 	}
-	sort.Stable(&frontendSorter{frontends: frontends})
-	return frontends, nil
+	sort.Stable(&frontendSorter{frontends: feCfgs})
+	return feCfgs, nil
 }
 
-// TopServers returns endpoints sorted by criteria (faulty, slow, mos used)
+// TopServers returns endpoints sorted by criteria (faulty, slow, most used)
 // if backendId is not empty, will filter out endpoints for that backendId
-func (m *mux) TopServers(key *engine.BackendKey) ([]engine.Server, error) {
+func (m *mux) TopServers(beKey *engine.BackendKey) ([]engine.Server, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	metrics := map[string]*sval{}
-	for _, f := range m.frontends {
-		if key != nil && key.Id != f.backend.backend.Id {
+	for _, fe := range m.frontends {
+		watcher := fe.getWatcher()
+		if watcher == nil {
 			continue
 		}
-		for _, s := range f.backend.servers {
-			val, ok := metrics[s.URL]
+		if beKey != nil && beKey.Id != fe.backend.id {
+			continue
+		}
+		for _, beSrvCfg := range fe.backend.srvCfgs {
+			val, ok := metrics[beSrvCfg.URL]
 			if !ok {
-				sval, err := newSval(s)
+				sval, err := newSval(beSrvCfg)
 				if err != nil {
-					return nil, err
+					return nil, errors.Wrapf(err, "bad backend server %v", beSrvCfg)
 				}
-				metrics[s.URL] = sval
+				metrics[beSrvCfg.URL] = sval
 				val = sval
 			}
-			if err := f.watcher.collectServerMetrics(val.rtm, val.url); err != nil {
-				return nil, err
+			if err := watcher.collectServerMetrics(val.rtm, val.url); err != nil {
+				return nil, errors.Wrapf(err, "failed to collect server metrics from %v", fe.cfg.Id)
 			}
 		}
 	}
-	servers := make([]engine.Server, 0, len(metrics))
+	beSrvCfgs := make([]engine.Server, 0, len(metrics))
 	for _, v := range metrics {
 		stats, err := engine.NewRoundTripStats(v.rtm)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "cannot create RTS")
 		}
 		v.srv.Stats = stats
-		servers = append(servers, *v.srv)
+		beSrvCfgs = append(beSrvCfgs, *v.srv)
 	}
-	sort.Stable(&serverSorter{es: servers})
-	return servers, nil
+	sort.Stable(&serverSorter{es: beSrvCfgs})
+	return beSrvCfgs, nil
 }
 
 type sval struct {
@@ -182,16 +199,16 @@ type sval struct {
 	rtm *memmetrics.RTMetrics
 }
 
-func newSval(s engine.Server) (*sval, error) {
+func newSval(beSrvCfg engine.Server) (*sval, error) {
 	rtm, err := memmetrics.NewRTMetrics()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "cannot create RTM")
 	}
-	u, err := url.Parse(s.URL)
+	u, err := url.Parse(beSrvCfg.URL)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "bad url %v", beSrvCfg.URL)
 	}
-	return &sval{srv: &s, rtm: rtm, url: u}, nil
+	return &sval{srv: &beSrvCfg, rtm: rtm, url: u}, nil
 }
 
 type frontendSorter struct {
