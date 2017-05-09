@@ -20,27 +20,29 @@ import (
 var errorHandler = &DefaultNotFound{}
 
 type frontend struct {
-	mu      sync.Mutex
-	ready   bool
-	cfg     engine.Frontend
-	mwCfgs  map[engine.MiddlewareKey]engine.Middleware
-	backend *backend
-	connTck forward.UrlForwardingStateListener
-	handler http.Handler
-	watcher *RTWatcher
+	mu        sync.Mutex
+	ready     bool
+	trustXFDH bool
+	cfg       engine.Frontend
+	mwCfgs    map[engine.MiddlewareKey]engine.Middleware
+	backend   *backend
+	connTck   forward.UrlForwardingStateListener
+	handler   http.Handler
+	watcher   *RTWatcher
 }
 
-func newFrontend(cfg engine.Frontend, be *backend, mwCfgs map[engine.MiddlewareKey]engine.Middleware,
+func newFrontend(cfg engine.Frontend, be *backend, opts Options, mwCfgs map[engine.MiddlewareKey]engine.Middleware,
 	connTck forward.UrlForwardingStateListener,
 ) *frontend {
 	if mwCfgs == nil {
 		mwCfgs = make(map[engine.MiddlewareKey]engine.Middleware)
 	}
 	fe := frontend{
-		cfg:     cfg,
-		mwCfgs:  mwCfgs,
-		backend: be,
-		connTck: connTck,
+		cfg:       cfg,
+		trustXFDH: opts.TrustForwardHeader,
+		mwCfgs:    mwCfgs,
+		backend:   be,
+		connTck:   connTck,
 	}
 	return &fe
 }
@@ -137,7 +139,7 @@ func (fe *frontend) rebuild() error {
 		forward.Rewriter(
 			&forward.HeaderRewriter{
 				Hostname:           httpCfg.Hostname,
-				TrustForwardHeader: httpCfg.TrustForwardHeader,
+				TrustForwardHeader: fe.trustXFDH || httpCfg.TrustForwardHeader,
 			}),
 		forward.PassHostHeader(httpCfg.PassHostHeader),
 		forward.Stream(httpCfg.Stream),

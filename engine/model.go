@@ -204,6 +204,10 @@ func (h *Host) GetId() string {
 	return h.Name
 }
 
+func (h *Host) Key() HostKey {
+	return HostKey{Name: h.Name}
+}
+
 // Frontend is connected to a backend and vulcand will use the servers from this backend.
 type Frontend struct {
 	Id        string
@@ -336,7 +340,7 @@ func (l *Frontend) GetId() string {
 	return l.Id
 }
 
-func (l *Frontend) GetKey() FrontendKey {
+func (l *Frontend) Key() FrontendKey {
 	return FrontendKey{Id: l.Id}
 }
 
@@ -463,7 +467,7 @@ func (b *Backend) GetId() string {
 	return b.Id
 }
 
-func (b *Backend) GetUniqueId() BackendKey {
+func (b *Backend) Key() BackendKey {
 	return BackendKey{Id: b.Id}
 }
 

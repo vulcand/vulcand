@@ -46,7 +46,8 @@ type Options struct {
 	StatsdPrefix  string
 	MetricsClient metrics.Client
 
-	DefaultListener bool
+	DefaultListener    bool
+	TrustForwardHeader bool
 
 	MemProfileRate int
 }
@@ -136,6 +137,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.StatsdAddr, "statsdAddr", "", "Statsd address in form of 'host:port'")
 
 	flag.BoolVar(&options.DefaultListener, "default-listener", true, "Enables the default listener on startup (Default value: true)")
+	flag.BoolVar(&options.TrustForwardHeader, "trustForwardHeader", false, "Whether X-Forwarded-XXX headers should be trusted")
 
 	flag.IntVar(&options.MemProfileRate, "memProfileRate", 0, "Heap profile rate in bytes (disabled if 0)")
 

@@ -993,6 +993,82 @@ func (s *ServerSuite) TestCustomNotFound(c *C) {
 	c.Assert(t.String(), Equals, "*proxy.appender")
 }
 
+// X-Forward-(For|Proto|Host) headers are either ovewritten or augmented
+// depending on the TrustFWDH config of the frontend and multiplexer.
+func (s *ServerSuite) TestProxyHeaders(c *C) {
+	var rq *http.Request
+	tbs := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		rq = r
+	})
+	defer tbs.Close()
+
+	for i, tc := range []struct {
+		feTrustFXDH  bool
+		muxTrustFXDH bool
+		xfdFor       []string
+		xfdProto     []string
+		xfdHost      []string
+	}{{
+		feTrustFXDH:  false,
+		muxTrustFXDH: false,
+		xfdFor:       []string{"127.0.0.1"},
+		xfdProto:     []string{"http"},
+		xfdHost:      []string{tbs.Listener.Addr().String()},
+	}, {
+		feTrustFXDH:  true,
+		muxTrustFXDH: false,
+		xfdFor:       []string{"a, b, c, 127.0.0.1"},
+		xfdProto:     []string{"d, e"},
+		xfdHost:      []string{"g, h"},
+	}, {
+		feTrustFXDH:  false,
+		muxTrustFXDH: true,
+		xfdFor:       []string{"a, b, c, 127.0.0.1"},
+		xfdProto:     []string{"d, e"},
+		xfdHost:      []string{"g, h"},
+	}} {
+		fmt.Printf("Test case #%d\n", i)
+
+		var err error
+		s.mux, err = New(s.lastId, s.st, Options{TrustForwardHeader: tc.muxTrustFXDH})
+		c.Assert(err, IsNil)
+		// We have to start stop multiplexer for every case to ensure that
+		// the frontend is initialized on each iteration.
+		c.Assert(s.mux.Start(), IsNil)
+
+		beCfg := MakeBackend()
+		c.Assert(s.mux.UpsertBackend(beCfg), IsNil)
+		beSrvCfg := MakeServer(tbs.URL)
+		c.Assert(s.mux.UpsertServer(beCfg.Key(), beSrvCfg), IsNil)
+		liCfg := MakeListener("localhost:11300", engine.HTTP)
+		c.Assert(s.mux.UpsertListener(liCfg), IsNil)
+		feCfg := MakeFrontend(`Path("/")`, beCfg.GetId())
+
+		var httpSettings engine.HTTPFrontendSettings
+		httpSettings.TrustForwardHeader = tc.feTrustFXDH
+		feCfg.Settings = httpSettings
+		c.Assert(s.mux.UpsertFrontend(feCfg), IsNil)
+
+		// When
+		rs, _, err := testutils.Get("http://localhost:11300/",
+			testutils.Header("X-Forwarded-For", "a, b"),
+			testutils.Header("X-Forwarded-For", "c"),
+			testutils.Header("X-Forwarded-Proto", "d, e"),
+			testutils.Header("X-Forwarded-Proto", "f"),
+			testutils.Header("X-Forwarded-Host", "g, h"),
+			testutils.Header("X-Forwarded-Host", "i"))
+
+		// Then
+		c.Assert(err, IsNil)
+		c.Assert(rs.StatusCode, Equals, http.StatusOK)
+		c.Assert(rq.Header["X-Forwarded-For"], DeepEquals, tc.xfdFor)
+		c.Assert(rq.Header["X-Forwarded-Proto"], DeepEquals, tc.xfdProto)
+		c.Assert(rq.Header["X-Forwarded-Host"], DeepEquals, tc.xfdHost)
+
+		s.mux.Stop(true)
+	}
+}
+
 func GETResponse(c *C, url string, opts ...testutils.ReqOption) string {
 	response, body, err := testutils.Get(url, opts...)
 	c.Assert(err, IsNil)
