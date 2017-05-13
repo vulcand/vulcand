@@ -27,6 +27,7 @@ import (
 	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/proxy"
+	"github.com/vulcand/vulcand/proxy/builder"
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
@@ -401,7 +402,7 @@ func (s *Service) reportSystemMetrics() {
 }
 
 func (s *Service) newProxy(id int) (proxy.Proxy, error) {
-	return proxy.New(id, s.stapler, proxy.Options{
+	return builder.NewProxy(id, s.stapler, proxy.Options{
 		MetricsClient:      s.metricsClient,
 		DialTimeout:        s.options.EndpointDialTimeout,
 		ReadTimeout:        s.options.ServerReadTimeout,

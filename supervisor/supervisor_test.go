@@ -12,6 +12,7 @@ import (
 	"github.com/vulcand/vulcand/engine/memng"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/proxy"
+	"github.com/vulcand/vulcand/proxy/builder"
 	"github.com/vulcand/vulcand/stapler"
 	. "github.com/vulcand/vulcand/testutils"
 	. "gopkg.in/check.v1"
@@ -20,7 +21,7 @@ import (
 func TestSupervisor(t *testing.T) { TestingT(t) }
 
 func newProxy(id int) (proxy.Proxy, error) {
-	return proxy.New(id, stapler.New(), proxy.Options{})
+	return builder.NewProxy(id, stapler.New(), proxy.Options{})
 }
 
 type SupervisorSuite struct {

@@ -3,9 +3,11 @@ package proxy
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
 	"github.com/vulcand/vulcand/conntracker"
@@ -85,3 +87,11 @@ func (fd *FileDescriptor) ToListener() (net.Listener, error) {
 func (fd *FileDescriptor) String() string {
 	return fmt.Sprintf("FileDescriptor(%s, %d)", fd.Address, fd.File.Fd())
 }
+
+// DefaultNotFound is an HTTP handler that returns simple 404 Not Found response.
+var DefaultNotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Not found: %v %v", r.Method, r.URL)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	fmt.Fprint(w, `{"error":"not found"}`)
+})

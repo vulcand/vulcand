@@ -13,6 +13,7 @@ import (
 	"github.com/vulcand/vulcand/plugin/connlimit"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/proxy"
+	"github.com/vulcand/vulcand/proxy/builder"
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
 	"github.com/vulcand/vulcand/testutils"
@@ -31,7 +32,7 @@ var _ = Suite(&ApiSuite{})
 
 func (s *ApiSuite) SetUpTest(c *C) {
 	newProxy := func(id int) (proxy.Proxy, error) {
-		return proxy.New(id, stapler.New(), proxy.Options{})
+		return builder.NewProxy(id, stapler.New(), proxy.Options{})
 	}
 
 	s.ng = memng.New(registry.GetRegistry())
