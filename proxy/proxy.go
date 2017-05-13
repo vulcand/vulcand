@@ -58,6 +58,7 @@ type Options struct {
 	WriteTimeout              time.Duration
 	MaxHeaderBytes            int
 	DefaultListener           *engine.Listener
+	TrustForwardHeader        bool
 	Files                     []*FileDescriptor
 	TimeProvider              timetools.TimeProvider
 	NotFoundMiddleware        plugin.Middleware

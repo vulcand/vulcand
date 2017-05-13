@@ -408,6 +408,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		WriteTimeout:       s.options.ServerWriteTimeout,
 		MaxHeaderBytes:     s.options.ServerMaxHeaderBytes,
 		DefaultListener:    constructDefaultListener(s.options),
+		TrustForwardHeader: s.options.TrustForwardHeader,
 		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
 		Router:             s.registry.GetRouter(),
 		IncomingConnectionTracker: s.registry.GetIncomingConnectionTracker(),
