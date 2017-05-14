@@ -135,7 +135,7 @@
 		{
 			"ImportPath": "github.com/mailgun/manners",
 			"Comment": "0.3.1-40-ga585afd",
-			"Rev": "a585afd9d65c0e05f6c003f921e71ebc05074f4f"
+			"Rev": "df18ed182a6091325f32554ad705e35a7309d2f7"
 		},
 		{
 			"ImportPath": "github.com/mailgun/metrics",
