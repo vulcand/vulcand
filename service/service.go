@@ -24,12 +24,12 @@ import (
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdv2ng"
 	"github.com/vulcand/vulcand/engine/etcdv3ng"
+	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
-	"github.com/vulcand/vulcand/graceful"
 )
 
 type ControlCode int
