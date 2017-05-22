@@ -20,27 +20,29 @@ import (
 var errorHandler = &DefaultNotFound{}
 
 type frontend struct {
-	mu      sync.Mutex
-	ready   bool
-	cfg     engine.Frontend
-	mwCfgs  map[engine.MiddlewareKey]engine.Middleware
-	backend *backend
-	connTck forward.UrlForwardingStateListener
-	handler http.Handler
-	watcher *RTWatcher
+	mu        sync.Mutex
+	ready     bool
+	trustXFDH bool
+	cfg       engine.Frontend
+	mwCfgs    map[engine.MiddlewareKey]engine.Middleware
+	backend   *backend
+	connTck   forward.UrlForwardingStateListener
+	handler   http.Handler
+	watcher   *RTWatcher
 }
 
-func newFrontend(cfg engine.Frontend, be *backend, mwCfgs map[engine.MiddlewareKey]engine.Middleware,
+func newFrontend(cfg engine.Frontend, be *backend, opts Options, mwCfgs map[engine.MiddlewareKey]engine.Middleware,
 	connTck forward.UrlForwardingStateListener,
 ) *frontend {
 	if mwCfgs == nil {
 		mwCfgs = make(map[engine.MiddlewareKey]engine.Middleware)
 	}
 	fe := frontend{
-		cfg:     cfg,
-		mwCfgs:  mwCfgs,
-		backend: be,
-		connTck: connTck,
+		cfg:       cfg,
+		trustXFDH: opts.TrustForwardHeader,
+		mwCfgs:    mwCfgs,
+		backend:   be,
+		connTck:   connTck,
 	}
 	return &fe
 }
@@ -130,16 +132,15 @@ func (fe *frontend) sortedMiddlewares() []engine.Middleware {
 func (fe *frontend) rebuild() error {
 	httpCfg := fe.cfg.HTTPSettings()
 	httpTp, beSrvCfgs := fe.backend.snapshot()
-
-	rewriter := &forward.HeaderRewriter{
-		Hostname:           httpCfg.Hostname,
-		TrustForwardHeader: httpCfg.TrustForwardHeader,
-	}
-
+	
 	// set up forwarder
 	fwd, err := forward.New(
 		forward.RoundTripper(httpTp),
-		forward.Rewriter(rewriter),
+		forward.Rewriter(
+			&forward.HeaderRewriter{
+				Hostname:           httpCfg.Hostname,
+				TrustForwardHeader: fe.trustXFDH || httpCfg.TrustForwardHeader,
+			}),
 		forward.PassHostHeader(httpCfg.PassHostHeader),
 
 		forward.WebsocketTLSClientConfig(httpTp.TLSClientConfig),

@@ -171,7 +171,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 		for _, mw := range fes.Middlewares {
 			mwCfgs[engine.MiddlewareKey{FrontendKey: feKey, Id: mw.Id}] = mw
 		}
-		fe := newFrontend(fes.Frontend, beEnt.backend, mwCfgs, m.outgoingConnTracker)
+		fe := newFrontend(fes.Frontend, beEnt.backend, m.options, mwCfgs, m.outgoingConnTracker)
 		if err := m.router.Handle(fes.Frontend.Route, fe); err != nil {
 			return errors.Wrapf(err, "cannot add route %v for frontend %v",
 				fes.Frontend.Route, fes.Frontend.Id)
@@ -495,7 +495,7 @@ func (m *mux) UpsertFrontend(feCfg engine.Frontend) error {
 		}
 		return nil
 	}
-	fe = newFrontend(feCfg, beEnt.backend, nil, m.outgoingConnTracker)
+	fe = newFrontend(feCfg, beEnt.backend, m.options, nil, m.outgoingConnTracker)
 	m.frontends[feKey] = fe
 	beEnt.frontends[feKey] = fe
 	if err := m.router.Handle(feCfg.Route, fe); err != nil {

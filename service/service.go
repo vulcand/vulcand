@@ -106,40 +106,7 @@ func NewService(options Options, registry *plugin.Registry) *Service {
 }
 
 func (s *Service) Start(controlC chan ControlCode) error {
-	// if .LogFormatter is set, it'll be used in log.SetFormatter() and .Log will be ignored.
-	if s.options.LogFormatter != nil {
-		log.SetFormatter(s.options.LogFormatter)
-	} else {
-		switch s.options.Log {
-		case "console":
-			{
-				log.SetFormatter(&log.TextFormatter{})
-			}
-		case "json":
-			{
-				log.SetFormatter(&log.JSONFormatter{})
-			}
-		case "syslog":
-			{
-				hook, err := logrus_syslog.NewSyslogHook("", "", syslog.LOG_INFO, "")
-				if err == nil {
-					log.SetFormatter(&log.TextFormatter{DisableColors: true})
-					log.AddHook(hook)
-				} else {
-					setFallbackLogFormatter(s.options)
-				}
-			}
-		case "logstash":
-			{
-				log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
-			}
-		default:
-			setFallbackLogFormatter(s.options)
-		}
-	}
-	log.SetOutput(os.Stdout)
-	log.SetLevel(s.options.LogSeverity.S)
-
+	s.initLogger()
 	log.Infof("Service starts with options: %#v", s.options)
 
 	if s.options.PidPath != "" {
@@ -223,6 +190,52 @@ func (s *Service) Start(controlC chan ControlCode) error {
 			return err
 		}
 	}
+}
+
+// initLogger initializes logger specified in the service options. This
+// function never fails. In case of any error a console logger with the text
+// formatter is initialized and the error details are logged as a warning.
+func (s *Service) initLogger() {
+	log.SetLevel(s.options.LogSeverity.S)
+	// If LogFormatter is specified then Log is ignored.
+	if s.options.LogFormatter != nil {
+		log.SetOutput(os.Stdout)
+		log.SetFormatter(s.options.LogFormatter)
+		return
+	}
+	if s.options.Log == "console" {
+		log.SetOutput(os.Stdout)
+		log.SetFormatter(&log.TextFormatter{})
+		return
+	}
+	var err error
+	if s.options.Log == "syslog" {
+		var devNull *os.File
+		devNull, err = os.OpenFile("/dev/null", os.O_WRONLY, 0)
+		if err == nil {
+			var hook *logrus_syslog.SyslogHook
+			hook, err = logrus_syslog.NewSyslogHook("udp", "127.0.0.1:514", syslog.LOG_INFO|syslog.LOG_MAIL, "vulcand")
+			if err == nil {
+				log.SetOutput(devNull)
+				log.SetFormatter(&log.TextFormatter{DisableColors: true})
+				log.AddHook(hook)
+				return
+			}
+		}
+	}
+	if s.options.Log == "json" {
+		log.SetOutput(os.Stdout)
+		log.SetFormatter(&log.JSONFormatter{})
+		return
+	}
+	if s.options.Log == "logstash" {
+		log.SetOutput(os.Stdout)
+		log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
+		return
+	}
+	log.SetOutput(os.Stdout)
+	log.SetFormatter(&log.TextFormatter{})
+	log.Warnf("Failed to initialized logger. Fallback to default: logger=%s, err=(%s)", s.options.Log, err)
 }
 
 func (s *Service) getFiles() (*proxy.FileDescriptor, []*proxy.FileDescriptor, error) {
@@ -395,6 +408,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		WriteTimeout:       s.options.ServerWriteTimeout,
 		MaxHeaderBytes:     s.options.ServerMaxHeaderBytes,
 		DefaultListener:    constructDefaultListener(s.options),
+		TrustForwardHeader: s.options.TrustForwardHeader,
 		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
 		Router:             s.registry.GetRouter(),
 		IncomingConnectionTracker: s.registry.GetIncomingConnectionTracker(),
