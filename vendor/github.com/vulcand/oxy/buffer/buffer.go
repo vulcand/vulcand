@@ -41,9 +41,12 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"bufio"
 	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/multibuf"
 	"github.com/vulcand/oxy/utils"
+	"net"
+	"reflect"
 )
 
 const (
@@ -180,8 +183,14 @@ func (s *Buffer) Wrap(next http.Handler) error {
 }
 
 func (s *Buffer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if log.GetLevel() >= log.DebugLevel {
+		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
+		logEntry.Debug("vulcand/oxy/buffer: begin ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/buffer: competed ServeHttp on request")
+	}
+
 	if err := s.checkLimit(req); err != nil {
-		log.Infof("request body over limit: %v", err)
+		log.Errorf("vulcand/oxy/buffer: request body over limit, err: %v", err)
 		s.errHandler.ServeHTTP(w, req, err)
 		return
 	}
@@ -192,6 +201,7 @@ func (s *Buffer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// and the reader would be unbounded bufio in the http.Server
 	body, err := multibuf.New(req.Body, multibuf.MaxBytes(s.maxRequestBodyBytes), multibuf.MemBytes(s.memRequestBodyBytes))
 	if err != nil || body == nil {
+		log.Errorf("vulcand/oxy/buffer: error when reading request body, err: %v", err)
 		s.errHandler.ServeHTTP(w, req, err)
 		return
 	}
@@ -205,7 +215,7 @@ func (s *Buffer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// set without content length or using chunked TransferEncoding
 	totalSize, err := body.Size()
 	if err != nil {
-		log.Errorf("failed to get size, err %v", err)
+		log.Errorf("vulcand/oxy/buffer: failed to get request size, err: %v", err)
 		s.errHandler.ServeHTTP(w, req, err)
 		return
 	}
@@ -217,24 +227,30 @@ func (s *Buffer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		// We create a special writer that will limit the response size, buffer it to disk if necessary
 		writer, err := multibuf.NewWriterOnce(multibuf.MaxBytes(s.maxResponseBodyBytes), multibuf.MemBytes(s.memResponseBodyBytes))
 		if err != nil {
+			log.Errorf("vulcand/oxy/buffer: failed create response writer, err: %v", err)
 			s.errHandler.ServeHTTP(w, req, err)
 			return
 		}
 
 		// We are mimicking http.ResponseWriter to replace writer with our special writer
 		b := &bufferWriter{
-			header: make(http.Header),
-			buffer: writer,
+			header:         make(http.Header),
+			buffer:         writer,
+			responseWriter: w,
 		}
 		defer b.Close()
 
 		s.next.ServeHTTP(b, outreq)
+		if b.hijacked {
+			log.Infof("vulcand/oxy/buffer: connection was hijacked downstream. Not taking any action in buffer.")
+			return
+		}
 
 		var reader multibuf.MultiReader
 		if b.expectBody(outreq) {
 			rdr, err := writer.Reader()
 			if err != nil {
-				log.Errorf("failed to read response, err %v", err)
+				log.Errorf("vulcand/oxy/buffer: failed to read response, err: %v", err)
 				s.errHandler.ServeHTTP(w, req, err)
 				return
 			}
@@ -254,12 +270,12 @@ func (s *Buffer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		attempt += 1
 		if _, err := body.Seek(0, 0); err != nil {
-			log.Errorf("Failed to rewind: error: %v", err)
+			log.Errorf("vulcand/oxy/buffer: failed to rewind response body, err: %v", err)
 			s.errHandler.ServeHTTP(w, req, err)
 			return
 		}
 		outreq = s.copyRequest(req, body, totalSize)
-		log.Infof("retry Request(%v %v) attempt %v", req.Method, req.URL, attempt)
+		log.Infof("vulcand/oxy/buffer: retry Request(%v %v) attempt %v", req.Method, req.URL, attempt)
 	}
 }
 
@@ -287,9 +303,11 @@ func (s *Buffer) checkLimit(req *http.Request) error {
 }
 
 type bufferWriter struct {
-	header http.Header
-	code   int
-	buffer multibuf.WriterOnce
+	header         http.Header
+	code           int
+	buffer         multibuf.WriterOnce
+	responseWriter http.ResponseWriter
+	hijacked       bool
 }
 
 // RFC2616 #4.4
@@ -324,6 +342,28 @@ func (b *bufferWriter) Write(buf []byte) (int, error) {
 // WriteHeader sets rw.Code.
 func (b *bufferWriter) WriteHeader(code int) {
 	b.code = code
+}
+
+//CloseNotifier interface - this allows downstream connections to be terminated when the client terminates.
+func (b *bufferWriter) CloseNotify() <-chan bool {
+	if cn, ok := b.responseWriter.(http.CloseNotifier); ok {
+		return cn.CloseNotify()
+	}
+	log.Warningf("Upstream ResponseWriter of type %v does not implement http.CloseNotifier. Returning dummy channel.", reflect.TypeOf(b.responseWriter))
+	return make(<-chan bool)
+}
+
+//This allows connections to be hijacked for websockets for instance.
+func (b *bufferWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hi, ok := b.responseWriter.(http.Hijacker); ok {
+		conn, rw, err := hi.Hijack()
+		if err != nil {
+			b.hijacked = true
+		}
+		return conn, rw, err
+	}
+	log.Warningf("Upstream ResponseWriter of type %v does not implement http.Hijacker. Returning dummy channel.", reflect.TypeOf(b.responseWriter))
+	return nil, nil, fmt.Errorf("The response writer that was wrapped in this proxy, does not implement http.Hijacker. It is of type: %v", reflect.TypeOf(b.responseWriter))
 }
 
 type SizeErrHandler struct {
