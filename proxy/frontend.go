@@ -142,15 +142,10 @@ func (fe *frontend) rebuild() error {
 		forward.Rewriter(rewriter),
 		forward.PassHostHeader(httpCfg.PassHostHeader),
 
-		forward.WebsocketRewriter(rewriter),
-		forward.WebsocketPassHostHeader(httpCfg.PassHostHeader),
 		forward.WebsocketTLSClientConfig(httpTp.TLSClientConfig),
 
 		forward.Stream(httpCfg.Stream),
-		forward.StreamRewriter(rewriter),
-		forward.StreamPassHostHeader(httpCfg.PassHostHeader),
 		forward.StreamingFlushInterval(time.Duration(httpCfg.StreamFlushIntervalNanoSecs)*time.Nanosecond),
-		forward.StreamRoundTripper(httpTp),
 
 		forward.StateListener(fe.connTck))
 
