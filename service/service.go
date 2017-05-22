@@ -19,7 +19,6 @@ import (
 	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/gorilla/mux"
-	"github.com/mailgun/manners"
 	"github.com/mailgun/metrics"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
@@ -30,6 +29,7 @@ import (
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
+	"github.com/vulcand/vulcand/graceful"
 )
 
 type ControlCode int
@@ -92,7 +92,7 @@ type Service struct {
 	errorC        chan error
 	supervisor    *supervisor.Supervisor
 	metricsClient metrics.Client
-	apiServer     *manners.GracefulServer
+	apiServer     *graceful.Server
 	ng            engine.Engine
 	stapler       stapler.Stapler
 }
@@ -439,7 +439,7 @@ func (s *Service) startApi(file *proxy.FileDescriptor) error {
 		}
 	}
 
-	s.apiServer = manners.NewWithOptions(manners.Options{Server: server, Listener: listener})
+	s.apiServer = graceful.NewWithOptions(graceful.Options{Server: server, Listener: listener})
 	return s.apiServer.ListenAndServe()
 }
 

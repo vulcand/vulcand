@@ -132,7 +132,7 @@ func (fe *frontend) sortedMiddlewares() []engine.Middleware {
 func (fe *frontend) rebuild() error {
 	httpCfg := fe.cfg.HTTPSettings()
 	httpTp, beSrvCfgs := fe.backend.snapshot()
-	
+
 	// set up forwarder
 	fwd, err := forward.New(
 		forward.RoundTripper(httpTp),

@@ -8,10 +8,10 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	proxyproto "github.com/armon/go-proxyproto"
-	"github.com/mailgun/manners"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/engine"
 	"golang.org/x/crypto/ocsp"
+	"github.com/vulcand/vulcand/graceful"
 )
 
 // srv contains all that is necessary to run the HTTP(s) server. server does not work on its own,
@@ -19,7 +19,7 @@ import (
 type srv struct {
 	defaultHost string
 	mux         *mux
-	srv         *manners.GracefulServer
+	srv         *graceful.Server
 	proxy       http.Handler
 	listener    engine.Listener
 	options     Options
@@ -118,7 +118,7 @@ func (s *srv) takeFile(f *FileDescriptor) error {
 but the file descriptor that was given corresponded to a listener of type %T. More about file descriptor: %s`, listener, s, f)
 	}
 
-	listener = &manners.TCPKeepAliveListener{TCPListener: tcpListener}
+	listener = &graceful.TCPKeepAliveListener{TCPListener: tcpListener}
 
 	if s.isProxyProto() {
 		listener = &proxyproto.Listener{
@@ -132,11 +132,11 @@ but the file descriptor that was given corresponded to a listener of type %T. Mo
 		if err != nil {
 			return err
 		}
-		listener = manners.NewTLSListener(listener, config)
+		listener = graceful.NewTLSListener(listener, config)
 	}
 
-	s.srv = manners.NewWithOptions(
-		manners.Options{
+	s.srv = graceful.NewWithOptions(
+		graceful.Options{
 			Server:       s.newHTTPServer(),
 			Listener:     listener,
 			StateHandler: s.mux.incomingConnTracker.RegisterStateChange,
@@ -160,7 +160,7 @@ func (s *srv) reload() error {
 	}
 
 	gracefulServer, err := s.srv.HijackListener(s.newHTTPServer(), func(listener net.Listener) (net.Listener, error) {
-		listener = &manners.TCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}
+		listener = &graceful.TCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}
 
 		if s.isProxyProto() {
 			listener = &proxyproto.Listener{
@@ -174,7 +174,7 @@ func (s *srv) reload() error {
 			if err != nil {
 				return nil, err
 			}
-			listener = manners.NewTLSListener(listener, config)
+			listener = graceful.NewTLSListener(listener, config)
 		}
 
 		return listener, nil
@@ -257,7 +257,7 @@ func (s *srv) start() error {
 			return err
 		}
 
-		listener = &manners.TCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}
+		listener = &graceful.TCPKeepAliveListener{TCPListener: listener.(*net.TCPListener)}
 
 		if s.isProxyProto() {
 			listener = &proxyproto.Listener{
@@ -271,10 +271,10 @@ func (s *srv) start() error {
 			if err != nil {
 				return err
 			}
-			listener = manners.NewTLSListener(listener, config)
+			listener = graceful.NewTLSListener(listener, config)
 		}
-		s.srv = manners.NewWithOptions(
-			manners.Options{
+		s.srv = graceful.NewWithOptions(
+			graceful.Options{
 				Server:       s.newHTTPServer(),
 				Listener:     listener,
 				StateHandler: s.mux.incomingConnTracker.RegisterStateChange,
@@ -290,7 +290,7 @@ func (s *srv) start() error {
 	return fmt.Errorf("%v Calling start in unsupported state", s)
 }
 
-func (s *srv) serve(srv *manners.GracefulServer) {
+func (s *srv) serve(srv *graceful.Server) {
 	log.Infof("%s serve", s)
 
 	s.mux.wg.Add(1)
