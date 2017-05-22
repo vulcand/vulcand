@@ -131,17 +131,27 @@ func (fe *frontend) rebuild() error {
 	httpCfg := fe.cfg.HTTPSettings()
 	httpTp, beSrvCfgs := fe.backend.snapshot()
 
+	rewriter := &forward.HeaderRewriter{
+		Hostname:           httpCfg.Hostname,
+		TrustForwardHeader: httpCfg.TrustForwardHeader,
+	}
+
 	// set up forwarder
 	fwd, err := forward.New(
 		forward.RoundTripper(httpTp),
-		forward.Rewriter(
-			&forward.HeaderRewriter{
-				Hostname:           httpCfg.Hostname,
-				TrustForwardHeader: httpCfg.TrustForwardHeader,
-			}),
+		forward.Rewriter(rewriter),
 		forward.PassHostHeader(httpCfg.PassHostHeader),
+
+		forward.WebsocketRewriter(rewriter),
+		forward.WebsocketPassHostHeader(httpCfg.PassHostHeader),
+		forward.WebsocketTLSClientConfig(httpTp.TLSClientConfig),
+
 		forward.Stream(httpCfg.Stream),
+		forward.StreamRewriter(rewriter),
+		forward.StreamPassHostHeader(httpCfg.PassHostHeader),
 		forward.StreamingFlushInterval(time.Duration(httpCfg.StreamFlushIntervalNanoSecs)*time.Nanosecond),
+		forward.StreamRoundTripper(httpTp),
+
 		forward.StateListener(fe.connTck))
 
 	// rtwatcher will be observing and aggregating metrics
