@@ -202,7 +202,8 @@ func (s *srv) newTLSConfig() (*tls.Config, error) {
 	}
 
 	if config.NextProtos == nil {
-		config.NextProtos = []string{"http/1.1"}
+		// "h2" is required in order to enable HTTP 2: https://golang.org/src/net/http/server.go
+		config.NextProtos = []string{"http/1.1", "h2"}
 	}
 
 	pairs := map[string]tls.Certificate{}
