@@ -169,7 +169,7 @@ func (f *Forwarder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		f.stateListener(req.URL, StateConnected)
 		defer f.stateListener(req.URL, StateDisconnected)
 	}
-	if isWebsocketRequest(req) {
+	if IsWebsocketRequest(req) {
 		f.httpForwarder.serveWebSocket(w, req, f.handlerContext)
 	} else if f.stream {
 		f.httpForwarder.serveStreamingHTTP(w, req, f.handlerContext)
@@ -351,33 +351,16 @@ func (f *httpForwarder) copyWebSocketRequest(req *http.Request) (outReq *http.Re
 	outReq.URL.Host = req.URL.Host
 	outReq.URL.Path = req.RequestURI
 
-	/*
-		// Do not pass client Host header unless optsetter PassHostHeader is set.
-		if !f.passHost {
-			outReq.Host = req.Host
-		}
+	// Do not pass client Host header unless optsetter PassHostHeader is set.
+	if !f.passHost {
+		outReq.Host = req.Host
+	}
 
-		if f.rewriter != nil {
-			f.rewriter.Rewrite(outReq)
-		}
-	*/
+	if f.rewriter != nil {
+		f.rewriter.Rewrite(outReq)
+	}
 
 	return outReq
-}
-
-// isWebsocketRequest determines if the specified HTTP request is a
-// websocket handshake request
-func isWebsocketRequest(req *http.Request) bool {
-	containsHeader := func(name, value string) bool {
-		items := strings.Split(req.Header.Get(name), ",")
-		for _, item := range items {
-			if value == strings.ToLower(strings.TrimSpace(item)) {
-				return true
-			}
-		}
-		return false
-	}
-	return containsHeader(Connection, "upgrade") && containsHeader(Upgrade, "websocket")
 }
 
 // serveHTTP forwards HTTP traffic using the configured transport
@@ -425,4 +408,19 @@ func (f *httpForwarder) serveStreamingHTTP(w http.ResponseWriter, inReq *http.Re
 		log.Infof("vulcand/oxy/forward/httpstream: Round trip: %v, code: %v, Length: %v, duration: %v",
 			outReq.URL, pw.Code, pw.Length, time.Now().UTC().Sub(start))
 	}
+}
+
+// isWebsocketRequest determines if the specified HTTP request is a
+// websocket handshake request
+func IsWebsocketRequest(req *http.Request) bool {
+	containsHeader := func(name, value string) bool {
+		items := strings.Split(req.Header.Get(name), ",")
+		for _, item := range items {
+			if value == strings.ToLower(strings.TrimSpace(item)) {
+				return true
+			}
+		}
+		return false
+	}
+	return containsHeader(Connection, "upgrade") && containsHeader(Upgrade, "websocket")
 }
