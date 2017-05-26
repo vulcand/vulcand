@@ -137,7 +137,7 @@ func (r *Registry) GetFrontendListeners() FrontendListeners {
 	return r.frontendListeners
 }
 
-func (r *Registry) SetOutgoingConnectionTracker(frontendListeners FrontendListeners) error {
+func (r *Registry) SetFrontendListeners(frontendListeners FrontendListeners) error {
 	r.frontendListeners = frontendListeners
 	return nil
 }
