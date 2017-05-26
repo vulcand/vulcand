@@ -238,11 +238,11 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "19b9dde14240d94c804ae5736ad0e1de10bf8fe6"
 		},
 		{
 			"ImportPath": "github.com/vulcand/route",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "61904570391bdf22252f8e376b49a57593d9124c"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/nacl/secretbox",
