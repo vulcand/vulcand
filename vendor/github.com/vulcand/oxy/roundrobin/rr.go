@@ -30,14 +30,23 @@ func ErrorHandler(h utils.ErrorHandler) LBOption {
 	}
 }
 
+// ErrorHandler is a functional argument that sets error handler of the server
+func RoundRobinRequestRewriteListener(rrl RequestRewriteListener) LBOption {
+	return func(s *RoundRobin) error {
+		s.requestRewriteListener = rrl
+		return nil
+	}
+}
+
 type RoundRobin struct {
 	mutex      *sync.Mutex
 	next       http.Handler
 	errHandler utils.ErrorHandler
 	// Current index (starts from -1)
-	index         int
-	servers       []*server
-	currentWeight int
+	index                  int
+	servers                []*server
+	currentWeight          int
+	requestRewriteListener RequestRewriteListener
 }
 
 func New(next http.Handler, opts ...LBOption) (*RoundRobin, error) {
@@ -75,14 +84,20 @@ func (r *RoundRobin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if log.GetLevel() >= log.InfoLevel {
+	if log.GetLevel() >= log.DebugLevel {
 		//log which backend URL we're sending this request to
-		log.WithFields(log.Fields{"Request": utils.DumpHttpRequest(req), "ForwardURL": url}).Info("vulcand/oxy/roundrobin/rr: Forwarding this request to URL")
+		log.WithFields(log.Fields{"Request": utils.DumpHttpRequest(req), "ForwardURL": url}).Debugf("vulcand/oxy/roundrobin/rr: Forwarding this request to URL")
 	}
 
 	// make shallow copy of request before chaning anything to avoid side effects
 	newReq := *req
 	newReq.URL = url
+
+	//Emit event to a listener if one exists
+	if r.requestRewriteListener != nil {
+		r.requestRewriteListener(req, &newReq)
+	}
+
 	r.next.ServeHTTP(w, &newReq)
 }
 

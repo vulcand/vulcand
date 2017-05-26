@@ -194,55 +194,55 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/buffer",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "c5546fa1b7c6c15936c47c8854b671b92e6f12b0"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",
-			"Rev": "19b9dde14240d94c804ae5736ad0e1de10bf8fe6"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/route",
-			"Rev": "61904570391bdf22252f8e376b49a57593d9124c"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/nacl/secretbox",
