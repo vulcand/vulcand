@@ -8,7 +8,6 @@ import (
 
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
-	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
@@ -64,7 +63,7 @@ type Options struct {
 	NotFoundMiddleware        plugin.Middleware
 	Router                    router.Router
 	IncomingConnectionTracker conntracker.ConnectionTracker
-	OutgoingConnectionTracker forward.UrlForwardingStateListener
+	FrontendListeners         plugin.FrontendListeners
 }
 
 type NewProxyFn func(id int) (Proxy, error)

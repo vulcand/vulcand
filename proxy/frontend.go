@@ -15,6 +15,7 @@ import (
 	"github.com/vulcand/oxy/roundrobin"
 	"github.com/vulcand/oxy/stream"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/plugin"
 )
 
 var errorHandler = &DefaultNotFound{}
@@ -26,13 +27,13 @@ type frontend struct {
 	cfg       engine.Frontend
 	mwCfgs    map[engine.MiddlewareKey]engine.Middleware
 	backend   *backend
-	connTck   forward.UrlForwardingStateListener
 	handler   http.Handler
 	watcher   *RTWatcher
+	listeners plugin.FrontendListeners
 }
 
 func newFrontend(cfg engine.Frontend, be *backend, opts Options, mwCfgs map[engine.MiddlewareKey]engine.Middleware,
-	connTck forward.UrlForwardingStateListener,
+	listeners plugin.FrontendListeners,
 ) *frontend {
 	if mwCfgs == nil {
 		mwCfgs = make(map[engine.MiddlewareKey]engine.Middleware)
@@ -42,7 +43,7 @@ func newFrontend(cfg engine.Frontend, be *backend, opts Options, mwCfgs map[engi
 		trustXFDH: opts.TrustForwardHeader,
 		mwCfgs:    mwCfgs,
 		backend:   be,
-		connTck:   connTck,
+		listeners: listeners,
 	}
 	return &fe
 }
@@ -148,7 +149,7 @@ func (fe *frontend) rebuild() error {
 		forward.Stream(httpCfg.Stream),
 		forward.StreamingFlushInterval(time.Duration(httpCfg.StreamFlushIntervalNanoSecs)*time.Nanosecond),
 
-		forward.StateListener(fe.connTck))
+		forward.StateListener(fe.listeners.ConnTck))
 
 	// rtwatcher will be observing and aggregating metrics
 	watcher, err := NewWatcher(fwd)
@@ -157,13 +158,13 @@ func (fe *frontend) rebuild() error {
 	}
 
 	// Create a load balancer
-	rr, err := roundrobin.New(watcher)
+	rr, err := roundrobin.New(watcher, roundrobin.RoundRobinRequestRewriteListener(fe.listeners.RrRewriteListener))
 	if err != nil {
 		return errors.Wrap(err, "cannot create load balancer")
 	}
 
 	// Rebalancer will readjust load balancer weights based on error ratios
-	rb, err := roundrobin.NewRebalancer(rr)
+	rb, err := roundrobin.NewRebalancer(rr, roundrobin.RebalancerRequestRewriteListener(fe.listeners.RbRewriteListener))
 	if err != nil {
 		return errors.Wrap(err, "cannot create rebalancer")
 	}

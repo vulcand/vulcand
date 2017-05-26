@@ -11,10 +11,10 @@ import (
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
 	"github.com/pkg/errors"
-	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/router"
 	"github.com/vulcand/vulcand/stapler"
 )
@@ -51,8 +51,7 @@ type mux struct {
 	// Connection watcher
 	incomingConnTracker conntracker.ConnectionTracker
 
-	// Connection watcher
-	outgoingConnTracker forward.UrlForwardingStateListener
+	frontendListeners plugin.FrontendListeners
 
 	// stopC used for global broadcast to all proxy systems that it's closed
 	stopC chan struct{}
@@ -92,7 +91,7 @@ func New(id int, st stapler.Stapler, o Options) (*mux, error) {
 
 		router:              o.Router,
 		incomingConnTracker: o.IncomingConnectionTracker,
-		outgoingConnTracker: o.OutgoingConnectionTracker,
+		frontendListeners:   o.FrontendListeners,
 
 		servers:   make(map[engine.ListenerKey]*srv),
 		backends:  make(map[engine.BackendKey]backendEntry),
@@ -171,7 +170,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 		for _, mw := range fes.Middlewares {
 			mwCfgs[engine.MiddlewareKey{FrontendKey: feKey, Id: mw.Id}] = mw
 		}
-		fe := newFrontend(fes.Frontend, beEnt.backend, m.options, mwCfgs, m.outgoingConnTracker)
+		fe := newFrontend(fes.Frontend, beEnt.backend, m.options, mwCfgs, m.frontendListeners)
 		if err := m.router.Handle(fes.Frontend.Route, fe); err != nil {
 			return errors.Wrapf(err, "cannot add route %v for frontend %v",
 				fes.Frontend.Route, fes.Frontend.Id)
@@ -495,7 +494,7 @@ func (m *mux) UpsertFrontend(feCfg engine.Frontend) error {
 		}
 		return nil
 	}
-	fe = newFrontend(feCfg, beEnt.backend, m.options, nil, m.outgoingConnTracker)
+	fe = newFrontend(feCfg, beEnt.backend, m.options, nil, m.frontendListeners)
 	m.frontends[feKey] = fe
 	beEnt.frontends[feKey] = fe
 	if err := m.router.Handle(feCfg.Route, fe); err != nil {
