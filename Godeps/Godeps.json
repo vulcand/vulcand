@@ -133,11 +133,6 @@
 			"Rev": "5349e5b95891ef5cb63ed867c31c5204cae280b2"
 		},
 		{
-			"ImportPath": "github.com/mailgun/manners",
-			"Comment": "0.3.1-40-ga585afd",
-			"Rev": "a585afd9d65c0e05f6c003f921e71ebc05074f4f"
-		},
-		{
 			"ImportPath": "github.com/mailgun/metrics",
 			"Rev": "2b3c4565aafdcd40c8069e50de08ac5379787943"
 		},
@@ -199,47 +194,47 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/buffer",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "9d07313adea3bb9c7817ea887df6ac79648675f9"
+			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",

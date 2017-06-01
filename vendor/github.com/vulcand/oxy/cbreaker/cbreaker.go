@@ -100,6 +100,11 @@ func New(next http.Handler, expression string, options ...CircuitBreakerOption) 
 }
 
 func (c *CircuitBreaker) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if log.GetLevel() >= log.DebugLevel {
+		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
+		logEntry.Debug("vulcand/oxy/circuitbreaker: begin ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/circuitbreaker: competed ServeHttp on request")
+	}
 	if c.activateFallback(w, req) {
 		c.fallback.ServeHTTP(w, req)
 		return

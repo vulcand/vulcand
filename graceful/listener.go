@@ -1,4 +1,4 @@
-package manners
+package graceful
 
 import (
 	"crypto/tls"
@@ -18,8 +18,8 @@ import (
 // Note that you generally don't need to use this directly as
 // GracefulServer will automatically wrap any non-graceful listeners
 // supplied to it.
-func NewListener(l net.Listener) *GracefulListener {
-	return &GracefulListener{
+func NewListener(l net.Listener) *Listener {
+	return &Listener{
 		listener: l,
 		mutex:    &sync.RWMutex{},
 		open:     true,
@@ -29,24 +29,24 @@ func NewListener(l net.Listener) *GracefulListener {
 // A GracefulListener differs from a standard net.Listener in one way: if
 // Accept() is called after it is gracefully closed, it returns a
 // listenerAlreadyClosed error. The GracefulServer will ignore this error.
-type GracefulListener struct {
+type Listener struct {
 	listener net.Listener
 	open     bool
 	mutex    *sync.RWMutex
 }
 
-func (l *GracefulListener) isClosed() bool {
+func (l *Listener) isClosed() bool {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	return !l.open
 }
 
-func (l *GracefulListener) Addr() net.Addr {
+func (l *Listener) Addr() net.Addr {
 	return l.listener.Addr()
 }
 
 // Accept implements the Accept method in the Listener interface.
-func (l *GracefulListener) Accept() (net.Conn, error) {
+func (l *Listener) Accept() (net.Conn, error) {
 	conn, err := l.listener.Accept()
 	if err != nil {
 		if l.isClosed() {
@@ -58,7 +58,7 @@ func (l *GracefulListener) Accept() (net.Conn, error) {
 }
 
 // Close tells the wrapped listener to stop listening.  It is idempotent.
-func (l *GracefulListener) Close() error {
+func (l *Listener) Close() error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if !l.open {
@@ -68,11 +68,11 @@ func (l *GracefulListener) Close() error {
 	return l.listener.Close()
 }
 
-func (l *GracefulListener) GetFile() (*os.File, error) {
+func (l *Listener) GetFile() (*os.File, error) {
 	return getListenerFile(l.listener)
 }
 
-func (l *GracefulListener) Clone() (net.Listener, error) {
+func (l *Listener) Clone() (net.Listener, error) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 

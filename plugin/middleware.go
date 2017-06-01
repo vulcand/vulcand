@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/codegangsta/cli"
 	"github.com/vulcand/oxy/forward"
+	"github.com/vulcand/oxy/roundrobin"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/router"
@@ -54,13 +55,21 @@ type CliReader func(c *cli.Context) (Middleware, error)
 // Function that returns middleware spec by it's type
 type SpecGetter func(string) *MiddlewareSpec
 
+//Holds a bunch of Listeners a frontend might have.
+//This allows callers to consolidate all their listeners in one convenient struct.
+type FrontendListeners struct {
+	ConnTck           forward.UrlForwardingStateListener
+	RbRewriteListener roundrobin.RequestRewriteListener
+	RrRewriteListener roundrobin.RequestRewriteListener
+}
+
 // Registry contains currently registered middlewares and used to support pluggable middlewares across all modules of the vulcand
 type Registry struct {
 	specs                     []*MiddlewareSpec
 	notFound                  Middleware
 	router                    router.Router
 	incomingConnectionTracker conntracker.ConnectionTracker
-	outgoingConnectionTracker forward.UrlForwardingStateListener
+	frontendListeners         FrontendListeners
 }
 
 func NewRegistry() *Registry {
@@ -124,12 +133,12 @@ func (r *Registry) GetIncomingConnectionTracker() conntracker.ConnectionTracker 
 	return r.incomingConnectionTracker
 }
 
-func (r *Registry) GetOutgoingConnectionTracker() forward.UrlForwardingStateListener {
-	return r.outgoingConnectionTracker
+func (r *Registry) GetFrontendListeners() FrontendListeners {
+	return r.frontendListeners
 }
 
-func (r *Registry) SetOutgoingConnectionTracker(connTracker forward.UrlForwardingStateListener) error {
-	r.outgoingConnectionTracker = connTracker
+func (r *Registry) SetFrontendListeners(frontendListeners FrontendListeners) error {
+	r.frontendListeners = frontendListeners
 	return nil
 }
 

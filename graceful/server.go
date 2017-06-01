@@ -38,7 +38,7 @@ The server will shut down cleanly when the Close() method is called:
 	http.Handle("/hello", myHandler)
 	log.Fatal(manners.ListenAndServe(":8080", nil))
 */
-package manners
+package graceful
 
 import (
 	"crypto/tls"
@@ -71,13 +71,13 @@ type Options struct {
 // methods and properties avaiable.
 //
 // It must be initialized by calling NewServer or NewWithServer
-type GracefulServer struct {
+type Server struct {
 	*http.Server
 	shutdown         chan bool
 	shutdownFinished chan bool
-	wg               waitGroup
+	wg               *sync.WaitGroup
 	routinesCount    int32
-	listener         *GracefulListener
+	listener         *Listener
 	stateHandler     StateHandler
 	connToProps      map[net.Conn]connProperties
 	connToPropsMtx   sync.RWMutex
@@ -86,21 +86,21 @@ type GracefulServer struct {
 }
 
 // NewServer creates a new GracefulServer.
-func NewServer() *GracefulServer {
+func NewServer() *Server {
 	return NewWithOptions(Options{})
 }
 
 // NewWithServer wraps an existing http.Server object and returns a
 // GracefulServer that supports all of the original Server operations.
-func NewWithServer(s *http.Server) *GracefulServer {
+func NewWithServer(s *http.Server) *Server {
 	return NewWithOptions(Options{Server: s})
 }
 
 // NewWithOptions creates a GracefulServer instance with the specified options.
-func NewWithOptions(o Options) *GracefulServer {
-	var listener *GracefulListener
+func NewWithOptions(o Options) *Server {
+	var listener *Listener
 	if o.Listener != nil {
-		g, ok := o.Listener.(*GracefulListener)
+		g, ok := o.Listener.(*Listener)
 		if !ok {
 			listener = NewListener(o.Listener)
 		} else {
@@ -110,7 +110,7 @@ func NewWithOptions(o Options) *GracefulServer {
 	if o.Server == nil {
 		o.Server = new(http.Server)
 	}
-	return &GracefulServer{
+	return &Server{
 		Server:           o.Server,
 		listener:         listener,
 		stateHandler:     o.StateHandler,
@@ -123,20 +123,20 @@ func NewWithOptions(o Options) *GracefulServer {
 
 // Close stops the server from accepting new requets and begins shutting down.
 // It returns true if it's the first time Close is called.
-func (gs *GracefulServer) Close() bool {
+func (gs *Server) Close() bool {
 	return <-gs.shutdown
 }
 
 // BlockingClose is similar to Close, except that it blocks until the last
 // connection has been closed.
-func (gs *GracefulServer) BlockingClose() bool {
+func (gs *Server) BlockingClose() bool {
 	result := gs.Close()
 	<-gs.shutdownFinished
 	return result
 }
 
 // ListenAndServe provides a graceful equivalent of net/http.Serve.ListenAndServe.
-func (gs *GracefulServer) ListenAndServe() error {
+func (gs *Server) ListenAndServe() error {
 	if gs.listener == nil {
 		oldListener, err := net.Listen("tcp", gs.Addr)
 		if err != nil {
@@ -148,7 +148,7 @@ func (gs *GracefulServer) ListenAndServe() error {
 }
 
 // ListenAndServeTLS provides a graceful equivalent of net/http.Serve.ListenAndServeTLS.
-func (gs *GracefulServer) ListenAndServeTLS(certFile, keyFile string) error {
+func (gs *Server) ListenAndServeTLS(certFile, keyFile string) error {
 	// direct lift from net/http/server.go
 	addr := gs.Addr
 	if addr == "" {
@@ -159,7 +159,8 @@ func (gs *GracefulServer) ListenAndServeTLS(certFile, keyFile string) error {
 		*config = *gs.TLSConfig
 	}
 	if config.NextProtos == nil {
-		config.NextProtos = []string{"http/1.1"}
+		// "h2" is required in order to enable HTTP 2: https://golang.org/src/net/http/server.go
+		config.NextProtos = []string{"h2", "http/1.1"}
 	}
 
 	var err error
@@ -173,7 +174,7 @@ func (gs *GracefulServer) ListenAndServeTLS(certFile, keyFile string) error {
 }
 
 // ListenAndServeTLS provides a graceful equivalent of net/http.Serve.ListenAndServeTLS.
-func (gs *GracefulServer) ListenAndServeTLSWithConfig(config *tls.Config) error {
+func (gs *Server) ListenAndServeTLSWithConfig(config *tls.Config) error {
 	addr := gs.Addr
 	if addr == "" {
 		addr = ":https"
@@ -191,15 +192,15 @@ func (gs *GracefulServer) ListenAndServeTLSWithConfig(config *tls.Config) error 
 	return gs.Serve(gs.listener)
 }
 
-func (gs *GracefulServer) GetFile() (*os.File, error) {
+func (gs *Server) GetFile() (*os.File, error) {
 	return gs.listener.GetFile()
 }
 
 type ListenerMutateFunc func(net.Listener) (net.Listener, error)
 
-func (gs *GracefulServer) HijackListener(s *http.Server, fn ListenerMutateFunc) (*GracefulServer, error) {
+func (gs *Server) HijackListener(s *http.Server, fn ListenerMutateFunc) (*Server, error) {
 	listenerUnsafePtr := unsafe.Pointer(gs.listener)
-	listener, err := (*GracefulListener)(atomic.LoadPointer(&listenerUnsafePtr)).Clone()
+	listener, err := (*Listener)(atomic.LoadPointer(&listenerUnsafePtr)).Clone()
 	if err != nil {
 		return nil, err
 	}
@@ -220,11 +221,11 @@ func (gs *GracefulServer) HijackListener(s *http.Server, fn ListenerMutateFunc) 
 //
 // If listener is not an instance of *GracefulListener it will be wrapped
 // to become one.
-func (gs *GracefulServer) Serve(listener net.Listener) error {
+func (gs *Server) Serve(listener net.Listener) error {
 	// Accept a net.Listener to preserve the interface compatibility with the
 	// standard http.Server. If it is not a GracefulListener then wrap it into
 	// one.
-	gracefulListener, ok := listener.(*GracefulListener)
+	gracefulListener, ok := listener.(*Listener)
 	if !ok {
 		gracefulListener = NewListener(listener)
 		listener = gracefulListener
@@ -324,20 +325,20 @@ func (gs *GracefulServer) Serve(listener net.Listener) error {
 // StartRoutine increments the server's WaitGroup. Use this if a web request
 // starts more goroutines and these goroutines are not guaranteed to finish
 // before the request.
-func (gs *GracefulServer) StartRoutine() {
+func (gs *Server) StartRoutine() {
 	gs.wg.Add(1)
 	atomic.AddInt32(&gs.routinesCount, 1)
 }
 
 // FinishRoutine decrements the server's WaitGroup. Use this to complement
 // StartRoutine().
-func (gs *GracefulServer) FinishRoutine() {
+func (gs *Server) FinishRoutine() {
 	gs.wg.Done()
 	atomic.AddInt32(&gs.routinesCount, -1)
 }
 
 // RoutinesCount returns the number of currently running routines
-func (gs *GracefulServer) RoutinesCount() int {
+func (gs *Server) RoutinesCount() int {
 	return int(atomic.LoadInt32(&gs.routinesCount))
 }
 

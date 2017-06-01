@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/vulcand/oxy/utils"
 )
 
 type Response struct {
@@ -25,6 +28,12 @@ func NewResponseFallback(r Response) (*ResponseFallback, error) {
 }
 
 func (f *ResponseFallback) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if log.GetLevel() >= log.DebugLevel {
+		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
+		logEntry.Debug("vulcand/oxy/fallback/response: begin ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/fallback/response: competed ServeHttp on request")
+	}
+
 	if f.r.ContentType != "" {
 		w.Header().Set("Content-Type", f.r.ContentType)
 	}
@@ -50,6 +59,12 @@ func NewRedirectFallback(r Redirect) (*RedirectFallback, error) {
 }
 
 func (f *RedirectFallback) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if log.GetLevel() >= log.DebugLevel {
+		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
+		logEntry.Debug("vulcand/oxy/fallback/redirect: begin ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/fallback/redirect: competed ServeHttp on request")
+	}
+
 	w.Header().Set("Location", f.u.String())
 	w.WriteHeader(http.StatusFound)
 	w.Write([]byte(http.StatusText(http.StatusFound)))

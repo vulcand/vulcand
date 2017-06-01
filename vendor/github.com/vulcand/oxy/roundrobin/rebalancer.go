@@ -47,6 +47,8 @@ type Rebalancer struct {
 
 	// creates new meters
 	newMeter NewMeterFn
+
+	requestRewriteListener RequestRewriteListener
 }
 
 func RebalancerClock(clock timetools.TimeProvider) RebalancerOption {
@@ -74,6 +76,14 @@ func RebalancerMeter(newMeter NewMeterFn) RebalancerOption {
 func RebalancerErrorHandler(h utils.ErrorHandler) RebalancerOption {
 	return func(r *Rebalancer) error {
 		r.errHandler = h
+		return nil
+	}
+}
+
+// RebalancerErrorHandler is a functional argument that sets error handler of the server
+func RebalancerRequestRewriteListener(rrl RequestRewriteListener) RebalancerOption {
+	return func(r *Rebalancer) error {
+		r.requestRewriteListener = rrl
 		return nil
 	}
 }
@@ -121,6 +131,12 @@ func (rb *Rebalancer) Servers() []*url.URL {
 }
 
 func (rb *Rebalancer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if log.GetLevel() >= log.DebugLevel {
+		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
+		logEntry.Debug("vulcand/oxy/roundrobin/rebalancer: begin ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/roundrobin/rebalancer: competed ServeHttp on request")
+	}
+
 	pw := &utils.ProxyWriter{W: w}
 	start := rb.clock.UtcNow()
 	url, err := rb.next.NextServer()
@@ -129,9 +145,20 @@ func (rb *Rebalancer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if log.GetLevel() >= log.DebugLevel {
+		//log which backend URL we're sending this request to
+		log.WithFields(log.Fields{"Request": utils.DumpHttpRequest(req), "ForwardURL": url}).Debugf("vulcand/oxy/roundrobin/rebalancer: Forwarding this request to URL")
+	}
+
 	// make shallow copy of request before changing anything to avoid side effects
 	newReq := *req
 	newReq.URL = url
+
+	//Emit event to a listener if one exists
+	if rb.requestRewriteListener != nil {
+		rb.requestRewriteListener(req, &newReq)
+	}
+
 	rb.next.Next().ServeHTTP(pw, &newReq)
 
 	rb.recordMetrics(url, pw.Code, rb.clock.UtcNow().Sub(start))
