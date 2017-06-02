@@ -1,9 +1,12 @@
-package proxy
+package backend
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/proxy"
 	. "gopkg.in/check.v1"
 )
 
@@ -15,11 +18,11 @@ type BackendSuite struct {
 func (s *BackendSuite) TestNew(c *C) {
 	beCfg, err := engine.NewHTTPBackend("foo", engine.HTTPBackendSettings{})
 	c.Assert(err, IsNil)
-	be, err := newBackend(*beCfg, Options{}, nil)
+	be, err := New(*beCfg, proxy.Options{}, nil)
 	c.Assert(err, IsNil)
 
 	// When
-	_, srvCfgs := be.snapshot()
+	_, srvCfgs := be.Snapshot()
 
 	// Then
 	c.Assert(srvCfgs, IsNil)
@@ -43,23 +46,23 @@ func (s *BackendSuite) TestNewFailure(c *C) {
 func (s *BackendSuite) TestCopyOnRead(c *C) {
 	beCfg, err := engine.NewHTTPBackend("foo", engine.HTTPBackendSettings{})
 	c.Assert(err, IsNil)
-	be, err := newBackend(*beCfg, Options{}, []engine.Server{{Id: "1"}, {Id: "3"}})
+	be, err := New(*beCfg, proxy.Options{}, []Srv{newBeSrv("1"), newBeSrv("3")})
 	c.Assert(err, IsNil)
 
 	// When
-	be.upsertServer(engine.Server{Id: "2"})
-	_, srvCfgs1 := be.snapshot()
+	be.UpsertServer(engine.Server{Id: "2"})
+	_, srvCfgs1 := be.Snapshot()
 
-	be.upsertServer(engine.Server{Id: "3"}) // Duplicate
-	be.upsertServer(engine.Server{Id: "4"})
-	_, srvCfgs2 := be.snapshot()
+	be.UpsertServer(engine.Server{Id: "3"}) // Duplicate
+	be.UpsertServer(engine.Server{Id: "4"})
+	_, srvCfgs2 := be.Snapshot()
 
-	be.deleteServer(engine.ServerKey{Id: "5"}) // Missing
-	be.deleteServer(engine.ServerKey{Id: "1"})
-	be.upsertServer(engine.Server{Id: "5"})
-	be.deleteServer(engine.ServerKey{Id: "2"})
-	be.upsertServer(engine.Server{Id: "1"})
-	_, srvCfgs3 := be.snapshot()
+	be.DeleteServer(engine.ServerKey{Id: "5"}) // Missing
+	be.DeleteServer(engine.ServerKey{Id: "1"})
+	be.UpsertServer(engine.Server{Id: "5"})
+	be.DeleteServer(engine.ServerKey{Id: "2"})
+	be.UpsertServer(engine.Server{Id: "1"})
+	_, srvCfgs3 := be.Snapshot()
 
 	// Then
 	c.Assert(srvCfgs1, DeepEquals, []engine.Server{{Id: "1"}, {Id: "3"}, {Id: "2"}})
@@ -72,23 +75,42 @@ func (s *BackendSuite) TestCopyOnRead(c *C) {
 func (s *BackendSuite) TestServerUpdates(c *C) {
 	beCfg, err := engine.NewHTTPBackend("foo", engine.HTTPBackendSettings{})
 	c.Assert(err, IsNil)
-	be, err := newBackend(*beCfg, Options{}, []engine.Server{{Id: "1"}, {Id: "3"}})
+	be, err := New(*beCfg, proxy.Options{}, []Srv{newBeSrv("1"), newBeSrv("3")})
 	c.Assert(err, IsNil)
 
-	// When/Then
-	c.Assert(be.upsertServer(engine.Server{Id: "2"}), Equals, true)
-	c.Assert(be.upsertServer(engine.Server{Id: "3"}), Equals, false)
-	c.Assert(be.upsertServer(engine.Server{Id: "4"}), Equals, true)
-	c.Assert(be.deleteServer(engine.ServerKey{Id: "5"}), Equals, false)
-	c.Assert(be.deleteServer(engine.ServerKey{Id: "1"}), Equals, true)
-	c.Assert(be.upsertServer(engine.Server{Id: "5"}), Equals, true)
-	c.Assert(be.deleteServer(engine.ServerKey{Id: "2"}), Equals, true)
-	c.Assert(be.upsertServer(engine.Server{Id: "1"}), Equals, true)
-	c.Assert(be.upsertServer(engine.Server{Id: "1"}), Equals, false)
-	c.Assert(be.upsertServer(engine.Server{Id: "3"}), Equals, false)
-	c.Assert(be.deleteServer(engine.ServerKey{Id: "5"}), Equals, true)
+	for i, tc := range []struct {
+		id        string
+		operation string
+		mutated   bool
+	}{
+		{id: "2", operation: "ups", mutated: true},
+		{id: "3", operation: "ups", mutated: false},
+		{id: "5", operation: "del", mutated: false},
+		{id: "1", operation: "del", mutated: true},
+		{id: "5", operation: "ups", mutated: true},
+		{id: "2", operation: "del", mutated: true},
+		{id: "1", operation: "ups", mutated: true},
+		{id: "1", operation: "ups", mutated: false},
+		{id: "3", operation: "ups", mutated: false},
+		{id: "5", operation: "del", mutated: true},
+	} {
+		fmt.Printf("Test case #%d", i)
+		var err error
+		var mutated bool
 
-	_, srvCfgs := be.snapshot()
+		// When
+		switch tc.operation {
+		case "ups":
+			mutated, err = be.UpsertServer(engine.Server{Id: tc.id})
+			c.Assert(err, IsNil)
+		case "del":
+			mutated = be.DeleteServer(engine.ServerKey{Id: tc.id})
+		}
+		// Then
+		c.Assert(mutated, Equals, tc.mutated)
+	}
+
+	_, srvCfgs := be.Snapshot()
 	c.Assert(srvCfgs, DeepEquals, []engine.Server{{Id: "3"}, {Id: "4"}, {Id: "1"}})
 }
 
@@ -100,7 +122,7 @@ func (s *BackendSuite) TestUpdate(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	be, err := newBackend(*beCfg, Options{}, []engine.Server{{Id: "1"}, {Id: "3"}})
+	be, err := New(*beCfg, proxy.Options{}, []Srv{newBeSrv("1"), newBeSrv("3")})
 	c.Assert(err, IsNil)
 
 	beCfg2 := engine.Backend{
@@ -114,12 +136,12 @@ func (s *BackendSuite) TestUpdate(c *C) {
 	}
 
 	// When
-	mutated, err := be.update(beCfg2, Options{})
+	mutated, err := be.Update(beCfg2, proxy.Options{})
 
 	// Then
 	c.Assert(err, Equals, nil)
 	c.Assert(mutated, Equals, true)
-	tp, _ := be.snapshot()
+	tp, _ := be.Snapshot()
 	c.Assert(tp.ResponseHeaderTimeout, Equals, 7*time.Second)
 	c.Assert(tp.TLSHandshakeTimeout, Equals, 19*time.Second)
 }
@@ -133,7 +155,7 @@ func (s *BackendSuite) TestUpdateSame(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	be, err := newBackend(*beCfg, Options{}, []engine.Server{{Id: "1"}, {Id: "3"}})
+	be, err := New(*beCfg, proxy.Options{}, []Srv{newBeSrv("1"), newBeSrv("3")})
 	c.Assert(err, IsNil)
 
 	beCfg2 := engine.Backend{
@@ -147,12 +169,12 @@ func (s *BackendSuite) TestUpdateSame(c *C) {
 	}
 
 	// When
-	mutated, err := be.update(beCfg2, Options{})
+	mutated, err := be.Update(beCfg2, proxy.Options{})
 
 	// Then
 	c.Assert(err, Equals, nil)
 	c.Assert(mutated, Equals, false)
-	tp, _ := be.snapshot()
+	tp, _ := be.Snapshot()
 	c.Assert(tp.ResponseHeaderTimeout, Equals, 3*time.Second)
 	c.Assert(tp.TLSHandshakeTimeout, Equals, 15*time.Second)
 }
@@ -166,7 +188,7 @@ func (s *BackendSuite) TestUpdateBadConfig(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	be, err := newBackend(*beCfg, Options{}, []engine.Server{{Id: "1"}, {Id: "3"}})
+	be, err := New(*beCfg, proxy.Options{}, []Srv{newBeSrv("1"), newBeSrv("3")})
 	c.Assert(err, IsNil)
 
 	beCfg2 := engine.Backend{
@@ -180,12 +202,23 @@ func (s *BackendSuite) TestUpdateBadConfig(c *C) {
 	}
 
 	// When
-	mutated, err := be.update(beCfg2, Options{})
+	mutated, err := be.Update(beCfg2, proxy.Options{})
 
 	// Then
 	c.Assert(err.Error(), Equals, "bad config: invalid HTTP cfg: invalid tls handshake timeout: time: invalid duration bar")
 	c.Assert(mutated, Equals, false)
-	tp, _ := be.snapshot()
+	tp, _ := be.Snapshot()
 	c.Assert(tp.ResponseHeaderTimeout, Equals, 3*time.Second)
 	c.Assert(tp.TLSHandshakeTimeout, Equals, 15*time.Second)
+}
+
+func newBeSrv(id string) Srv {
+	beSrv, err := NewServer(engine.Server{
+		Id:  id,
+		URL: fmt.Sprintf("http://localhost/%s", id),
+	})
+	if err != nil {
+		panic(errors.Wrap(err, "must not fail"))
+	}
+	return beSrv
 }

@@ -83,6 +83,10 @@ type Listener struct {
 	ProxyProtocol string
 }
 
+func (l *Listener) Key() ListenerKey {
+	return ListenerKey{l.Id}
+}
+
 func (l *Listener) TLSConfig() (*tls.Config, error) {
 	if l.Protocol != HTTPS {
 		return nil, fmt.Errorf("wrong listener proto: %v", l.Protocol)
@@ -336,12 +340,16 @@ func (f *Frontend) String() string {
 	return fmt.Sprintf("Frontend(%v, %v, %v)", f.Type, f.Id, f.BackendId)
 }
 
-func (l *Frontend) GetId() string {
-	return l.Id
+func (f *Frontend) GetId() string {
+	return f.Id
 }
 
-func (l *Frontend) Key() FrontendKey {
-	return FrontendKey{Id: l.Id}
+func (f *Frontend) Key() FrontendKey {
+	return FrontendKey{Id: f.Id}
+}
+
+func (f *Frontend) BackendKey() BackendKey {
+	return BackendKey{Id: f.BackendId}
 }
 
 type HTTPBackendTimeouts struct {

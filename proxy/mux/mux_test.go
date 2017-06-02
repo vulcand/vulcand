@@ -1,4 +1,4 @@
-package proxy
+package mux
 
 import (
 	"bufio"
@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/stapler"
 	. "github.com/vulcand/vulcand/testutils"
 	. "gopkg.in/check.v1"
@@ -30,7 +30,7 @@ type ServerSuite struct {
 
 func (s *ServerSuite) SetUpTest(c *C) {
 	st := stapler.New()
-	m, err := New(s.lastId, st, Options{})
+	m, err := New(s.lastId, st, proxy.Options{})
 	c.Assert(err, IsNil)
 	s.mux = m
 	s.st = st
@@ -100,7 +100,6 @@ func (s *ServerSuite) TestServerUpsertSame(c *C) {
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 
 	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(len(s.mux.backends[b.BK].backend.srvCfgs), Equals, 1)
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
 }
@@ -111,7 +110,7 @@ func (s *ServerSuite) TestServerDefaultListener(c *C) {
 
 	b := MakeBatch(Batch{Addr: "localhost:41000", Route: `Path("/")`, URL: e.URL})
 
-	m, err := New(s.lastId, s.st, Options{DefaultListener: &b.L})
+	m, err := New(s.lastId, s.st, proxy.Options{DefaultListener: &b.L})
 	defer m.Stop(true)
 	c.Assert(err, IsNil)
 	s.mux = m
@@ -678,10 +677,10 @@ func (s *ServerSuite) TestFrontendUpdateRoute(c *C) {
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "hola")
 
-	b.F.Route = `Path("/new")`
+	b.F.Route = `Path("/New")`
 
 	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(GETResponse(c, b.FrontendURL("/new")), Equals, "hola")
+	c.Assert(GETResponse(c, b.FrontendURL("/New")), Equals, "hola")
 
 	response, _, err := testutils.Get(MakeURL(b.L, "/"))
 	c.Assert(err, IsNil)
@@ -872,7 +871,7 @@ func (s *ServerSuite) TestTakeFiles(c *C) {
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
 
-	mux2, err := New(s.lastId, s.st, Options{})
+	mux2, err := New(s.lastId, s.st, proxy.Options{})
 	c.Assert(err, IsNil)
 
 	e2 := testutils.NewResponder("Hi, I'm endpoint 2")
@@ -902,63 +901,97 @@ func (s *ServerSuite) TestTakeFiles(c *C) {
 	c.Assert(GETResponse(c, b2.FrontendURL("/")), Equals, "Hi, I'm endpoint 2")
 }
 
-func (s *ServerSuite) TestPerfMon(c *C) {
-	c.Assert(s.mux.Start(), IsNil)
-
+// Server RTM metrics are not affected by upserts.
+func (s *ServerSuite) TestSrvRTMOnUpsert(c *C) {
 	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
 	defer e1.Close()
 
 	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e1.URL})
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
+	defer s.mux.Stop(true)
 
+	// When: an existing backend server upserted during operation
+	for i:=0; i<3; i++ {
+		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+	}
 	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	for i:=0; i<4; i++ {
+		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+	}
 
-	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
-
-	sURL, err := url.Parse(b.S.URL)
+	// Then: total count includes metrics collected before and after an upsert.
+	rts, err := s.mux.ServerStats(b.SK)
 	c.Assert(err, IsNil)
+	c.Assert(rts.Counters.Total, Equals, int64(7))
+}
 
-	// Make sure server has been added to the performance monitor
-	c.Assert(s.mux.frontends[b.FK].watcher.hasServer(sURL), Equals, true)
+// Server RTM metrics are not affected by upserts.
+func (s *ServerSuite) TestSrvRTMOnDelete(c *C) {
+	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
+	defer e1.Close()
 
-	c.Assert(s.mux.DeleteFrontend(b.FK), IsNil)
+	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e1.URL})
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
+	defer s.mux.Stop(true)
 
-	// Delete the backend
-	c.Assert(s.mux.DeleteBackend(b.BK), IsNil)
+	// When: an existing backend server is removed and added again.
+	for i:=0; i<3; i++ {
+		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+	}
+	c.Assert(s.mux.DeleteServer(b.SK), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	for i:=0; i<4; i++ {
+		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+	}
+
+	// Then: total count includes only metrics after the server was re-added.
+	rts, err := s.mux.ServerStats(b.SK)
+	c.Assert(err, IsNil)
+	c.Assert(rts.Counters.Total, Equals, int64(4))
 }
 
 func (s *ServerSuite) TestGetStats(c *C) {
 	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
 	defer e1.Close()
-
 	e2 := testutils.NewResponder("Hi, I'm endpoint 2")
 	defer e2.Close()
 
+	beCfg := MakeBackend()
+	c.Assert(s.mux.UpsertBackend(beCfg), IsNil)
+	beSrvCfg1 := MakeServer(e1.URL)
+	c.Assert(s.mux.UpsertServer(beCfg.Key(), beSrvCfg1), IsNil)
+	beSrvCfg2 := MakeServer(e2.URL)
+	c.Assert(s.mux.UpsertServer(beCfg.Key(), beSrvCfg2), IsNil)
+
+	liCfg := MakeListener("localhost:11300", engine.HTTP)
+	c.Assert(s.mux.UpsertListener(liCfg), IsNil)
+	feCfg1 := MakeFrontend(`Path("/foo")`, beCfg.GetId())
+	c.Assert(s.mux.UpsertFrontend(feCfg1), IsNil)
+	feCfg2 := MakeFrontend(`Path("/bar")`, beCfg.GetId())
+	c.Assert(s.mux.UpsertFrontend(feCfg2), IsNil)
+
 	c.Assert(s.mux.Start(), IsNil)
-
-	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e1.URL})
-
-	srv2 := MakeServer(e2.URL)
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	c.Assert(s.mux.UpsertServer(b.BK, srv2), IsNil)
-
-	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
-	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+	defer s.mux.Stop(true)
 
 	for i := 0; i < 10; i++ {
-		GETResponse(c, MakeURL(b.L, "/"))
+		GETResponse(c, MakeURL(liCfg, "/foo"))
 	}
 
-	stats, err := s.mux.ServerStats(b.SK)
+	stats, err := s.mux.ServerStats(engine.ServerKey{beCfg.Key(), beSrvCfg1.GetId()})
 	c.Assert(err, IsNil)
 	c.Assert(stats, NotNil)
 
-	fStats, err := s.mux.FrontendStats(b.FK)
-	c.Assert(fStats, NotNil)
+	feStats1, err := s.mux.FrontendStats(feCfg1.Key())
+	c.Assert(feStats1, NotNil)
 	c.Assert(err, IsNil)
 
-	bStats, err := s.mux.BackendStats(b.BK)
+	feStats2, err := s.mux.FrontendStats(feCfg2.Key())
+	c.Assert(feStats2, IsNil)
+	c.Assert(err.Error(), Matches, "frontend frontend\\d+ RT not collected")
+
+	bStats, err := s.mux.BackendStats(beCfg.Key())
 	c.Assert(bStats, NotNil)
 	c.Assert(err, IsNil)
 
@@ -974,23 +1007,50 @@ func (s *ServerSuite) TestGetStats(c *C) {
 	c.Assert(s.mux.emitMetrics(), IsNil)
 }
 
+// If there is no such frontend registered in the multiplexer then
+// 404 Not Found is returned.
 func (s *ServerSuite) TestNotFound(c *C) {
-	e := httptest.NewUnstartedServer(new(DefaultNotFound))
-	e.Start()
-	defer e.Close()
+	c.Assert(s.mux.Start(), IsNil)
+	defer s.mux.Stop(true)
+	beCfg := MakeBackend()
+	c.Assert(s.mux.UpsertBackend(beCfg), IsNil)
+	liCfg := MakeListener("localhost:11300", engine.HTTP)
+	c.Assert(s.mux.UpsertListener(liCfg), IsNil)
 
-	re, err := http.Get(e.URL)
+	// When
+	rs, msg, err := testutils.Get("http://localhost:11300/foo")
+
+	// Then
 	c.Assert(err, IsNil)
-	c.Assert(re.StatusCode, Equals, http.StatusNotFound)
-	c.Assert(re.Header.Get("Content-Type"), Equals, "application/json")
+	c.Assert(rs.StatusCode, Equals, http.StatusNotFound)
+	c.Assert(string(msg), Equals, `{"error":"not found"}`)
+}
+
+func (s *ServerSuite) TestNoBackendServers(c *C) {
+	c.Assert(s.mux.Start(), IsNil)
+	defer s.mux.Stop(true)
+	beCfg := MakeBackend()
+	c.Assert(s.mux.UpsertBackend(beCfg), IsNil)
+	liCfg := MakeListener("localhost:11300", engine.HTTP)
+	c.Assert(s.mux.UpsertListener(liCfg), IsNil)
+	feCfg := MakeFrontend(`Path("/foo")`, beCfg.GetId())
+	c.Assert(s.mux.UpsertFrontend(feCfg), IsNil)
+
+	// When
+	rs, msg, err := testutils.Get("http://localhost:11300/foo")
+
+	// Then
+	c.Assert(err, IsNil)
+	c.Assert(rs.StatusCode, Equals, http.StatusInternalServerError)
+	c.Assert(string(msg), Equals, "")
 }
 
 func (s *ServerSuite) TestCustomNotFound(c *C) {
 	st := stapler.New()
-	m, err := New(s.lastId, st, Options{NotFoundMiddleware: &appender{append: "Custom Not Found handler"}})
+	m, err := New(s.lastId, st, proxy.Options{NotFoundMiddleware: &appender{append: "Custom Not Found handler"}})
 	c.Assert(err, IsNil)
 	t := reflect.TypeOf(m.router.GetNotFound())
-	c.Assert(t.String(), Equals, "*proxy.appender")
+	c.Assert(t.String(), Equals, "*mux.appender")
 }
 
 // X-Forward-(For|Proto|Host) headers are either ovewritten or augmented
@@ -1030,7 +1090,7 @@ func (s *ServerSuite) TestProxyHeaders(c *C) {
 		fmt.Printf("Test case #%d\n", i)
 
 		var err error
-		s.mux, err = New(s.lastId, s.st, Options{TrustForwardHeader: tc.muxTrustFXDH})
+		s.mux, err = New(s.lastId, s.st, proxy.Options{TrustForwardHeader: tc.muxTrustFXDH})
 		c.Assert(err, IsNil)
 		// We have to start stop multiplexer for every case to ensure that
 		// the frontend is initialized on each iteration.
