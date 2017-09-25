@@ -12,6 +12,7 @@ import (
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/graceful"
 	"golang.org/x/crypto/ocsp"
+	"github.com/golang/go/src/pkg/go/doc/testdata"
 )
 
 // srv contains all that is necessary to run the HTTP(s) server. server does not work on its own,
@@ -46,11 +47,7 @@ func (s *srv) String() string {
 
 func newSrv(m *mux, l engine.Listener) (*srv, error) {
 	defaultHost := ""
-	keyPairs := make(map[engine.HostKey]engine.KeyPair)
 	for hk, h := range m.hosts {
-		if h.Settings.KeyPair != nil {
-			keyPairs[hk] = *h.Settings.KeyPair
-		}
 		if h.Settings.Default {
 			defaultHost = hk.Name
 		}
@@ -208,26 +205,24 @@ func (s *srv) newTLSConfig() (*tls.Config, error) {
 
 	pairs := map[string]tls.Certificate{}
 	for _, host := range s.mux.hosts {
-		c := host.Settings.KeyPair
-		if c == nil {
-			continue
-		}
-		keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
-		if err != nil {
-			return nil, err
-		}
-		if host.Settings.OCSP.Enabled {
-			log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, host, host.Settings.OCSP.Responders)
-			r, err := s.mux.stapler.StapleHost(&host)
+		if host.Settings.KeyPair != nil {
+			keyPair, err := tls.X509KeyPair(host.Settings.KeyPair.Cert, host.Settings.KeyPair.Key)
 			if err != nil {
-				log.Warningf("%v failed to staple %v, error %v", s, host, err)
-			} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
-				keyPair.OCSPStaple = r.Staple
-			} else {
-				log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
+				return nil, err
 			}
+			if host.Settings.OCSP.Enabled {
+				log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, host, host.Settings.OCSP.Responders)
+				r, err := s.mux.stapler.StapleHost(&host)
+				if err != nil {
+					log.Warningf("%v failed to staple %v, error %v", s, host, err)
+				} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
+					keyPair.OCSPStaple = r.Staple
+				} else {
+					log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
+				}
+			}
+			pairs[host.Name] = keyPair
 		}
-		pairs[host.Name] = keyPair
 	}
 
 	config.Certificates = make([]tls.Certificate, 0, len(pairs))
@@ -246,6 +241,10 @@ func (s *srv) newTLSConfig() (*tls.Config, error) {
 	}
 
 	config.BuildNameToCertificate()
+
+	//Set Certificates to nil, to force GetCertificate to be called, with fallback to NameToCertificate
+	config.Certificates = nil
+
 	return config, nil
 }
 

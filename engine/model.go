@@ -167,6 +167,7 @@ func (o *OCSPSettings) Equals(other *OCSPSettings) bool {
 
 type HostSettings struct {
 	Default bool
+	AutoCert bool
 	KeyPair *KeyPair
 	OCSP    OCSPSettings
 }
