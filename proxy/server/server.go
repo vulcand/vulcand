@@ -7,6 +7,10 @@ import (
 	"net/http"
 	"sync"
 
+	"crypto/x509"
+	"encoding/pem"
+	"time"
+
 	proxyproto "github.com/armon/go-proxyproto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -16,8 +20,12 @@ import (
 	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/stapler"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ocsp"
 )
+
+type getCertificateFunc func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 
 // T contains all that is necessary to run the HTTP(s) server. Note that it is
 // not thread safe and therefore requires external synchronization.
@@ -28,6 +36,9 @@ type T struct {
 	connTck conntracker.ConnectionTracker
 	serveWg *sync.WaitGroup
 
+	autoCertMgrs  []*autocert.Manager
+	autoCertCache autocert.Cache
+
 	srv          *graceful.Server
 	scopedRouter http.Handler
 	options      proxy.Options
@@ -36,20 +47,21 @@ type T struct {
 
 // New creates a new server instance.
 func New(lsnCfg engine.Listener, router http.Handler, stapler stapler.Stapler,
-	connTck conntracker.ConnectionTracker, wg *sync.WaitGroup,
+	connTck conntracker.ConnectionTracker, autoCertCache autocert.Cache, wg *sync.WaitGroup,
 ) (*T, error) {
 	scopedRouter, err := newScopeRouter(lsnCfg.Scope, router)
 	if err != nil {
 		return nil, err
 	}
 	return &T{
-		lsnCfg:       lsnCfg,
-		router:       router,
-		stapler:      stapler,
-		connTck:      connTck,
-		serveWg:      wg,
-		scopedRouter: scopedRouter,
-		state:        srvStateInit,
+		lsnCfg:        lsnCfg,
+		router:        router,
+		stapler:       stapler,
+		connTck:       connTck,
+		autoCertCache: autoCertCache,
+		serveWg:       wg,
+		scopedRouter:  scopedRouter,
+		state:         srvStateInit,
 	}, nil
 }
 
@@ -270,30 +282,86 @@ func (s *T) newTLSCfg(hostCfgs map[engine.HostKey]engine.Host) (*tls.Config, err
 
 	defaultHostName := ""
 	pairs := map[string]tls.Certificate{}
+	getCertFuncs := map[string]getCertificateFunc{}
+
 	for _, hostCfg := range hostCfgs {
 		if hostCfg.Settings.Default {
 			defaultHostName = hostCfg.Name
 		}
-		c := hostCfg.Settings.KeyPair
-		if c == nil {
-			continue
-		}
-		keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
-		if err != nil {
-			return nil, err
-		}
-		if hostCfg.Settings.OCSP.Enabled {
-			log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, hostCfg, hostCfg.Settings.OCSP.Responders)
-			r, err := s.stapler.StapleHost(&hostCfg)
-			if err != nil {
-				log.Warningf("%v failed to staple %v, error %v", s, hostCfg, err)
-			} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
-				keyPair.OCSPStaple = r.Staple
-			} else {
-				log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
+		if hostCfg.Settings.KeyPair != nil {
+			c := hostCfg.Settings.KeyPair
+			if hostCfg.Settings.AutoCert != nil {
+				log.Warningf("Host %v has a KeyPair and AutoCert enabled. KeyPair takes precedence. Autocert generation disabled.", hostCfg.Name)
 			}
+			keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
+			if err != nil {
+				return nil, err
+			}
+			if hostCfg.Settings.OCSP.Enabled {
+				log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, hostCfg, hostCfg.Settings.OCSP.Responders)
+				r, err := s.stapler.StapleHost(&hostCfg)
+				if err != nil {
+					log.Warningf("%v failed to staple %v, error %v", s, hostCfg, err)
+				} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
+					keyPair.OCSPStaple = r.Staple
+				} else {
+					log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
+				}
+			}
+			pairs[hostCfg.Name] = keyPair
+		} else if hostCfg.Settings.AutoCert != nil {
+			ac := hostCfg.Settings.AutoCert
+			if s.autoCertMgrs == nil {
+				s.autoCertMgrs = make([]*autocert.Manager, 0, 0)
+			}
+
+			// Each host gets its own Autocert Manager - this allows individual
+			// certs to use different autocert authorities, as well as auth keys
+			autoCertMgr := &autocert.Manager{
+				Prompt:     autocert.AcceptTOS,
+				Cache:      s.autoCertCache,
+				HostPolicy: autocert.HostWhitelist(hostCfg.Name),
+				Email:      ac.Email,
+			}
+
+			if ac.RenewBeforeSeconds > 0 {
+				autoCertMgr.RenewBefore = time.Duration(ac.RenewBeforeSeconds) * time.Second
+			}
+
+			if ac.Key != "" || ac.DirectoryURL != "" {
+				autoCertMgr.Client = &acme.Client{
+					DirectoryURL: ac.DirectoryURL,
+				}
+
+				if ac.Key != "" {
+					block, _ := pem.Decode([]byte(ac.Key))
+					if block == nil {
+						log.Errorf("Autocert Key PEM Block for Host %s is invalid.", hostCfg.Name)
+						continue //Move on to the next host...
+					} else if block.Type == "RSA PRIVATE KEY" {
+						rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+						if err != nil {
+							autoCertMgr.Client.Key = rsaPrivateKey
+						} else {
+							log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an RSA Private Key: %v", block.Type, hostCfg.Name, err)
+						}
+					} else if block.Type == "EC PRIVATE KEY" {
+						ecPrivateKey, err := x509.ParseECPrivateKey(block.Bytes)
+						if err != nil {
+							autoCertMgr.Client.Key = ecPrivateKey
+						} else {
+							log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an EC Private Key: %v", block.Type, hostCfg.Name, err)
+						}
+					} else {
+						log.Errorf("AutoCert Private Key for Host %s is of unrecognized type: %s. Supported types"+
+							"are RSA PRIVATE KEY and EC PRIVATE KEY.", hostCfg.Name, block.Type)
+						continue //Move on to the next host...
+					}
+				}
+			}
+
+			getCertFuncs[hostCfg.Name] = autoCertMgr.GetCertificate
 		}
-		pairs[hostCfg.Name] = keyPair
 	}
 
 	config.Certificates = make([]tls.Certificate, 0, len(pairs))
@@ -312,6 +380,22 @@ func (s *T) newTLSCfg(hostCfgs map[engine.HostKey]engine.Host) (*tls.Config, err
 	}
 
 	config.BuildNameToCertificate()
+
+	//Lock down this specific getCertFuncs map
+	config.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		if getCertificateFunc, ok := getCertFuncs[info.ServerName]; ok {
+			// We have a get certificate function for this host - allow AutoCertManager to
+			// provide this one, in case there's expiry/renewal to be done.
+			cert, err := getCertificateFunc(info)
+			if err != nil {
+				log.Errorf("Failed to generate Autocert for ServerName: %s. Error: %v.", info.ServerName, err)
+			}
+			return cert, err
+		} else {
+			return nil, nil
+		}
+	}
+
 	return config, nil
 }
 

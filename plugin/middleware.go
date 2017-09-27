@@ -3,14 +3,16 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"reflect"
+
 	"github.com/codegangsta/cli"
 	"github.com/vulcand/oxy/forward"
 	"github.com/vulcand/oxy/roundrobin"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
+	"github.com/vulcand/vulcand/plugin/cacheprovider"
 	"github.com/vulcand/vulcand/router"
-	"net/http"
-	"reflect"
 )
 
 // Middleware specification, used to construct new middlewares and plug them into CLI API and backends
@@ -70,6 +72,7 @@ type Registry struct {
 	router                    router.Router
 	incomingConnectionTracker conntracker.ConnectionTracker
 	frontendListeners         FrontendListeners
+	cacheProvider             cacheprovider.T
 }
 
 func NewRegistry() *Registry {
@@ -139,6 +142,15 @@ func (r *Registry) GetFrontendListeners() FrontendListeners {
 
 func (r *Registry) SetFrontendListeners(frontendListeners FrontendListeners) error {
 	r.frontendListeners = frontendListeners
+	return nil
+}
+
+func (r *Registry) GetCacheProvider() cacheprovider.T {
+	return r.cacheProvider
+}
+
+func (r *Registry) SetCacheProvider(cacheprovider cacheprovider.T) error {
+	r.cacheProvider = cacheprovider
 	return nil
 }
 

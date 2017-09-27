@@ -26,6 +26,7 @@ import (
 	"github.com/vulcand/vulcand/engine/etcdv3ng"
 	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/plugin"
+	"github.com/vulcand/vulcand/plugin/cacheprovider"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/proxy/builder"
 	"github.com/vulcand/vulcand/secret"
@@ -402,6 +403,15 @@ func (s *Service) reportSystemMetrics() {
 }
 
 func (s *Service) newProxy(id int) (proxy.Proxy, error) {
+
+	cacheProvider := s.registry.GetCacheProvider()
+
+	// If there's no cache provider by the registry,
+	// then use memory-based cache provider
+	if cacheProvider == nil {
+		cacheProvider = cacheprovider.NewMemCacheProvider()
+	}
+
 	return builder.NewProxy(id, s.stapler, proxy.Options{
 		MetricsClient:      s.metricsClient,
 		DialTimeout:        s.options.EndpointDialTimeout,
@@ -414,6 +424,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		Router:             s.registry.GetRouter(),
 		IncomingConnectionTracker: s.registry.GetIncomingConnectionTracker(),
 		FrontendListeners:         s.registry.GetFrontendListeners(),
+		CacheProvider:             cacheProvider,
 	})
 }
 

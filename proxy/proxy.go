@@ -13,6 +13,7 @@ import (
 	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
+	"github.com/vulcand/vulcand/plugin/cacheprovider"
 	"github.com/vulcand/vulcand/router"
 )
 
@@ -66,6 +67,7 @@ type Options struct {
 	Router                    router.Router
 	IncomingConnectionTracker conntracker.ConnectionTracker
 	FrontendListeners         plugin.FrontendListeners
+	CacheProvider             cacheprovider.T
 }
 
 type NewProxyFn func(id int) (Proxy, error)

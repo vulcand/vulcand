@@ -5,6 +5,7 @@ package etcdv2ng
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -13,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"errors"
 	etcd "github.com/coreos/etcd/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"

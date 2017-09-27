@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -19,10 +18,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vulcand/vulcand/engine"
-
 	"github.com/mailgun/timetools"
 	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/vulcand/engine"
+	"golang.org/x/crypto/ocsp"
 )
 
 // Stapler is an interface for the OCSP staple cache implementations

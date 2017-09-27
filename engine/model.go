@@ -170,9 +170,17 @@ func (o *OCSPSettings) Equals(other *OCSPSettings) bool {
 }
 
 type HostSettings struct {
-	Default bool
-	KeyPair *KeyPair
-	OCSP    OCSPSettings
+	Default  bool
+	KeyPair  *KeyPair
+	AutoCert *AutoCertSettings
+	OCSP     OCSPSettings
+}
+
+type AutoCertSettings struct {
+	Email              string
+	RenewBeforeSeconds time.Duration
+	DirectoryURL       string
+	Key                string
 }
 
 type HostKey struct {
