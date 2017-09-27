@@ -280,6 +280,7 @@ func (s *T) newTLSCfg(hostCfgs map[engine.HostKey]engine.Host) (*tls.Config, err
 		}
 		keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
 		if err != nil {
+			fmt.Printf("==============> ERROR PARSING KEY: %v. Key: %v", err, string(c.Key))
 			return nil, err
 		}
 		if hostCfg.Settings.OCSP.Enabled {
