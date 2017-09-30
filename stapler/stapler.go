@@ -21,8 +21,8 @@ import (
 
 	"github.com/vulcand/vulcand/engine"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/mailgun/timetools"
+	log "github.com/sirupsen/logrus"
 )
 
 // Stapler is an interface for the OCSP staple cache implementations

@@ -912,11 +912,11 @@ func (s *ServerSuite) TestSrvRTMOnUpsert(c *C) {
 	defer s.mux.Stop(true)
 
 	// When: an existing backend server upserted during operation
-	for i:=0; i<3; i++ {
+	for i := 0; i < 3; i++ {
 		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
 	}
 	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	for i:=0; i<4; i++ {
+	for i := 0; i < 4; i++ {
 		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
 	}
 
@@ -937,12 +937,12 @@ func (s *ServerSuite) TestSrvRTMOnDelete(c *C) {
 	defer s.mux.Stop(true)
 
 	// When: an existing backend server is removed and added again.
-	for i:=0; i<3; i++ {
+	for i := 0; i < 3; i++ {
 		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
 	}
 	c.Assert(s.mux.DeleteServer(b.SK), IsNil)
 	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	for i:=0; i<4; i++ {
+	for i := 0; i < 4; i++ {
 		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
 	}
 

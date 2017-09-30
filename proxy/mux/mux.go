@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/route"
 	"github.com/vulcand/vulcand/conntracker"
 	"github.com/vulcand/vulcand/engine"
