@@ -21,7 +21,7 @@ import (
 
 	"github.com/vulcand/vulcand/engine"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/mailgun/timetools"
 )
 

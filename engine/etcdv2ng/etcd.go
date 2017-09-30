@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"errors"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"

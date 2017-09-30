@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/pkg/errors"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/proxy"

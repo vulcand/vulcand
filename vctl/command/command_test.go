@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"

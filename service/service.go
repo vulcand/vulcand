@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
+	log "github.com/sirupsen/logrus"
+	logrus_syslog "github.com/sirupsen/logrus/hooks/syslog"
 	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/gorilla/mux"

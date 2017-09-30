@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	proxyproto "github.com/armon/go-proxyproto"
 	"github.com/pkg/errors"
 	"github.com/vulcand/route"

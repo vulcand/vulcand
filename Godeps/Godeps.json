@@ -7,16 +7,6 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.11.0-25-g881bee4",
-			"Rev": "881bee4e20a5d11a6a88a5667c6f292072ac1963"
-		},
-		{
-			"ImportPath": "github.com/Sirupsen/logrus/hooks/syslog",
-			"Comment": "v0.11.0-25-g881bee4",
-			"Rev": "881bee4e20a5d11a6a88a5667c6f292072ac1963"
-		},
-		{
 			"ImportPath": "github.com/armon/go-proxyproto",
 			"Rev": "3daa90aec0039a806299b9078f4422fee950f33c"
 		},

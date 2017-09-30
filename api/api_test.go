@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/gorilla/mux"
 	oxytest "github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
