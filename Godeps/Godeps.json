@@ -26,7 +26,8 @@
 		},
 		{
 			"ImportPath": "github.com/bshuster-repo/logrus-logstash-hook",
-			"Rev": "ec2489b9d26bc59465db59eb22c58bdc6be9b03e"
+			"Comment": "1.0-beta-6-gebf0085",
+			"Rev": "ebf008572634916f3a9433d9471a0cd3f68fc772"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
