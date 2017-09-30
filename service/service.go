@@ -231,7 +231,7 @@ func (s *Service) initLogger() {
 	}
 	if s.options.Log == "logstash" {
 		log.SetOutput(os.Stdout)
-		log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
+		log.SetFormatter(&logrus_logstash.LogstashFormatter{Fields: log.Fields{"type": "logs"}})
 		return
 	}
 	log.SetOutput(os.Stdout)
