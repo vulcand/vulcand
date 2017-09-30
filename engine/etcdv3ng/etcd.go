@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"errors"
-	log "github.com/Sirupsen/logrus"
 	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"github.com/coreos/etcd/mvcc/mvccpb"
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"

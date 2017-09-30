@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/mailgun/metrics"
+	log "github.com/sirupsen/logrus"
 )
 
 type Options struct {

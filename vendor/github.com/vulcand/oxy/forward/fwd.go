@@ -13,11 +13,12 @@ import (
 	"time"
 
 	"crypto/tls"
-	log "github.com/Sirupsen/logrus"
-	"github.com/vulcand/oxy/utils"
 	"net"
 	"net/http/httputil"
 	"reflect"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/oxy/utils"
 )
 
 // ReqRewriter can alter request headers and body
@@ -206,6 +207,16 @@ func (f *httpForwarder) serveBufferedHTTP(w http.ResponseWriter, req *http.Reque
 			req.URL, response.StatusCode, time.Now().UTC().Sub(start))
 	}
 
+	// Connection: references headers that should be treated as hop by hop
+	if c := response.Header.Get("Connection"); c != "" {
+		for _, f := range strings.Split(c, ",") {
+			if f = strings.TrimSpace(f); f != "" {
+				response.Header.Del(f)
+			}
+		}
+	}
+	utils.RemoveHeaders(response.Header, HopHeaders...)
+
 	utils.CopyHeaders(w.Header(), response.Header)
 	w.WriteHeader(response.StatusCode)
 
@@ -327,8 +338,10 @@ func (f *httpForwarder) serveWebSocket(w http.ResponseWriter, req *http.Request,
 	}
 	go replicate(targetConn, underlyingConn, "backend", "client")
 	go replicate(underlyingConn, targetConn, "client", "backend")
-	err = <-errc
-	log.Infof("vulcand/oxy/forward/websocket: websocket proxying complete: %v", err)
+	err = <-errc // One goroutine complete
+	log.Infof("vulcand/oxy/forward/websocket: first proxying connection closed: %v", err)
+	err = <-errc // Both goroutines complete
+	log.Infof("vulcand/oxy/forward/websocket: second proxying connection closed: %v", err)
 }
 
 // copyRequest makes a copy of the specified request.
@@ -349,12 +362,18 @@ func (f *httpForwarder) copyWebSocketRequest(req *http.Request) (outReq *http.Re
 	}
 
 	outReq.URL.Host = req.URL.Host
-	outReq.URL.Path = req.RequestURI
+	outReq.URL.Opaque = req.RequestURI
 
 	// Do not pass client Host header unless optsetter PassHostHeader is set.
 	if !f.passHost {
 		outReq.Host = req.Host
 	}
+
+	// Overwrite close flag so we can keep persistent connection for the backend servers
+	outReq.Close = false
+
+	outReq.Header = make(http.Header)
+	utils.CopyHeaders(outReq.Header, req.Header)
 
 	if f.rewriter != nil {
 		f.rewriter.Rewrite(outReq)
@@ -390,7 +409,6 @@ func (f *httpForwarder) serveStreamingHTTP(w http.ResponseWriter, inReq *http.Re
 	urlcpy.Host = outReq.URL.Host
 
 	outReq.URL.Path = reqUrl.Path
-	outReq.URL.RawQuery = reqUrl.RawQuery
 
 	revproxy := httputil.NewSingleHostReverseProxy(urlcpy)
 	revproxy.Transport = f.roundTripper

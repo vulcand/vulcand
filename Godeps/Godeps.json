@@ -7,16 +7,6 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.11.0-25-g881bee4",
-			"Rev": "881bee4e20a5d11a6a88a5667c6f292072ac1963"
-		},
-		{
-			"ImportPath": "github.com/Sirupsen/logrus/hooks/syslog",
-			"Comment": "v0.11.0-25-g881bee4",
-			"Rev": "881bee4e20a5d11a6a88a5667c6f292072ac1963"
-		},
-		{
 			"ImportPath": "github.com/armon/go-proxyproto",
 			"Rev": "3daa90aec0039a806299b9078f4422fee950f33c"
 		},
@@ -26,7 +16,8 @@
 		},
 		{
 			"ImportPath": "github.com/bshuster-repo/logrus-logstash-hook",
-			"Rev": "ec2489b9d26bc59465db59eb22c58bdc6be9b03e"
+			"Comment": "1.0-beta-6-gebf0085",
+			"Rev": "ebf008572634916f3a9433d9471a0cd3f68fc772"
 		},
 		{
 			"ImportPath": "github.com/buger/goterm",
@@ -194,47 +185,47 @@
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/buffer",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/cbreaker",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/connlimit",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/forward",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/memmetrics",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/ratelimit",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/roundrobin",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/stream",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/testutils",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/trace",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/oxy/utils",
-			"Rev": "2fd45a29cf2ba9cd95ed9954c39e147b7ff3d987"
+			"Rev": "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 		},
 		{
 			"ImportPath": "github.com/vulcand/predicate",
@@ -246,19 +237,23 @@
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/nacl/secretbox",
-			"Rev": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d"
+			"Rev": "76eec36fa14229c4b25bb894c2d0e591527af429"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ocsp",
-			"Rev": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d"
+			"Rev": "76eec36fa14229c4b25bb894c2d0e591527af429"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/poly1305",
-			"Rev": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d"
+			"Rev": "76eec36fa14229c4b25bb894c2d0e591527af429"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/salsa20/salsa",
-			"Rev": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d"
+			"Rev": "76eec36fa14229c4b25bb894c2d0e591527af429"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh/terminal",
+			"Rev": "76eec36fa14229c4b25bb894c2d0e591527af429"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
@@ -364,6 +359,16 @@
 		{
 			"ImportPath": "gopkg.in/yaml.v2",
 			"Rev": "a5b47d31c556af34a302ce5d659e6fea44d90de0"
+		},
+		{
+			"ImportPath": "github.com/sirupsen/logrus",
+			"Comment": "v1.0.3-11-g89742ae",
+			"Rev": "89742aefa4b206dcf400792f3bd35b542998eb3b"
+		},
+		{
+			"ImportPath": "github.com/sirupsen/logrus/hooks/syslog",
+			"Comment": "v1.0.3-11-g89742ae",
+			"Rev": "89742aefa4b206dcf400792f3bd35b542998eb3b"
 		}
 	]
 }

@@ -3,8 +3,8 @@ package command
 import (
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
+	log "github.com/sirupsen/logrus"
 )
 
 func NewLogCommand(cmd *Command) cli.Command {

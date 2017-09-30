@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/template"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {

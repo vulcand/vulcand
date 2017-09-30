@@ -14,12 +14,12 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-	logrus_syslog "github.com/Sirupsen/logrus/hooks/syslog"
 	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
 	etcd "github.com/coreos/etcd/client"
 	"github.com/gorilla/mux"
 	"github.com/mailgun/metrics"
+	log "github.com/sirupsen/logrus"
+	logrus_syslog "github.com/sirupsen/logrus/hooks/syslog"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdv2ng"
@@ -231,7 +231,7 @@ func (s *Service) initLogger() {
 	}
 	if s.options.Log == "logstash" {
 		log.SetOutput(os.Stdout)
-		log.SetFormatter(&logrus_logstash.LogstashFormatter{Type: "logs"})
+		log.SetFormatter(&logrus_logstash.LogstashFormatter{Fields: log.Fields{"type": "logs"}})
 		return
 	}
 	log.SetOutput(os.Stdout)
