@@ -472,6 +472,9 @@ func (s *ServerSuite) TestSNI(c *C) {
 	// When/Then
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "Hi, I'm endpoint 1")
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "Hi, I'm endpoint 2")
+
+	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "7b0b0f8903e43e656b4e5a7ddc6c82e")
+	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "077bdc3e97d00584f03faec7cda682cf")
 }
 
 func (s *ServerSuite) TestMiddlewareCRUD(c *C) {
@@ -1135,6 +1138,15 @@ func GETResponse(c *C, url string, opts ...testutils.ReqOption) string {
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	return string(body)
 }
+
+func GETPeerCertSerialNo(c *C, url string, opts ...testutils.ReqOption) string {
+	response, _, err := testutils.Get(url, opts...)
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	c.Assert(response.TLS, NotNil)
+	return response.TLS.PeerCertificates[0].SerialNumber.Text(16)
+}
+
 
 // localhostCert is a PEM-encoded TLS cert with SAN IPs
 // "127.0.0.1" and "[::1]", expiring at the last second of 2049 (the end
