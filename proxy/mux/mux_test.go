@@ -743,11 +743,11 @@ func (s *ServerSuite) TestSNI(c *C) {
 	c.Assert(s.mux.Init(MakeSnapshot(b, b2)), IsNil)
 	c.Assert(s.mux.Start(), IsNil)
 
-	// For the same path, if the Hostname is different (SNI), then return a different Cert - true host differentiation.
+	//For the same path, if the Hostname is different (SNI), then return a different Cert - true host differentiation.
 	c.Assert(getPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("example.com")), Equals, "77bdc3e97d00584f03faec7cda682cf")
 	c.Assert(getPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("otherhost")), Equals, "c3244866e57c7b1f")
 
-	// For a non-specified host, return default Cert
+	//For a non-specified host, return default Cert
 	c.Assert(getPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("non-example.com")), Equals, "c3244866e57c7b1f")
 }
 
