@@ -377,13 +377,13 @@ func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 	c.Assert(s.mux.Start(), IsNil)
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
-	certserial1 := GETPeerCertSerialNo(c, b.FrontendURL("/"))
+	certserial1 := getPeerCertSerialNo(c, b.FrontendURL("/"))
 
 	b.H.Settings.KeyPair = &engine.KeyPair{Key: otherHostKey, Cert: otherHostCert}
 
 	c.Assert(s.mux.UpsertHost(b.H), IsNil)
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
-	certserial2 := GETPeerCertSerialNo(c, b.FrontendURL("/"))
+	certserial2 := getPeerCertSerialNo(c, b.FrontendURL("/"))
 
 	//Ensure different certs were returned
 	c.Assert(certserial1, Not(Equals), certserial2)
@@ -643,6 +643,12 @@ func (s *ServerSuite) TestHostAutoCertCache(c *C) {
 
 	//This should work because the cache should provide it
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
+=======
+	certserial2 := getPeerCertSerialNo(c, b.FrontendURL("/"))
+
+	//Ensure different certs were returned
+	c.Assert(certserial1, Not(Equals), certserial2)
+>>>>>>> fix-sni
 }
 
 func (s *ServerSuite) TestOCSPStapling(c *C) {
@@ -744,16 +750,12 @@ func (s *ServerSuite) TestSNI(c *C) {
 	c.Assert(s.mux.Init(MakeSnapshot(b, b2)), IsNil)
 	c.Assert(s.mux.Start(), IsNil)
 
-	// For the same host, but different paths, return different endpoints (routing test)
-	c.Assert(GETResponse(c, b.FrontendURL("/path1"), testutils.Host("example.com")), Equals, "Hi, I'm endpoint 1")
-	c.Assert(GETResponse(c, b.FrontendURL("/path2"), testutils.Host("example.com")), Equals, "Hi, I'm endpoint 2")
+	// For the same path, if the Hostname is different (SNI), then return a different Cert - true host differentiation.
+	c.Assert(getPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("example.com")), Equals, "77bdc3e97d00584f03faec7cda682cf")
+	c.Assert(getPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("otherhost")), Equals, "c3244866e57c7b1f")
 
-	//For the same path, if the Hostname is different (SNI), then return a different Cert - true host differentiation.
-	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("example.com")), Equals, "77bdc3e97d00584f03faec7cda682cf")
-	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("otherhost")), Equals, "c3244866e57c7b1f")
-
-	//For a non-specified host, return default Cert
-	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("non-example.com")), Equals, "c3244866e57c7b1f")
+	// For a non-specified host, return default Cert
+	c.Assert(getPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("non-example.com")), Equals, "c3244866e57c7b1f")
 }
 
 func (s *ServerSuite) TestMiddlewareCRUD(c *C) {
@@ -1418,7 +1420,7 @@ func GETResponse(c *C, url string, opts ...testutils.ReqOption) string {
 	return string(body)
 }
 
-func GETPeerCertSerialNo(c *C, url string, opts ...testutils.ReqOption) string {
+func getPeerCertSerialNo(c *C, url string, opts ...testutils.ReqOption) string {
 	response, _, err := testutils.Get(url, opts...)
 	c.Assert(err, IsNil)
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
