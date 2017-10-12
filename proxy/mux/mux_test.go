@@ -363,11 +363,16 @@ func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 	c.Assert(s.mux.Start(), IsNil)
 
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+	certserial1 := GETPeerCertSerialNo(c, b.FrontendURL("/"))
 
-	b.H.Settings.KeyPair = &engine.KeyPair{Key: localhostKey2, Cert: localhostCert2}
+	b.H.Settings.KeyPair = &engine.KeyPair{Key: otherHostKey, Cert: otherHostCert}
 
 	c.Assert(s.mux.UpsertHost(b.H), IsNil)
 	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint")
+	certserial2 := GETPeerCertSerialNo(c, b.FrontendURL("/"))
+
+	//Ensure different certs were returned
+	c.Assert(certserial1, Not(Equals), certserial2)
 }
 
 func (s *ServerSuite) TestOCSPStapling(c *C) {
@@ -463,7 +468,7 @@ func (s *ServerSuite) TestSNI(c *C) {
 		Route:    `Host("otherhost") && Path("/")`,
 		URL:      e2.URL,
 		Protocol: engine.HTTPS,
-		KeyPair:  &engine.KeyPair{Key: localhostKey2, Cert: localhostCert2},
+		KeyPair:  &engine.KeyPair{Key: otherHostKey, Cert: otherHostCert},
 	})
 	b2.H.Settings.Default = true
 	c.Assert(s.mux.Init(MakeSnapshot(b, b2)), IsNil)
@@ -473,8 +478,8 @@ func (s *ServerSuite) TestSNI(c *C) {
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "Hi, I'm endpoint 1")
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "Hi, I'm endpoint 2")
 
-	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "7b0b0f8903e43e656b4e5a7ddc6c82e")
-	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "077bdc3e97d00584f03faec7cda682cf")
+	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "077bdc3e97d00584f03faec7cda682cf")
+	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "c3244866e57c7b1f")
 }
 
 func (s *ServerSuite) TestMiddlewareCRUD(c *C) {
@@ -885,7 +890,7 @@ func (s *ServerSuite) TestTakeFiles(c *C) {
 		Route:    `Path("/")`,
 		URL:      e2.URL,
 		Protocol: engine.HTTPS,
-		KeyPair:  &engine.KeyPair{Key: localhostKey2, Cert: localhostCert2},
+		KeyPair:  &engine.KeyPair{Key: otherHostKey, Cert: otherHostCert},
 	})
 
 	c.Assert(mux2.UpsertHost(b2.H), IsNil)
@@ -1176,26 +1181,25 @@ a/PA9CCd9AGBAiBusElrlNvhfKihfsjhFt2bXyC8xmJ1cflbAA/KE9Z0iQIgWtLU
 kHXBJ0l8y+3aFFuxpPuRZWUhOdAGpWgqjKSBWE8=
 -----END RSA PRIVATE KEY-----`)
 
-var localhostCert2 = []byte(`-----BEGIN CERTIFICATE-----
-MIIBjjCCATigAwIBAgIQB7Cw+JA+Q+ZWtOWn3cbILjANBgkqhkiG9w0BAQsFADAS
-MRAwDgYDVQQKEwdBY21lIENvMCAXDTcwMDEwMTAwMDAwMFoYDzIwODQwMTI5MTYw
-MDAwWjASMRAwDgYDVQQKEwdBY21lIENvMFwwDQYJKoZIhvcNAQEBBQADSwAwSAJB
-AMeWLnRwsUb84bvRWNLGw+1nbPPRia5vhyNsDqwHhOTGsCE8Jj/YcsmddVTt59Zc
-Mx6DksMQ3oAOmVprs5/QhpsCAwEAAaNoMGYwDgYDVR0PAQH/BAQDAgKkMBMGA1Ud
-JQQMMAoGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wLgYDVR0RBCcwJYILZXhh
-bXBsZS5jb22HBH8AAAGHEAAAAAAAAAAAAAAAAAAAAAEwDQYJKoZIhvcNAQELBQAD
-QQBDU7IWNO+4jitaX1G4QwvHEK2yfxj8h2ixmHdW8xiGFKWhDWBWmwAE6zGQhH7s
-6L/L8YVjwH42hmea4lEFBADT
+var otherHostCert = []byte(`-----BEGIN CERTIFICATE-----
+MIIBWDCCAQKgAwIBAgIJAMMkSGblfHsfMA0GCSqGSIb3DQEBCwUAMBIxEDAOBgNV
+BAMMB3Rlc3QtY2EwHhcNMTcxMDExMjAyNjE0WhcNMTcxMjEwMjAyNjE0WjAUMRIw
+EAYDVQQDDAlvdGhlcmhvc3QwXDANBgkqhkiG9w0BAQEFAANLADBIAkEA3WS8QERs
+4X8TnFceTnWJlSIxqxZR54Hvfn52zYv9pDkN/r4EZseTfpeWIFHHKUJvnPmZ8tDk
+6t12c7LRzCvLdwIDAQABozkwNzAJBgNVHRMEAjAAMAsGA1UdDwQEAwIF4DAdBgNV
+HSUEFjAUBggrBgEFBQcDAgYIKwYBBQUHAwEwDQYJKoZIhvcNAQELBQADQQA+wcWa
+KINzfMA47U6ujZ62lfJfRUQ2R9WEbv0cH9jaq9AEH5UmMKaiyHpXWcUnKd8hN8bH
+WjQsowgkBIB4kUjW
 -----END CERTIFICATE-----`)
 
-var localhostKey2 = []byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBOwIBAAJBAMeWLnRwsUb84bvRWNLGw+1nbPPRia5vhyNsDqwHhOTGsCE8Jj/Y
-csmddVTt59ZcMx6DksMQ3oAOmVprs5/QhpsCAwEAAQJAMwwMUafJD7j6G0mOCEri
-LcQ4L5w2NLE9xSeMER/TM5fSKZzDPGU1tDYfAy2NiNPoFa9FD6HgSVIpwdxUve0c
-YQIhAOa9iTMCzuFva4rQHbGhd4+o+jPu1DB4FpEp9ZfJIN65AiEA3W+RJ3QDFzXo
-7LqQe8CdoyjwW5PVUNmIfqS+8zWfhfMCIQDcrZNFRT9FXkG1Xju4AlyN+idpedZY
-kNHMfhvT0llsiQIhAI1/O0vwsADm6/5JgQXzIUgfYufB4a+WMchrUbFr9JHNAiBP
-CXgmAbC7H64qpUxQRcL7ROyT+ye62l+RmWrdz2BRgQ==
+var otherHostKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
+MIIBOQIBAAJBAN1kvEBEbOF/E5xXHk51iZUiMasWUeeB735+ds2L/aQ5Df6+BGbH
+k36XliBRxylCb5z5mfLQ5OrddnOy0cwry3cCAwEAAQJAd5HHRiJud58NNVurx44d
+X0kXcCJe29zGPxgIC902gLE6Y3FkD0forBqwTRwADFbT0eqfHHFEl1eK+C8CaMTo
+0QIhAPiaeaI81JqGlZDQtyheyjL4qA3jcsKsyEOKmEvW6kP/AiEA4/sDBodHksOT
+YxV3Nxu3DSdxh5yKDNu9RsJLFheSmIkCIF06iPzHdS9R40sAin9QNOGykEtNDZ9l
+7mAt3HksaoP/AiAe+jeCBpWyGoMHXp5RTaHE1sw1Wg7kCmOgnrvnJ5LSyQIgTdFs
+IwaQptPhBHhBeL0t/6gRNx+j1gnZP0hhYjH/7ZY=
 -----END RSA PRIVATE KEY-----`)
 
 type appender struct {
