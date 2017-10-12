@@ -3,6 +3,7 @@
 package systest
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,12 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-etcd/etcd"
+	etcd "github.com/coreos/etcd/client"
 	"github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/secret"
 	. "github.com/vulcand/vulcand/testutils"
-
 	. "gopkg.in/check.v1"
 )
 
@@ -28,13 +28,15 @@ func TestVulcandWithEtcd(t *testing.T) { TestingT(t) }
 
 // VESuite performs "Black box" system test of Vulcan backed by Etcd by talking directly to Etcd and checking the side-effects
 type VESuite struct {
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 	apiUrl     string
 	serviceUrl string
 	etcdNodes  []string
 	etcdPrefix string
 	sealKey    string
 	box        *secret.Box
-	client     *etcd.Client
+	client     etcd.KeysAPI
 }
 
 var _ = Suite(&VESuite{})
@@ -50,7 +52,9 @@ func (s *VESuite) SetUpSuite(c *C) {
 		return
 	}
 	s.etcdNodes = strings.Split(etcdNodes, ",")
-	s.client = etcd.NewClient(s.etcdNodes)
+	client, err := etcd.New(etcd.Config{Endpoints: s.etcdNodes})
+	c.Assert(err, IsNil)
+	s.client = etcd.NewKeysAPI(client)
 
 	s.etcdPrefix = os.Getenv("VULCAND_TEST_ETCD_PREFIX")
 	if s.etcdPrefix == "" {
@@ -90,18 +94,14 @@ func (s VESuite) path(keys ...string) string {
 }
 
 func (s *VESuite) SetUpTest(c *C) {
+	s.ctx, s.cancelFunc = context.WithTimeout(context.Background(), 5 * time.Second)
+	
 	// Delete all values under the given prefix
-	_, err := s.client.Get(s.etcdPrefix, false, false)
-	if err != nil {
-		e, ok := err.(*etcd.EtcdError)
-		// We haven't expected this error, oops
-		if !ok || e.ErrorCode != 100 {
-			c.Assert(err, IsNil)
-		}
-	} else {
-		_, err = s.client.Delete(s.etcdPrefix, true)
-		c.Assert(err, IsNil)
+	_, err := s.client.Get(s.ctx, s.etcdPrefix, nil)
+	if err != nil && etcd.IsKeyNotFound(err) {
+		c.Errorf("Unexpected error: %v", err)
 	}
+	_, err = s.client.Delete(s.ctx, s.etcdPrefix, &etcd.DeleteOptions{Recursive: true})
 
 	// Restart vulcand
 	exec.Command("killall", "vulcand").Output()
@@ -124,6 +124,7 @@ func (s *VESuite) SetUpTest(c *C) {
 }
 
 func (s *VESuite) TearDownTest(c *C) {
+	s.cancelFunc()
 	exec.Command("killall", "vulcand").Output()
 }
 
@@ -138,16 +139,18 @@ func (s *VESuite) TestFrontendCRUD(c *C) {
 
 	// Create a server
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.path("backends", b, "backend"), `{"Type": "http"}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b, "servers", srv), fmt.Sprintf(`{"URL": "%s"}`, url), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -166,15 +169,18 @@ func (s *VESuite) TestFrontendUpdateLimits(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.path("backends", b, "backend"), `{"Type": "http"}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b, "servers", srv), fmt.Sprintf(`{"URL": "%s"}`, url), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -184,9 +190,8 @@ func (s *VESuite) TestFrontendUpdateLimits(c *C) {
 	c.Assert(response.StatusCode, Equals, http.StatusOK)
 	c.Assert(response.Header.Get("X-Forwarded-For"), Not(Equals), "hello")
 
-	_, err = s.client.Set(
-		s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")", "Settings": {"Limits": {"MaxMemBodyBytes":2, "MaxBodyBytes":4}}}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")", "Settings": {"Limits": {"MaxMemBodyBytes":2, "MaxBodyBytes":4}}}`, nil)
 	c.Assert(err, IsNil)
 	time.Sleep(time.Second)
 
@@ -209,22 +214,27 @@ func (s *VESuite) TestFrontendUpdateBackend(c *C) {
 	// Create two different backends
 	b1, srv1, url1 := "bk1", "srv1", server1.URL
 
-	_, err := s.client.Set(s.path("backends", b1, "backend"), `{"Type": "http"}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b1, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b1, "servers", srv1), fmt.Sprintf(`{"URL": "%s"}`, url1), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b1, "servers", srv1),
+		fmt.Sprintf(`{"URL": "%s"}`, url1), nil)
 	c.Assert(err, IsNil)
 
 	b2, srv2, url2 := "bk2", "srv2", server2.URL
-	_, err = s.client.Set(s.path("backends", b2, "backend"), `{"Type": "http"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b2, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b2, "servers", srv2), fmt.Sprintf(`{"URL": "%s"}`, url2), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b2, "servers", srv2),
+		fmt.Sprintf(`{"URL": "%s"}`, url2), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend inititally pointing to the first backend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -235,7 +245,8 @@ func (s *VESuite) TestFrontendUpdateBackend(c *C) {
 	c.Assert(string(body), Equals, "1")
 
 	// Update the backend
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk2", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk2", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -254,15 +265,18 @@ func (s *VESuite) TestHTTPListenerCRUD(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.path("backends", b, "backend"), `{"Type": "http"}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b, "servers", srv), fmt.Sprintf(`{"URL": "%s"}`, url), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -276,14 +290,14 @@ func (s *VESuite) TestHTTPListenerCRUD(c *C) {
 	c.Assert(err, IsNil)
 	bytes, err := json.Marshal(listener)
 	c.Assert(err, IsNil)
-	s.client.Set(s.path("listeners", l1), string(bytes), 0)
+	s.client.Set(s.ctx, s.path("listeners", l1), string(bytes), nil)
 
 	time.Sleep(time.Second)
 	_, _, err = testutils.Get(fmt.Sprintf("%s%s", "http://localhost:31000", "/path"))
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 
-	_, err = s.client.Delete(s.path("listeners", l1), true)
+	_, err = s.client.Delete(s.ctx, s.path("listeners", l1), &etcd.DeleteOptions{Recursive: true})
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -301,15 +315,18 @@ func (s *VESuite) TestHTTPSListenerCRUD(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.path("backends", b, "backend"), `{"Type": "http"}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b, "servers", srv), fmt.Sprintf(`{"URL": "%s"}`, url), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	keyPair := NewTestKeyPair()
@@ -319,7 +336,8 @@ func (s *VESuite) TestHTTPSListenerCRUD(c *C) {
 	sealed := base64.StdEncoding.EncodeToString(bytes)
 	host := "localhost"
 
-	_, err = s.client.Set(s.path("hosts", host, "host"), fmt.Sprintf(`{"Name": "localhost", "Settings": {"KeyPair": "%v"}}`, sealed), 0)
+	_, err = s.client.Set(s.ctx, s.path("hosts", host, "host"),
+		fmt.Sprintf(`{"Name": "localhost", "Settings": {"KeyPair": "%v"}}`, sealed), nil)
 	c.Assert(err, IsNil)
 
 	// Add HTTPS listener
@@ -328,14 +346,14 @@ func (s *VESuite) TestHTTPSListenerCRUD(c *C) {
 	c.Assert(err, IsNil)
 	bytes, err = json.Marshal(listener)
 	c.Assert(err, IsNil)
-	s.client.Set(s.path("listeners", l2), string(bytes), 0)
+	s.client.Set(s.ctx, s.path("listeners", l2), string(bytes), nil)
 
 	time.Sleep(time.Second)
 	_, _, err = testutils.Get(fmt.Sprintf("%s%s", "https://localhost:32000", "/path"))
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 
-	_, err = s.client.Delete(s.path("listeners", l2), true)
+	_, err = s.client.Delete(s.ctx, s.path("listeners", l2), &etcd.DeleteOptions{Recursive: true})
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -355,20 +373,24 @@ func (s *VESuite) TestExpiringServer(c *C) {
 	b, url, url2 := "bk1", server.URL, server2.URL
 	srv, srv2 := "s1", "s2"
 
-	_, err := s.client.Set(s.path("backends", b, "backend"), `{"Type": "http"}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
 	// This one will stay
-	_, err = s.client.Set(s.path("backends", b, "servers", srv), fmt.Sprintf(`{"URL": "%s"}`, url), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
 	c.Assert(err, IsNil)
 
 	// This one will expire
-	_, err = s.client.Set(s.path("backends", b, "servers", srv2), fmt.Sprintf(`{"URL": "%s"}`, url2), 2)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv2),
+		fmt.Sprintf(`{"URL": "%s"}`, url2), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Second)
@@ -402,15 +424,18 @@ func (s *VESuite) TestBackendUpdateSettings(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.path("backends", b, "backend"), `{"Type": "http", "Settings": {"Timeouts": {"Read":"10ms"}}}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http", "Settings": {"Timeouts": {"Read":"10ms"}}}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b, "servers", srv), fmt.Sprintf(`{"URL": "%s"}`, url), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	// Wait for the changes to take effect
@@ -422,7 +447,8 @@ func (s *VESuite) TestBackendUpdateSettings(c *C) {
 	c.Assert(response.StatusCode, Equals, http.StatusGatewayTimeout)
 
 	// Update backend timeout
-	_, err = s.client.Set(s.path("backends", b, "backend"), `{"Type": "http", "Settings": {"Timeouts": {"Read":"100ms"}}}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http", "Settings": {"Timeouts": {"Read":"100ms"}}}`, nil)
 	c.Assert(err, IsNil)
 
 	// Wait for the changes to take effect
@@ -441,15 +467,18 @@ func (s *VESuite) TestLiveBinaryUpgrade(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.path("backends", b, "backend"), `{"Type": "http"}`, 0)
+	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
+		`{"Type": "http"}`, nil)
 	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.path("backends", b, "servers", srv), fmt.Sprintf(`{"URL": "%s"}`, url), 0)
+	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
 	c.Assert(err, IsNil)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.path("frontends", fId, "frontend"), `{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, 0)
+	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
 	c.Assert(err, IsNil)
 
 	keyPair := NewTestKeyPair()
@@ -459,7 +488,8 @@ func (s *VESuite) TestLiveBinaryUpgrade(c *C) {
 	sealed := base64.StdEncoding.EncodeToString(bytes)
 	host := "localhost"
 
-	_, err = s.client.Set(s.path("hosts", host, "host"), fmt.Sprintf(`{"Name": "localhost", "Settings": {"KeyPair": "%v"}}`, sealed), 0)
+	_, err = s.client.Set(s.ctx, s.path("hosts", host, "host"),
+		fmt.Sprintf(`{"Name": "localhost", "Settings": {"KeyPair": "%v"}}`, sealed), nil)
 	c.Assert(err, IsNil)
 
 	// Add HTTPS listener
@@ -468,7 +498,7 @@ func (s *VESuite) TestLiveBinaryUpgrade(c *C) {
 	c.Assert(err, IsNil)
 	bytes, err = json.Marshal(listener)
 	c.Assert(err, IsNil)
-	s.client.Set(s.path("listeners", l2), string(bytes), 0)
+	s.client.Set(s.ctx, s.path("listeners", l2), string(bytes), nil)
 
 	time.Sleep(time.Second)
 	_, body, err := testutils.Get(fmt.Sprintf("%s%s", "https://localhost:32000", "/path"))
