@@ -120,7 +120,10 @@ func MakeRequest(url string, opts ...ReqOption) (*http.Response, []byte, error) 
 	if strings.HasPrefix(url, "https") {
 		tr = &http.Transport{
 			DisableKeepAlives: true,
-			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:   &tls.Config{
+				InsecureSkipVerify: true,
+				ServerName: request.Host, //Necessary for SNI to work
+			},
 		}
 	} else {
 		tr = &http.Transport{
@@ -134,6 +137,7 @@ func MakeRequest(url string, opts ...ReqOption) (*http.Response, []byte, error) 
 			return fmt.Errorf("No redirects")
 		},
 	}
+
 	response, err := client.Do(request)
 	if err == nil {
 		bodyBytes, err := ioutil.ReadAll(response.Body)
