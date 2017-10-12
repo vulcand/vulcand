@@ -57,8 +57,8 @@ type CliReader func(c *cli.Context) (Middleware, error)
 // Function that returns middleware spec by it's type
 type SpecGetter func(string) *MiddlewareSpec
 
-//Holds a bunch of Listeners a frontend might have.
-//This allows callers to consolidate all their listeners in one convenient struct.
+// Holds a bunch of Listeners a frontend might have.
+// This allows callers to consolidate all their listeners in one convenient struct.
 type FrontendListeners struct {
 	ConnTck           forward.UrlForwardingStateListener
 	RbRewriteListener roundrobin.RequestRewriteListener

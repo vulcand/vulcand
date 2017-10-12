@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"testing"
 	"time"
-
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -643,12 +642,6 @@ func (s *ServerSuite) TestHostAutoCertCache(c *C) {
 
 	//This should work because the cache should provide it
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
-=======
-	certserial2 := getPeerCertSerialNo(c, b.FrontendURL("/"))
-
-	//Ensure different certs were returned
-	c.Assert(certserial1, Not(Equals), certserial2)
->>>>>>> fix-sni
 }
 
 func (s *ServerSuite) TestOCSPStapling(c *C) {
