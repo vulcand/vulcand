@@ -457,7 +457,7 @@ func (s *ServerSuite) TestSNI(c *C) {
 	b := MakeBatch(Batch{
 		Host:     "localhost",
 		Addr:     "localhost:41000",
-		Route:    `Host("localhost") && Path("/")`,
+		Route:    `Path("/path1")`,
 		URL:      e.URL,
 		Protocol: engine.HTTPS,
 		KeyPair:  &engine.KeyPair{Key: localhostKey, Cert: localhostCert},
@@ -465,7 +465,7 @@ func (s *ServerSuite) TestSNI(c *C) {
 	b2 := MakeBatch(Batch{
 		Host:     "otherhost",
 		Addr:     "localhost:41000",
-		Route:    `Host("otherhost") && Path("/")`,
+		Route:    `Path("/path2")`,
 		URL:      e2.URL,
 		Protocol: engine.HTTPS,
 		KeyPair:  &engine.KeyPair{Key: otherHostKey, Cert: otherHostCert},
@@ -474,12 +474,16 @@ func (s *ServerSuite) TestSNI(c *C) {
 	c.Assert(s.mux.Init(MakeSnapshot(b, b2)), IsNil)
 	c.Assert(s.mux.Start(), IsNil)
 
-	// When/Then
-	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "Hi, I'm endpoint 1")
-	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "Hi, I'm endpoint 2")
+	// For the same host, but different paths, return different endpoints (routing test)
+	c.Assert(GETResponse(c, b.FrontendURL("/path1"), testutils.Host("example.com")), Equals, "Hi, I'm endpoint 1")
+	c.Assert(GETResponse(c, b.FrontendURL("/path2"), testutils.Host("example.com")), Equals, "Hi, I'm endpoint 2")
 
-	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "077bdc3e97d00584f03faec7cda682cf")
-	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "c3244866e57c7b1f")
+	//For the same path, if the Hostname is different (SNI), then return a different Cert - true host differentiation.
+	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("example.com")), Equals, "77bdc3e97d00584f03faec7cda682cf")
+	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("otherhost")), Equals, "c3244866e57c7b1f")
+
+	//For a non-specified host, return default Cert
+	c.Assert(GETPeerCertSerialNo(c, b.FrontendURL("/path1"), testutils.Host("non-example.com")), Equals, "c3244866e57c7b1f")
 }
 
 func (s *ServerSuite) TestMiddlewareCRUD(c *C) {
