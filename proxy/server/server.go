@@ -52,8 +52,9 @@ func New(lsnCfg engine.Listener, router http.Handler, stapler stapler.Stapler,
 		return nil, err
 	}
 	return &T{
-		lsnCfg:        lsnCfg,
-		router:        router,
+		lsnCfg: lsnCfg,
+		router: router,
+
 		stapler:       stapler,
 		connTck:       connTck,
 		autoCertCache: autoCertCache,
@@ -496,14 +497,14 @@ func tlsCertArray(pairs map[string]tls.Certificate, defaultHostName string) ([]t
 
 func ocspStaple(stapler stapler.Stapler, hostCfg engine.Host, keyPair *tls.Certificate) {
 	if hostCfg.Settings.OCSP.Enabled {
-		log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, hostCfg, hostCfg.Settings.OCSP.Responders)
+		log.Infof("OCSP is enabled for %v, resolvers: %v", hostCfg, hostCfg.Settings.OCSP.Responders)
 		r, err := stapler.StapleHost(&hostCfg)
 		if err != nil {
-			log.Warningf("%v failed to staple %v, error %v", s, hostCfg, err)
+			log.Warningf("Failed to staple %v, error %v", hostCfg, err)
 		} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
 			keyPair.OCSPStaple = r.Staple
 		} else {
-			log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
+			log.Warningf("Got undefined status from OCSP responder: %v", r.Response.Status)
 		}
 	}
 }
