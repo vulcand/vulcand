@@ -54,6 +54,10 @@ func (l *Listener) Accept() (net.Conn, error) {
 		}
 		return nil, err
 	}
+	if tlsc, ok := conn.(*tls.Conn); ok {
+		err := tlsc.Handshake()
+		fmt.Printf("=============> HandShake error: %v. Handshake Complete: %v, ServerName: %s, CertSerial: %v\n\n", err, tlsc.ConnectionState().HandshakeComplete, tlsc.ConnectionState().ServerName, tls.ConnectionState().PeerCertificates[0].SerialNumber)
+	}
 	return conn, nil
 }
 
