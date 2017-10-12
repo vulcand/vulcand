@@ -2,13 +2,12 @@ package server
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
 	"sync"
-
-	"crypto/x509"
-	"encoding/pem"
 	"time"
 
 	proxyproto "github.com/armon/go-proxyproto"
@@ -36,7 +35,6 @@ type T struct {
 	connTck conntracker.ConnectionTracker
 	serveWg *sync.WaitGroup
 
-	autoCertMgrs  []*autocert.Manager
 	autoCertCache autocert.Cache
 
 	srv          *graceful.Server
@@ -285,116 +283,54 @@ func (s *T) newTLSCfg(hostCfgs map[engine.HostKey]engine.Host) (*tls.Config, err
 	getCertFuncs := map[string]getCertificateFunc{}
 
 	for _, hostCfg := range hostCfgs {
+		// Capture default hostname for later use
 		if hostCfg.Settings.Default {
 			defaultHostName = hostCfg.Name
 		}
+
+		// If KeyPair-based cert
 		if hostCfg.Settings.KeyPair != nil {
-			c := hostCfg.Settings.KeyPair
+
+			//If autocert is also set, log a warning but proceed with non-autocert
 			if hostCfg.Settings.AutoCert != nil {
 				log.Warningf("Host %v has a KeyPair and AutoCert enabled. KeyPair takes precedence. Autocert generation disabled.", hostCfg.Name)
 			}
-			keyPair, err := tls.X509KeyPair(c.Cert, c.Key)
+
+			// Get the certificate for this host out of settings and remember it
+			cert, err := certForHost(hostCfg)
 			if err != nil {
-				return nil, err
+				log.Errorf("Unable to get certificate from host %s due to error: %v.", hostCfg.Name, err)
+				continue
 			}
-			if hostCfg.Settings.OCSP.Enabled {
-				log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, hostCfg, hostCfg.Settings.OCSP.Responders)
-				r, err := s.stapler.StapleHost(&hostCfg)
-				if err != nil {
-					log.Warningf("%v failed to staple %v, error %v", s, hostCfg, err)
-				} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
-					keyPair.OCSPStaple = r.Staple
-				} else {
-					log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
-				}
-			}
-			pairs[hostCfg.Name] = keyPair
+
+			//Staple the OCSP response to the cert
+			ocspStaple(s.stapler, hostCfg, &cert)
+
+			pairs[hostCfg.Name] = cert
+
 		} else if hostCfg.Settings.AutoCert != nil {
-			ac := hostCfg.Settings.AutoCert
-			if s.autoCertMgrs == nil {
-				s.autoCertMgrs = make([]*autocert.Manager, 0, 0)
+
+			// Generate a certificate-getting function for this host which will be called later as needed.
+			// This function will staple OCSP response when cert is generated.
+			getCertFunc, err := certFuncForHost(hostCfg, s.autoCertCache, s.stapler)
+			if err != nil {
+				log.Errorf("Unable to generate GetCertificate function for host %s due to error: %v.", hostCfg.Name, err)
+				continue
 			}
-
-			// Each host gets its own Autocert Manager - this allows individual
-			// certs to use different autocert authorities, as well as auth keys
-			autoCertMgr := &autocert.Manager{
-				Prompt:     autocert.AcceptTOS,
-				Cache:      s.autoCertCache,
-				HostPolicy: autocert.HostWhitelist(hostCfg.Name),
-				Email:      ac.Email,
-			}
-
-			if ac.RenewBeforeSeconds > 0 {
-				autoCertMgr.RenewBefore = time.Duration(ac.RenewBeforeSeconds) * time.Second
-			}
-
-			if ac.Key != "" || ac.DirectoryURL != "" {
-				autoCertMgr.Client = &acme.Client{
-					DirectoryURL: ac.DirectoryURL,
-				}
-
-				if ac.Key != "" {
-					block, _ := pem.Decode([]byte(ac.Key))
-					if block == nil {
-						log.Errorf("Autocert Key PEM Block for Host %s is invalid.", hostCfg.Name)
-						continue //Move on to the next host...
-					} else if block.Type == "RSA PRIVATE KEY" {
-						rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-						if err != nil {
-							autoCertMgr.Client.Key = rsaPrivateKey
-						} else {
-							log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an RSA Private Key: %v", block.Type, hostCfg.Name, err)
-						}
-					} else if block.Type == "EC PRIVATE KEY" {
-						ecPrivateKey, err := x509.ParseECPrivateKey(block.Bytes)
-						if err != nil {
-							autoCertMgr.Client.Key = ecPrivateKey
-						} else {
-							log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an EC Private Key: %v", block.Type, hostCfg.Name, err)
-						}
-					} else {
-						log.Errorf("AutoCert Private Key for Host %s is of unrecognized type: %s. Supported types"+
-							"are RSA PRIVATE KEY and EC PRIVATE KEY.", hostCfg.Name, block.Type)
-						continue //Move on to the next host...
-					}
-				}
-			}
-
-			getCertFuncs[hostCfg.Name] = autoCertMgr.GetCertificate
+			getCertFuncs[hostCfg.Name] = getCertFunc
 		}
 	}
 
-	config.Certificates = make([]tls.Certificate, 0, len(pairs))
-	if defaultHostName != "" {
-		keyPair, ok := pairs[defaultHostName]
-		if !ok {
-			return nil, errors.Errorf("default host '%s' certificate is not passed", defaultHostName)
-		}
-		config.Certificates = append(config.Certificates, keyPair)
-	}
-
-	for hostName, keyPair := range pairs {
-		if hostName != defaultHostName {
-			config.Certificates = append(config.Certificates, keyPair)
-		}
+	// Convert the hostname->cert mappings into an array with defaultHostName's cert coming first
+	config.Certificates, err = tlsCertArray(pairs, defaultHostName)
+	if err != nil {
+		return nil, err
 	}
 
 	config.BuildNameToCertificate()
 
-	//Lock down this specific getCertFuncs map
-	config.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		if getCertificateFunc, ok := getCertFuncs[info.ServerName]; ok {
-			// We have a get certificate function for this host - allow AutoCertManager to
-			// provide this one, in case there's expiry/renewal to be done.
-			cert, err := getCertificateFunc(info)
-			if err != nil {
-				log.Errorf("Failed to generate Autocert for ServerName: %s. Error: %v.", info.ServerName, err)
-			}
-			return cert, err
-		} else {
-			return nil, nil
-		}
-	}
+	// Generate an aggergate GetCertificate that calls individual host's GetCertificate generated above.
+	config.GetCertificate = getCertFuncAggregate(getCertFuncs)
 
 	return config, nil
 }
@@ -440,4 +376,134 @@ func newScopeRouter(scope string, router http.Handler) (http.Handler, error) {
 		return nil, err
 	}
 	return scopedRouter, nil
+}
+
+// Returns a certificate based on a hosts KeyPair settings.
+func certForHost(hostCfg engine.Host) (tls.Certificate, error) {
+	c := hostCfg.Settings.KeyPair
+	cert, err := tls.X509KeyPair(c.Cert, c.Key)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	return cert, nil
+}
+
+// Returns a GetCertificate function for this host based on AutoCert settings,
+// by generating an autocert manager for the host.
+// It optionally will staple the OCSP response to the cert when it is generated,
+// if OCSP stapling is enabled for the host.
+func certFuncForHost(hostCfg engine.Host, autoCertCache autocert.Cache, stapler stapler.Stapler) (getCertificateFunc, error) {
+	ac := hostCfg.Settings.AutoCert
+
+	// Each host gets its own Autocert Manager - this allows individual
+	// certs to use different autocert authorities, as well as auth keys
+	autoCertMgr := &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		Cache:      autoCertCache,
+		HostPolicy: autocert.HostWhitelist(hostCfg.Name),
+		Email:      ac.Email,
+	}
+
+	if ac.RenewBeforeSeconds > 0 {
+		autoCertMgr.RenewBefore = time.Duration(ac.RenewBeforeSeconds) * time.Second
+	}
+
+	// if either directory or key are non-empty, we need to generate
+	// a custom ACME client to override either.
+	if ac.Key != "" || ac.DirectoryURL != "" {
+
+		// If DirectoryURL is empty, the default Let's Encrypt URL will be picked.
+		autoCertMgr.Client = &acme.Client{
+			DirectoryURL: ac.DirectoryURL,
+		}
+
+		// If Key is non-empty, then decode it as RSA or EC which are the only two keys
+		// we support. Go's crypto library doesn't support a generic function to provide back
+		// a private key interface.
+		if ac.Key != "" {
+			block, _ := pem.Decode([]byte(ac.Key))
+			if block == nil {
+				return nil, fmt.Errorf("Autocert Key PEM Block for Host %s is invalid.", hostCfg.Name)
+			} else if block.Type == "RSA PRIVATE KEY" {
+				rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+				if err != nil {
+					autoCertMgr.Client.Key = rsaPrivateKey
+				} else {
+					log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an RSA Private Key: %v", block.Type, hostCfg.Name, err)
+				}
+			} else if block.Type == "EC PRIVATE KEY" {
+				ecPrivateKey, err := x509.ParseECPrivateKey(block.Bytes)
+				if err != nil {
+					autoCertMgr.Client.Key = ecPrivateKey
+				} else {
+					log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an EC Private Key: %v", block.Type, hostCfg.Name, err)
+				}
+			} else {
+				return nil, fmt.Errorf("AutoCert Private Key for Host %s is of unrecognized type: %s. Supported types"+
+					"are RSA PRIVATE KEY and EC PRIVATE KEY.", hostCfg.Name, block.Type)
+			}
+		}
+	}
+
+	// Wrap the GetCert for this host, so we can generate and staple
+	// an optional OCSP response when requested.
+	stapledGetCert := func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		cert, err := autoCertMgr.GetCertificate(info)
+		ocspStaple(stapler, hostCfg, cert)
+		return cert, err
+	}
+
+	return stapledGetCert, nil
+}
+
+// Generate an aggregate GetCertificate function over GetCertificate functions for
+// each host that we generated using the certFuncForHost function above.
+// This allows all of those functions to masquerade as one uber function that can
+// get a certificate (through autocert) for any host.
+func getCertFuncAggregate(getCertFuncs map[string]getCertificateFunc) getCertificateFunc {
+	return func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		if getCertificateFunc, ok := getCertFuncs[info.ServerName]; ok {
+			// We have a get certificate function for this host - allow AutoCertManager to
+			// provide this one, in case there's expiry/renewal to be done.
+			cert, err := getCertificateFunc(info)
+			if err != nil {
+				log.Errorf("Failed to generate Autocert for ServerName: %s. Error: %v.", info.ServerName, err)
+			}
+			return cert, err
+		} else {
+			return nil, nil
+		}
+	}
+}
+
+func tlsCertArray(pairs map[string]tls.Certificate, defaultHostName string) ([]tls.Certificate, error) {
+	arr := make([]tls.Certificate, 0, len(pairs))
+	if defaultHostName != "" {
+		keyPair, ok := pairs[defaultHostName]
+		if !ok {
+			return nil, errors.Errorf("default host '%s' certificate is not passed", defaultHostName)
+		}
+		arr = append(arr, keyPair)
+	}
+
+	for hostName, keyPair := range pairs {
+		if hostName != defaultHostName {
+			arr = append(arr, keyPair)
+		}
+	}
+	return arr, nil
+}
+
+func ocspStaple(stapler stapler.Stapler, hostCfg engine.Host, keyPair *tls.Certificate) {
+	if hostCfg.Settings.OCSP.Enabled {
+		log.Infof("%v OCSP is enabled for %v, resolvers: %v", s, hostCfg, hostCfg.Settings.OCSP.Responders)
+		r, err := stapler.StapleHost(&hostCfg)
+		if err != nil {
+			log.Warningf("%v failed to staple %v, error %v", s, hostCfg, err)
+		} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
+			keyPair.OCSPStaple = r.Staple
+		} else {
+			log.Warningf("%s got undefined status from OCSP responder: %v", s, r.Response.Status)
+		}
+	}
 }
