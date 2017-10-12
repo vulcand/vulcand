@@ -704,9 +704,9 @@ func (s *ServerSuite) TestServerHTTPSAutoCertOCSPStapling(c *C) {
 }
 
 //
-// Test AutoCert generation - simplest case.
+// Test AutoCert generation with an RSA client auth ID
 //
-func (s *ServerSuite) TestServerAutoCertRSAKey(c *C) {
+func (s *ServerSuite) TestServerAutoCertRSAClientKey(c *C) {
 	var req *http.Request
 	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
 		req = r
@@ -732,6 +732,52 @@ func (s *ServerSuite) TestServerAutoCertRSAKey(c *C) {
 		AutoCert: &engine.AutoCertSettings{
 			DirectoryURL: url,
 			Key:          rsaIdKey,
+		},
+	})
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	// Attempt to connect to the Host over HTTPS which will validate that it was able to generate a cert
+	// over ACME against our local stub. This is an SNI-based host-name.
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "hi https")
+	// Make sure that we see right proto
+	c.Assert(req.Header.Get("X-Forwarded-Proto"), Equals, "https")
+}
+
+//
+// Test AutoCert generation with an ECDSA client auth ID
+//
+func (s *ServerSuite) TestServerAutoCertECClientKey(c *C) {
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
+	defer e.Close()
+
+	// Start an ACME Stub server locally that serves certificates for "example.org"
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org")
+	defer finish()
+
+	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
+	// (obtained from the stub start above)
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+			Key:          ecIdKey,
 		},
 	})
 
