@@ -29,7 +29,7 @@ type Stapler interface {
 	// HasHost returns true if Stapler holds the response in cache
 	HasHost(host engine.HostKey) bool
 	// StapleHost returns the relevant StapleResponse, or error in case if response is unavailable
-	StapleHost(host *engine.Host) (*StapleResponse, error)
+	StapleHost(host *engine.Host, opts ...StapleHostOption) (*StapleResponse, error)
 	// DeleteHost deletes any OCSP data associated with the host entry
 	DeleteHost(host engine.HostKey)
 	// Subscribe subscribes the channel to the series of OCSP updates
@@ -45,6 +45,16 @@ type StaplerOption func(s *stapler)
 func Clock(clock timetools.TimeProvider) StaplerOption {
 	return func(s *stapler) {
 		s.clock = clock
+	}
+}
+
+type GetCertificateFunc func(*tls.ClientHelloInfo) (*tls.Certificate, error)
+
+type StapleHostOption func (s *hostStapler)
+
+func WithGetCertFunc(hostName string, getCertFunc GetCertificateFunc) StapleHostOption {
+	return func(hs *hostStapler) {
+		hs.getCertFunc = getCertFunc
 	}
 }
 
@@ -102,15 +112,15 @@ type stapler struct {
 	kickC         chan bool
 }
 
-func (s *stapler) StapleHost(host *engine.Host) (*StapleResponse, error) {
-	if host.Settings.KeyPair == nil {
-		return nil, fmt.Errorf("%v has no key pair to staple", host)
+func (s *stapler) StapleHost(host *engine.Host, opts ...StapleHostOption) (*StapleResponse, error) {
+	if host.Settings.KeyPair == nil && host.Settings.AutoCert == nil {
+		return nil, fmt.Errorf("%v has no key pair to staple and no autocert settings", host)
 	}
 	hs, found := s.getStapler(host)
 	if found {
 		return hs.response, nil
 	}
-	hs, err := newHostStapler(s, host)
+	hs, err := newHostStapler(s, host, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +215,8 @@ type hostStapler struct {
 	id   int32
 	host *engine.Host
 
+	getCertFunc GetCertificateFunc
+
 	timer  *time.Timer
 	s      *stapler
 	stopC  chan struct{}
@@ -227,14 +239,22 @@ func (s *StapleResponse) String() string {
 }
 
 func (hs *hostStapler) sameTo(host *engine.Host) bool {
-	if !hs.host.Settings.KeyPair.Equals(host.Settings.KeyPair) {
+	//KeyPairs need to be non-nil for comparison (they might be when AutoCert is on)
+	if hs.host.Settings.KeyPair != nil && host.Settings.KeyPair != nil && !hs.host.Settings.KeyPair.Equals(host.Settings.KeyPair) {
 		log.Infof("%v key pair updated", hs)
 		return false
 	}
+
 	if !(&hs.host.Settings.OCSP).Equals(&host.Settings.OCSP) {
 		log.Infof("%v ocsp settings updated", hs)
 		return false
 	}
+
+	if !hs.host.Settings.AutoCert.Equals(host.Settings.AutoCert) {
+		log.Infof("%v autocert settings updated", hs)
+		return false
+	}
+
 	return true
 }
 
@@ -370,7 +390,7 @@ func (s *StapleUpdated) String() string {
 	return fmt.Sprintf("StapleUpdated(host=%v, response=%v, err=%v)", s.HostKey, s.Staple, s.Err)
 }
 
-func newHostStapler(s *stapler, host *engine.Host) (*hostStapler, error) {
+func newHostStapler(s *stapler, host *engine.Host, opts ...StapleHostOption) (*hostStapler, error) {
 	period, err := host.Settings.OCSP.RefreshPeriod()
 	if err != nil {
 		return nil, err
@@ -383,10 +403,15 @@ func newHostStapler(s *stapler, host *engine.Host) (*hostStapler, error) {
 		stopC:  make(chan struct{}),
 	}
 
-	re, err := s.getStaple(&host.Settings)
+	for _, opt := range opts {
+		opt(hs)
+	}
+
+	cert, err := hs.getCert()
 	if err != nil {
 		return nil, err
 	}
+	re, err := s.getStaple(cert, host.Settings.OCSP)
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +433,9 @@ func (hs *hostStapler) String() string {
 }
 
 func (hs *hostStapler) update() {
-	re, err := hs.s.getStaple(&hs.host.Settings)
+	cert, err := hs.getCert()
+	log.Infof("%v got %v", hs, err)
+	re, err := hs.s.getStaple(cert, hs.host.Settings.OCSP)
 	log.Infof("%v got %v %v", hs, re, err)
 	select {
 	case hs.s.eventsC <- &stapleFetched{id: hs.id, hostName: hs.host.Name, re: re, err: err}:
@@ -449,13 +476,18 @@ func (hs *hostStapler) schedule(nextUpdate time.Time) error {
 	return nil
 }
 
-func (st *stapler) getStaple(s *engine.HostSettings) (*StapleResponse, error) {
-	kp := s.KeyPair
-	cert, err := tls.X509KeyPair(kp.Cert, kp.Key)
-	if err != nil {
-		return nil, err
+func (s *hostStapler) getCert() (tls.Certificate, error) {
+	if s.host.Settings.KeyPair != nil {
+		kp := s.host.Settings.KeyPair
+		return tls.X509KeyPair(kp.Cert, kp.Key)
+	} else if s.getCertFunc != nil {
+		certptr, err := s.getCertFunc(&tls.ClientHelloInfo{ServerName: s.host.Name})
+		return *certptr, err
 	}
+	return tls.Certificate{}, fmt.Errorf("Unable to find KeyPair, or GetCertificate function for host: %s", s.host.Name)
+}
 
+func (st *stapler) getStaple(cert tls.Certificate, ocspset engine.OCSPSettings) (*StapleResponse, error) {
 	if len(cert.Certificate) < 2 {
 		return nil, fmt.Errorf("Need at least leaf and peer certificate")
 	}
@@ -475,8 +507,8 @@ func (st *stapler) getStaple(s *engine.HostSettings) (*StapleResponse, error) {
 		return nil, err
 	}
 	servers := xc.OCSPServer
-	if len(s.OCSP.Responders) != 0 {
-		servers = s.OCSP.Responders
+	if len(ocspset.Responders) != 0 {
+		servers = ocspset.Responders
 	}
 
 	if len(servers) == 0 {
@@ -488,7 +520,7 @@ func (st *stapler) getStaple(s *engine.HostSettings) (*StapleResponse, error) {
 	for _, srv := range servers {
 		log.Infof("OCSP about to query: %v for OCSP", srv)
 		issuer := xi
-		if s.OCSP.SkipSignatureCheck {
+		if ocspset.SkipSignatureCheck {
 			log.Warningf("Bypassing signature check")
 			// this will bypass signature check
 			issuer = nil
