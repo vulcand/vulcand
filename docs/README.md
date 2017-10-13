@@ -1,1 +1,0 @@
-### [Read the docs!](http://vulcand.readthedocs.io/en/latest/)
