@@ -41,12 +41,6 @@
   revision = "12d930b40fa4119e3a8a0e2824c8721c16ef066b"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/coreos/go-etcd"
-  packages = ["etcd"]
-  revision = "003851be7bb0694fe3cc457a49529a19388ee7cf"
-
-[[projects]]
   name = "github.com/ghodss/yaml"
   packages = ["."]
   revision = "04f313413ffd65ce25f2541bfd2b2ceec5c0908c"
@@ -204,6 +198,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4bebbd750b52fb8068993b3eae0e681638f464a9891a594b888c9275bbdcc9e8"
+  inputs-digest = "77412823f48f4bfbf95927a2693a0bcca0067c1c2002940996327668a0fe3dbf"
   solver-name = "gps-cdcl"
   solver-version = 1
