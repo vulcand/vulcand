@@ -450,8 +450,6 @@ func certFuncForHost(hostCfg engine.Host, autoCertCache autocert.Cache, s staple
 			} else {
 				log.Warningf("Got undefined status from OCSP responder: %v", r.Response.Status)
 			}
-
-			fmt.Printf("\n\nStapled bytes: %v\n\n", keyPair.OCSPStaple)
 		}
 		return keyPair, err
 	}

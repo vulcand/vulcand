@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -22,13 +23,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/plugin/cacheprovider"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/stapler"
 	. "github.com/vulcand/vulcand/testutils"
 	"golang.org/x/crypto/acme/autocert"
 	. "gopkg.in/check.v1"
-	//"github.com/vulcand/vulcand/plugin/cacheprovider"
-	"github.com/vulcand/vulcand/plugin/cacheprovider"
 )
 
 func TestServer(t *testing.T) { TestingT(t) }
@@ -403,7 +403,7 @@ func (s *ServerSuite) TestServerHTTPSAutoCert(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url, finish := startACMEServerStub(c, man, "example.org")
+	url, finish := startACMEServerStub(c, man, "example.org", "")
 	defer finish()
 
 	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
@@ -448,7 +448,7 @@ func (s *ServerSuite) TestServerHTTPSAutoCertInvalid(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url, finish := startACMEServerStub(c, man, "example.org")
+	url, finish := startACMEServerStub(c, man, "example.org", "")
 	defer finish()
 
 	// Create a Host definition for non-example.org, with an AutoCert setting that points to local stub URL
@@ -488,7 +488,7 @@ func (s *ServerSuite) TestHostAutoCertUpdate(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url1, finish1 := startACMEServerStub(c, man, "example.org")
+	url1, finish1 := startACMEServerStub(c, man, "example.org", "")
 	// This ensures if the finish inline didn't get called, it does get called
 	// deferred at the end. But it doesn't call finish twice, by storing a state
 	// variable.
@@ -518,7 +518,7 @@ func (s *ServerSuite) TestHostAutoCertUpdate(c *C) {
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
 
 	// Start a new ACME Stub Server.
-	url2, finish2 := startACMEServerStub(c, man, "example.org")
+	url2, finish2 := startACMEServerStub(c, man, "example.org", "")
 	defer finish2()
 
 	//Ensure url2 is different from url1
@@ -546,7 +546,7 @@ func (s *ServerSuite) TestHostAutoCertExpires(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url, finish := startACMEServerStub(c, man, "example.org")
+	url, finish := startACMEServerStub(c, man, "example.org", "")
 
 	// This ensures if the finish inline didn't get called, it does get called
 	// deferred at the end. But it doesn't call finish twice, by storing a state
@@ -598,7 +598,7 @@ func (s *ServerSuite) TestHostAutoCertCache(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url, finish := startACMEServerStub(c, man, "example.org")
+	url, finish := startACMEServerStub(c, man, "example.org", "")
 
 	// This ensures if the finish inline didn't get called, it does get called
 	// deferred at the end. But it doesn't call finish twice, by storing a state
@@ -662,7 +662,7 @@ func (s *ServerSuite) TestServerHTTPSAutoCertOCSPStapling(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url, finish := startACMEServerStub(c, man, "example.org")
+	url, finish := startACMEServerStub(c, man, "example.org", "")
 	defer finish()
 
 	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
@@ -718,7 +718,7 @@ func (s *ServerSuite) TestServerAutoCertRSAClientKey(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url, finish := startACMEServerStub(c, man, "example.org")
+	url, finish := startACMEServerStub(c, man, "example.org", rsaIdKeyJwk)
 	defer finish()
 
 	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
@@ -764,7 +764,7 @@ func (s *ServerSuite) TestServerAutoCertECClientKey(c *C) {
 	man := &autocert.Manager{
 		Prompt: autocert.AcceptTOS,
 	}
-	url, finish := startACMEServerStub(c, man, "example.org")
+	url, finish := startACMEServerStub(c, man, "example.org", ecIdKeyJwk)
 	defer finish()
 
 	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
@@ -1631,11 +1631,15 @@ R4wTLrnbrWKrAiAbBMOWNYqNDBc11sdDn+k5/G/AqNrO1EF/E/IhsIhsAwIgA7/g
 2DlC1oLaH33zbVl69ldOfgaVJTafrfqq6lVr4vQ=
 -----END RSA PRIVATE KEY-----`
 
+var rsaIdKeyJwk = "eyJyZXNvdXJjZSI6Im5ldy1yZWcifQ"
+
 var ecIdKey = `-----BEGIN EC PRIVATE KEY-----
 MHQCAQEEIMpDcbDMEicI+CH9Ka76a7av1nf7cDBH5tNCC++qSsjDoAcGBSuBBAAK
 oUQDQgAEAPk6NfWqdyWqfkxWANfEb8aslqgBfhFtJG1NUA+hvnq8RMztm2U/X8rU
 qOjf5YLD0qYfErLI8I0vam/2q5tuJQ==
 -----END EC PRIVATE KEY-----`
+
+var ecIdKeyJwk = "eyJyZXNvdXJjZSI6Im5ldy1yZWcifQ"
 
 type appender struct {
 	next   http.Handler
@@ -1714,7 +1718,7 @@ func decodePayload(v interface{}, r io.Reader) error {
 
 // startACMEServerStub runs an ACME server
 // The domain argument is the expected domain name of a certificate request.
-func startACMEServerStub(c *C, man *autocert.Manager, domain string) (url string, finish func()) {
+func startACMEServerStub(c *C, man *autocert.Manager, domain string, jwkPayload string) (url string, finish func()) {
 	// echo token-02 | shasum -a 256
 	// then divide result in 2 parts separated by dot
 	tokenCertName := "4e8eb87631187e9ff2153b56b13a4dec.13a35d002e485d60ff37354b32f665d9.token.acme.invalid"
@@ -1736,6 +1740,16 @@ func startACMEServerStub(c *C, man *autocert.Manager, domain string) (url string
 			}
 			// client key registration
 		case "/new-reg":
+			body, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			if jwkPayload != "" {
+				var req struct {
+					Payload string `json:"payload"`
+				}
+				err = json.Unmarshal(body, &req)
+				c.Assert(err, IsNil)
+				c.Assert(jwkPayload, Equals, req.Payload)
+			}
 			w.Write([]byte("{}"))
 			// domain authorization
 		case "/new-authz":
