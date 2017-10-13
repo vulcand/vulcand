@@ -3,6 +3,7 @@ package secret
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/vulcand/vulcand/engine"
 )
 

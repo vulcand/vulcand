@@ -38,6 +38,7 @@ type Batch struct {
 	Protocol string
 	Host     string
 	KeyPair  *engine.KeyPair
+	AutoCert *engine.AutoCertSettings
 }
 
 type BatchVal struct {
@@ -71,7 +72,7 @@ func MakeBatch(b Batch) (bv BatchVal) {
 	be := MakeBackend()
 	beSrv := MakeServer(b.URL)
 
-	bv.H = MakeHost(b.Host, b.KeyPair)
+	bv.H = MakeHost(b.Host, b.KeyPair, b.AutoCert)
 	if b.Addr != "" {
 		if b.Protocol == "" {
 			b.Protocol = engine.HTTP
@@ -113,10 +114,10 @@ func MakeSnapshot(bvs ...BatchVal) engine.Snapshot {
 	return ss
 }
 
-func MakeHost(name string, keyPair *engine.KeyPair) engine.Host {
+func MakeHost(name string, keyPair *engine.KeyPair, autoCert *engine.AutoCertSettings) engine.Host {
 	return engine.Host{
 		Name:     name,
-		Settings: engine.HostSettings{KeyPair: keyPair},
+		Settings: engine.HostSettings{KeyPair: keyPair, AutoCert: autoCert},
 	}
 }
 

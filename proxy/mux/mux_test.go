@@ -2,19 +2,32 @@ package mux
 
 import (
 	"bufio"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"html/template"
+	"io"
+	"io/ioutil"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/plugin/cacheprovider"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/stapler"
 	. "github.com/vulcand/vulcand/testutils"
+	"golang.org/x/crypto/acme/autocert"
 	. "gopkg.in/check.v1"
 )
 
@@ -373,6 +386,413 @@ func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 
 	//Ensure different certs were returned
 	c.Assert(certserial1, Not(Equals), certserial2)
+}
+
+//
+// Test AutoCert generation - simplest case.
+//
+func (s *ServerSuite) TestServerHTTPSAutoCert(c *C) {
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
+	defer e.Close()
+
+	// Start an ACME Stub server locally that serves certificates for "example.org"
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org", "")
+	defer finish()
+
+	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
+	// (obtained from the stub start above)
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+		},
+	})
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	// Attempt to connect to the Host over HTTPS which will validate that it was able to generate a cert
+	// over ACME against our local stub. This is an SNI-based host-name.
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "hi https")
+	// Make sure that we see right proto
+	c.Assert(req.Header.Get("X-Forwarded-Proto"), Equals, "https")
+}
+
+//
+// Test AutoCert failure when an invalid host is requested.
+//
+func (s *ServerSuite) TestServerHTTPSAutoCertInvalid(c *C) {
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
+	defer e.Close()
+
+	// Start an ACME Stub server locally that serves certificates for "example.org"
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org", "")
+	defer finish()
+
+	// Create a Host definition for non-example.org, with an AutoCert setting that points to local stub URL
+	// (obtained from the stub start above), which only accepts requests for example.org
+	b := MakeBatch(Batch{
+		Host:     "non-example.com",
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+		},
+	})
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	// Ensure that an error is returned when a certificate generation is attempted.
+	_, _, err := testutils.Get(b.FrontendURL("/"), testutils.Host("example.com"))
+	c.Assert(err, NotNil)
+}
+
+//
+// Ensures that changing of AutoCert settings on a host, take
+// effect immediately.
+//
+func (s *ServerSuite) TestHostAutoCertUpdate(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+
+	// Start a stub ACME server for hostname example.org
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url1, finish1 := startACMEServerStub(c, man, "example.org", "")
+	// This ensures if the finish inline didn't get called, it does get called
+	// deferred at the end. But it doesn't call finish twice, by storing a state
+	// variable.
+	alreadyFinished := false
+	safeFinish := func() {
+		if !alreadyFinished {
+			alreadyFinished = true
+			finish1()
+		}
+	}
+	defer safeFinish()
+
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:31000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url1,
+		},
+	})
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
+
+	// Make HTTPS call to localhost with hostname example.org
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
+
+	// Start a new ACME Stub Server.
+	url2, finish2 := startACMEServerStub(c, man, "example.org", "")
+	defer finish2()
+
+	//Ensure url2 is different from url1
+	c.Assert(url1, Not(Equals), url2)
+
+	//Update the host's AutoCert Directory to url2
+	b.H.Settings.AutoCert.DirectoryURL = url2
+
+	//Close CA1
+	safeFinish()
+
+	//This forces cert update from CA2
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
+}
+
+//
+// Ensure that when the AutoCert endpoint goes down, and cert is not cached,
+// that it is indeed expired. This ensures we don't serve stale certs by accident.
+//
+func (s *ServerSuite) TestHostAutoCertExpires(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org", "")
+
+	// This ensures if the finish inline didn't get called, it does get called
+	// deferred at the end. But it doesn't call finish twice, by storing a state
+	// variable.
+	alreadyFinished := false
+	safeFinish := func() {
+		if !alreadyFinished {
+			alreadyFinished = true
+			finish()
+		}
+	}
+	defer safeFinish()
+
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:61000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+		},
+	})
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
+
+	//Close the AutoCert CA
+	safeFinish()
+
+	//Force cert re-acquisition - you'll see this in the unit test logs.
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+
+	//This should fail for lack of a cert
+	_, _, err := testutils.Get(b.FrontendURL("/"))
+	c.Assert(err, NotNil)
+}
+
+//
+// This ensures that the AutoCert cache, when provided, is actually used.
+// This is tested by generating an Autocert, then closing the ACME endpoint, an
+// ensuring the cached cert is still served (ensuring the ACME call isn't made.)
+//
+func (s *ServerSuite) TestHostAutoCertCache(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint")
+	defer e.Close()
+
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org", "")
+
+	// This ensures if the finish inline didn't get called, it does get called
+	// deferred at the end. But it doesn't call finish twice, by storing a state
+	// variable.
+	alreadyFinished := false
+	safeFinish := func() {
+		if !alreadyFinished {
+			alreadyFinished = true
+			finish()
+		}
+	}
+	defer safeFinish()
+
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+		},
+	})
+
+	//Set cache
+	s.mux.autoCertCache = cacheprovider.NewMemCacheProvider().GetAutoCertCache()
+	defer func() {
+		s.mux.autoCertCache = nil
+	}()
+
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
+
+	//Close the AutoCert CA
+	safeFinish()
+
+	//Force cert re-acquisition - you'll see this in the unit test logs.
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+
+	//This should work because the cache should provide it
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "Hi, I'm endpoint")
+}
+
+//
+// Test AutoCert OCSP stapling.
+//
+func (s *ServerSuite) TestServerHTTPSAutoCertOCSPStapling(c *C) {
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
+	defer e.Close()
+
+	srv := NewOCSPResponder()
+	defer srv.Close()
+
+	// Start an ACME Stub server locally that serves certificates for "example.org"
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org", "")
+	defer finish()
+
+	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
+	// (obtained from the stub start above)
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+	})
+	b.H.Settings = engine.HostSettings{
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+		},
+		OCSP: engine.OCSPSettings{Enabled: true, Period: "1h", Responders: []string{srv.URL}, SkipSignatureCheck: true},
+	}
+
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
+
+	conn, err := tls.Dial("tcp", b.L.Address.Address, &tls.Config{
+		InsecureSkipVerify: true,
+		ServerName:         "example.org",
+	})
+
+	c.Assert(err, IsNil)
+	fmt.Fprintf(conn, "GET / HTTP/1.1\r\n\r\n")
+	re := conn.OCSPResponse()
+	c.Assert(re, DeepEquals, OCSPResponseBytes)
+
+	conn.Close()
+
+	// Make sure that deleting the host clears the cache
+	hk := engine.HostKey{Name: b.H.Name}
+	c.Assert(s.mux.stapler.HasHost(hk), Equals, true)
+	c.Assert(s.mux.DeleteHost(hk), IsNil)
+	c.Assert(s.mux.stapler.HasHost(hk), Equals, false)
+}
+
+//
+// Test AutoCert generation with an RSA client auth ID
+//
+func (s *ServerSuite) TestServerAutoCertRSAClientKey(c *C) {
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
+	defer e.Close()
+
+	// Start an ACME Stub server locally that serves certificates for "example.org"
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org", rsaIdKeyJwk)
+	defer finish()
+
+	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
+	// (obtained from the stub start above)
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+			Key:          rsaIdKey,
+		},
+	})
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	// Attempt to connect to the Host over HTTPS which will validate that it was able to generate a cert
+	// over ACME against our local stub. This is an SNI-based host-name.
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "hi https")
+	// Make sure that we see right proto
+	c.Assert(req.Header.Get("X-Forwarded-Proto"), Equals, "https")
+}
+
+//
+// Test AutoCert generation with an ECDSA client auth ID
+//
+func (s *ServerSuite) TestServerAutoCertECClientKey(c *C) {
+	var req *http.Request
+	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		req = r
+		w.Write([]byte("hi https"))
+	})
+	defer e.Close()
+
+	// Start an ACME Stub server locally that serves certificates for "example.org"
+	man := &autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+	}
+	url, finish := startACMEServerStub(c, man, "example.org", ecIdKeyJwk)
+	defer finish()
+
+	// Create a Host definition for example.org, with an AutoCert setting that points to local stub URL
+	// (obtained from the stub start above)
+	b := MakeBatch(Batch{
+		Host:     "example.org",
+		Addr:     "localhost:41000",
+		Route:    `Path("/")`,
+		URL:      e.URL,
+		Protocol: engine.HTTPS,
+		AutoCert: &engine.AutoCertSettings{
+			DirectoryURL: url,
+			Key:          ecIdKey,
+		},
+	})
+
+	c.Assert(s.mux.UpsertHost(b.H), IsNil)
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	// Attempt to connect to the Host over HTTPS which will validate that it was able to generate a cert
+	// over ACME against our local stub. This is an SNI-based host-name.
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("example.org")), Equals, "hi https")
+	// Make sure that we see right proto
+	c.Assert(req.Header.Get("X-Forwarded-Proto"), Equals, "https")
 }
 
 func (s *ServerSuite) TestOCSPStapling(c *C) {
@@ -1152,7 +1572,6 @@ func getPeerCertSerialNo(c *C, url string, opts ...testutils.ReqOption) string {
 	return response.TLS.PeerCertificates[0].SerialNumber.Text(16)
 }
 
-
 // localhostCert is a PEM-encoded TLS cert with SAN IPs
 // "127.0.0.1" and "[::1]", expiring at the last second of 2049 (the end
 // of ASN.1 time).
@@ -1202,6 +1621,27 @@ YxV3Nxu3DSdxh5yKDNu9RsJLFheSmIkCIF06iPzHdS9R40sAin9QNOGykEtNDZ9l
 IwaQptPhBHhBeL0t/6gRNx+j1gnZP0hhYjH/7ZY=
 -----END RSA PRIVATE KEY-----`)
 
+var rsaIdKey = `-----BEGIN RSA PRIVATE KEY-----
+MIIBOQIBAAJBAKieyY6ecPsJrvpWAkwyirR03f6WJbSDCWXbi56mLXoKXLLez3N7
+X1CixTiQax3/yifDeT4Ou0+H/AqMnyhPHuUCAwEAAQJAL7BQ4uQOogEYGrbOiYxV
+zDmtOz5txYK12rff4euvuu7ToQTqQ6XRochy7my3Ob/AnmVaCMnjVUAjeQOaGf3h
+lQIhANrLKgmtSVZjQRwZzaKbWPGVIGveJBy+YSfKrXegus27AiEAxUtnxLPy8/Pp
+znuJ+wNrKRfPUBVSDbjB0/GLYoLeq98CIAC5dX0strZzg66tIzIro4LBRKc2yBXU
+R4wTLrnbrWKrAiAbBMOWNYqNDBc11sdDn+k5/G/AqNrO1EF/E/IhsIhsAwIgA7/g
+2DlC1oLaH33zbVl69ldOfgaVJTafrfqq6lVr4vQ=
+-----END RSA PRIVATE KEY-----`
+
+var rsaIdKeyJwk = "eyJyZXNvdXJjZSI6Im5ldy1yZWcifQ"
+
+var ecIdKey = `-----BEGIN EC PRIVATE KEY-----
+MIGkAgEBBDDaF6eBwzSFXxRaPbTv4YS0AHwXhMye0iNh/DAyterab0/y7pHILBC4
+rXUmliWtBEigBwYFK4EEACKhZANiAASlFMDW1zlF5QBWoZ99wdLBT/xjCmyjU8gs
+AwI++wwHcTlMYasEV9n5CvoE6wvcjlpKa3MKgbK/qAWmH4Xc8h7vAuYNRFxwCpBt
+Di7dbuoRmFYBqoGzLcFlZACaavu8xyI=
+-----END EC PRIVATE KEY-----`
+
+var ecIdKeyJwk = "eyJyZXNvdXJjZSI6Im5ldy1yZWcifQ"
+
 type appender struct {
 	next   http.Handler
 	append string
@@ -1214,4 +1654,179 @@ func (a *appender) NewHandler(next http.Handler) (http.Handler, error) {
 func (a *appender) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req.Header.Add("X-Append", a.append)
 	a.next.ServeHTTP(w, req)
+}
+
+// Copied from Golang's ACME test
+// https://github.com/golang/crypto/blob/master/acme/autocert/autocert_test.go
+
+var discoTmpl = template.Must(template.New("disco").Parse(`{
+	"new-reg": "{{.}}/new-reg",
+	"new-authz": "{{.}}/new-authz",
+	"new-cert": "{{.}}/new-cert"
+}`))
+
+var authzTmpl = template.Must(template.New("authz").Parse(`{
+	"status": "pending",
+	"challenges": [
+		{
+			"uri": "{{.}}/challenge/1",
+			"type": "tls-sni-01",
+			"token": "token-01"
+		},
+		{
+			"uri": "{{.}}/challenge/2",
+			"type": "tls-sni-02",
+			"token": "token-02"
+		}
+	]
+}`))
+
+func dummyCert(pub interface{}, san ...string) ([]byte, error) {
+	return dateDummyCert(pub, time.Now(), time.Now().Add(90*24*time.Hour), san...)
+}
+
+func dateDummyCert(pub interface{}, start, end time.Time, san ...string) ([]byte, error) {
+	// use EC key to run faster on 386
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	t := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		NotBefore:             start,
+		NotAfter:              end,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageKeyEncipherment,
+		DNSNames:              san,
+	}
+	if pub == nil {
+		pub = &key.PublicKey
+	}
+	return x509.CreateCertificate(rand.Reader, t, t, pub, key)
+}
+
+func decodePayload(v interface{}, r io.Reader) error {
+	var req struct{ Payload string }
+	if err := json.NewDecoder(r).Decode(&req); err != nil {
+		return err
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(req.Payload)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(payload, v)
+}
+
+// startACMEServerStub runs an ACME server
+// The domain argument is the expected domain name of a certificate request.
+func startACMEServerStub(c *C, man *autocert.Manager, domain string, jwkPayload string) (url string, finish func()) {
+	// echo token-02 | shasum -a 256
+	// then divide result in 2 parts separated by dot
+	tokenCertName := "4e8eb87631187e9ff2153b56b13a4dec.13a35d002e485d60ff37354b32f665d9.token.acme.invalid"
+
+	// ACME CA server stub
+	var ca *httptest.Server
+	ca = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Replay-Nonce", "nonce")
+		if r.Method == "HEAD" {
+			// a nonce request
+			return
+		}
+
+		switch r.URL.Path {
+		// discovery
+		case "/":
+			if err := discoTmpl.Execute(w, ca.URL); err != nil {
+				log.Infof("discoTmpl: %v", err)
+			}
+			// client key registration
+		case "/new-reg":
+			body, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			if jwkPayload != "" {
+				var req struct {
+					Payload string `json:"payload"`
+				}
+				err = json.Unmarshal(body, &req)
+				c.Assert(err, IsNil)
+				c.Assert(jwkPayload, Equals, req.Payload)
+			}
+			w.Write([]byte("{}"))
+			// domain authorization
+		case "/new-authz":
+			w.Header().Set("Location", ca.URL+"/authz/1")
+			w.WriteHeader(http.StatusCreated)
+			if err := authzTmpl.Execute(w, ca.URL); err != nil {
+				log.Infof("authzTmpl: %v", err)
+			}
+			// accept tls-sni-02 challenge
+		case "/challenge/2":
+			w.Write([]byte("{}"))
+			// authorization status
+		case "/authz/1":
+			w.Write([]byte(`{"status": "valid"}`))
+			// cert request
+		case "/new-cert":
+			var req struct {
+				CSR string `json:"csr"`
+			}
+			decodePayload(&req, r.Body)
+			b, _ := base64.RawURLEncoding.DecodeString(req.CSR)
+			csr, err := x509.ParseCertificateRequest(b)
+			if err != nil {
+				log.Infof("new-cert: CSR: %v", err)
+			}
+			if csr.Subject.CommonName != domain {
+				log.Infof("CommonName in CSR = %q; want %q", csr.Subject.CommonName, domain)
+			}
+			der, err := dummyCert(csr.PublicKey, domain)
+			if err != nil {
+				log.Infof("new-cert: dummyCert: %v", err)
+			}
+			chainUp := fmt.Sprintf("<%s/ca-cert>; rel=up", ca.URL)
+			w.Header().Set("Link", chainUp)
+			w.WriteHeader(http.StatusCreated)
+			w.Write(der)
+			// CA chain cert
+		case "/ca-cert":
+			der, err := dummyCert(nil, "ca")
+			if err != nil {
+				log.Infof("ca-cert: dummyCert: %v", err)
+			}
+			w.Write(der)
+		default:
+			log.Infof("unrecognized r.URL.Path: %s", r.URL.Path)
+		}
+	}))
+	finish = func() {
+		ca.Close()
+
+		// make sure token cert was removed
+		cancel := make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			tick := time.NewTicker(100 * time.Millisecond)
+			defer tick.Stop()
+			for {
+				hello := &tls.ClientHelloInfo{ServerName: tokenCertName}
+				if _, err := man.GetCertificate(hello); err != nil {
+					return
+				}
+				select {
+				case <-tick.C:
+				case <-cancel:
+					return
+				}
+			}
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			close(cancel)
+			log.Infof("token cert was not removed")
+			<-done
+		}
+	}
+	return ca.URL, finish
 }

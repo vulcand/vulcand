@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+
 	"github.com/codegangsta/cli"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/plugin"
