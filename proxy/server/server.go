@@ -416,18 +416,16 @@ func certFuncForHost(hostCfg engine.Host, autoCertCache autocert.Cache, s staple
 				return nil, fmt.Errorf("Autocert Key PEM Block for Host %s is invalid.", hostCfg.Name)
 			} else if block.Type == "RSA PRIVATE KEY" {
 				rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-				if err == nil {
-					autoCertMgr.Client.Key = rsaPrivateKey
-				} else {
-					log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an RSA Private Key: %v", block.Type, hostCfg.Name, err)
+				if err != nil {
+					return nil, errors.Wrapf(err, "Error parsing Autocert Key block of type %s, for Host %s, as an RSA Private Key.", block.Type, hostCfg.Name)
 				}
+				autoCertMgr.Client.Key = rsaPrivateKey
 			} else if block.Type == "EC PRIVATE KEY" {
 				ecPrivateKey, err := x509.ParseECPrivateKey(block.Bytes)
-				if err == nil {
-					autoCertMgr.Client.Key = ecPrivateKey
-				} else {
-					log.Errorf("Error parsing Autocert Key block of type %s, for Host %s, as an EC Private Key: %v", block.Type, hostCfg.Name, err)
+				if err != nil {
+					return nil, errors.Wrapf(err, "Error parsing Autocert Key block of type %s, for Host %s, as an ECDSA Private Key.", block.Type, hostCfg.Name)
 				}
+				autoCertMgr.Client.Key = ecPrivateKey
 			} else {
 				return nil, fmt.Errorf("AutoCert Private Key for Host %s is of unrecognized type: %s. Supported types"+
 					"are RSA PRIVATE KEY and EC PRIVATE KEY.", hostCfg.Name, block.Type)
@@ -435,22 +433,13 @@ func certFuncForHost(hostCfg engine.Host, autoCertCache autocert.Cache, s staple
 		}
 	}
 
+	getCertFuncForStapling := stapler.WithGetCertFunc(hostCfg.Name, stapler.GetCertificateFunc(autoCertMgr.GetCertificate))
+
 	// Wrap the GetCert for this host, so we can generate and staple
 	// an optional OCSP response when requested.
 	stapledGetCert := func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		keyPair, err := autoCertMgr.GetCertificate(info)
-
-		if hostCfg.Settings.OCSP.Enabled {
-			log.Infof("OCSP is enabled for %v, resolvers: %v", hostCfg, hostCfg.Settings.OCSP.Responders)
-			r, err := s.StapleHost(&hostCfg, stapler.WithGetCertFunc(hostCfg.Name, stapler.GetCertificateFunc(autoCertMgr.GetCertificate)))
-			if err != nil {
-				log.Warningf("Failed to staple %v, error %v", hostCfg, err)
-			} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
-				keyPair.OCSPStaple = r.Staple
-			} else {
-				log.Warningf("Got undefined status from OCSP responder: %v", r.Response.Status)
-			}
-		}
+		ocspStapleToCert(s, hostCfg, keyPair, getCertFuncForStapling)
 		return keyPair, err
 	}
 
@@ -495,18 +484,26 @@ func tlsCertArray(pairs map[string]tls.Certificate, defaultHostName string) ([]t
 	return arr, nil
 }
 
-func ocspStapleToCert(stapler stapler.Stapler, hostCfg engine.Host, keyPair *tls.Certificate) {
-	if hostCfg.Settings.OCSP.Enabled {
-		log.Infof("OCSP is enabled for %v, resolvers: %v", hostCfg, hostCfg.Settings.OCSP.Responders)
-		r, err := stapler.StapleHost(&hostCfg)
-		if err != nil {
-			log.Warningf("Failed to staple %v, error %v", hostCfg, err)
-		} else if r.Response.Status == ocsp.Good || r.Response.Status == ocsp.Revoked {
-			keyPair.OCSPStaple = r.Staple
-		} else {
-			log.Warningf("Got undefined status from OCSP responder: %v", r.Response.Status)
-		}
+func ocspStapleToCert(stapler stapler.Stapler, hostCfg engine.Host, keyPair *tls.Certificate, opts ...stapler.StapleHostOption) {
+	if !hostCfg.Settings.OCSP.Enabled {
+		return
 	}
+
+	log.Infof("OCSP is enabled for %v, resolvers: %v", hostCfg, hostCfg.Settings.OCSP.Responders)
+
+	r, err := stapler.StapleHost(&hostCfg, opts...)
+
+	if err != nil {
+		log.Warningf("Failed to staple %v, error %v", hostCfg, err)
+		return
+	}
+
+	if r.Response.Status != ocsp.Good && r.Response.Status != ocsp.Revoked {
+		log.Warningf("Got undefined status from OCSP responder: %v", r.Response.Status)
+		return
+	}
+
+	keyPair.OCSPStaple = r.Staple
 }
 
 // Returns a certificate based on a hosts KeyPair settings.

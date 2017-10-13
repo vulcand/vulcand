@@ -1634,9 +1634,10 @@ R4wTLrnbrWKrAiAbBMOWNYqNDBc11sdDn+k5/G/AqNrO1EF/E/IhsIhsAwIgA7/g
 var rsaIdKeyJwk = "eyJyZXNvdXJjZSI6Im5ldy1yZWcifQ"
 
 var ecIdKey = `-----BEGIN EC PRIVATE KEY-----
-MHQCAQEEIMpDcbDMEicI+CH9Ka76a7av1nf7cDBH5tNCC++qSsjDoAcGBSuBBAAK
-oUQDQgAEAPk6NfWqdyWqfkxWANfEb8aslqgBfhFtJG1NUA+hvnq8RMztm2U/X8rU
-qOjf5YLD0qYfErLI8I0vam/2q5tuJQ==
+MIGkAgEBBDDaF6eBwzSFXxRaPbTv4YS0AHwXhMye0iNh/DAyterab0/y7pHILBC4
+rXUmliWtBEigBwYFK4EEACKhZANiAASlFMDW1zlF5QBWoZ99wdLBT/xjCmyjU8gs
+AwI++wwHcTlMYasEV9n5CvoE6wvcjlpKa3MKgbK/qAWmH4Xc8h7vAuYNRFxwCpBt
+Di7dbuoRmFYBqoGzLcFlZACaavu8xyI=
 -----END EC PRIVATE KEY-----`
 
 var ecIdKeyJwk = "eyJyZXNvdXJjZSI6Im5ldy1yZWcifQ"
