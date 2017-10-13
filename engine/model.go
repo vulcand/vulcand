@@ -187,7 +187,7 @@ func (ac *AutoCertSettings) Equals(ac2 *AutoCertSettings) bool {
 	if ac == nil {
 		if ac2 != nil {
 			return false
-		}else {
+		} else {
 			return true
 		}
 	}

@@ -50,7 +50,7 @@ func Clock(clock timetools.TimeProvider) StaplerOption {
 
 type GetCertificateFunc func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 
-type StapleHostOption func (s *hostStapler)
+type StapleHostOption func(s *hostStapler)
 
 func WithGetCertFunc(hostName string, getCertFunc GetCertificateFunc) StapleHostOption {
 	return func(hs *hostStapler) {
