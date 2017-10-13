@@ -1,0 +1,205 @@
+{% extends "basic/layout.html" %}
+{% set css_url = "//www.mailgun.com/static/css/main.css" %}
+{%- block doctype -%}
+<!doctype html>
+<!--[if lt IE 7]> <html class="lt-ie9 lt-ie8 lt-ie7 documentation"> <![endif]-->
+<!--[if IE 7]> <html class="lt-ie9 lt-ie8 documentation"> <![endif]-->
+<!--[if IE 8]> <html class="lt-ie9 documentation"> <![endif]-->
+<!--[if gt IE 8]><!--> <html lang="en" class="documentation"> <!--<![endif]-->
+{%- endblock %}
+
+{%- set reldelim1 = reldelim1 is not defined and ' &raquo;' or reldelim1 %}
+{%- set reldelim2 = reldelim2 is not defined and ' |' or reldelim2 %}
+{%- block linktags %}
+    {%- if hasdoc('about') %}
+    <link rel="author" title="{{ _('About these documents') }}" href="{{ pathto('about') }}" />
+    {%- endif %}
+    {%- if hasdoc('genindex') %}
+    <link rel="index" title="{{ _('Index') }}" href="{{ pathto('genindex') }}" />
+    {%- endif %}
+    {%- if hasdoc('search') %}
+    <link rel="search" title="{{ _('Search') }}" href="{{ pathto('search') }}" />
+    {%- endif %}
+    {%- if hasdoc('copyright') %}
+    <link rel="copyright" title="{{ _('Copyright') }}" href="{{ pathto('copyright') }}" />
+    {%- endif %}
+    <link rel="top" title="{{ docstitle|e }}" href="{{ pathto('index') }}" />
+    {%- if parents %}
+    <link rel="up" title="{{ parents[-1].title|striptags }}" href="{{ parents[-1].link|e }}" />
+    {%- endif %}
+    {%- if next %}
+    <link rel="next" title="{{ next.title|striptags }}" href="{{ next.link|e }}" />
+    {%- endif %}
+    {%- if prev %}
+    <link rel="prev" title="{{ prev.title|striptags }}" href="{{ prev.link|e }}" />
+    {%- endif %}
+    <link media="only screen and (max-device-width: 480px)" href="{{ pathto('_static/mobile.css', 1) }}" type="text/css" rel="stylesheet" />
+
+    <link rel="icon" type="image/png" href="_static/img/favicon.png" />
+
+    <!-- <link rel="stylesheet" href="_static/docs.css" /> -->
+    <link rel="stylesheet" href="{{css_url}}" />
+    <meta name="viewport" content="width=device-width">
+
+{%- endblock %}
+{%- block header %}{% endblock %}
+{%- block relbar1 %}
+
+<header style="content:none">
+  <div class="container">
+      <a href="http://github.com/vulcand/vulcand/" style="float:left;margin-top:20px;margin-bottom:20px;background:url(_static/img/vulcan.png) no-repeat">
+        <img src="_static/img/vulcan.png">
+        </img>
+      </a>
+      <nav class="header-nav" id="js-header-nav">
+          <a href="//www.vulcanproxy.com" class="active"><b>Documentation</b></a>
+      </nav>
+      <button id="js-show-nav"><i class="icon-reorder"></i></button>
+  </div>
+</header>
+
+<div id="body">
+  <section class="subnav">
+    <div class="container">
+      <a target="blank" href="https://github.com/vulcand/vulcand-docs" class="edit-docs-link" onclick="mixpanel.track('Clicked Edit Docs Link');">Edit</a>
+      <ul id="headerButtons" class="nav nav-pills">
+        <li class="lang-label">
+          Samples:
+        </li>
+        <li class="lang">
+          <a href="" id="lang_etcd">Etcd</a>
+        </li>
+        <li class="lang">
+          <a href="" id="lang_cli">Vulcanctl</a>
+        </li>
+        <li class="lang">
+          <a href="" id="lang_api">API</a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="main">
+
+    <div class="container">
+
+  {% endblock %}
+
+  {%- block sidebar1 %}
+  {%- if not embedded %}{% if not theme_nosidebar|tobool %}
+  <aside id="sphinxsidebar" class="docs-sidebar">
+    <div class="sphinxsidebarwrapper">
+      {%- block sidebarlogo %}
+      {%- if logo %}
+        <p class="logo"><a href="{{ pathto(master_doc) }}">
+          <img class="logo" src="{{ pathto('_static/' + logo, 1) }}" alt="Logo"/>
+        </a></p>
+      {%- endif %}
+      {%- endblock %}
+      {%- block sidebartoc %}
+      <ul><li class="toctree-l1"><a href="{{ pathto(master_doc) }}">{{ _('Main Page') }}</a></li></ul>
+          {%- if "FAQ" in title %}
+              {{ toctree(maxdepth=1) }}
+          {% elif "Reference" in title %}
+              {{ toctree(maxdepth=2) }}
+          {% else %}
+              {{ toctree(maxdepth=3) }}
+          {%- endif %}
+      {%- endblock %}
+      {%- block sidebarrel %}
+      {%- endblock %}
+      {%- block sidebarsourcelink %}
+      {%- endblock %}
+      {%- if customsidebar %}
+      {% include customsidebar %}
+      {%- endif %}
+    </div>
+  </aside>
+  {%- endif %}{% endif %}
+
+  {% endblock %}
+  {%- block document %}
+  <div id="st-results-container"></div>
+        <div class="documentwrapper">
+        {%- if not embedded %}{% if not theme_nosidebar|tobool %}
+          <div class="bodywrapper">
+        {%- endif %}{% endif %}
+            <div class="body">
+              {% block body %} {% endblock %}
+            </div>
+        {%- if not embedded %}{% if not theme_nosidebar|tobool %}
+          </div>
+        {%- endif %}{% endif %}
+        </div>
+      <div class="footer">
+        <p><a href="https://github.com/vulcand/vulcand">Found a typo? Send a pull request!</a></p>
+      {%- if last_updated %}
+        {% trans last_updated=last_updated|e %}Last updated on {{ last_updated }}.{% endtrans %}
+      {%- endif %}
+      {%- if show_sphinx %}
+        {% trans sphinx_version=sphinx_version|e %}
+             <P>Docs created using <a href="http://sphinx.pocoo.org/">Sphinx</a> {{ sphinx_version }}.</P>
+        {% endtrans %}
+      {%- endif %}
+      </div>
+  {%- endblock %}
+  {%- block sidebar2 %}{% endblock %}
+  {%- block relbar2 %}{% endblock %}
+  {%- block footer %}
+
+    </div> <!-- /content -->
+  </section> <!-- /container -->
+</div> <!-- /body -->
+
+<footer>
+    <div class="container">
+        <nav class="footer-nav">
+            <a href="http://twitter.com/mail_gun">Mailgun Twitter</a>
+            <a href="http://vulcan.ghost.io">Blog</a>
+        </nav>
+    </div>
+</footer>
+
+    <script type="text/javascript" charset="utf-8" src="{{ pathto('_static/toc.js', 1) }}"></script>
+    <script type="text/javascript" charset="utf-8" src="{{ pathto('_static/jquery.debounce.min.js', 1) }}"></script>
+    <script type="text/javascript" charset="utf-8" src="{{ pathto('_static/jquery.cookie.min.js', 1) }}"></script>
+    <script type="text/javascript" charset="utf-8" src="{{ pathto('_static/jquery.viewport.min.js', 1) }}"></script>
+    <script type="text/javascript" charset="utf-8" src="{{ pathto('_static/samples.js', 1) }}"></script>
+    <script type="text/javascript" charset="utf-8" src="{{ pathto('_static/scroll_hash.js', 1) }}"></script>
+    <script type="text/javascript" charset="utf-8" src="{{ pathto('_static/underscore-min.js', 1) }}"></script>
+    <script type="text/javascript">
+        window.underscore = _.noConflict();
+    </script>
+
+<script type="text/javascript">
+   $('input[type=\"search\"]').wrap('<span style=\"position:relative;\"></span>').after('<i id="clear-search" class="icon-remove-sign" style=\"position:absolute; right:5px;line-height:26px;\"></i><i class="icon-search" style=\"position:absolute; left:5px;line-height:26px;\"></i>');
+   $('#clear-search').click(function(){
+    $(this).parent().find('input').val('');
+    $(this).parent().find('input').focus();
+   });
+   // $("input").focusout(function() {this.value = "";});
+
+    // Responsive navigation show/hide main nav
+	$("#js-show-nav").click(function(){
+		$("#js-header-nav").slideToggle();
+	});
+
+    // highlight nav on load
+    $(document).ready(function(){
+        $('.docs-sidebar li').removeClass('active');
+        $('.docs-sidebar ul.current li.current a.current').parent().addClass('active');
+    });
+</script>
+
+<script type="text/javascript">
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-55222876-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+{%- endblock %}
