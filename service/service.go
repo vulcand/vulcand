@@ -24,9 +24,11 @@ import (
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdv2ng"
 	"github.com/vulcand/vulcand/engine/etcdv3ng"
+	"github.com/vulcand/vulcand/engine/memng"
 	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/plugin/cacheprovider"
+	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/proxy/builder"
 	"github.com/vulcand/vulcand/secret"
@@ -354,33 +356,41 @@ func (s *Service) newEngine() error {
 	}
 	var ng engine.Engine
 
-	if s.options.EtcdApiVersion == 3 {
-		ng, err = etcdv3ng.New(
-			s.options.EtcdNodes,
-			s.options.EtcdKey,
-			s.registry,
-			etcdv3ng.Options{
-				EtcdCaFile:              s.options.EtcdCaFile,
-				EtcdCertFile:            s.options.EtcdCertFile,
-				EtcdKeyFile:             s.options.EtcdKeyFile,
-				EtcdConsistency:         s.options.EtcdConsistency,
-				EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
-				Box: box,
-			})
-	} else {
-		ng, err = etcdv2ng.New(
-			s.options.EtcdNodes,
-			s.options.EtcdKey,
-			s.registry,
-			etcdv2ng.Options{
-				EtcdCaFile:              s.options.EtcdCaFile,
-				EtcdCertFile:            s.options.EtcdCertFile,
-				EtcdKeyFile:             s.options.EtcdKeyFile,
-				EtcdConsistency:         s.options.EtcdConsistency,
-				EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
-				Box: box,
-			})
+	switch s.options.Engine {
+	case "etcd":
+		if s.options.EtcdApiVersion == 3 {
+			ng, err = etcdv3ng.New(
+				s.options.EtcdNodes,
+				s.options.EtcdKey,
+				s.registry,
+				etcdv3ng.Options{
+					EtcdCaFile:              s.options.EtcdCaFile,
+					EtcdCertFile:            s.options.EtcdCertFile,
+					EtcdKeyFile:             s.options.EtcdKeyFile,
+					EtcdConsistency:         s.options.EtcdConsistency,
+					EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
+					Box: box,
+				})
+		} else {
+			ng, err = etcdv2ng.New(
+				s.options.EtcdNodes,
+				s.options.EtcdKey,
+				s.registry,
+				etcdv2ng.Options{
+					EtcdCaFile:              s.options.EtcdCaFile,
+					EtcdCertFile:            s.options.EtcdCertFile,
+					EtcdKeyFile:             s.options.EtcdKeyFile,
+					EtcdConsistency:         s.options.EtcdConsistency,
+					EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
+					Box: box,
+				})
+		}
+	case "memng":
+		ng = memng.New(registry.GetRegistry()).(*memng.Mem)
+	default:
+		err = fmt.Errorf("Unsupported engine %q, supported engines: etcd, memng", s.options.Engine)
 	}
+
 	if err != nil {
 		return err
 	}

@@ -20,6 +20,8 @@ type Options struct {
 	Interface string
 	CertPath  string
 
+	Engine string
+
 	EtcdApiVersion          int
 	EtcdNodes               listOptions
 	EtcdKey                 string
@@ -118,6 +120,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.Interface, "interface", "", "Interface to bind to")
 	flag.StringVar(&options.ApiInterface, "apiInterface", "", "Interface to for API to bind to")
 	flag.StringVar(&options.CertPath, "certPath", "", "KeyPair to use (enables TLS)")
+	flag.StringVar(&options.Engine, "engine", "etcd", "Engine to use. Options: etcd (default), memng")
 	flag.StringVar(&options.Log, "log", "console", "Logging to use (console, json, syslog or logstash)")
 
 	options.LogSeverity.S = log.WarnLevel

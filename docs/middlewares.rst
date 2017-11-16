@@ -276,8 +276,10 @@ We need to start the new binary and configure the server first. (If you have it 
 
 .. code-block:: bash
 
- # start the daemon
+ # start the daemon with etcd:
  $ ./vulcand -etcd http://localhost:4001
+ # Or you can use an in-memory engine instead:
+ $ ./vulcand -engine memng
 
  # add host, location and upstream with endpoints via newly compiled command line tool
  $ ./vctl/vctl backend upsert -id b1
