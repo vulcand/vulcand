@@ -1,5 +1,12 @@
+.PHONY: all
+
+PKGS := $(shell go list ./... | grep -v '/vendor/')
+
 test: clean
-	go test -v ./... -cover
+	go test -v -race -cover $(PKGS)
+
+dependencies:
+	dep ensure -v
 
 clean:
 	find . -name flymake_* -delete
@@ -15,4 +22,4 @@ cover-package: clean
 	go tool cover -html=/tmp/coverage.out
 
 sloccount:
-	 find . -path ./Godeps -prune -o -name "*.go" -print0 | xargs -0 wc -l
+	 find . -path ./vendor -prune -o -name "*.go" -print0 | xargs -0 wc -l

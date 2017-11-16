@@ -1,12 +1,23 @@
 language: go
+
 go:
-  - 1.5.4
   - 1.6.x
   - 1.7.x
   - 1.8.x
+  - 1.9.x
+  - master
+
+sudo: false
+
+before_install:
+  - curl -sI https://github.com/golang/dep/releases/latest | grep -Fi Location  | tr -d '\r' | sed "s/tag/download/g" | awk -F " " '{ print $2 "/dep-linux-amd64"}' | wget --output-document=$GOPATH/bin/dep -i -
+  - chmod +x $GOPATH/bin/dep
+
+install: make dependencies
 
 script:
- - go get -t ./...
- - go test ./...
- - go vet ./...
- - go fmt ./...
+  - PKGS=$(go list ./... | grep -v '/vendor/')
+  - GOFILES=$(go list -f '{{range $index, $element := .GoFiles}}{{$.Dir}}/{{$element}}{{"\n"}}{{end}}' ./... | grep -v '/vendor/')
+  - go test -cover -race $PKGS
+  - go vet $PKGS
+  - diff -u <(echo -n) <(gofmt -d $GOFILES)

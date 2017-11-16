@@ -62,6 +62,12 @@
   revision = "757bef944d0f21880861c2dd9c871ca543023cba"
 
 [[projects]]
+  name = "github.com/gravitational/trace"
+  packages = ["."]
+  revision = "77f42dab0785f2fa2923c08cba5c37dec0687572"
+  version = "1.1.2"
+
+[[projects]]
   name = "github.com/grpc-ecosystem/go-grpc-prometheus"
   packages = ["."]
   revision = "6b7015e65d366bf3f19b2b2a000a831940f0f7e0"
@@ -73,14 +79,21 @@
   revision = "199c40a060d1e55508b3b85182ce6f3895ae6302"
 
 [[projects]]
+  name = "github.com/jonboulle/clockwork"
+  packages = ["."]
+  revision = "2eee05ed794112d45db504eb05aa693efd2b8b09"
+  version = "v0.1.0"
+
+[[projects]]
   name = "github.com/mailgun/metrics"
   packages = ["."]
   revision = "2b3c4565aafdcd40c8069e50de08ac5379787943"
 
 [[projects]]
+  branch = "master"
   name = "github.com/mailgun/minheap"
   packages = ["."]
-  revision = "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
+  revision = "3dbe6c6bf55f94c5efcf460dc7f86830c21a90b2"
 
 [[projects]]
   branch = "master"
@@ -89,14 +102,16 @@
   revision = "565402cd71fbd9c12aa7e295324ea357e970a61e"
 
 [[projects]]
+  branch = "master"
   name = "github.com/mailgun/timetools"
   packages = ["."]
-  revision = "fd192d755b00c968d312d23f521eb0cdc6f66bd0"
+  revision = "f3a7b8ffff474320c4f5cc564c9abb2c52ded8bc"
 
 [[projects]]
+  branch = "master"
   name = "github.com/mailgun/ttlmap"
   packages = ["."]
-  revision = "8210f93bcb6393a9f36a22ac02fb3c4f53289850"
+  revision = "c1c17f74874f2a5ea48bfb06b5459d4ef2689749"
 
 [[projects]]
   branch = "master"
@@ -131,10 +146,10 @@
   revision = "fcdb11ccb4389efb1b210b7ffb623ab71c5fdd60"
 
 [[projects]]
-  branch = "master"
   name = "github.com/sirupsen/logrus"
   packages = [".","hooks/syslog"]
-  revision = "89742aefa4b206dcf400792f3bd35b542998eb3b"
+  revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
+  version = "v1.0.3"
 
 [[projects]]
   name = "github.com/ugorji/go"
@@ -145,12 +160,13 @@
   branch = "master"
   name = "github.com/vulcand/oxy"
   packages = ["buffer","cbreaker","connlimit","forward","memmetrics","ratelimit","roundrobin","stream","testutils","trace","utils"]
-  revision = "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
+  revision = "da985a4cb5b41c1c9e64bf10c95b1ec8348d83d8"
 
 [[projects]]
   name = "github.com/vulcand/predicate"
   packages = ["."]
-  revision = "19b9dde14240d94c804ae5736ad0e1de10bf8fe6"
+  revision = "939c094524d124c55fa8afe0e077701db4a865e2"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -160,7 +176,7 @@
 
 [[projects]]
   name = "golang.org/x/crypto"
-  packages = ["nacl/secretbox","ocsp","poly1305","salsa20/salsa","ssh/terminal"]
+  packages = ["acme","acme/autocert","nacl/secretbox","ocsp","poly1305","salsa20/salsa","ssh/terminal"]
   revision = "76eec36fa14229c4b25bb894c2d0e591527af429"
 
 [[projects]]
@@ -198,6 +214,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "77412823f48f4bfbf95927a2693a0bcca0067c1c2002940996327668a0fe3dbf"
+  inputs-digest = "97906d47ef513369495c240783ae0e3027b7027f3663298ee39b869694491817"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -1,0 +1,51 @@
+[[constraint]]
+  branch = "master"
+  name = "github.com/codahale/hdrhistogram"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/mailgun/multibuf"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/mailgun/timetools"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/mailgun/ttlmap"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.3"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.1.4"
+
+[[constraint]]
+  name = "github.com/vulcand/predicate"
+  version = "1.0.0"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/net"
+
+[[constraint]]
+  branch = "v1"
+  name = "gopkg.in/check.v1"
+
+[[override]]
+  branch = "master"
+  name = "github.com/jonboulle/clockwork"
+
+[[override]]
+  branch = "master"
+  name = "github.com/pmezard/go-difflib"
+
+[[override]]
+  branch = "master"
+  name = "github.com/davecgh/go-spew"
+
+[[override]]
+  branch = "master"
+  name = "github.com/gravitational/trace"
