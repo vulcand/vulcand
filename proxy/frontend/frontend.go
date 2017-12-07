@@ -91,7 +91,7 @@ func (fe *T) Update(feCfg engine.Frontend, be *backend.T) error {
 		return errors.Errorf("invalid key, want=%v, got=%v", fe.Key(), feCfg.Key())
 	}
 
-	if !feCfg.HTTPSettings().Equals(fe.cfg.HTTPSettings()) {
+	if !feCfg.Equals(fe.cfg) {
 		fe.cfg = feCfg
 		fe.ready = false
 	}
