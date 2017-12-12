@@ -1115,6 +1115,36 @@ func (s *ServerSuite) TestFrontendUpdateRoute(c *C) {
 	c.Assert(response.StatusCode, Equals, http.StatusNotFound)
 }
 
+func (s *ServerSuite) TestFrontendRestoreRoute(c *C) {
+	e := testutils.NewResponder("onestraw")
+	defer e.Close()
+
+	log.Infof("testing onestraw's patch")
+	b := MakeBatch(Batch{
+		Addr:  "localhost:31000",
+		Route: `Path("/")`,
+		URL:   e.URL,
+	})
+	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+	c.Assert(s.mux.Start(), IsNil)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "onestraw")
+
+	b.F.Route = `Path("/New")`
+
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(GETResponse(c, b.FrontendURL("/New")), Equals, "onestraw")
+
+	b.F.Route = `Path("/")`
+
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+	c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "onestraw")
+
+	response, _, err := testutils.Get(MakeURL(b.L, "/New"))
+	c.Assert(err, IsNil)
+	c.Assert(response.StatusCode, Equals, http.StatusNotFound)
+}
+
 func (s *ServerSuite) TestBackendUpdate(c *C) {
 	c.Assert(s.mux.Start(), IsNil)
 
