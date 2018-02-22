@@ -161,6 +161,29 @@ func (s *ServerSuite) TestTwoHosts(c *C) {
 	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("otherhost")), Equals, "Hi, I'm endpoint 2")
 }
 
+// Test case when user defined a localhost alias
+func (s *ServerSuite) TestLocalhostAlias(c *C) {
+	e := testutils.NewResponder("Hi, I'm endpoint 1")
+	defer e.Close()
+
+	mux, err := New(s.lastId, s.st, proxy.Options{LocalhostAlias: "alias"})
+	c.Assert(err, IsNil)
+	s.mux = mux
+
+	c.Assert(s.mux.Start(), IsNil)
+
+	b := MakeBatch(Batch{Addr: "localhost:41000", Route: `Host("localhost") && Path("/")`, URL: e.URL})
+
+	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+
+	c.Assert(s.mux.UpsertFrontend(b.F), IsNil)
+
+	c.Assert(s.mux.UpsertListener(b.L), IsNil)
+
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("localhost")), Equals, "Hi, I'm endpoint 1")
+	c.Assert(GETResponse(c, b.FrontendURL("/"), testutils.Host("alias")), Equals, "Hi, I'm endpoint 1")
+}
+
 func (s *ServerSuite) TestListenerCRUD(c *C) {
 	e := testutils.NewResponder("Hi, I'm endpoint")
 	defer e.Close()

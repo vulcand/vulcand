@@ -425,6 +425,7 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 		IncomingConnectionTracker: s.registry.GetIncomingConnectionTracker(),
 		FrontendListeners:         s.registry.GetFrontendListeners(),
 		CacheProvider:             cacheProvider,
+		LocalhostAlias:            s.options.LocalhostAlias,
 	})
 }
 
