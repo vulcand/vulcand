@@ -57,7 +57,7 @@ func New(nodes []string, etcdKey string, registry *plugin.Registry, options Opti
 		etcdKey:  "/" + etcdKey,
 		options:  options,
 	}
-	if err := n.reconnect(); err != nil {
+	if err := n.connect(); err != nil {
 		return nil, err
 	}
 	return n, nil
@@ -228,23 +228,15 @@ func (n *ng) SetLogSeverity(sev log.Level) {
 	log.SetLevel(n.logsev)
 }
 
-func (n *ng) reconnect() error {
-	n.Close()
-	var client *etcd.Client
+func (n *ng) connect() error {
 	cfg := n.getEtcdClientConfig()
 	var err error
-	if client, err = etcd.New(cfg); err != nil {
+	if n.client, err = etcd.New(cfg); err != nil {
 		return err
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	n.context = ctx
 	n.cancelFunc = cancelFunc
-
-	if n.client != nil { //be sure to close the v3 client explicitly
-		n.client.Close()
-	}
-
-	n.client = client
 	n.requireQuorum = true
 	if n.options.EtcdConsistency == "WEAK" {
 		n.requireQuorum = false
