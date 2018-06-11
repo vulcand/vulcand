@@ -50,6 +50,7 @@ type Options struct {
 	TrustForwardHeader bool
 
 	MemProfileRate int
+	LocalhostAlias string
 }
 
 type SeverityFlag struct {
@@ -140,6 +141,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.BoolVar(&options.TrustForwardHeader, "trustForwardHeader", false, "Whether X-Forwarded-XXX headers should be trusted")
 
 	flag.IntVar(&options.MemProfileRate, "memProfileRate", 0, "Heap profile rate in bytes (disabled if 0)")
+	flag.StringVar(&options.LocalhostAlias, "localhost-alias", "", "Frontend rules that match Host('localhost') will also match this alias")
 
 	flag.Parse()
 	options, err = validateOptions(options)

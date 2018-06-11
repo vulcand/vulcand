@@ -2,6 +2,7 @@ package mux
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -187,7 +188,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 			mwCfgs[engine.MiddlewareKey{FrontendKey: feKey, Id: mw.Id}] = mw
 		}
 		fe := frontend.New(fes.Frontend, beEnt.backend, m.options, mwCfgs, m.frontendListeners)
-		if err := m.router.Handle(fes.Frontend.Route, fe); err != nil {
+		if err := m.AddFrontendHandler(fes.Frontend.Route, fe); err != nil {
 			return errors.Wrapf(err, "cannot add route %v for frontend %v",
 				fes.Frontend.Route, fes.Frontend.Id)
 		}
@@ -503,7 +504,7 @@ func (m *mux) UpsertFrontend(feCfg engine.Frontend) error {
 			return errors.Wrapf(err, "failed to update fronend %v", feCfg.Key())
 		}
 		if oldRoute != feCfg.Route {
-			if err := m.router.Handle(feCfg.Route, fe); err != nil {
+			if err := m.AddFrontendHandler(feCfg.Route, fe); err != nil {
 				return errors.Wrapf(err, "cannot add route %v for frontend %v", feCfg.Route, feCfg.Id)
 			}
 		}
@@ -512,10 +513,23 @@ func (m *mux) UpsertFrontend(feCfg engine.Frontend) error {
 	fe = frontend.New(feCfg, beEnt.backend, m.options, nil, m.frontendListeners)
 	m.frontends[feKey] = fe
 	beEnt.frontends[feKey] = fe
-	if err := m.router.Handle(feCfg.Route, fe); err != nil {
+	if err := m.AddFrontendHandler(feCfg.Route, fe); err != nil {
 		return errors.Wrapf(err, "cannot add route %v for frontend %v", feCfg.Route, feCfg.Id)
 	}
 	return nil
+}
+
+func (m *mux) AddFrontendHandler(expr string, handler http.Handler) error {
+	// If expression contains Host("localhost") add an additional route with the alias
+	if m.options.LocalhostAlias != "" {
+		if strings.Contains(expr, `Host("localhost")`) {
+			aliasExpr := strings.Replace(expr, `Host("localhost")`, fmt.Sprintf(`Host("%s")`, m.options.LocalhostAlias), -1)
+			if err := m.router.Handle(aliasExpr, handler); err != nil {
+				return err
+			}
+		}
+	}
+	return m.router.Handle(expr, handler)
 }
 
 func (m *mux) DeleteFrontend(feKey engine.FrontendKey) error {
