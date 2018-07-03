@@ -2,4 +2,4 @@
 flymake_*
 *.swp
 *.go~
-.idea/
+*.idea/

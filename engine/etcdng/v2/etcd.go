@@ -1,19 +1,20 @@
 // package etcdng contains the implementation of the Etcd-backed engine, where all vulcand properties are implemented as directories or keys.
 // this engine is capable of watching the changes and generating events.
-package etcdv3ng
+package v2
 
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
-	etcd "github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
-	"github.com/coreos/etcd/mvcc/mvccpb"
+	etcd "github.com/coreos/etcd/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/engine/etcdng"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/utils/json"
@@ -24,41 +25,27 @@ type ng struct {
 	nodes         []string
 	registry      *plugin.Registry
 	etcdKey       string
-	client        *etcd.Client
+	client        etcd.Client
+	kapi          etcd.KeysAPI
 	context       context.Context
 	cancelFunc    context.CancelFunc
 	logsev        log.Level
-	options       Options
+	options       etcdng.Options
 	requireQuorum bool
 }
 
-type Options struct {
-	EtcdConsistency         string
-	EtcdCaFile              string
-	EtcdCertFile            string
-	EtcdKeyFile             string
-	EtcdSyncIntervalSeconds int64
-	Box                     *secret.Box
-}
-
-var (
-	frontendIdRegex = regexp.MustCompile("/frontends/([^/]+)(?:/frontend)?$")
-	backendIdRegex  = regexp.MustCompile("/backends/([^/]+)(?:/backend)?$")
-	hostnameRegex   = regexp.MustCompile("/hosts/([^/]+)(?:/host)?$")
-	listenerIdRegex = regexp.MustCompile("/listeners/([^/]+)")
-	middlewareRegex = regexp.MustCompile("/frontends/([^/]+)/middlewares/([^/]+)$")
-	serverRegex     = regexp.MustCompile("/backends/([^/]+)/servers/([^/]+)$")
-)
-
-func New(nodes []string, etcdKey string, registry *plugin.Registry, options Options) (engine.Engine, error) {
+func New(nodes []string, etcdKey string, registry *plugin.Registry, options etcdng.Options) (engine.Engine, error) {
 	n := &ng{
 		nodes:    nodes,
 		registry: registry,
 		etcdKey:  etcdKey,
 		options:  options,
 	}
-	if err := n.connect(); err != nil {
+	if err := n.reconnect(); err != nil {
 		return nil, err
+	}
+	if options.SyncIntervalSeconds > 0 {
+		go n.client.AutoSync(n.context, time.Duration(n.options.SyncIntervalSeconds)*time.Second)
 	}
 	return n, nil
 }
@@ -70,151 +57,151 @@ func (n *ng) Close() {
 }
 
 func (n *ng) GetSnapshot() (*engine.Snapshot, error) {
-	response, err := n.client.Get(n.context, n.etcdKey, etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
+	response, err := n.kapi.Get(n.context, n.etcdKey, &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
+		if notFound(err) {
+			return &engine.Snapshot{}, nil
+		}
 		return nil, err
 	}
-	s := &engine.Snapshot{Index: uint64(response.Header.Revision)}
-
-	s.FrontendSpecs, err = n.parseFrontends(filterByPrefix(response.Kvs, n.etcdKey+"/frontends"))
-	if err != nil {
-		return nil, err
-	}
-	s.BackendSpecs, err = n.parseBackends(filterByPrefix(response.Kvs, n.etcdKey+"/backends"))
-	if err != nil {
-		return nil, err
-	}
-	s.Hosts, err = n.parseHosts(filterByPrefix(response.Kvs, n.etcdKey+"/hosts"))
-	if err != nil {
-		return nil, err
-	}
-	s.Listeners, err = n.parseListeners(filterByPrefix(response.Kvs, n.etcdKey+"/listeners"))
-	if err != nil {
-		return nil, err
+	s := &engine.Snapshot{Index: response.Index}
+	for _, node := range response.Node.Nodes {
+		switch suffix(node.Key) {
+		case "frontends":
+			s.FrontendSpecs, err = n.parseFrontends(node)
+			if err != nil {
+				return nil, err
+			}
+		case "backends":
+			s.BackendSpecs, err = n.parseBackends(node)
+			if err != nil {
+				return nil, err
+			}
+		case "hosts":
+			s.Hosts, err = n.parseHosts(node)
+			if err != nil {
+				return nil, err
+			}
+		case "listeners":
+			s.Listeners, err = n.parseListeners(node)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	return s, nil
 }
 
-func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...bool) ([]engine.FrontendSpec, error) {
-	frontendSpecs := []engine.FrontendSpec{}
-	for _, keyValue := range keyValues {
-		if frontendIds := frontendIdRegex.FindStringSubmatch(string(keyValue.Key)); len(frontendIds) == 2 {
-			frontendId := frontendIds[1]
-			frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), []byte(keyValue.Value), frontendId)
-			if err != nil {
-				return nil, err
-			}
-
-			frontendSpec := engine.FrontendSpec{
-				Frontend: *frontend,
-			}
-
-			if len(skipMiddlewares) != 1 || !skipMiddlewares[0] {
-				//get all keys under this frontend
-				subKeyValues := filterByPrefix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
-
-				middlewares := []engine.Middleware{}
-				for _, subKeyValue := range subKeyValues {
-					if middlewareId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "middlewares" {
-						middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
-						if err != nil {
-							return nil, err
-						}
-						middlewares = append(middlewares, *middleware)
-					}
+func (n *ng) parseFrontends(node *etcd.Node, skipMiddlewares ...bool) ([]engine.FrontendSpec, error) {
+	frontendSpecs := make([]engine.FrontendSpec, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		frontendId := suffix(node.Key)
+		for _, node := range node.Nodes {
+			switch suffix(node.Key) {
+			case "frontend":
+				frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), []byte(node.Value), frontendId)
+				if err != nil {
+					return nil, err
 				}
-
-				frontendSpec.Middlewares = middlewares
+				frontendSpecs[idx].Frontend = *frontend
+			case "middlewares":
+				if len(skipMiddlewares) == 1 && skipMiddlewares[0] {
+					break
+				}
+				middlewares := make([]engine.Middleware, len(node.Nodes))
+				for idx, node := range node.Nodes {
+					middlewareId := suffix(node.Key)
+					middleware, err := engine.MiddlewareFromJSON([]byte(node.Value), n.registry.GetSpec, middlewareId)
+					if err != nil {
+						return nil, err
+					}
+					middlewares[idx] = *middleware
+				}
+				frontendSpecs[idx].Middlewares = middlewares
 			}
-
-			frontendSpecs = append(frontendSpecs, frontendSpec)
+		}
+		if frontendSpecs[idx].Frontend.Id != frontendId {
+			return nil, fmt.Errorf("Frontend %s parameters missing", frontendId)
 		}
 	}
-
 	return frontendSpecs, nil
 }
 
-func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([]engine.BackendSpec, error) {
-	backendSpecs := []engine.BackendSpec{}
-
-	for _, keyValue := range keyValues {
-		if backendIds := backendIdRegex.FindStringSubmatch(string(keyValue.Key)); len(backendIds) == 2 {
-			backendId := backendIds[1]
-			backend, err := engine.BackendFromJSON([]byte(keyValue.Value), backendId)
-			if err != nil {
-				return nil, err
-			}
-
-			backendSpec := engine.BackendSpec{
-				Backend: *backend,
-			}
-
-			if len(skipServers) != 1 || !skipServers[0] {
-				//get all keys under this frontend
-				subKeyValues := filterByPrefix(keyValues, prefix(string(keyValue.Key))) //Get all keys below this backend "/vulcand/backends/foo/*"
-				servers := []engine.Server{}
-
-				for _, subKeyValue := range subKeyValues {
-					if serverId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "servers" {
-						server, err := engine.ServerFromJSON([]byte(subKeyValue.Value), serverId)
-						if err != nil {
-							return nil, err
-						}
-						servers = append(servers, *server)
-					}
+func (n *ng) parseBackends(node *etcd.Node, skipServers ...bool) ([]engine.BackendSpec, error) {
+	backendSpecs := make([]engine.BackendSpec, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		backendId := suffix(node.Key)
+		for _, node := range node.Nodes {
+			switch suffix(node.Key) {
+			case "backend":
+				backend, err := engine.BackendFromJSON([]byte(node.Value), backendId)
+				if err != nil {
+					return nil, err
 				}
-
-				backendSpec.Servers = servers
+				backendSpecs[idx].Backend = *backend
+			case "servers":
+				if len(skipServers) == 1 && skipServers[0] {
+					break
+				}
+				servers := make([]engine.Server, len(node.Nodes))
+				for idx, node := range node.Nodes {
+					serverId := suffix(node.Key)
+					server, err := engine.ServerFromJSON([]byte(node.Value), serverId)
+					if err != nil {
+						return nil, err
+					}
+					servers[idx] = *server
+				}
+				backendSpecs[idx].Servers = servers
 			}
-
-			backendSpecs = append(backendSpecs, backendSpec)
-
+		}
+		if backendSpecs[idx].Backend.Id != backendId {
+			return nil, fmt.Errorf("Backend %s parameters missing", backendId)
 		}
 	}
 	return backendSpecs, nil
 }
 
-func (n *ng) parseHosts(keyValues []*mvccpb.KeyValue) ([]engine.Host, error) {
-	hosts := []engine.Host{}
-	for _, keyValue := range keyValues {
-		if hostnames := hostnameRegex.FindStringSubmatch(string(keyValue.Key)); len(hostnames) == 2 {
-			hostname := hostnames[1]
-
-			var sealedHost host
-			if err := json.Unmarshal([]byte(keyValue.Value), &sealedHost); err != nil {
-				return nil, err
-			}
-			var keyPair *engine.KeyPair
-			if len(sealedHost.Settings.KeyPair) != 0 {
-				if err := n.openSealedJSONVal(sealedHost.Settings.KeyPair, &keyPair); err != nil {
+func (n *ng) parseHosts(node *etcd.Node) ([]engine.Host, error) {
+	hosts := make([]engine.Host, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		hostname := suffix(node.Key)
+		for _, node := range node.Nodes {
+			switch suffix(node.Key) {
+			case "host":
+				var sealedHost host
+				if err := json.Unmarshal([]byte(node.Value), &sealedHost); err != nil {
 					return nil, err
 				}
+				var keyPair *engine.KeyPair
+				if len(sealedHost.Settings.KeyPair) != 0 {
+					if err := n.openSealedJSONVal(sealedHost.Settings.KeyPair, &keyPair); err != nil {
+						return nil, err
+					}
+				}
+				host, err := engine.NewHost(hostname, engine.HostSettings{Default: sealedHost.Settings.Default, KeyPair: keyPair, OCSP: sealedHost.Settings.OCSP})
+				if err != nil {
+					return nil, err
+				}
+				hosts[idx] = *host
 			}
-			host, err := engine.NewHost(hostname, engine.HostSettings{Default: sealedHost.Settings.Default, KeyPair: keyPair, OCSP: sealedHost.Settings.OCSP})
-			if err != nil {
-				return nil, err
-			}
-			if host.Name != hostname {
-				return nil, fmt.Errorf("Host %s parameters missing", hostname)
-			}
-			hosts = append(hosts, *host)
+		}
+		if hosts[idx].Name != hostname {
+			return nil, fmt.Errorf("Host %s parameters missing", hostname)
 		}
 	}
 	return hosts, nil
 }
 
-func (n *ng) parseListeners(keyValues []*mvccpb.KeyValue) ([]engine.Listener, error) {
-	listeners := []engine.Listener{}
-	for _, keyValue := range keyValues {
-		if listenerIds := listenerIdRegex.FindStringSubmatch(string(keyValue.Key)); len(listenerIds) == 2 {
-			listenerId := listenerIds[1]
-
-			listener, err := engine.ListenerFromJSON([]byte(keyValue.Value), listenerId)
-			if err != nil {
-				return nil, err
-			}
-			listeners = append(listeners, *listener)
+func (n *ng) parseListeners(node *etcd.Node) ([]engine.Listener, error) {
+	listeners := make([]engine.Listener, len(node.Nodes))
+	for idx, node := range node.Nodes {
+		listenerId := suffix(node.Key)
+		listener, err := engine.ListenerFromJSON([]byte(node.Value), listenerId)
+		if err != nil {
+			return nil, err
 		}
+		listeners[idx] = *listener
 	}
 	return listeners, nil
 }
@@ -228,17 +215,21 @@ func (n *ng) SetLogSeverity(sev log.Level) {
 	log.SetLevel(n.logsev)
 }
 
-func (n *ng) connect() error {
+func (n *ng) reconnect() error {
+	n.Close()
+	var client etcd.Client
 	cfg := n.getEtcdClientConfig()
 	var err error
-	if n.client, err = etcd.New(cfg); err != nil {
+	if client, err = etcd.New(cfg); err != nil {
 		return err
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	n.context = ctx
 	n.cancelFunc = cancelFunc
+	n.client = client
+	n.kapi = etcd.NewKeysAPI(n.client)
 	n.requireQuorum = true
-	if n.options.EtcdConsistency == "WEAK" {
+	if n.options.Consistency == "WEAK" {
 		n.requireQuorum = false
 	}
 	return nil
@@ -247,7 +238,31 @@ func (n *ng) connect() error {
 func (n *ng) getEtcdClientConfig() etcd.Config {
 	return etcd.Config{
 		Endpoints: n.nodes,
+		Transport: n.newHttpTransport(),
+		Username:  n.options.Username,
+		Password:  n.options.Password,
 	}
+}
+
+func (n *ng) newHttpTransport() etcd.CancelableTransport {
+	cc := etcdng.NewTLSConfig(n.options)
+
+	//Copied from etcd.DefaultTransport declaration
+	//Wasn't sure how to make a clean reliable deep-copy, and instead
+	//creating a new object was the safest and most reliable assurance
+	//that we aren't overwriting some global struct potentially
+	//shared by other etcd users.
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     cc,
+	}
+
+	return tr
 }
 
 func (n *ng) GetRegistry() *plugin.Registry {
@@ -256,12 +271,12 @@ func (n *ng) GetRegistry() *plugin.Registry {
 
 func (n *ng) GetHosts() ([]engine.Host, error) {
 	hosts := []engine.Host{}
-	vals, err := n.getKeysBySecondPrefix(n.etcdKey, "hosts")
+	vals, err := n.getDirs(n.etcdKey, "hosts")
 	if err != nil {
 		return nil, err
 	}
 	for _, hostKey := range vals {
-		host, err := n.GetHost(engine.HostKey{Name: suffix(prefix(hostKey))})
+		host, err := n.GetHost(engine.HostKey{Name: suffix(hostKey)})
 		if err != nil {
 			log.Warningf("Invalid host config for %v: %v\n", hostKey, err)
 			continue
@@ -372,17 +387,27 @@ func (n *ng) UpsertFrontend(f engine.Frontend, ttl time.Duration) error {
 	if _, err := n.GetBackend(engine.BackendKey{Id: f.BackendId}); err != nil {
 		return err
 	}
-
-	return n.setJSONVal(n.path("frontends", f.Id, "frontend"), f, ttl)
+	if err := n.setJSONVal(n.path("frontends", f.Id, "frontend"), f, noTTL); err != nil {
+		return err
+	}
+	if ttl == 0 {
+		return nil
+	}
+	_, err := n.kapi.Set(n.context, n.path("frontends", f.Id), "",
+		&etcd.SetOptions{Dir: true, PrevExist: etcd.PrevExist, TTL: ttl})
+	return convertErr(err)
 }
 
 func (n *ng) GetFrontends() ([]engine.Frontend, error) {
 	key := fmt.Sprintf("%s/frontends", n.etcdKey)
-	response, err := n.client.Get(n.context, key, etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
+	response, err := n.kapi.Get(n.context, key, &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
+		if notFound(err) {
+			return []engine.Frontend{}, nil
+		}
 		return nil, err
 	}
-	frontendSpecs, err := n.parseFrontends(response.Kvs, true)
+	frontendSpecs, err := n.parseFrontends(response.Node, true)
 	if err != nil {
 		return nil, err
 	}
@@ -411,11 +436,14 @@ func (n *ng) DeleteFrontend(fk engine.FrontendKey) error {
 }
 
 func (n *ng) GetBackends() ([]engine.Backend, error) {
-	response, err := n.client.Get(n.context, fmt.Sprintf("%s/backends", n.etcdKey), etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
+	response, err := n.kapi.Get(n.context, fmt.Sprintf("%s/backends", n.etcdKey), &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
+		if notFound(err) {
+			return []engine.Backend{}, nil
+		}
 		return nil, err
 	}
-	backendSpecs, err := n.parseBackends(response.Kvs, true)
+	backendSpecs, err := n.parseBackends(response.Node, true)
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +482,7 @@ func (n *ng) DeleteBackend(bk engine.BackendKey) error {
 	if len(fs) != 0 {
 		return fmt.Errorf("can not delete backend '%v', it is in use by %s", bk, fs)
 	}
-	_, err = n.client.Delete(n.context, n.path("backends", bk.Id), etcd.WithPrefix())
+	_, err = n.kapi.Delete(n.context, n.path("backends", bk.Id), &etcd.DeleteOptions{Recursive: true})
 	return convertErr(err)
 }
 
@@ -590,47 +618,40 @@ func (n *ng) backendUsedBy(bk engine.BackendKey) ([]engine.Frontend, error) {
 // Subscribe watches etcd changes and generates structured events telling vulcand to add or delete frontends, hosts etc.
 // It is a blocking function.
 func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan struct{}) error {
-	watcher := etcd.NewWatcher(n.client)
-	defer watcher.Close()
-
-	log.Infof("Begin watching: etcd revision %d", afterIdx)
-	watchChan := watcher.Watch(n.context, n.etcdKey, etcd.WithRev(int64(afterIdx)), etcd.WithPrefix())
-
-	for response := range watchChan {
-		if response.Canceled {
-			log.Infof("Stop watching: graceful shutdown")
-			return nil
-		}
-		if err := response.Err(); err != nil {
-			log.Errorf("Stop watching: error: %v", err)
-			return err
-		}
-
-		for _, event := range response.Events {
-			log.Infof("%s", eventToString(event))
-			change, err := n.parseChange(event)
-			if err != nil {
-				log.Warningf("Ignore '%s', error: %s", eventToString(event), err)
-				continue
+	w := n.kapi.Watcher(n.etcdKey, &etcd.WatcherOptions{AfterIndex: afterIdx, Recursive: true})
+	for {
+		response, err := w.Next(n.context)
+		if err != nil {
+			switch err {
+			case context.Canceled:
+				log.Infof("Stop watching: graceful shutdown")
+				return nil
+			default:
+				log.Errorf("unexpected error: %s, stop watching", err)
+				return err
 			}
-			if change != nil {
-				log.Infof("%v", change)
-				select {
-				case changes <- change:
-				case <-cancelC:
-					return nil
-				}
+		}
+		log.Infof("%s", responseToString(response))
+		change, err := n.parseChange(response)
+		if err != nil {
+			log.Warningf("Ignore '%s', error: %s", responseToString(response), err)
+			continue
+		}
+		if change != nil {
+			log.Infof("%v", change)
+			select {
+			case changes <- change:
+			case <-cancelC:
+				return nil
 			}
 		}
 	}
-
-	return nil
 }
 
-type MatcherFn func(*etcd.Event) (interface{}, error)
+type MatcherFn func(*etcd.Response) (interface{}, error)
 
 // Dispatches etcd key changes changes to the etcd to the matching functions
-func (n *ng) parseChange(e *etcd.Event) (interface{}, error) {
+func (n *ng) parseChange(response *etcd.Response) (interface{}, error) {
 	// Order parsers from the most to the least frequently used.
 	matchers := []MatcherFn{
 		n.parseBackendServerChange,
@@ -641,7 +662,7 @@ func (n *ng) parseChange(e *etcd.Event) (interface{}, error) {
 		n.parseListenerChange,
 	}
 	for _, matcher := range matchers {
-		a, err := matcher(e)
+		a, err := matcher(response)
 		if a != nil || err != nil {
 			return a, err
 		}
@@ -649,16 +670,16 @@ func (n *ng) parseChange(e *etcd.Event) (interface{}, error) {
 	return nil, nil
 }
 
-func (n *ng) parseHostChange(e *etcd.Event) (interface{}, error) {
-	out := hostnameRegex.FindStringSubmatch(string(e.Kv.Key))
+func (n *ng) parseHostChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/hosts/([^/]+)(?:/host)?$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 
 	hostname := out[1]
 
-	switch e.Type {
-	case etcd.EventTypePut:
+	switch r.Action {
+	case createA, setA:
 		host, err := n.GetHost(engine.HostKey{Name: hostname})
 		if err != nil {
 			return nil, err
@@ -666,24 +687,24 @@ func (n *ng) parseHostChange(e *etcd.Event) (interface{}, error) {
 		return &engine.HostUpserted{
 			Host: *host,
 		}, nil
-	case etcd.EventTypeDelete:
+	case deleteA, expireA:
 		return &engine.HostDeleted{
 			HostKey: engine.HostKey{Name: hostname},
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action for host: %s", e.Type)
+	return nil, fmt.Errorf("unsupported action for host: %s", r.Action)
 }
 
-func (n *ng) parseListenerChange(e *etcd.Event) (interface{}, error) {
-	out := listenerIdRegex.FindStringSubmatch(string(e.Kv.Key))
+func (n *ng) parseListenerChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/listeners/([^/]+)").FindStringSubmatch(r.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 
 	key := engine.ListenerKey{Id: out[1]}
 
-	switch e.Type {
-	case etcd.EventTypePut:
+	switch r.Action {
+	case createA, setA:
 		l, err := n.GetListener(key)
 		if err != nil {
 			return nil, err
@@ -691,22 +712,22 @@ func (n *ng) parseListenerChange(e *etcd.Event) (interface{}, error) {
 		return &engine.ListenerUpserted{
 			Listener: *l,
 		}, nil
-	case etcd.EventTypeDelete:
+	case deleteA, expireA:
 		return &engine.ListenerDeleted{
 			ListenerKey: key,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the listener: %s", e.Type)
+	return nil, fmt.Errorf("unsupported action on the listener: %s", r.Action)
 }
 
-func (n *ng) parseFrontendChange(e *etcd.Event) (interface{}, error) {
-	out := frontendIdRegex.FindStringSubmatch(string(e.Kv.Key))
+func (n *ng) parseFrontendChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/frontends/([^/]+)(?:/frontend)?$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 	key := engine.FrontendKey{Id: out[1]}
-	switch e.Type {
-	case etcd.EventTypePut:
+	switch r.Action {
+	case createA, setA:
 		f, err := n.GetFrontend(key)
 		if err != nil {
 			return nil, err
@@ -714,16 +735,18 @@ func (n *ng) parseFrontendChange(e *etcd.Event) (interface{}, error) {
 		return &engine.FrontendUpserted{
 			Frontend: *f,
 		}, nil
-	case etcd.EventTypeDelete:
+	case deleteA, expireA:
 		return &engine.FrontendDeleted{
 			FrontendKey: key,
 		}, nil
+	case updateA: // this happens when we set TTL on a dir, ignore as there's no action needed from us
+		return nil, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the frontend: %v %v", e.Kv.Key, e.Type)
+	return nil, fmt.Errorf("unsupported action on the frontend: %v %v", r.Node.Key, r.Action)
 }
 
-func (n *ng) parseFrontendMiddlewareChange(e *etcd.Event) (interface{}, error) {
-	out := middlewareRegex.FindStringSubmatch(string(e.Kv.Key))
+func (n *ng) parseFrontendMiddlewareChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/frontends/([^/]+)/middlewares/([^/]+)$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
@@ -731,8 +754,8 @@ func (n *ng) parseFrontendMiddlewareChange(e *etcd.Event) (interface{}, error) {
 	fk := engine.FrontendKey{Id: out[1]}
 	mk := engine.MiddlewareKey{FrontendKey: fk, Id: out[2]}
 
-	switch e.Type {
-	case etcd.EventTypePut:
+	switch r.Action {
+	case createA, setA:
 		m, err := n.GetMiddleware(mk)
 		if err != nil {
 			return nil, err
@@ -741,22 +764,22 @@ func (n *ng) parseFrontendMiddlewareChange(e *etcd.Event) (interface{}, error) {
 			FrontendKey: fk,
 			Middleware:  *m,
 		}, nil
-	case etcd.EventTypeDelete:
+	case deleteA, expireA:
 		return &engine.MiddlewareDeleted{
 			MiddlewareKey: mk,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the rate: %s", e.Type)
+	return nil, fmt.Errorf("unsupported action on the rate: %s", r.Action)
 }
 
-func (n *ng) parseBackendChange(e *etcd.Event) (interface{}, error) {
-	out := backendIdRegex.FindStringSubmatch(string(e.Kv.Key))
+func (n *ng) parseBackendChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/backends/([^/]+)(?:/backend)?$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 2 {
 		return nil, nil
 	}
 	bk := engine.BackendKey{Id: out[1]}
-	switch e.Type {
-	case etcd.EventTypePut:
+	switch r.Action {
+	case createA, setA:
 		b, err := n.GetBackend(bk)
 		if err != nil {
 			return nil, err
@@ -764,24 +787,24 @@ func (n *ng) parseBackendChange(e *etcd.Event) (interface{}, error) {
 		return &engine.BackendUpserted{
 			Backend: *b,
 		}, nil
-	case etcd.EventTypeDelete:
+	case deleteA, expireA:
 		return &engine.BackendDeleted{
 			BackendKey: bk,
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported node action: %s", e.Type)
+	return nil, fmt.Errorf("unsupported node action: %s", r.Action)
 }
 
-func (n *ng) parseBackendServerChange(e *etcd.Event) (interface{}, error) {
-	out := serverRegex.FindStringSubmatch(string(e.Kv.Key))
+func (n *ng) parseBackendServerChange(r *etcd.Response) (interface{}, error) {
+	out := regexp.MustCompile("/backends/([^/]+)/servers/([^/]+)$").FindStringSubmatch(r.Node.Key)
 	if len(out) != 3 {
 		return nil, nil
 	}
 
 	sk := engine.ServerKey{BackendKey: engine.BackendKey{Id: out[1]}, Id: out[2]}
 
-	switch e.Type {
-	case etcd.EventTypePut:
+	switch r.Action {
+	case setA, createA:
 		srv, err := n.GetServer(sk)
 		if err != nil {
 			return nil, err
@@ -790,12 +813,14 @@ func (n *ng) parseBackendServerChange(e *etcd.Event) (interface{}, error) {
 			BackendKey: sk.BackendKey,
 			Server:     *srv,
 		}, nil
-	case etcd.EventTypeDelete:
+	case deleteA, expireA:
 		return &engine.ServerDeleted{
 			ServerKey: sk,
 		}, nil
+	case cswapA: // ignore compare and swap attempts
+		return nil, nil
 	}
-	return nil, fmt.Errorf("unsupported action on the server: %s", e.Type)
+	return nil, fmt.Errorf("unsupported action on the server: %s", r.Action)
 }
 
 func (n ng) path(keys ...string) string {
@@ -811,16 +836,7 @@ func (n *ng) setJSONVal(key string, v interface{}, ttl time.Duration) error {
 }
 
 func (n *ng) setVal(key string, val []byte, ttl time.Duration) error {
-	ops := []etcd.OpOption{}
-	if ttl > 0 {
-		lgr, err := n.client.Grant(n.context, int64(ttl.Seconds()))
-		if err != nil {
-			return err
-		}
-		ops = append(ops, etcd.WithLease(lgr.ID))
-	}
-
-	_, err := n.client.Put(n.context, key, string(val), ops...)
+	_, err := n.kapi.Set(n.context, key, string(val), &etcd.SetOptions{TTL: ttl})
 	return convertErr(err)
 }
 
@@ -833,22 +849,20 @@ func (n *ng) getJSONVal(key string, in interface{}) error {
 }
 
 func (n *ng) getVal(key string) (string, error) {
-	response, err := n.client.Get(n.context, key)
+	response, err := n.kapi.Get(n.context, key, &etcd.GetOptions{Recursive: false, Sort: false, Quorum: n.requireQuorum})
 	if err != nil {
 		return "", convertErr(err)
 	}
 
-	if len(response.Kvs) != 1 {
-		return "", &engine.NotFoundError{Message: "Key not found"}
+	if isDir(response.Node) {
+		return "", &engine.NotFoundError{Message: fmt.Sprintf("missing key: %s", key)}
 	}
-
-	return string(response.Kvs[0].Value), nil
+	return response.Node.Value, nil
 }
 
-func (n *ng) getKeysBySecondPrefix(keys ...string) ([]string, error) {
+func (n *ng) getDirs(keys ...string) ([]string, error) {
 	var out []string
-	targetPrefix := strings.Join(keys, "/")
-	response, err := n.client.Get(n.context, targetPrefix, etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
+	response, err := n.kapi.Get(n.context, strings.Join(keys, "/"), &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
 		if notFound(err) {
 			return out, nil
@@ -856,13 +870,13 @@ func (n *ng) getKeysBySecondPrefix(keys ...string) ([]string, error) {
 		return nil, err
 	}
 
-	//If /this/is/prefix then
-	// allow /this/is/prefix/one/two
-	// disallow /this/is/prefix/one/two/three
-	// disallow /this/is/prefix/one
-	for _, keyValue := range response.Kvs {
-		if prefix(prefix(string(keyValue.Key))) == targetPrefix {
-			out = append(out, string(keyValue.Key))
+	if response == nil || !isDir(response.Node) {
+		return out, nil
+	}
+
+	for _, srvNode := range response.Node.Nodes {
+		if isDir(srvNode) {
+			out = append(out, srvNode.Key)
 		}
 	}
 	return out, nil
@@ -870,7 +884,7 @@ func (n *ng) getKeysBySecondPrefix(keys ...string) ([]string, error) {
 
 func (n *ng) getVals(keys ...string) ([]Pair, error) {
 	var out []Pair
-	response, err := n.client.Get(n.context, strings.Join(keys, "/"), etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
+	response, err := n.kapi.Get(n.context, strings.Join(keys, "/"), &etcd.GetOptions{Recursive: true, Sort: true, Quorum: n.requireQuorum})
 	if err != nil {
 		if notFound(err) {
 			return out, nil
@@ -878,19 +892,25 @@ func (n *ng) getVals(keys ...string) ([]Pair, error) {
 		return nil, err
 	}
 
-	for _, keyValue := range response.Kvs {
-		out = append(out, Pair{string(keyValue.Key), string(keyValue.Value)})
+	if !isDir(response.Node) {
+		return out, nil
+	}
+
+	for _, srvNode := range response.Node.Nodes {
+		if !isDir(srvNode) {
+			out = append(out, Pair{srvNode.Key, srvNode.Value})
+		}
 	}
 	return out, nil
 }
 
 func (n *ng) checkKeyExists(key string) error {
-	_, err := n.client.Get(n.context, key)
+	_, err := n.kapi.Get(n.context, key, &etcd.GetOptions{Recursive: false, Sort: false, Quorum: n.requireQuorum})
 	return convertErr(err)
 }
 
 func (n *ng) deleteKey(key string) error {
-	_, err := n.client.Delete(n.context, key, etcd.WithPrefix())
+	_, err := n.kapi.Delete(n.context, key, &etcd.DeleteOptions{Recursive: true})
 	return convertErr(err)
 }
 
@@ -907,44 +927,33 @@ func suffix(key string) string {
 	return key[lastSlashIdx+1:]
 }
 
-func prefix(key string) string {
-	lastSlashIdx := strings.LastIndex(key, "/")
-	if lastSlashIdx == -1 {
-		return key
-	}
-	return key[0:lastSlashIdx]
-}
-
 func notFound(e error) bool {
-	return e == rpctypes.ErrEmptyKey
+	err, ok := e.(etcd.Error)
+	return ok && err.Code == etcd.ErrorCodeKeyNotFound
 }
 
 func convertErr(e error) error {
 	if e == nil {
 		return nil
 	}
-	switch e {
-	case rpctypes.ErrEmptyKey:
-		return &engine.NotFoundError{Message: e.Error()}
-
-	case rpctypes.ErrDuplicateKey:
-		return &engine.AlreadyExistsError{Message: e.Error()}
+	switch err := e.(type) {
+	case etcd.Error:
+		if err.Code == etcd.ErrorCodeKeyNotFound {
+			return &engine.NotFoundError{Message: err.Error()}
+		}
+		if err.Code == etcd.ErrorCodeNodeExist {
+			return &engine.AlreadyExistsError{Message: err.Error()}
+		}
 	}
 	return e
 }
 
-func eventToString(e *etcd.Event) string {
-	return fmt.Sprintf("%s: %v -> %v", e.Type, e.PrevKv, e.Kv)
+func isDir(n *etcd.Node) bool {
+	return n != nil && n.Dir == true
 }
 
-func filterByPrefix(keys []*mvccpb.KeyValue, prefix string) []*mvccpb.KeyValue {
-	returnValue := []*mvccpb.KeyValue{}
-	for _, key := range keys {
-		if strings.Index(string(key.Key), prefix) == 0 {
-			returnValue = append(returnValue, key)
-		}
-	}
-	return returnValue
+func responseToString(r *etcd.Response) string {
+	return fmt.Sprintf("%s %s %d", r.Action, r.Node.Key, r.Index)
 }
 
 const (

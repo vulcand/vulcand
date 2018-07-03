@@ -1,4 +1,4 @@
-package etcdv2ng
+package v2
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 	"github.com/vulcand/vulcand/engine/test"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/secret"
-
+	"github.com/vulcand/vulcand/engine/etcdng"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 )
@@ -61,14 +61,22 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	box, err := secret.NewBox(key)
 	c.Assert(err, IsNil)
 
+	// Check for TLS environment variables
+	opts := etcdng.Options{
+		Consistency: s.consistency,
+		Username:    os.Getenv("VULCAND_TEST_ETCD_USER"),
+		Password:    os.Getenv("VULCAND_TEST_ETCD_PASS"),
+		Box:         box,
+	}
+
+	opts.Debug = os.Getenv("VULCAND_TEST_ETCD_DEBUG") != ""
+	opts.InsecureSkipVerify = os.Getenv("VULCAND_TEST_ETCD_TLS") != ""
+
 	engine, err := New(
 		s.nodes,
 		s.etcdPrefix,
 		registry.GetRegistry(),
-		Options{
-			EtcdConsistency: s.consistency,
-			Box:             box,
-		})
+		opts)
 	c.Assert(err, IsNil)
 	s.ng = engine.(*ng)
 	s.client = s.ng.client
