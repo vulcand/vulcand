@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	etcd "github.com/coreos/etcd/client"
 	"github.com/vulcand/vulcand/engine/test"
@@ -24,7 +25,6 @@ type EtcdSuite struct {
 	consistency string
 	client      etcd.Client
 	kapi        etcd.KeysAPI
-	context     context.Context
 	changesC    chan interface{}
 	key         string
 	stopC       chan struct{}
@@ -73,9 +73,11 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	s.ng = engine.(*ng)
 	s.client = s.ng.client
 	s.kapi = s.ng.kapi
+	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancelFunc()
 
 	// Delete all values under the given prefix
-	_, err = s.kapi.Get(s.context, s.etcdPrefix, &etcd.GetOptions{Recursive: false, Sort: false})
+	_, err = s.kapi.Get(ctx, s.etcdPrefix, &etcd.GetOptions{Recursive: false, Sort: false})
 	if err != nil {
 		// There's no key like this
 		if !notFound(err) {
@@ -83,7 +85,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 			c.Assert(err, IsNil)
 		}
 	} else {
-		_, err = s.ng.kapi.Delete(s.context, s.etcdPrefix, &etcd.DeleteOptions{Recursive: true})
+		_, err = s.ng.kapi.Delete(ctx, s.etcdPrefix, &etcd.DeleteOptions{Recursive: true})
 		c.Assert(err, IsNil)
 	}
 
