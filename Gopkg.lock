@@ -7,12 +7,6 @@
   revision = "3daa90aec0039a806299b9078f4422fee950f33c"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/beorn7/perks"
-  packages = ["quantile"]
-  revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
-
-[[projects]]
   name = "github.com/bshuster-repo/logrus-logstash-hook"
   packages = ["."]
   revision = "ebf008572634916f3a9433d9471a0cd3f68fc772"
@@ -44,23 +38,40 @@
     "etcdserver/etcdserverpb",
     "mvcc/mvccpb",
     "pkg/pathutil",
-    "pkg/tlsutil",
-    "pkg/types"
+    "pkg/srv",
+    "pkg/types",
+    "version"
   ]
-  revision = "12d930b40fa4119e3a8a0e2824c8721c16ef066b"
+  revision = "33245c6b5b49130ca99280408fadfab01aac0e48"
+  version = "v3.3.8"
 
 [[projects]]
-  name = "github.com/ghodss/yaml"
-  packages = ["."]
-  revision = "04f313413ffd65ce25f2541bfd2b2ceec5c0908c"
+  name = "github.com/coreos/go-semver"
+  packages = ["semver"]
+  revision = "8ab6407b697782a06568d4b7f1db25550ec2e4c6"
+  version = "v0.2.0"
+
+[[projects]]
+  name = "github.com/gogo/protobuf"
+  packages = [
+    "gogoproto",
+    "proto",
+    "protoc-gen-gogo/descriptor"
+  ]
+  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/golang/protobuf"
   packages = [
-    "jsonpb",
-    "proto"
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
   ]
-  revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/gorilla/context"
@@ -72,21 +83,6 @@
   name = "github.com/gorilla/mux"
   packages = ["."]
   revision = "757bef944d0f21880861c2dd9c871ca543023cba"
-
-[[projects]]
-  name = "github.com/grpc-ecosystem/go-grpc-prometheus"
-  packages = ["."]
-  revision = "6b7015e65d366bf3f19b2b2a000a831940f0f7e0"
-  version = "v1.1"
-
-[[projects]]
-  name = "github.com/grpc-ecosystem/grpc-gateway"
-  packages = [
-    "runtime",
-    "runtime/internal",
-    "utilities"
-  ]
-  revision = "199c40a060d1e55508b3b85182ce6f3895ae6302"
 
 [[projects]]
   name = "github.com/mailgun/metrics"
@@ -115,40 +111,10 @@
   revision = "8210f93bcb6393a9f36a22ac02fb3c4f53289850"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/matttproud/golang_protobuf_extensions"
-  packages = ["pbutil"]
-  revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
-
-[[projects]]
   name = "github.com/pkg/errors"
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
-
-[[projects]]
-  name = "github.com/prometheus/client_golang"
-  packages = ["prometheus"]
-  revision = "575f371f7862609249a1be4c9145f429fe065e32"
-
-[[projects]]
-  name = "github.com/prometheus/client_model"
-  packages = ["go"]
-  revision = "fa8ad6fec33561be4280a8f0514318c79d7f6cb6"
-
-[[projects]]
-  name = "github.com/prometheus/common"
-  packages = [
-    "expfmt",
-    "internal/bitbucket.org/ww/goautoneg",
-    "model"
-  ]
-  revision = "6d76b79f239843a04e8ad8dfd8fcadfa3920236f"
-
-[[projects]]
-  name = "github.com/prometheus/procfs"
-  packages = ["."]
-  revision = "fcdb11ccb4389efb1b210b7ffb623ab71c5fdd60"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -162,7 +128,8 @@
 [[projects]]
   name = "github.com/ugorji/go"
   packages = ["codec"]
-  revision = "9c7f9b7a2bc3a520f7c7b30b34b7f85f47fe27b6"
+  revision = "b4c50a2b199d93b13dc15e78929cfb23bfdf21ab"
+  version = "v1.1.1"
 
 [[projects]]
   name = "github.com/vulcand/oxy"
@@ -209,6 +176,7 @@
   name = "golang.org/x/net"
   packages = [
     "context",
+    "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
@@ -216,7 +184,28 @@
     "lex/httplex",
     "trace"
   ]
-  revision = "45e771701b814666a7eb299e6c7a57d0b1799e91"
+  revision = "97aa3a539ec716117a9d15a4659a911f50d13c3c"
+
+[[projects]]
+  name = "golang.org/x/text"
+  packages = [
+    "collate",
+    "collate/build",
+    "internal/colltab",
+    "internal/gen",
+    "internal/tag",
+    "internal/triegen",
+    "internal/ucd",
+    "language",
+    "secure/bidirule",
+    "transform",
+    "unicode/bidi",
+    "unicode/cldr",
+    "unicode/norm",
+    "unicode/rangetable"
+  ]
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [[projects]]
   name = "golang.org/x/sys"
@@ -227,21 +216,44 @@
   revision = "d75a52659825e75fff6158388dddc6a5b04f9ba5"
 
 [[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  revision = "ff3583edef7de132f219f0efc00e097cabcc0ec0"
+
+[[projects]]
   name = "google.golang.org/grpc"
   packages = [
     ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
     "codes",
+    "connectivity",
     "credentials",
+    "encoding",
+    "encoding/proto",
     "grpclog",
+    "health/grpc_health_v1",
     "internal",
+    "internal/backoff",
+    "internal/channelz",
+    "internal/grpcrand",
+    "keepalive",
     "metadata",
     "naming",
     "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
     "stats",
+    "status",
     "tap",
     "transport"
   ]
-  revision = "9d682f9293b408c42d17c587d0e2a31237ac3f10"
+  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
+  version = "v1.13.0"
+
 
 [[projects]]
   branch = "v1"
@@ -258,14 +270,9 @@
   ]
   revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
 
-[[projects]]
-  name = "gopkg.in/yaml.v2"
-  packages = ["."]
-  revision = "a5b47d31c556af34a302ce5d659e6fea44d90de0"
-
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "111729d8c9d76f8b71214ae79cb5d9f806b0be2e679d7be21d14d642685ae85a"
+  inputs-digest = "2a9b021991473fd00a46e043e40bccd910ea3a8e19b3cf34a6f5f424b0af0dc1"
   solver-name = "gps-cdcl"
   solver-version = 1

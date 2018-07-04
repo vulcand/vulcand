@@ -38,8 +38,8 @@
   version = "1.19.1"
 
 [[constraint]]
-  revision = "12d930b40fa4119e3a8a0e2824c8721c16ef066b"
   name = "github.com/coreos/etcd"
+  version = "3.3.8"
 
 [[constraint]]
   revision = "757bef944d0f21880861c2dd9c871ca543023cba"
