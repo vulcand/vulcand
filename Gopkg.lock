@@ -13,7 +13,6 @@
   revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
 
 [[projects]]
-  branch = "master"
   name = "github.com/bshuster-repo/logrus-logstash-hook"
   packages = ["."]
   revision = "ebf008572634916f3a9433d9471a0cd3f68fc772"
@@ -37,7 +36,17 @@
 
 [[projects]]
   name = "github.com/coreos/etcd"
-  packages = ["auth/authpb","client","clientv3","etcdserver/api/v3rpc/rpctypes","etcdserver/etcdserverpb","mvcc/mvccpb","pkg/pathutil","pkg/tlsutil","pkg/types"]
+  packages = [
+    "auth/authpb",
+    "client",
+    "clientv3",
+    "etcdserver/api/v3rpc/rpctypes",
+    "etcdserver/etcdserverpb",
+    "mvcc/mvccpb",
+    "pkg/pathutil",
+    "pkg/tlsutil",
+    "pkg/types"
+  ]
   revision = "12d930b40fa4119e3a8a0e2824c8721c16ef066b"
 
 [[projects]]
@@ -47,7 +56,10 @@
 
 [[projects]]
   name = "github.com/golang/protobuf"
-  packages = ["jsonpb","proto"]
+  packages = [
+    "jsonpb",
+    "proto"
+  ]
   revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
 
 [[projects]]
@@ -69,7 +81,11 @@
 
 [[projects]]
   name = "github.com/grpc-ecosystem/grpc-gateway"
-  packages = ["runtime","runtime/internal","utilities"]
+  packages = [
+    "runtime",
+    "runtime/internal",
+    "utilities"
+  ]
   revision = "199c40a060d1e55508b3b85182ce6f3895ae6302"
 
 [[projects]]
@@ -122,7 +138,11 @@
 
 [[projects]]
   name = "github.com/prometheus/common"
-  packages = ["expfmt","internal/bitbucket.org/ww/goautoneg","model"]
+  packages = [
+    "expfmt",
+    "internal/bitbucket.org/ww/goautoneg",
+    "model"
+  ]
   revision = "6d76b79f239843a04e8ad8dfd8fcadfa3920236f"
 
 [[projects]]
@@ -131,10 +151,13 @@
   revision = "fcdb11ccb4389efb1b210b7ffb623ab71c5fdd60"
 
 [[projects]]
-  branch = "master"
   name = "github.com/sirupsen/logrus"
-  packages = [".","hooks/syslog"]
-  revision = "89742aefa4b206dcf400792f3bd35b542998eb3b"
+  packages = [
+    ".",
+    "hooks/syslog"
+  ]
+  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
+  version = "v1.0.5"
 
 [[projects]]
   name = "github.com/ugorji/go"
@@ -142,9 +165,20 @@
   revision = "9c7f9b7a2bc3a520f7c7b30b34b7f85f47fe27b6"
 
 [[projects]]
-  branch = "master"
   name = "github.com/vulcand/oxy"
-  packages = ["buffer","cbreaker","connlimit","forward","memmetrics","ratelimit","roundrobin","stream","testutils","trace","utils"]
+  packages = [
+    "buffer",
+    "cbreaker",
+    "connlimit",
+    "forward",
+    "memmetrics",
+    "ratelimit",
+    "roundrobin",
+    "stream",
+    "testutils",
+    "trace",
+    "utils"
+  ]
   revision = "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
 
 [[projects]]
@@ -160,22 +194,53 @@
 
 [[projects]]
   name = "golang.org/x/crypto"
-  packages = ["nacl/secretbox","ocsp","poly1305","salsa20/salsa","ssh/terminal"]
+  packages = [
+    "acme",
+    "acme/autocert",
+    "nacl/secretbox",
+    "ocsp",
+    "poly1305",
+    "salsa20/salsa",
+    "ssh/terminal"
+  ]
   revision = "76eec36fa14229c4b25bb894c2d0e591527af429"
 
 [[projects]]
   name = "golang.org/x/net"
-  packages = ["context","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
+  packages = [
+    "context",
+    "http2",
+    "http2/hpack",
+    "idna",
+    "internal/timeseries",
+    "lex/httplex",
+    "trace"
+  ]
   revision = "45e771701b814666a7eb299e6c7a57d0b1799e91"
 
 [[projects]]
   name = "golang.org/x/sys"
-  packages = ["unix","windows"]
+  packages = [
+    "unix",
+    "windows"
+  ]
   revision = "d75a52659825e75fff6158388dddc6a5b04f9ba5"
 
 [[projects]]
   name = "google.golang.org/grpc"
-  packages = [".","codes","credentials","grpclog","internal","metadata","naming","peer","stats","tap","transport"]
+  packages = [
+    ".",
+    "codes",
+    "credentials",
+    "grpclog",
+    "internal",
+    "metadata",
+    "naming",
+    "peer",
+    "stats",
+    "tap",
+    "transport"
+  ]
   revision = "9d682f9293b408c42d17c587d0e2a31237ac3f10"
 
 [[projects]]
@@ -187,7 +252,10 @@
 [[projects]]
   branch = "v2"
   name = "gopkg.in/mgo.v2"
-  packages = ["bson","internal/json"]
+  packages = [
+    "bson",
+    "internal/json"
+  ]
   revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
 
 [[projects]]
@@ -198,6 +266,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "77412823f48f4bfbf95927a2693a0bcca0067c1c2002940996327668a0fe3dbf"
+  inputs-digest = "111729d8c9d76f8b71214ae79cb5d9f806b0be2e679d7be21d14d642685ae85a"
   solver-name = "gps-cdcl"
   solver-version = 1

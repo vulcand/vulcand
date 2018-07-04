@@ -23,11 +23,14 @@
 
 [[constraint]]
   name = "github.com/armon/go-proxyproto"
+  revision = "3daa90aec0039a806299b9078f4422fee950f33c"
 
 [[constraint]]
+  revision = "ebf008572634916f3a9433d9471a0cd3f68fc772"
   name = "github.com/bshuster-repo/logrus-logstash-hook"
 
 [[constraint]]
+  revision = "cc3942e537b1ab00de92d348c40acbfa6565d20f"
   name = "github.com/buger/goterm"
 
 [[constraint]]
@@ -35,18 +38,19 @@
   version = "1.19.1"
 
 [[constraint]]
+  revision = "12d930b40fa4119e3a8a0e2824c8721c16ef066b"
   name = "github.com/coreos/etcd"
 
 [[constraint]]
-  name = "github.com/coreos/go-etcd"
-
-[[constraint]]
+  revision = "757bef944d0f21880861c2dd9c871ca543023cba"
   name = "github.com/gorilla/mux"
 
 [[constraint]]
+  revision = "2b3c4565aafdcd40c8069e50de08ac5379787943"
   name = "github.com/mailgun/metrics"
 
 [[constraint]]
+  revision = "fd192d755b00c968d312d23f521eb0cdc6f66bd0"
   name = "github.com/mailgun/timetools"
 
 [[constraint]]
@@ -55,9 +59,10 @@
 
 [[constraint]]
   name = "github.com/sirupsen/logrus"
+  version = "1.0.5"
 
 [[constraint]]
-  branch = "master"
+  revision = "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
   name = "github.com/vulcand/oxy"
 
 [[constraint]]
@@ -65,11 +70,17 @@
   name = "github.com/vulcand/route"
 
 [[constraint]]
+  revision = "76eec36fa14229c4b25bb894c2d0e591527af429"
   name = "golang.org/x/crypto"
 
 [[constraint]]
+  revision = "45e771701b814666a7eb299e6c7a57d0b1799e91"
   name = "golang.org/x/net"
 
 [[constraint]]
   branch = "v1"
   name = "gopkg.in/check.v1"
+
+[prune]
+  go-tests = true
+  unused-packages = true
