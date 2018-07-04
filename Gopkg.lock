@@ -7,12 +7,6 @@
   revision = "3daa90aec0039a806299b9078f4422fee950f33c"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/beorn7/perks"
-  packages = ["quantile"]
-  revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
-
-[[projects]]
   name = "github.com/bshuster-repo/logrus-logstash-hook"
   packages = ["."]
   revision = "ebf008572634916f3a9433d9471a0cd3f68fc772"
@@ -44,9 +38,11 @@
     "etcdserver/etcdserverpb",
     "mvcc/mvccpb",
     "pkg/pathutil",
-    "pkg/tlsutil",
-    "pkg/types"
+    "pkg/srv",
+    "pkg/types",
+    "version"
   ]
+<<<<<<< HEAD
 <<<<<<< HEAD
   revision = "fca8add78a9d926166eb739b8e4a124434025ba3"
   version = "v3.3.9"
@@ -74,14 +70,38 @@
   packages = ["."]
   revision = "04f313413ffd65ce25f2541bfd2b2ceec5c0908c"
 >>>>>>> pin library dependencies
+=======
+  revision = "33245c6b5b49130ca99280408fadfab01aac0e48"
+  version = "v3.3.8"
+
+[[projects]]
+  name = "github.com/coreos/go-semver"
+  packages = ["semver"]
+  revision = "8ab6407b697782a06568d4b7f1db25550ec2e4c6"
+  version = "v0.2.0"
+
+[[projects]]
+  name = "github.com/gogo/protobuf"
+  packages = [
+    "gogoproto",
+    "proto",
+    "protoc-gen-gogo/descriptor"
+  ]
+  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
+  version = "v1.0.0"
+>>>>>>> updated etcd client to 3.3.8
 
 [[projects]]
   name = "github.com/golang/protobuf"
   packages = [
-    "jsonpb",
-    "proto"
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
   ]
-  revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/gorilla/context"
@@ -95,6 +115,7 @@
   revision = "757bef944d0f21880861c2dd9c871ca543023cba"
 
 [[projects]]
+<<<<<<< HEAD
 <<<<<<< HEAD
   name = "github.com/gorilla/websocket"
   packages = ["."]
@@ -141,6 +162,8 @@
 >>>>>>> pin library dependencies
 
 [[projects]]
+=======
+>>>>>>> updated etcd client to 3.3.8
   name = "github.com/mailgun/metrics"
   packages = ["."]
   revision = "2b3c4565aafdcd40c8069e50de08ac5379787943"
@@ -174,30 +197,6 @@
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
-
-[[projects]]
-  name = "github.com/prometheus/client_golang"
-  packages = ["prometheus"]
-  revision = "575f371f7862609249a1be4c9145f429fe065e32"
-
-[[projects]]
-  name = "github.com/prometheus/client_model"
-  packages = ["go"]
-  revision = "fa8ad6fec33561be4280a8f0514318c79d7f6cb6"
-
-[[projects]]
-  name = "github.com/prometheus/common"
-  packages = [
-    "expfmt",
-    "internal/bitbucket.org/ww/goautoneg",
-    "model"
-  ]
-  revision = "6d76b79f239843a04e8ad8dfd8fcadfa3920236f"
-
-[[projects]]
-  name = "github.com/prometheus/procfs"
-  packages = ["."]
-  revision = "fcdb11ccb4389efb1b210b7ffb623ab71c5fdd60"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -261,6 +260,7 @@
   name = "golang.org/x/net"
   packages = [
     "context",
+    "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
@@ -268,7 +268,32 @@
     "trace"
   ]
 <<<<<<< HEAD
+<<<<<<< HEAD
   revision = "f4c29de78a2a91c00474a2e689954305c350adf9"
+=======
+  revision = "97aa3a539ec716117a9d15a4659a911f50d13c3c"
+
+[[projects]]
+  name = "golang.org/x/text"
+  packages = [
+    "collate",
+    "collate/build",
+    "internal/colltab",
+    "internal/gen",
+    "internal/tag",
+    "internal/triegen",
+    "internal/ucd",
+    "language",
+    "secure/bidirule",
+    "transform",
+    "unicode/bidi",
+    "unicode/cldr",
+    "unicode/norm",
+    "unicode/rangetable"
+  ]
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
+>>>>>>> updated etcd client to 3.3.8
 
 [[projects]]
   branch = "master"
@@ -313,10 +338,18 @@
   name = "google.golang.org/grpc"
   packages = [
     ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
     "codes",
+    "connectivity",
     "credentials",
+    "encoding",
+    "encoding/proto",
     "grpclog",
+    "health/grpc_health_v1",
     "internal",
+<<<<<<< HEAD
 <<<<<<< HEAD
     "internal/backoff",
     "internal/channelz",
@@ -326,10 +359,20 @@
     "keepalive",
 =======
 >>>>>>> pin library dependencies
+=======
+    "internal/backoff",
+    "internal/channelz",
+    "internal/grpcrand",
+    "keepalive",
+>>>>>>> updated etcd client to 3.3.8
     "metadata",
     "naming",
     "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
     "stats",
+<<<<<<< HEAD
 <<<<<<< HEAD
     "status",
     "tap"
@@ -342,6 +385,15 @@
   ]
   revision = "9d682f9293b408c42d17c587d0e2a31237ac3f10"
 >>>>>>> pin library dependencies
+=======
+    "status",
+    "tap",
+    "transport"
+  ]
+  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
+  version = "v1.13.0"
+
+>>>>>>> updated etcd client to 3.3.8
 
 [[projects]]
   branch = "v1"
@@ -362,13 +414,22 @@
   analyzer-name = "dep"
   analyzer-version = 1
 <<<<<<< HEAD
+<<<<<<< HEAD
   inputs-digest = "354b9d63f2c1265f1681f7f5a9e0051a33ff71e0bc28b5be9e51517ae63dcf92"
 =======
+=======
+>>>>>>> updated etcd client to 3.3.8
 <<<<<<< HEAD
   inputs-digest = "e9c33d8e0c6a2c2167d235b08372a097e6cdf38174c531369afa7d57befbab1d"
 =======
   inputs-digest = "111729d8c9d76f8b71214ae79cb5d9f806b0be2e679d7be21d14d642685ae85a"
 >>>>>>> pin library dependencies
+<<<<<<< HEAD
 >>>>>>> pin library dependencies
+=======
+=======
+  inputs-digest = "2a9b021991473fd00a46e043e40bccd910ea3a8e19b3cf34a6f5f424b0af0dc1"
+>>>>>>> updated etcd client to 3.3.8
+>>>>>>> updated etcd client to 3.3.8
   solver-name = "gps-cdcl"
   solver-version = 1
