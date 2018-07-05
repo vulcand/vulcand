@@ -23,8 +23,8 @@ import (
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdng"
-	"github.com/vulcand/vulcand/engine/etcdng/v2"
-	"github.com/vulcand/vulcand/engine/etcdng/v3"
+	etcdv2ng "github.com/vulcand/vulcand/engine/etcdng/v2"
+	etcdv3ng "github.com/vulcand/vulcand/engine/etcdng/v3"
 	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/plugin/cacheprovider"
@@ -370,13 +370,13 @@ func (s *Service) newEngine() error {
 	}
 
 	if s.options.EtcdApiVersion == 3 {
-		ng, err = v3.New(
+		ng, err = etcdv3ng.New(
 			s.options.EtcdNodes,
 			s.options.EtcdKey,
 			s.registry,
 			options)
 	} else {
-		ng, err = v2.New(
+		ng, err = etcdv2ng.New(
 			s.options.EtcdNodes,
 			s.options.EtcdKey,
 			s.registry,

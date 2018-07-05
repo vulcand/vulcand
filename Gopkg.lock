@@ -42,8 +42,6 @@
     "pkg/types",
     "version"
   ]
-<<<<<<< HEAD
-<<<<<<< HEAD
   revision = "fca8add78a9d926166eb739b8e4a124434025ba3"
   version = "v3.3.9"
 
@@ -62,34 +60,6 @@
   ]
   revision = "636bf0302bc95575d69441b25a2603156ffdddf1"
   version = "v1.1.1"
-=======
-  revision = "12d930b40fa4119e3a8a0e2824c8721c16ef066b"
-
-[[projects]]
-  name = "github.com/ghodss/yaml"
-  packages = ["."]
-  revision = "04f313413ffd65ce25f2541bfd2b2ceec5c0908c"
->>>>>>> pin library dependencies
-=======
-  revision = "33245c6b5b49130ca99280408fadfab01aac0e48"
-  version = "v3.3.8"
-
-[[projects]]
-  name = "github.com/coreos/go-semver"
-  packages = ["semver"]
-  revision = "8ab6407b697782a06568d4b7f1db25550ec2e4c6"
-  version = "v0.2.0"
-
-[[projects]]
-  name = "github.com/gogo/protobuf"
-  packages = [
-    "gogoproto",
-    "proto",
-    "protoc-gen-gogo/descriptor"
-  ]
-  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
-  version = "v1.0.0"
->>>>>>> updated etcd client to 3.3.8
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -115,8 +85,6 @@
   revision = "757bef944d0f21880861c2dd9c871ca543023cba"
 
 [[projects]]
-<<<<<<< HEAD
-<<<<<<< HEAD
   name = "github.com/gorilla/websocket"
   packages = ["."]
   revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
@@ -145,25 +113,8 @@
   packages = ["."]
   revision = "e2ffdb16a802fe2bb95e2e35ff34f0e53aeef34f"
   version = "v0.1.0"
-=======
-  name = "github.com/grpc-ecosystem/go-grpc-prometheus"
-  packages = ["."]
-  revision = "6b7015e65d366bf3f19b2b2a000a831940f0f7e0"
-  version = "v1.1"
 
 [[projects]]
-  name = "github.com/grpc-ecosystem/grpc-gateway"
-  packages = [
-    "runtime",
-    "runtime/internal",
-    "utilities"
-  ]
-  revision = "199c40a060d1e55508b3b85182ce6f3895ae6302"
->>>>>>> pin library dependencies
-
-[[projects]]
-=======
->>>>>>> updated etcd client to 3.3.8
   name = "github.com/mailgun/metrics"
   packages = ["."]
   revision = "2b3c4565aafdcd40c8069e50de08ac5379787943"
@@ -267,33 +218,7 @@
     "internal/timeseries",
     "trace"
   ]
-<<<<<<< HEAD
-<<<<<<< HEAD
-  revision = "f4c29de78a2a91c00474a2e689954305c350adf9"
-=======
-  revision = "97aa3a539ec716117a9d15a4659a911f50d13c3c"
-
-[[projects]]
-  name = "golang.org/x/text"
-  packages = [
-    "collate",
-    "collate/build",
-    "internal/colltab",
-    "internal/gen",
-    "internal/tag",
-    "internal/triegen",
-    "internal/ucd",
-    "language",
-    "secure/bidirule",
-    "transform",
-    "unicode/bidi",
-    "unicode/cldr",
-    "unicode/norm",
-    "unicode/rangetable"
-  ]
-  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
-  version = "v0.3.0"
->>>>>>> updated etcd client to 3.3.8
+  revision = "aaf60122140d3fcf75376d319f0554393160eb50"
 
 [[projects]]
   branch = "master"
@@ -302,7 +227,7 @@
     "unix",
     "windows"
   ]
-  revision = "3dc4335d56c789b04b0ba99b7a37249d9b614314"
+  revision = "1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -324,15 +249,12 @@
   ]
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   version = "v0.3.0"
-=======
-  revision = "45e771701b814666a7eb299e6c7a57d0b1799e91"
->>>>>>> pin library dependencies
 
 [[projects]]
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "daca94659cb50e9f37c1b834680f2e46358f10b0"
+  revision = "d0a8f471bba2dbb160885b0000d814ee5d559bad"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -349,22 +271,12 @@
     "grpclog",
     "health/grpc_health_v1",
     "internal",
-<<<<<<< HEAD
-<<<<<<< HEAD
     "internal/backoff",
     "internal/channelz",
     "internal/envconfig",
     "internal/grpcrand",
     "internal/transport",
     "keepalive",
-=======
->>>>>>> pin library dependencies
-=======
-    "internal/backoff",
-    "internal/channelz",
-    "internal/grpcrand",
-    "keepalive",
->>>>>>> updated etcd client to 3.3.8
     "metadata",
     "naming",
     "peer",
@@ -372,28 +284,11 @@
     "resolver/dns",
     "resolver/passthrough",
     "stats",
-<<<<<<< HEAD
-<<<<<<< HEAD
     "status",
     "tap"
   ]
   revision = "32fb0ac620c32ba40a4626ddf94d90d12cce3455"
   version = "v1.14.0"
-=======
-    "tap",
-    "transport"
-  ]
-  revision = "9d682f9293b408c42d17c587d0e2a31237ac3f10"
->>>>>>> pin library dependencies
-=======
-    "status",
-    "tap",
-    "transport"
-  ]
-  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
-  version = "v1.13.0"
-
->>>>>>> updated etcd client to 3.3.8
 
 [[projects]]
   branch = "v1"
@@ -415,6 +310,7 @@
   analyzer-version = 1
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   inputs-digest = "354b9d63f2c1265f1681f7f5a9e0051a33ff71e0bc28b5be9e51517ae63dcf92"
 =======
 =======
@@ -431,5 +327,8 @@
   inputs-digest = "2a9b021991473fd00a46e043e40bccd910ea3a8e19b3cf34a6f5f424b0af0dc1"
 >>>>>>> updated etcd client to 3.3.8
 >>>>>>> updated etcd client to 3.3.8
+=======
+  inputs-digest = "6e939465939f59104800362139a51732f24dde03c85341c525e4b4ac4b4fd714"
+>>>>>>> Ran goimport on sources and renamed imports to etcdvXng in services
   solver-name = "gps-cdcl"
   solver-version = 1

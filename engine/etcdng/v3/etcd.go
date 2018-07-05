@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"os"
 
 	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
@@ -20,7 +21,6 @@ import (
 	"github.com/vulcand/vulcand/utils/json"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/grpclog"
-	"os"
 )
 
 type ng struct {

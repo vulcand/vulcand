@@ -3,8 +3,9 @@ package etcdng
 import (
 	"crypto/tls"
 	"crypto/x509"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func NewTLSConfig(opt Options) *tls.Config {
