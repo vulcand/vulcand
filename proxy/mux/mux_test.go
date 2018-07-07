@@ -1495,12 +1495,11 @@ func (s *ServerSuite) TestNoBackendServers(c *C) {
 	c.Assert(s.mux.UpsertFrontend(feCfg), IsNil)
 
 	// When
-	rs, msg, err := testutils.Get("http://localhost:11300/foo")
+	rs, _, err := testutils.Get("http://localhost:11300/foo")
 
 	// Then
 	c.Assert(err, IsNil)
 	c.Assert(rs.StatusCode, Equals, http.StatusInternalServerError)
-	c.Assert(string(msg), Equals, "")
 }
 
 func (s *ServerSuite) TestCustomNotFound(c *C) {
@@ -1536,14 +1535,14 @@ func (s *ServerSuite) TestProxyHeaders(c *C) {
 		feTrustFXDH:  true,
 		muxTrustFXDH: false,
 		xfdFor:       []string{"a, b, c, 127.0.0.1"},
-		xfdProto:     []string{"d, e"},
-		xfdHost:      []string{"g, h"},
+		xfdProto:     []string{"d, e", "f"},
+		xfdHost:      []string{"g, h", "i"},
 	}, {
 		feTrustFXDH:  false,
 		muxTrustFXDH: true,
 		xfdFor:       []string{"a, b, c, 127.0.0.1"},
-		xfdProto:     []string{"d, e"},
-		xfdHost:      []string{"g, h"},
+		xfdProto:     []string{"d, e", "f"},
+		xfdHost:      []string{"g, h", "i"},
 	}} {
 		fmt.Printf("Test case #%d\n", i)
 

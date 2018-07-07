@@ -452,7 +452,6 @@ func certFuncForHost(hostCfg engine.Host, autoCertCache autocert.Cache, s staple
 // get a certificate (through autocert) for any host.
 func getCertFuncAggregate(getCertFuncs map[string]getCertificateFunc) getCertificateFunc {
 	return func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		log.Infof("============> Looking for get cert func for server %s", info.ServerName)
 		if getCertificateFunc, ok := getCertFuncs[info.ServerName]; ok {
 			// We have a get certificate function for this host - allow AutoCertManager to
 			// provide this one, in case there's expiry/renewal to be done.
