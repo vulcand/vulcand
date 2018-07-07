@@ -58,7 +58,7 @@ func (cl *ConnLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := cl.acquire(token, amount); err != nil {
-		log.Infof("limiting request source %s: %v", token, err)
+		log.Debugf("limiting request source %s: %v", token, err)
 		cl.errHandler.ServeHTTP(w, r, err)
 		return
 	}
@@ -78,7 +78,7 @@ func (cl *ConnLimiter) acquire(token string, amount int64) error {
 	}
 
 	cl.connections[token] += amount
-	cl.totalConnections += int64(amount)
+	cl.totalConnections += amount
 	return nil
 }
 
@@ -87,7 +87,7 @@ func (cl *ConnLimiter) release(token string, amount int64) {
 	defer cl.mutex.Unlock()
 
 	cl.connections[token] -= amount
-	cl.totalConnections -= int64(amount)
+	cl.totalConnections -= amount
 
 	// Otherwise it would grow forever
 	if cl.connections[token] == 0 {
@@ -110,7 +110,7 @@ func (e *ConnErrHandler) ServeHTTP(w http.ResponseWriter, req *http.Request, err
 	if log.GetLevel() >= log.DebugLevel {
 		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/connlimit: begin ServeHttp on request")
-		defer logEntry.Debug("vulcand/oxy/connlimit: competed ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/connlimit: completed ServeHttp on request")
 	}
 
 	if _, ok := err.(*MaxConnError); ok {

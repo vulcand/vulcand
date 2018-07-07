@@ -31,7 +31,7 @@ func (f *ResponseFallback) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if log.GetLevel() >= log.DebugLevel {
 		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/fallback/response: begin ServeHttp on request")
-		defer logEntry.Debug("vulcand/oxy/fallback/response: competed ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/fallback/response: completed ServeHttp on request")
 	}
 
 	if f.r.ContentType != "" {
@@ -39,15 +39,20 @@ func (f *ResponseFallback) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Header().Set("Content-Length", strconv.Itoa(len(f.r.Body)))
 	w.WriteHeader(f.r.StatusCode)
-	w.Write(f.r.Body)
+	_, err := w.Write(f.r.Body)
+	if err != nil {
+		log.Errorf("vulcand/oxy/fallback/response: failed to write response, err: %v", err)
+	}
 }
 
 type Redirect struct {
-	URL string
+	URL          string
+	PreservePath bool
 }
 
 type RedirectFallback struct {
 	u *url.URL
+	r Redirect
 }
 
 func NewRedirectFallback(r Redirect) (*RedirectFallback, error) {
@@ -55,17 +60,25 @@ func NewRedirectFallback(r Redirect) (*RedirectFallback, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &RedirectFallback{u: u}, nil
+	return &RedirectFallback{u: u, r: r}, nil
 }
 
 func (f *RedirectFallback) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if log.GetLevel() >= log.DebugLevel {
 		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/fallback/redirect: begin ServeHttp on request")
-		defer logEntry.Debug("vulcand/oxy/fallback/redirect: competed ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/fallback/redirect: completed ServeHttp on request")
 	}
 
-	w.Header().Set("Location", f.u.String())
+	location := f.u.String()
+	if f.r.PreservePath {
+		location += req.URL.Path
+	}
+
+	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusFound)
-	w.Write([]byte(http.StatusText(http.StatusFound)))
+	_, err := w.Write([]byte(http.StatusText(http.StatusFound)))
+	if err != nil {
+		log.Errorf("vulcand/oxy/fallback/redirect: failed to write response, err: %v", err)
+	}
 }

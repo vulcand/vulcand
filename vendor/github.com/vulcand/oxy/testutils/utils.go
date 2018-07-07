@@ -2,7 +2,7 @@ package testutils
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +13,7 @@ import (
 )
 
 func NewHandler(handler http.HandlerFunc) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(handler))
+	return httptest.NewServer(handler)
 }
 
 func NewResponder(response string) *httptest.Server {
@@ -101,7 +101,7 @@ func MakeRequest(url string, opts ...ReqOption) (*http.Response, []byte, error) 
 	}
 
 	if o.Method == "" {
-		o.Method = "GET"
+		o.Method = http.MethodGet
 	}
 	request, _ := http.NewRequest(o.Method, url, strings.NewReader(o.Body))
 	if o.Headers != nil {
@@ -120,10 +120,7 @@ func MakeRequest(url string, opts ...ReqOption) (*http.Response, []byte, error) 
 	if strings.HasPrefix(url, "https") {
 		tr = &http.Transport{
 			DisableKeepAlives: true,
-			TLSClientConfig:   &tls.Config{
-				InsecureSkipVerify: true,
-				ServerName: request.Host, //Necessary for SNI to work
-			},
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
 		}
 	} else {
 		tr = &http.Transport{
@@ -134,19 +131,18 @@ func MakeRequest(url string, opts ...ReqOption) (*http.Response, []byte, error) 
 	client := &http.Client{
 		Transport: tr,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return fmt.Errorf("No redirects")
+			return errors.New("no redirects")
 		},
 	}
-
 	response, err := client.Do(request)
 	if err == nil {
-		bodyBytes, err := ioutil.ReadAll(response.Body)
-		return response, bodyBytes, err
+		bodyBytes, errRead := ioutil.ReadAll(response.Body)
+		return response, bodyBytes, errRead
 	}
 	return response, nil, err
 }
 
 func Get(url string, opts ...ReqOption) (*http.Response, []byte, error) {
-	opts = append(opts, Method("GET"))
+	opts = append(opts, Method(http.MethodGet))
 	return MakeRequest(url, opts...)
 }

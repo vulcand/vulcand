@@ -1,4 +1,4 @@
-// package cbreaker implements circuit breaker similar to  https://github.com/Netflix/Hystrix/wiki/How-it-Works
+// Package cbreaker implements circuit breaker similar to  https://github.com/Netflix/Hystrix/wiki/How-it-Works
 //
 // Vulcan circuit breaker watches the error condtion to match
 // after which it activates the fallback scenario, e.g. returns the response code
@@ -103,7 +103,7 @@ func (c *CircuitBreaker) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if log.GetLevel() >= log.DebugLevel {
 		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/circuitbreaker: begin ServeHttp on request")
-		defer logEntry.Debug("vulcand/oxy/circuitbreaker: competed ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/circuitbreaker: completed ServeHttp on request")
 	}
 	if c.activateFallback(w, req) {
 		c.fallback.ServeHTTP(w, req)
@@ -126,7 +126,7 @@ func (c *CircuitBreaker) activateFallback(w http.ResponseWriter, req *http.Reque
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	log.Infof("%v is in error state", c)
+	log.Warnf("%v is in error state", c)
 
 	switch c.state {
 	case stateStandby:
@@ -156,12 +156,12 @@ func (c *CircuitBreaker) activateFallback(w http.ResponseWriter, req *http.Reque
 
 func (c *CircuitBreaker) serve(w http.ResponseWriter, req *http.Request) {
 	start := c.clock.UtcNow()
-	p := &utils.ProxyWriter{W: w}
+	p := utils.NewProxyWriter(w)
 
 	c.next.ServeHTTP(p, req)
 
 	latency := c.clock.UtcNow().Sub(start)
-	c.metrics.Record(p.Code, latency)
+	c.metrics.Record(p.StatusCode(), latency)
 
 	// Note that this call is less expensive than it looks -- checkCondition only performs the real check
 	// periodically. Because of that we can afford to call it here on every single response.
@@ -197,7 +197,7 @@ func (c *CircuitBreaker) exec(s SideEffect) {
 }
 
 func (c *CircuitBreaker) setState(new cbState, until time.Time) {
-	log.Infof("%v setting state to %v, until %v", c, new, until)
+	log.Debugf("%v setting state to %v, until %v", c, new, until)
 	c.state = new
 	c.until = until
 	switch new {
@@ -230,7 +230,7 @@ func (c *CircuitBreaker) checkAndSet() {
 	c.lastCheck = c.clock.UtcNow().Add(c.checkPeriod)
 
 	if c.state == stateTripped {
-		log.Infof("%v skip set tripped", c)
+		log.Debugf("%v skip set tripped", c)
 		return
 	}
 

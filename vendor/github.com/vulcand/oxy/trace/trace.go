@@ -71,7 +71,7 @@ func New(next http.Handler, writer io.Writer, opts ...Option) (*Tracer, error) {
 
 func (t *Tracer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	start := time.Now()
-	pw := &utils.ProxyWriter{W: w}
+	pw := utils.NewProxyWriter(w)
 	t.next.ServeHTTP(pw, req)
 
 	l := t.newRecord(req, pw, time.Since(start))

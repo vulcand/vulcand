@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/mailgun/timetools"
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/oxy/utils"
 )
@@ -48,6 +48,9 @@ type Rebalancer struct {
 	// creates new meters
 	newMeter NewMeterFn
 
+	// sticky session object
+	stickySession *StickySession
+
 	requestRewriteListener RequestRewriteListener
 }
 
@@ -80,6 +83,13 @@ func RebalancerErrorHandler(h utils.ErrorHandler) RebalancerOption {
 	}
 }
 
+func RebalancerStickySession(stickySession *StickySession) RebalancerOption {
+	return func(r *Rebalancer) error {
+		r.stickySession = stickySession
+		return nil
+	}
+}
+
 // RebalancerErrorHandler is a functional argument that sets error handler of the server
 func RebalancerRequestRewriteListener(rrl RequestRewriteListener) RebalancerOption {
 	return func(r *Rebalancer) error {
@@ -90,8 +100,9 @@ func RebalancerRequestRewriteListener(rrl RequestRewriteListener) RebalancerOpti
 
 func NewRebalancer(handler balancerHandler, opts ...RebalancerOption) (*Rebalancer, error) {
 	rb := &Rebalancer{
-		mtx:  &sync.Mutex{},
-		next: handler,
+		mtx:           &sync.Mutex{},
+		next:          handler,
+		stickySession: nil,
 	}
 	for _, o := range opts {
 		if err := o(rb); err != nil {
@@ -134,25 +145,47 @@ func (rb *Rebalancer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if log.GetLevel() >= log.DebugLevel {
 		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/roundrobin/rebalancer: begin ServeHttp on request")
-		defer logEntry.Debug("vulcand/oxy/roundrobin/rebalancer: competed ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/roundrobin/rebalancer: completed ServeHttp on request")
 	}
 
-	pw := &utils.ProxyWriter{W: w}
+	pw := utils.NewProxyWriter(w)
 	start := rb.clock.UtcNow()
-	url, err := rb.next.NextServer()
-	if err != nil {
-		rb.errHandler.ServeHTTP(w, req, err)
-		return
-	}
-
-	if log.GetLevel() >= log.DebugLevel {
-		//log which backend URL we're sending this request to
-		log.WithFields(log.Fields{"Request": utils.DumpHttpRequest(req), "ForwardURL": url}).Debugf("vulcand/oxy/roundrobin/rebalancer: Forwarding this request to URL")
-	}
 
 	// make shallow copy of request before changing anything to avoid side effects
 	newReq := *req
-	newReq.URL = url
+	stuck := false
+
+	if rb.stickySession != nil {
+		cookieUrl, present, err := rb.stickySession.GetBackend(&newReq, rb.Servers())
+
+		if err != nil {
+			log.Warnf("vulcand/oxy/roundrobin/rebalancer: error using server from cookie: %v", err)
+		}
+
+		if present {
+			newReq.URL = cookieUrl
+			stuck = true
+		}
+	}
+
+	if !stuck {
+		url, err := rb.next.NextServer()
+		if err != nil {
+			rb.errHandler.ServeHTTP(w, req, err)
+			return
+		}
+
+		if log.GetLevel() >= log.DebugLevel {
+			//log which backend URL we're sending this request to
+			log.WithFields(log.Fields{"Request": utils.DumpHttpRequest(req), "ForwardURL": url}).Debugf("vulcand/oxy/roundrobin/rebalancer: Forwarding this request to URL")
+		}
+
+		if rb.stickySession != nil {
+			rb.stickySession.StickBackend(url, &w)
+		}
+
+		newReq.URL = url
+	}
 
 	//Emit event to a listener if one exists
 	if rb.requestRewriteListener != nil {
@@ -161,7 +194,7 @@ func (rb *Rebalancer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	rb.next.Next().ServeHTTP(pw, &newReq)
 
-	rb.recordMetrics(url, pw.Code, rb.clock.UtcNow().Sub(start))
+	rb.recordMetrics(newReq.URL, pw.StatusCode(), rb.clock.UtcNow().Sub(start))
 	rb.adjustWeights()
 }
 
@@ -244,11 +277,11 @@ func (rb *Rebalancer) upsertServer(u *url.URL, weight int) error {
 	return nil
 }
 
-func (r *Rebalancer) findServer(u *url.URL) (*rbServer, int) {
-	if len(r.servers) == 0 {
+func (rb *Rebalancer) findServer(u *url.URL) (*rbServer, int) {
+	if len(rb.servers) == 0 {
 		return nil, -1
 	}
-	for i, s := range r.servers {
+	for i, s := range rb.servers {
 		if sameURL(u, s.url) {
 			return s, i
 		}
@@ -286,7 +319,7 @@ func (rb *Rebalancer) adjustWeights() {
 
 func (rb *Rebalancer) applyWeights() {
 	for _, srv := range rb.servers {
-		log.Infof("upsert server %v, weight %v", srv.url, srv.curWeight)
+		log.Debugf("upsert server %v, weight %v", srv.url, srv.curWeight)
 		rb.next.UpsertServer(srv.url, Weight(srv.curWeight))
 	}
 }
@@ -298,7 +331,7 @@ func (rb *Rebalancer) setMarkedWeights() bool {
 		if srv.good {
 			weight := increase(srv.curWeight)
 			if weight <= FSMMaxWeight {
-				log.Infof("increasing weight of %v from %v to %v", srv.url, srv.curWeight, weight)
+				log.Debugf("increasing weight of %v from %v to %v", srv.url, srv.curWeight, weight)
 				srv.curWeight = weight
 				changed = true
 			}
@@ -345,13 +378,13 @@ func (rb *Rebalancer) markServers() bool {
 		}
 	}
 	if len(g) != 0 && len(b) != 0 {
-		log.Infof("bad: %v good: %v, ratings: %v", b, g, rb.ratings)
+		log.Debugf("bad: %v good: %v, ratings: %v", b, g, rb.ratings)
 	}
 	return len(g) != 0 && len(b) != 0
 }
 
 func (rb *Rebalancer) convergeWeights() bool {
-	// If we have previoulsy changed servers try to restore weights to the original state
+	// If we have previously changed servers try to restore weights to the original state
 	changed := false
 	for _, s := range rb.servers {
 		if s.origWeight == s.curWeight {
@@ -359,7 +392,7 @@ func (rb *Rebalancer) convergeWeights() bool {
 		}
 		changed = true
 		newWeight := decrease(s.origWeight, s.curWeight)
-		log.Infof("decreasing weight of %v from %v to %v", s.url, s.curWeight, newWeight)
+		log.Debugf("decreasing weight of %v from %v to %v", s.url, s.curWeight, newWeight)
 		s.curWeight = newWeight
 	}
 	if !changed {

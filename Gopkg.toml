@@ -50,7 +50,7 @@
   name = "github.com/mailgun/metrics"
 
 [[constraint]]
-  revision = "fd192d755b00c968d312d23f521eb0cdc6f66bd0"
+  branch = "master"
   name = "github.com/mailgun/timetools"
 
 [[constraint]]
@@ -62,7 +62,7 @@
   version = "1.0.5"
 
 [[constraint]]
-  revision = "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
+  revision = "adbef6bedf021985587c3c18c9d4b84b2d78f67c"
   name = "github.com/vulcand/oxy"
 
 [[constraint]]

@@ -44,7 +44,7 @@ const (
 )
 
 // Stream is responsible for buffering requests and responses
-// It buffers large reqeuests and responses to disk,
+// It buffers large requests and responses to disk,
 type Stream struct {
 	maxRequestBodyBytes int64
 
@@ -85,7 +85,7 @@ func (s *Stream) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if log.GetLevel() >= log.DebugLevel {
 		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/stream: begin ServeHttp on request")
-		defer logEntry.Debug("vulcand/oxy/stream: competed ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/stream: completed ServeHttp on request")
 	}
 
 	s.next.ServeHTTP(w, req)
