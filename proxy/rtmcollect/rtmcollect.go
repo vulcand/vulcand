@@ -68,7 +68,7 @@ func New(handler http.Handler) (*T, error) {
 // ServeHTTP implements http.Handler.
 func (c *T) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	start := c.clock.UtcNow()
-	pw := &utils.ProxyWriter{W: w}
+	pw := utils.NewProxyWriter(w)
 	c.handler.ServeHTTP(pw, req)
 	diff := c.clock.UtcNow().Sub(start)
 
