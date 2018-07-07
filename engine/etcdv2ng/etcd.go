@@ -426,7 +426,8 @@ func (n *ng) UpsertFrontend(f engine.Frontend, ttl time.Duration) error {
 	if ttl == 0 {
 		return nil
 	}
-	_, err := n.kapi.Set(n.context, n.path("frontends", f.Id), "", &etcd.SetOptions{Dir: true, TTL: ttl})
+	_, err := n.kapi.Set(n.context, n.path("frontends", f.Id), "",
+		&etcd.SetOptions{Dir: true, PrevExist: etcd.PrevExist, TTL: ttl})
 	return convertErr(err)
 }
 
