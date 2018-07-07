@@ -62,7 +62,7 @@
   version = "1.0.5"
 
 [[constraint]]
-  revision = "adbef6bedf021985587c3c18c9d4b84b2d78f67c"
+  revision = "c52e3e446ec6a8a2ee1fc7a9cc85a06e999b05ca"
   name = "github.com/vulcand/oxy"
 
 [[constraint]]
