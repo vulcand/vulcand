@@ -25,8 +25,8 @@
 [[projects]]
   name = "github.com/codegangsta/cli"
   packages = ["."]
-  revision = "0bdeddeeb0f650497d603c4ad7b20cfe685682f6"
-  version = "v1.19.1"
+  revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
+  version = "v1.20.0"
 
 [[projects]]
   name = "github.com/coreos/etcd"
@@ -76,8 +76,8 @@
 [[projects]]
   name = "github.com/gorilla/context"
   packages = ["."]
-  revision = "1ea25387ff6f684839d82767c1733ff4d4d15d0a"
-  version = "v1.1"
+  revision = "08b5f424b9271eedf6f9f0ce86cb9396ed337a42"
+  version = "v1.1.1"
 
 [[projects]]
   name = "github.com/gorilla/mux"
@@ -103,14 +103,27 @@
   version = "v0.1.0"
 
 [[projects]]
+  name = "github.com/kr/pretty"
+  packages = ["."]
+  revision = "73f6ac0b30a98e433b289500d779f50c1a6f0712"
+  version = "v0.1.0"
+
+[[projects]]
+  name = "github.com/kr/text"
+  packages = ["."]
+  revision = "e2ffdb16a802fe2bb95e2e35ff34f0e53aeef34f"
+  version = "v0.1.0"
+
+[[projects]]
   name = "github.com/mailgun/metrics"
   packages = ["."]
   revision = "2b3c4565aafdcd40c8069e50de08ac5379787943"
 
 [[projects]]
+  branch = "master"
   name = "github.com/mailgun/minheap"
   packages = ["."]
-  revision = "7c28d80e2ada649fc8ab1a37b86d30a2633bd47c"
+  revision = "3dbe6c6bf55f94c5efcf460dc7f86830c21a90b2"
 
 [[projects]]
   branch = "master"
@@ -194,31 +207,54 @@
   revision = "76eec36fa14229c4b25bb894c2d0e591527af429"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/net"
   packages = [
     "context",
+    "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
     "internal/timeseries",
-    "lex/httplex",
     "trace"
   ]
-  revision = "45e771701b814666a7eb299e6c7a57d0b1799e91"
+  revision = "32a936f46389aa10549d60bd7833e54b01685d09"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows"
   ]
-  revision = "d75a52659825e75fff6158388dddc6a5b04f9ba5"
+  revision = "3c6ecd8f22c6f40fbeec94c000a069d7d87c7624"
+
+[[projects]]
+  name = "golang.org/x/text"
+  packages = [
+    "collate",
+    "collate/build",
+    "internal/colltab",
+    "internal/gen",
+    "internal/tag",
+    "internal/triegen",
+    "internal/ucd",
+    "language",
+    "secure/bidirule",
+    "transform",
+    "unicode/bidi",
+    "unicode/cldr",
+    "unicode/norm",
+    "unicode/rangetable"
+  ]
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
 
 [[projects]]
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "ff3583edef7de132f219f0efc00e097cabcc0ec0"
+  revision = "8b2cc369ab52e0003a878865c9372afdd6ca5c5a"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -257,7 +293,7 @@
   branch = "v1"
   name = "gopkg.in/check.v1"
   packages = ["."]
-  revision = "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec"
+  revision = "788fd78401277ebd861206a03c884797c6ec5541"
 
 [[projects]]
   branch = "v2"
@@ -266,11 +302,11 @@
     "bson",
     "internal/json"
   ]
-  revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
+  revision = "9856a29383ce1c59f308dd1cf0363a79b5bef6b5"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "64a18ae1fe4239f347f7da5af740d88bbfe18c431d0bdc4abf80d27192e3fd38"
+  inputs-digest = "77b68beaf805902f79d461aad27f872d81071f2cb83e5dfbfb29a00ad671fe4b"
   solver-name = "gps-cdcl"
   solver-version = 1

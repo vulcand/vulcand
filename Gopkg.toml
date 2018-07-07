@@ -74,7 +74,7 @@
   name = "golang.org/x/crypto"
 
 [[constraint]]
-  revision = "45e771701b814666a7eb299e6c7a57d0b1799e91"
+  branch = "master"
   name = "golang.org/x/net"
 
 [[constraint]]
