@@ -255,7 +255,7 @@ func (s *StaplerSuite) TestResponderUnavailable(c *C) {
 	// The server discarded the event because the server is unreachable
 	select {
 	case <-s.st.discardC:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(1200 * time.Millisecond):
 		c.Fatalf("timeout waiting for discard")
 	}
 
@@ -267,7 +267,7 @@ func (s *StaplerSuite) TestResponderUnavailable(c *C) {
 	case update = <-events:
 		c.Assert(update, NotNil)
 		c.Assert(update.Err, NotNil)
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(1200 * time.Millisecond):
 		c.Fatalf("timeout waiting for update")
 	}
 }
