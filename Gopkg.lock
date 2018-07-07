@@ -179,7 +179,7 @@
     "trace",
     "utils"
   ]
-  revision = "c52e3e446ec6a8a2ee1fc7a9cc85a06e999b05ca"
+  revision = "21cae4f7b50bbd9523e7fa7e65b68d90b51aee3c"
 
 [[projects]]
   name = "github.com/vulcand/predicate"
@@ -307,6 +307,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "df6b142813e046ae9c12128f2628ef75eb849d9410bb7b6c121b80942cf2d689"
+  inputs-digest = "2ab697ee7234dc8c0d61b12b79f6ddd5d116603bc3505888249d197f36b19103"
   solver-name = "gps-cdcl"
   solver-version = 1
