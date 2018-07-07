@@ -54,7 +54,7 @@ func New(nodes []string, etcdKey string, registry *plugin.Registry, options Opti
 	n := &ng{
 		nodes:    nodes,
 		registry: registry,
-		etcdKey:  "/" + etcdKey,
+		etcdKey:  etcdKey,
 		options:  options,
 	}
 	if err := n.connect(); err != nil {
