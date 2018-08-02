@@ -42,8 +42,8 @@
     "pkg/types",
     "version"
   ]
-  revision = "33245c6b5b49130ca99280408fadfab01aac0e48"
-  version = "v3.3.8"
+  revision = "fca8add78a9d926166eb739b8e4a124434025ba3"
+  version = "v3.3.9"
 
 [[projects]]
   name = "github.com/coreos/go-semver"
@@ -58,8 +58,8 @@
     "proto",
     "protoc-gen-gogo/descriptor"
   ]
-  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
-  version = "v1.0.0"
+  revision = "636bf0302bc95575d69441b25a2603156ffdddf1"
+  version = "v1.1.1"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -93,8 +93,8 @@
 [[projects]]
   name = "github.com/gravitational/trace"
   packages = ["."]
-  revision = "792b9868cdf9d499e09b47f167c553e786a0e235"
-  version = "1.1.4"
+  revision = "3318e711adee0b3f48d3399ebf5aaddf329a2b4f"
+  version = "1.1.5"
 
 [[projects]]
   name = "github.com/jonboulle/clockwork"
@@ -155,8 +155,8 @@
     ".",
     "hooks/syslog"
   ]
-  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
-  version = "v1.0.5"
+  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
+  version = "v1.0.6"
 
 [[projects]]
   name = "github.com/ugorji/go"
@@ -218,7 +218,7 @@
     "internal/timeseries",
     "trace"
   ]
-  revision = "32a936f46389aa10549d60bd7833e54b01685d09"
+  revision = "f4c29de78a2a91c00474a2e689954305c350adf9"
 
 [[projects]]
   branch = "master"
@@ -227,7 +227,7 @@
     "unix",
     "windows"
   ]
-  revision = "3c6ecd8f22c6f40fbeec94c000a069d7d87c7624"
+  revision = "3dc4335d56c789b04b0ba99b7a37249d9b614314"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -254,7 +254,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "8b2cc369ab52e0003a878865c9372afdd6ca5c5a"
+  revision = "daca94659cb50e9f37c1b834680f2e46358f10b0"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -273,7 +273,9 @@
     "internal",
     "internal/backoff",
     "internal/channelz",
+    "internal/envconfig",
     "internal/grpcrand",
+    "internal/transport",
     "keepalive",
     "metadata",
     "naming",
@@ -283,11 +285,10 @@
     "resolver/passthrough",
     "stats",
     "status",
-    "tap",
-    "transport"
+    "tap"
   ]
-  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
-  version = "v1.13.0"
+  revision = "32fb0ac620c32ba40a4626ddf94d90d12cce3455"
+  version = "v1.14.0"
 
 [[projects]]
   branch = "v1"
@@ -307,6 +308,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2ab697ee7234dc8c0d61b12b79f6ddd5d116603bc3505888249d197f36b19103"
+  inputs-digest = "e9c33d8e0c6a2c2167d235b08372a097e6cdf38174c531369afa7d57befbab1d"
   solver-name = "gps-cdcl"
   solver-version = 1
