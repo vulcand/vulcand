@@ -286,9 +286,7 @@ func (s *ServerSuite) TestServerHTTPS(c *C) {
 }
 
 func (s *ServerSuite) TestServerUpdateHTTPS(c *C) {
-	var req *http.Request
 	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
-		req = r
 		w.Write([]byte("hi https"))
 	})
 	defer e.Close()
@@ -437,9 +435,7 @@ func (s *ServerSuite) TestServerHTTPSAutoCert(c *C) {
 // Test AutoCert failure when an invalid host is requested.
 //
 func (s *ServerSuite) TestServerHTTPSAutoCertInvalid(c *C) {
-	var req *http.Request
 	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
-		req = r
 		w.Write([]byte("hi https"))
 	})
 	defer e.Close()
@@ -648,9 +644,7 @@ func (s *ServerSuite) TestHostAutoCertCache(c *C) {
 // Test AutoCert OCSP stapling.
 //
 func (s *ServerSuite) TestServerHTTPSAutoCertOCSPStapling(c *C) {
-	var req *http.Request
 	e := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
-		req = r
 		w.Write([]byte("hi https"))
 	})
 	defer e.Close()
@@ -1437,7 +1431,7 @@ func (s *ServerSuite) TestGetStats(c *C) {
 		GETResponse(c, MakeURL(liCfg, "/foo"))
 	}
 
-	stats, err := s.mux.ServerStats(engine.ServerKey{beCfg.Key(), beSrvCfg1.GetId()})
+	stats, err := s.mux.ServerStats(engine.ServerKey{BackendKey: beCfg.Key(), Id: beSrvCfg1.GetId()})
 	c.Assert(err, IsNil)
 	c.Assert(stats, NotNil)
 

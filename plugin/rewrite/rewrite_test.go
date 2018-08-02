@@ -212,9 +212,8 @@ func (s *RewriteSuite) TestUnknownHeader(c *C) {
 }
 
 func (s *RewriteSuite) TestUnknownVar(c *C) {
-	var outURL string
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		outURL = rawURL(req)
+		rawURL(req)
 		w.Write([]byte("hello"))
 	})
 
