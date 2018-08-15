@@ -68,16 +68,16 @@ func New(handler http.Handler) (*T, error) {
 // ServeHTTP implements http.Handler.
 func (c *T) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	start := c.clock.UtcNow()
-	pw := &utils.ProxyWriter{W: w}
+	pw := utils.NewProxyWriter(w)
 	c.handler.ServeHTTP(pw, req)
 	diff := c.clock.UtcNow().Sub(start)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.rtm.Record(pw.Code, diff)
+	c.rtm.Record(pw.StatusCode(), diff)
 	if beSrvEnt, ok := c.beSrvRTMs[backend.NewSrvURLKey(req.URL)]; ok {
-		beSrvEnt.rtm.Record(pw.Code, diff)
+		beSrvEnt.rtm.Record(pw.StatusCode(), diff)
 	}
 }
 

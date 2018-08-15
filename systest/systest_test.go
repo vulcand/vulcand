@@ -94,8 +94,8 @@ func (s VESuite) path(keys ...string) string {
 }
 
 func (s *VESuite) SetUpTest(c *C) {
-	s.ctx, s.cancelFunc = context.WithTimeout(context.Background(), 5 * time.Second)
-	
+	s.ctx, s.cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+
 	// Delete all values under the given prefix
 	_, err := s.client.Get(s.ctx, s.etcdPrefix, nil)
 	if err != nil && etcd.IsKeyNotFound(err) {

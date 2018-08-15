@@ -1,5 +1,5 @@
 /*
-package stream provides http.Handler middleware that passes-through the entire request
+Package stream provides http.Handler middleware that passes-through the entire request
 
 Stream works around several limitations caused by buffering implementations, but
 also introduces certain risks.
@@ -39,12 +39,12 @@ import (
 )
 
 const (
-	// No limit by default
+	// DefaultMaxBodyBytes No limit by default
 	DefaultMaxBodyBytes = -1
 )
 
 // Stream is responsible for buffering requests and responses
-// It buffers large reqeuests and responses to disk,
+// It buffers large requests and responses to disk,
 type Stream struct {
 	maxRequestBodyBytes int64
 
@@ -54,6 +54,8 @@ type Stream struct {
 
 	next       http.Handler
 	errHandler utils.ErrorHandler
+
+	log *log.Logger
 }
 
 // New returns a new streamer middleware. New() function supports optional functional arguments
@@ -64,6 +66,8 @@ func New(next http.Handler, setters ...optSetter) (*Stream, error) {
 		maxRequestBodyBytes: DefaultMaxBodyBytes,
 
 		maxResponseBodyBytes: DefaultMaxBodyBytes,
+
+		log: log.StandardLogger(),
 	}
 	for _, s := range setters {
 		if err := s(strm); err != nil {
@@ -71,6 +75,16 @@ func New(next http.Handler, setters ...optSetter) (*Stream, error) {
 		}
 	}
 	return strm, nil
+}
+
+// Logger defines the logger the streamer will use.
+//
+// It defaults to logrus.StandardLogger(), the global logger used by logrus.
+func Logger(l *log.Logger) optSetter {
+	return func(s *Stream) error {
+		s.log = l
+		return nil
+	}
 }
 
 type optSetter func(s *Stream) error
@@ -82,10 +96,10 @@ func (s *Stream) Wrap(next http.Handler) error {
 }
 
 func (s *Stream) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if log.GetLevel() >= log.DebugLevel {
-		logEntry := log.WithField("Request", utils.DumpHttpRequest(req))
+	if s.log.Level >= log.DebugLevel {
+		logEntry := s.log.WithField("Request", utils.DumpHttpRequest(req))
 		logEntry.Debug("vulcand/oxy/stream: begin ServeHttp on request")
-		defer logEntry.Debug("vulcand/oxy/stream: competed ServeHttp on request")
+		defer logEntry.Debug("vulcand/oxy/stream: completed ServeHttp on request")
 	}
 
 	s.next.ServeHTTP(w, req)

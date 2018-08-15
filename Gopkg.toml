@@ -50,10 +50,6 @@
   name = "github.com/mailgun/metrics"
 
 [[constraint]]
-  revision = "fd192d755b00c968d312d23f521eb0cdc6f66bd0"
-  name = "github.com/mailgun/timetools"
-
-[[constraint]]
   name = "github.com/pkg/errors"
   version = "0.8.0"
 
@@ -62,20 +58,12 @@
   version = "1.0.5"
 
 [[constraint]]
-  revision = "d11463e5dffa3f8ae94ae9005b10fc37fbb4d301"
+  revision = "21cae4f7b50bbd9523e7fa7e65b68d90b51aee3c"
   name = "github.com/vulcand/oxy"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/vulcand/route"
 
 [[constraint]]
   revision = "76eec36fa14229c4b25bb894c2d0e591527af429"
   name = "golang.org/x/crypto"
-
-[[constraint]]
-  revision = "45e771701b814666a7eb299e6c7a57d0b1799e91"
-  name = "golang.org/x/net"
 
 [[constraint]]
   branch = "v1"
