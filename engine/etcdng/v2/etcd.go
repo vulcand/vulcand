@@ -278,7 +278,7 @@ func (n *ng) GetHosts() ([]engine.Host, error) {
 	for _, hostKey := range vals {
 		host, err := n.GetHost(engine.HostKey{Name: suffix(hostKey)})
 		if err != nil {
-			log.Warningf("Invalid host config for %v: %v\n", hostKey, err)
+			log.WithError(err).Warningf("invalid host config for '%s'", hostKey)
 			continue
 		}
 		hosts = append(hosts, *host)
@@ -346,7 +346,7 @@ func (n *ng) GetListeners() ([]engine.Listener, error) {
 	for _, p := range vals {
 		l, err := n.GetListener(engine.ListenerKey{Id: suffix(p.Key)})
 		if err != nil {
-			log.Warningf("Invalid listener config for %v: %v\n", n.etcdKey, err)
+			log.WithError(err).Warningf("invalid listener config for '%s'", n.etcdKey)
 			continue
 		}
 		ls = append(ls, *l)
@@ -495,7 +495,8 @@ func (n *ng) GetMiddlewares(fk engine.FrontendKey) ([]engine.Middleware, error) 
 	for _, p := range keys {
 		m, err := n.GetMiddleware(engine.MiddlewareKey{Id: suffix(p.Key), FrontendKey: fk})
 		if err != nil {
-			log.Warningf("Invalid middleware config for %v (frontend: %v): %v\n", p.Key, fk, err)
+			log.WithError(err).
+				Warningf("invalid middleware config for '%s' (frontend: %s)", p.Key, fk.Id)
 			continue
 		}
 		ms = append(ms, *m)
@@ -548,7 +549,8 @@ func (n *ng) GetServers(bk engine.BackendKey) ([]engine.Server, error) {
 	for _, p := range keys {
 		srv, err := n.GetServer(engine.ServerKey{Id: suffix(p.Key), BackendKey: bk})
 		if err != nil {
-			log.Warningf("Invalid server config for %v (backend: %v): %v\n", p.Key, bk, err)
+			log.WithError(err).
+				Warningf("invalid server config for '%s' (backend: %s)", p.Key, bk.Id)
 			continue
 		}
 		svs = append(svs, *srv)
@@ -624,7 +626,7 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 		if err != nil {
 			switch err {
 			case context.Canceled:
-				log.Infof("Stop watching: graceful shutdown")
+				log.Infof("stop watching: graceful shutdown")
 				return nil
 			default:
 				log.Errorf("unexpected error: %s, stop watching", err)
@@ -634,7 +636,7 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 		log.Infof("%s", responseToString(response))
 		change, err := n.parseChange(response)
 		if err != nil {
-			log.Warningf("Ignore '%s', error: %s", responseToString(response), err)
+			log.WithError(err).Warningf("ignore '%s'", responseToString(response))
 			continue
 		}
 		if change != nil {

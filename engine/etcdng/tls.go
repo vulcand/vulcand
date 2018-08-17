@@ -18,7 +18,7 @@ func NewTLSConfig(opt Options) *tls.Config {
 				rpool = x509.NewCertPool()
 				rpool.AppendCertsFromPEM(pemBytes)
 			} else {
-				log.Errorf("Error reading Etcd Cert CA File: %v", err)
+				log.WithError(err).Errorf("Error reading etcd cert CA File")
 			}
 		}
 
@@ -29,7 +29,7 @@ func NewTLSConfig(opt Options) *tls.Config {
 				InsecureSkipVerify: opt.InsecureSkipVerify,
 			}
 		} else {
-			log.Errorf("Error loading KeyPair for TLS client: %v", err)
+			log.WithError(err).Errorf("Error loading KeyPair for TLS client")
 		}
 	}
 
