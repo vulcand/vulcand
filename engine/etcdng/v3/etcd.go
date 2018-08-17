@@ -598,7 +598,8 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 	defer watcher.Close()
 
 	log.Infof("begin watching: etcd revision %d", afterIdx)
-	watchChan := watcher.Watch(n.context, n.etcdKey, etcd.WithRev(int64(afterIdx)), etcd.WithPrefix())
+	watchChan := watcher.Watch(etcd.WithRequireLeader(n.context),
+		n.etcdKey, etcd.WithRev(int64(afterIdx)), etcd.WithPrefix())
 
 	for response := range watchChan {
 		if response.Canceled {

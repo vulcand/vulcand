@@ -218,7 +218,7 @@
     "internal/timeseries",
     "trace"
   ]
-  revision = "aaf60122140d3fcf75376d319f0554393160eb50"
+  revision = "f4c29de78a2a91c00474a2e689954305c350adf9"
 
 [[projects]]
   branch = "master"
@@ -227,7 +227,7 @@
     "unix",
     "windows"
   ]
-  revision = "1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded"
+  revision = "3dc4335d56c789b04b0ba99b7a37249d9b614314"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -254,7 +254,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "d0a8f471bba2dbb160885b0000d814ee5d559bad"
+  revision = "daca94659cb50e9f37c1b834680f2e46358f10b0"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -308,27 +308,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-  inputs-digest = "354b9d63f2c1265f1681f7f5a9e0051a33ff71e0bc28b5be9e51517ae63dcf92"
-=======
-=======
->>>>>>> updated etcd client to 3.3.8
-<<<<<<< HEAD
-  inputs-digest = "e9c33d8e0c6a2c2167d235b08372a097e6cdf38174c531369afa7d57befbab1d"
-=======
-  inputs-digest = "111729d8c9d76f8b71214ae79cb5d9f806b0be2e679d7be21d14d642685ae85a"
->>>>>>> pin library dependencies
-<<<<<<< HEAD
->>>>>>> pin library dependencies
-=======
-=======
-  inputs-digest = "2a9b021991473fd00a46e043e40bccd910ea3a8e19b3cf34a6f5f424b0af0dc1"
->>>>>>> updated etcd client to 3.3.8
->>>>>>> updated etcd client to 3.3.8
-=======
-  inputs-digest = "6e939465939f59104800362139a51732f24dde03c85341c525e4b4ac4b4fd714"
->>>>>>> Ran goimport on sources and renamed imports to etcdvXng in services
+  inputs-digest = "aeac8debb73a4544f68f05c091ab7cb632e37afcf2b000c1f5a36cb16295bebc"
   solver-name = "gps-cdcl"
   solver-version = 1
