@@ -191,7 +191,7 @@
   branch = "master"
   name = "github.com/vulcand/route"
   packages = ["."]
-  revision = "61904570391bdf22252f8e376b49a57593d9124c"
+  revision = "81ef6c58993f941040084f06336c46a0b684dffb"
 
 [[projects]]
   name = "golang.org/x/crypto"
@@ -308,6 +308,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e9c33d8e0c6a2c2167d235b08372a097e6cdf38174c531369afa7d57befbab1d"
+  inputs-digest = "354b9d63f2c1265f1681f7f5a9e0051a33ff71e0bc28b5be9e51517ae63dcf92"
   solver-name = "gps-cdcl"
   solver-version = 1

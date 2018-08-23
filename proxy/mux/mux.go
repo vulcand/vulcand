@@ -175,6 +175,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 		m.servers[lsnCfg.Key()] = srv
 	}
 
+	routes := make(map[string]interface{})
 	for _, fes := range ss.FrontendSpecs {
 		feKey := engine.FrontendKey{fes.Frontend.Id}
 		beEnt, ok := m.backends[engine.BackendKey{Id: fes.Frontend.BackendId}]
@@ -187,12 +188,13 @@ func (m *mux) Init(ss engine.Snapshot) error {
 			mwCfgs[engine.MiddlewareKey{FrontendKey: feKey, Id: mw.Id}] = mw
 		}
 		fe := frontend.New(fes.Frontend, beEnt.backend, m.options, mwCfgs, m.frontendListeners)
-		if err := m.router.Handle(fes.Frontend.Route, fe); err != nil {
-			return errors.Wrapf(err, "cannot add route %v for frontend %v",
-				fes.Frontend.Route, fes.Frontend.Id)
-		}
+		routes[fes.Frontend.Route] = fe
 		m.frontends[feKey] = fe
 		beEnt.frontends[feKey] = fe
+	}
+
+	if err := m.router.InitHandlers(routes); err != nil {
+		return errors.Wrapf(err, "failed to init frontend handlers: %v", err)
 	}
 	return nil
 }
