@@ -1,13 +1,10 @@
 // package etcdng contains the implementation of the Etcd-backed engine, where all vulcand properties are implemented as directories or keys.
 // this engine is capable of watching the changes and generating events.
-package etcdv2ng
+package v2
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"regexp"
@@ -17,6 +14,7 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"
+	"github.com/vulcand/vulcand/engine/etcdng"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/utils/json"
@@ -32,20 +30,11 @@ type ng struct {
 	context       context.Context
 	cancelFunc    context.CancelFunc
 	logsev        log.Level
-	options       Options
+	options       etcdng.Options
 	requireQuorum bool
 }
 
-type Options struct {
-	EtcdConsistency         string
-	EtcdCaFile              string
-	EtcdCertFile            string
-	EtcdKeyFile             string
-	EtcdSyncIntervalSeconds int64
-	Box                     *secret.Box
-}
-
-func New(nodes []string, etcdKey string, registry *plugin.Registry, options Options) (engine.Engine, error) {
+func New(nodes []string, etcdKey string, registry *plugin.Registry, options etcdng.Options) (engine.Engine, error) {
 	n := &ng{
 		nodes:    nodes,
 		registry: registry,
@@ -55,8 +44,8 @@ func New(nodes []string, etcdKey string, registry *plugin.Registry, options Opti
 	if err := n.reconnect(); err != nil {
 		return nil, err
 	}
-	if options.EtcdSyncIntervalSeconds > 0 {
-		go n.client.AutoSync(n.context, time.Duration(n.options.EtcdSyncIntervalSeconds)*time.Second)
+	if options.SyncIntervalSeconds > 0 {
+		go n.client.AutoSync(n.context, time.Duration(n.options.SyncIntervalSeconds)*time.Second)
 	}
 	return n, nil
 }
@@ -240,7 +229,7 @@ func (n *ng) reconnect() error {
 	n.client = client
 	n.kapi = etcd.NewKeysAPI(n.client)
 	n.requireQuorum = true
-	if n.options.EtcdConsistency == "WEAK" {
+	if n.options.Consistency == "WEAK" {
 		n.requireQuorum = false
 	}
 	return nil
@@ -250,35 +239,13 @@ func (n *ng) getEtcdClientConfig() etcd.Config {
 	return etcd.Config{
 		Endpoints: n.nodes,
 		Transport: n.newHttpTransport(),
+		Username:  n.options.Username,
+		Password:  n.options.Password,
 	}
 }
 
 func (n *ng) newHttpTransport() etcd.CancelableTransport {
-
-	var cc *tls.Config = nil
-
-	if n.options.EtcdCertFile != "" && n.options.EtcdKeyFile != "" {
-		var rpool *x509.CertPool = nil
-		if n.options.EtcdCaFile != "" {
-			if pemBytes, err := ioutil.ReadFile(n.options.EtcdCaFile); err == nil {
-				rpool = x509.NewCertPool()
-				rpool.AppendCertsFromPEM(pemBytes)
-			} else {
-				log.Errorf("Error reading Etcd Cert CA File: %v", err)
-			}
-		}
-
-		if tlsCert, err := tls.LoadX509KeyPair(n.options.EtcdCertFile, n.options.EtcdKeyFile); err == nil {
-			cc = &tls.Config{
-				RootCAs:            rpool,
-				Certificates:       []tls.Certificate{tlsCert},
-				InsecureSkipVerify: true,
-			}
-		} else {
-			log.Errorf("Error loading KeyPair for TLS client: %v", err)
-		}
-
-	}
+	cc := etcdng.NewTLSConfig(n.options)
 
 	//Copied from etcd.DefaultTransport declaration
 	//Wasn't sure how to make a clean reliable deep-copy, and instead
@@ -311,7 +278,7 @@ func (n *ng) GetHosts() ([]engine.Host, error) {
 	for _, hostKey := range vals {
 		host, err := n.GetHost(engine.HostKey{Name: suffix(hostKey)})
 		if err != nil {
-			log.Warningf("Invalid host config for %v: %v\n", hostKey, err)
+			log.WithError(err).Warningf("invalid host config for '%s'", hostKey)
 			continue
 		}
 		hosts = append(hosts, *host)
@@ -379,7 +346,7 @@ func (n *ng) GetListeners() ([]engine.Listener, error) {
 	for _, p := range vals {
 		l, err := n.GetListener(engine.ListenerKey{Id: suffix(p.Key)})
 		if err != nil {
-			log.Warningf("Invalid listener config for %v: %v\n", n.etcdKey, err)
+			log.WithError(err).Warningf("invalid listener config for '%s'", n.etcdKey)
 			continue
 		}
 		ls = append(ls, *l)
@@ -528,7 +495,8 @@ func (n *ng) GetMiddlewares(fk engine.FrontendKey) ([]engine.Middleware, error) 
 	for _, p := range keys {
 		m, err := n.GetMiddleware(engine.MiddlewareKey{Id: suffix(p.Key), FrontendKey: fk})
 		if err != nil {
-			log.Warningf("Invalid middleware config for %v (frontend: %v): %v\n", p.Key, fk, err)
+			log.WithError(err).
+				Warningf("invalid middleware config for '%s' (frontend: %s)", p.Key, fk.Id)
 			continue
 		}
 		ms = append(ms, *m)
@@ -581,7 +549,8 @@ func (n *ng) GetServers(bk engine.BackendKey) ([]engine.Server, error) {
 	for _, p := range keys {
 		srv, err := n.GetServer(engine.ServerKey{Id: suffix(p.Key), BackendKey: bk})
 		if err != nil {
-			log.Warningf("Invalid server config for %v (backend: %v): %v\n", p.Key, bk, err)
+			log.WithError(err).
+				Warningf("invalid server config for '%s' (backend: %s)", p.Key, bk.Id)
 			continue
 		}
 		svs = append(svs, *srv)
@@ -657,7 +626,7 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 		if err != nil {
 			switch err {
 			case context.Canceled:
-				log.Infof("Stop watching: graceful shutdown")
+				log.Infof("stop watching: graceful shutdown")
 				return nil
 			default:
 				log.Errorf("unexpected error: %s, stop watching", err)
@@ -667,7 +636,7 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 		log.Infof("%s", responseToString(response))
 		change, err := n.parseChange(response)
 		if err != nil {
-			log.Warningf("Ignore '%s', error: %s", responseToString(response), err)
+			log.WithError(err).Warningf("ignore '%s'", responseToString(response))
 			continue
 		}
 		if change != nil {

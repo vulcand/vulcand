@@ -22,8 +22,9 @@ import (
 	logrus_syslog "github.com/sirupsen/logrus/hooks/syslog"
 	"github.com/vulcand/vulcand/api"
 	"github.com/vulcand/vulcand/engine"
-	"github.com/vulcand/vulcand/engine/etcdv2ng"
-	"github.com/vulcand/vulcand/engine/etcdv3ng"
+	"github.com/vulcand/vulcand/engine/etcdng"
+	etcdv2ng "github.com/vulcand/vulcand/engine/etcdng/v2"
+	etcdv3ng "github.com/vulcand/vulcand/engine/etcdng/v3"
 	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/plugin/cacheprovider"
@@ -354,32 +355,32 @@ func (s *Service) newEngine() error {
 	}
 	var ng engine.Engine
 
+	options := etcdng.Options{
+		CaFile:              s.options.EtcdCaFile,
+		CertFile:            s.options.EtcdCertFile,
+		KeyFile:             s.options.EtcdKeyFile,
+		Consistency:         s.options.EtcdConsistency,
+		SyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
+		Username:            s.options.EtcdUsername,
+		Password:            s.options.EtcdPassword,
+		InsecureSkipVerify:  s.options.EtcdInsecureSkipVerify,
+		EnableTLS:           s.options.EtcdEnableTLS,
+		Debug:               s.options.EtcdDebug,
+		Box:                 box,
+	}
+
 	if s.options.EtcdApiVersion == 3 {
 		ng, err = etcdv3ng.New(
 			s.options.EtcdNodes,
 			s.options.EtcdKey,
 			s.registry,
-			etcdv3ng.Options{
-				EtcdCaFile:              s.options.EtcdCaFile,
-				EtcdCertFile:            s.options.EtcdCertFile,
-				EtcdKeyFile:             s.options.EtcdKeyFile,
-				EtcdConsistency:         s.options.EtcdConsistency,
-				EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
-				Box: box,
-			})
+			options)
 	} else {
 		ng, err = etcdv2ng.New(
 			s.options.EtcdNodes,
 			s.options.EtcdKey,
 			s.registry,
-			etcdv2ng.Options{
-				EtcdCaFile:              s.options.EtcdCaFile,
-				EtcdCertFile:            s.options.EtcdCertFile,
-				EtcdKeyFile:             s.options.EtcdKeyFile,
-				EtcdConsistency:         s.options.EtcdConsistency,
-				EtcdSyncIntervalSeconds: s.options.EtcdSyncIntervalSeconds,
-				Box: box,
-			})
+			options)
 	}
 	if err != nil {
 		return err

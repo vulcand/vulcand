@@ -28,6 +28,11 @@ type Options struct {
 	EtcdKeyFile             string
 	EtcdConsistency         string
 	EtcdSyncIntervalSeconds int64
+	EtcdUsername            string
+	EtcdPassword            string
+	EtcdInsecureSkipVerify  bool
+	EtcdEnableTLS           bool
+	EtcdDebug               bool
 
 	Log          string
 	LogSeverity  SeverityFlag
@@ -111,6 +116,11 @@ func ParseCommandLine() (options Options, err error) {
 	flag.StringVar(&options.EtcdKeyFile, "etcdKeyFile", "", "Path to key file for etcd communication")
 	flag.StringVar(&options.EtcdConsistency, "etcdConsistency", "STRONG", "Etcd consistency (STRONG or WEAK)")
 	flag.Int64Var(&options.EtcdSyncIntervalSeconds, "etcdSyncIntervalSeconds", 0, "Interval between updating etcd cluster information. Use 0 to disable any syncing (default behavior.)")
+	flag.StringVar(&options.EtcdUsername, "etcdUsername", "", "Username for etcd auth")
+	flag.StringVar(&options.EtcdPassword, "etcdPassword", "", "Password for etcd auth")
+	flag.BoolVar(&options.EtcdInsecureSkipVerify, "etcdInsecureSkipVerify", false, "Enable TLS for etcd and skip ca verification")
+	flag.BoolVar(&options.EtcdEnableTLS, "etcdEnableTLS", false, "Enable TLS for etcd")
+	flag.BoolVar(&options.EtcdDebug, "etcdDebug", false, "Output etcd debug info to stderr")
 	flag.StringVar(&options.PidPath, "pidPath", "", "Path to write PID file to")
 	flag.IntVar(&options.Port, "port", 8181, "Port to listen on")
 	flag.IntVar(&options.ApiPort, "apiPort", 8182, "Port to provide api on")
