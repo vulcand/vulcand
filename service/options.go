@@ -87,7 +87,8 @@ func (o *listOptions) String() string {
 }
 
 func (o *listOptions) Set(value string) error {
-	*o = append(*o, value)
+	parts := strings.Split(value, ",")
+	*o = append(*o, parts...)
 	return nil
 }
 
