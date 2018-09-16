@@ -596,9 +596,19 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 	watcher := etcd.NewWatcher(n.client)
 	defer watcher.Close()
 
-	log.Infof("begin watching: etcd revision %d", afterIdx)
-	watchChan := watcher.Watch(etcd.WithRequireLeader(n.context),
-		n.etcdKey, etcd.WithRev(int64(afterIdx)), etcd.WithPrefix())
+	var watchChan etcd.WatchChan
+	ready := make(chan struct{})
+	go func() {
+		watchChan = watcher.Watch(etcd.WithRequireLeader(n.context), n.etcdKey,
+			etcd.WithRev(int64(afterIdx)), etcd.WithPrefix())
+		close(ready)
+	}()
+	select {
+	case <-ready:
+		log.Infof("begin watching: etcd revision %d", afterIdx)
+	case <-time.After(time.Second * 10):
+		return errors.New("timed out while waiting for watcher.Watch() to start")
+	}
 
 	for response := range watchChan {
 		if response.Canceled {
