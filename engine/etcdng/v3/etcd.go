@@ -109,18 +109,17 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 			}
 
 			if len(skipMiddlewares) != 1 || !skipMiddlewares[0] {
-				//get all keys under this frontend
-				subKeyValues := filterByPrefix(keyValues, string(keyValue.Key)) //Get all keys below this frontend "/vulcand/frontends/foo/*"
+				// Remove the /frontend suffix and replace with /middlewares
+				prefix := strings.TrimSuffix(string(keyValue.Key), "/frontend") + "/middlewares"
 
-				middlewares := []engine.Middleware{}
-				for _, subKeyValue := range subKeyValues {
-					if middlewareId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "middlewares" {
-						middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
-						if err != nil {
-							return nil, err
-						}
-						middlewares = append(middlewares, *middleware)
+				var middlewares []engine.Middleware
+				for _, subKeyValue := range filterByPrefix(keyValues, prefix) {
+					middlewareId := suffix(string(subKeyValue.Key))
+					middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
+					if err != nil {
+						return nil, err
 					}
+					middlewares = append(middlewares, *middleware)
 				}
 
 				frontendSpec.Middlewares = middlewares
