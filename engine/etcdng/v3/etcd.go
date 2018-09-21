@@ -3,7 +3,6 @@
 package v3
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -13,6 +12,7 @@ import (
 	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"github.com/coreos/etcd/mvcc/mvccpb"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdng"
@@ -101,7 +101,7 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 			frontendId := frontendIds[1]
 			frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), []byte(keyValue.Value), frontendId)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "while parsing frontend '%s'", keyValue.Key)
 			}
 
 			frontendSpec := engine.FrontendSpec{
@@ -117,7 +117,7 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 					middlewareId := suffix(string(subKeyValue.Key))
 					middleware, err := engine.MiddlewareFromJSON([]byte(subKeyValue.Value), n.registry.GetSpec, middlewareId)
 					if err != nil {
-						return nil, err
+						return nil, errors.Wrapf(err, "while parsing middleware '%s'", keyValue.Key)
 					}
 					middlewares = append(middlewares, *middleware)
 				}
@@ -140,7 +140,7 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 			backendId := backendIds[1]
 			backend, err := engine.BackendFromJSON([]byte(keyValue.Value), backendId)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "while parsing backend '%s'", keyValue.Key)
 			}
 
 			backendSpec := engine.BackendSpec{
@@ -156,7 +156,7 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 					if serverId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "servers" {
 						server, err := engine.ServerFromJSON([]byte(subKeyValue.Value), serverId)
 						if err != nil {
-							return nil, err
+							return nil, errors.Wrapf(err, "while parsing server '%s'", keyValue.Key)
 						}
 						servers = append(servers, *server)
 					}
@@ -180,12 +180,12 @@ func (n *ng) parseHosts(keyValues []*mvccpb.KeyValue) ([]engine.Host, error) {
 
 			var sealedHost host
 			if err := json.Unmarshal([]byte(keyValue.Value), &sealedHost); err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "while parsing host '%s'", keyValue.Key)
 			}
 			var keyPair *engine.KeyPair
 			if len(sealedHost.Settings.KeyPair) != 0 {
 				if err := n.openSealedJSONVal(sealedHost.Settings.KeyPair, &keyPair); err != nil {
-					return nil, err
+					return nil, errors.Wrapf(err, "while parsing sealed host '%s'", keyValue.Key)
 				}
 			}
 			host, err := engine.NewHost(hostname, engine.HostSettings{Default: sealedHost.Settings.Default, KeyPair: keyPair, OCSP: sealedHost.Settings.OCSP})
@@ -209,7 +209,7 @@ func (n *ng) parseListeners(keyValues []*mvccpb.KeyValue) ([]engine.Listener, er
 
 			listener, err := engine.ListenerFromJSON([]byte(keyValue.Value), listenerId)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "while parsing listener '%s'", keyValue.Key)
 			}
 			listeners = append(listeners, *listener)
 		}
@@ -281,14 +281,17 @@ func (n *ng) GetHost(key engine.HostKey) (*engine.Host, error) {
 		return nil, err
 	}
 
+	return n.parseHost(host, key.Name)
+}
+
+func (n *ng) parseHost(host *host, name string) (*engine.Host, error) {
 	var keyPair *engine.KeyPair
 	if len(host.Settings.KeyPair) != 0 {
 		if err := n.openSealedJSONVal(host.Settings.KeyPair, &keyPair); err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "while opening sealed json for host '%s'", host.Name)
 		}
 	}
-
-	return engine.NewHost(key.Name, engine.HostSettings{Default: host.Settings.Default, KeyPair: keyPair, OCSP: host.Settings.OCSP})
+	return engine.NewHost(name, engine.HostSettings{Default: host.Settings.Default, KeyPair: keyPair, OCSP: host.Settings.OCSP})
 }
 
 func (n *ng) UpsertHost(h engine.Host) error {
@@ -673,12 +676,18 @@ func (n *ng) parseHostChange(e *etcd.Event) (interface{}, error) {
 
 	switch e.Type {
 	case etcd.EventTypePut:
-		host, err := n.GetHost(engine.HostKey{Name: hostname})
+		var jsonHost host
+		err := json.Unmarshal(e.Kv.Value, &jsonHost)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "during json unmarshal for host change '%s'", e.Kv.Value)
+		}
+
+		parsedHost, err := n.parseHost(&jsonHost, hostname)
+		if err != nil {
+			return nil, errors.Wrapf(err, "while parsing host '%s' for host change", jsonHost.Name)
 		}
 		return &engine.HostUpserted{
-			Host: *host,
+			Host: *parsedHost,
 		}, nil
 	case etcd.EventTypeDelete:
 		return &engine.HostDeleted{

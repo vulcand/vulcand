@@ -3,7 +3,6 @@
 package v2
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	etcd "github.com/coreos/etcd/client"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/engine/etcdng"
@@ -101,7 +101,7 @@ func (n *ng) parseFrontends(node *etcd.Node, skipMiddlewares ...bool) ([]engine.
 			case "frontend":
 				frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), []byte(node.Value), frontendId)
 				if err != nil {
-					return nil, err
+					return nil, errors.Wrapf(err, "while parsing frontend '%s'", node.Key)
 				}
 				frontendSpecs[idx].Frontend = *frontend
 			case "middlewares":
@@ -113,7 +113,7 @@ func (n *ng) parseFrontends(node *etcd.Node, skipMiddlewares ...bool) ([]engine.
 					middlewareId := suffix(node.Key)
 					middleware, err := engine.MiddlewareFromJSON([]byte(node.Value), n.registry.GetSpec, middlewareId)
 					if err != nil {
-						return nil, err
+						return nil, errors.Wrapf(err, "while parsing middleware '%s'", node.Key)
 					}
 					middlewares[idx] = *middleware
 				}
@@ -136,7 +136,7 @@ func (n *ng) parseBackends(node *etcd.Node, skipServers ...bool) ([]engine.Backe
 			case "backend":
 				backend, err := engine.BackendFromJSON([]byte(node.Value), backendId)
 				if err != nil {
-					return nil, err
+					return nil, errors.Wrapf(err, "while parsing backend '%s'", node.Key)
 				}
 				backendSpecs[idx].Backend = *backend
 			case "servers":
@@ -148,7 +148,7 @@ func (n *ng) parseBackends(node *etcd.Node, skipServers ...bool) ([]engine.Backe
 					serverId := suffix(node.Key)
 					server, err := engine.ServerFromJSON([]byte(node.Value), serverId)
 					if err != nil {
-						return nil, err
+						return nil, errors.Wrapf(err, "while parsing server '%s'", node.Key)
 					}
 					servers[idx] = *server
 				}
@@ -171,12 +171,12 @@ func (n *ng) parseHosts(node *etcd.Node) ([]engine.Host, error) {
 			case "host":
 				var sealedHost host
 				if err := json.Unmarshal([]byte(node.Value), &sealedHost); err != nil {
-					return nil, err
+					return nil, errors.Wrapf(err, "while parsing host '%s'", node.Key)
 				}
 				var keyPair *engine.KeyPair
 				if len(sealedHost.Settings.KeyPair) != 0 {
 					if err := n.openSealedJSONVal(sealedHost.Settings.KeyPair, &keyPair); err != nil {
-						return nil, err
+						return nil, errors.Wrapf(err, "while parsing sealed host '%s'", node.Key)
 					}
 				}
 				host, err := engine.NewHost(hostname, engine.HostSettings{Default: sealedHost.Settings.Default, KeyPair: keyPair, OCSP: sealedHost.Settings.OCSP})
@@ -199,7 +199,7 @@ func (n *ng) parseListeners(node *etcd.Node) ([]engine.Listener, error) {
 		listenerId := suffix(node.Key)
 		listener, err := engine.ListenerFromJSON([]byte(node.Value), listenerId)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "while parsing listener '%s'", node.Key)
 		}
 		listeners[idx] = *listener
 	}
