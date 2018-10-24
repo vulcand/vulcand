@@ -361,7 +361,7 @@ func (s *stapler) fanOut() {
 				case c <- u:
 					log.Infof("%v notified %v", s, id)
 				default:
-					log.Infof("%v skipping blocked channel")
+					log.Infof("skipping blocked channel")
 				}
 			}
 		}

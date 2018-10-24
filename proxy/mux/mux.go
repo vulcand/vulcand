@@ -555,7 +555,7 @@ func (m *mux) UpsertMiddleware(feKey engine.FrontendKey, mwCfg engine.Middleware
 }
 
 func (m *mux) DeleteMiddleware(mwKey engine.MiddlewareKey) error {
-	log.Infof("%v DeleteMiddleware(%v %v)", m, &mwKey)
+	log.Infof("%v DeleteMiddleware(%v)", m, &mwKey)
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 

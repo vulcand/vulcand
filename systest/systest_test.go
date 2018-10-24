@@ -161,9 +161,7 @@ func (s *VESuite) TestFrontendCRUD(c *C) {
 }
 
 func (s *VESuite) TestFrontendUpdateLimits(c *C) {
-	var headers http.Header
-	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
-		headers = r.Header
+	server := testutils.NewHandler(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("Hello, I'm totally fine"))
 	})
 	defer server.Close()
