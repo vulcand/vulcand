@@ -392,7 +392,7 @@ func (s *Service) newEngine() error {
 func (s *Service) reportSystemMetrics() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Infof("Recovered in reportSystemMetrics", r)
+			log.Infof("Recovered in reportSystemMetrics (%v)", r)
 		}
 	}()
 	for {
