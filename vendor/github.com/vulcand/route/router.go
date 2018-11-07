@@ -103,10 +103,8 @@ func (e *router) InitRoutes(routes map[string]interface{}) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
+	e.routes = make(map[string]*match, len(routes))
 	for expr, val := range routes {
-		if _, ok := e.routes[expr]; ok {
-			return fmt.Errorf("expression '%s' already exists", expr)
-		}
 		result := &match{val: val}
 		if _, err := parse(expr, result); err != nil {
 			return err
