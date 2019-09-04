@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"sync"
 
-	proxyproto "github.com/armon/go-proxyproto"
+	"github.com/armon/go-proxyproto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/route"
@@ -17,6 +17,7 @@ import (
 	"github.com/vulcand/vulcand/engine"
 	"github.com/vulcand/vulcand/graceful"
 	"github.com/vulcand/vulcand/proxy"
+	"github.com/vulcand/vulcand/proxy/tracing"
 	"github.com/vulcand/vulcand/stapler"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
@@ -45,14 +46,17 @@ type T struct {
 // New creates a new server instance.
 func New(lsnCfg engine.Listener, router http.Handler, stapler stapler.Stapler,
 	connTck conntracker.ConnectionTracker, autoCertCache autocert.Cache, wg *sync.WaitGroup,
+	options proxy.Options,
 ) (*T, error) {
+
 	scopedRouter, err := newScopeRouter(lsnCfg.Scope, router)
 	if err != nil {
 		return nil, err
 	}
 	return &T{
-		lsnCfg: lsnCfg,
-		router: router,
+		lsnCfg:  lsnCfg,
+		router:  router,
+		options: options,
 
 		stapler:       stapler,
 		connTck:       connTck,
@@ -368,14 +372,16 @@ func (s srvState) String() string {
 
 func newScopeRouter(scope string, router http.Handler) (http.Handler, error) {
 	if scope == "" {
-		return router, nil
+		return tracing.NewMiddleware(router), nil
 	}
+
 	scopedRouter := route.NewMux()
 	scopedRouter.SetNotFound(proxy.DefaultNotFound)
 	if err := scopedRouter.Handle(scope, router); err != nil {
 		return nil, err
 	}
-	return scopedRouter, nil
+
+	return tracing.NewMiddleware(scopedRouter), nil
 }
 
 // Returns a GetCertificate function for this host based on AutoCert settings,

@@ -30,6 +30,7 @@ import (
 	"github.com/vulcand/vulcand/plugin/cacheprovider"
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/proxy/builder"
+	"github.com/vulcand/vulcand/proxy/tracing"
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/stapler"
 	"github.com/vulcand/vulcand/supervisor"
@@ -131,6 +132,13 @@ func (s *Service) Start(controlC chan ControlCode) error {
 		return err
 	}
 
+	log.Info("Initialize OpenTracing")
+	// TODO: Only enable jaeger if config requested it
+	traceCloser, err := tracing.NewJaegerClient()
+	if err != nil {
+		return err
+	}
+
 	if err := s.newEngine(); err != nil {
 		return err
 	}
@@ -173,11 +181,17 @@ func (s *Service) Start(controlC chan ControlCode) error {
 			case ControlCodeGracefulShutdown:
 				log.Info("Got graceful shutdown control code")
 				s.supervisor.Stop()
+				if traceCloser != nil {
+					traceCloser.Close()
+				}
 				log.Infof("All servers stopped")
 				return nil
 			case ControlCodeImmediateShutdown:
 				log.Info("Got immediate shutdown control code")
 				s.supervisor.Stop()
+				if traceCloser != nil {
+					traceCloser.Close()
+				}
 				return nil
 			case ControlCodeForkChild:
 				log.Infof("Got fork child control code")
@@ -414,15 +428,15 @@ func (s *Service) newProxy(id int) (proxy.Proxy, error) {
 	}
 
 	return builder.NewProxy(id, s.stapler, proxy.Options{
-		MetricsClient:      s.metricsClient,
-		DialTimeout:        s.options.EndpointDialTimeout,
-		ReadTimeout:        s.options.ServerReadTimeout,
-		WriteTimeout:       s.options.ServerWriteTimeout,
-		MaxHeaderBytes:     s.options.ServerMaxHeaderBytes,
-		DefaultListener:    constructDefaultListener(s.options),
-		TrustForwardHeader: s.options.TrustForwardHeader,
-		NotFoundMiddleware: s.registry.GetNotFoundMiddleware(),
-		Router:             s.registry.GetRouter(),
+		MetricsClient:             s.metricsClient,
+		DialTimeout:               s.options.EndpointDialTimeout,
+		ReadTimeout:               s.options.ServerReadTimeout,
+		WriteTimeout:              s.options.ServerWriteTimeout,
+		MaxHeaderBytes:            s.options.ServerMaxHeaderBytes,
+		DefaultListener:           constructDefaultListener(s.options),
+		TrustForwardHeader:        s.options.TrustForwardHeader,
+		NotFoundMiddleware:        s.registry.GetNotFoundMiddleware(),
+		Router:                    s.registry.GetRouter(),
 		IncomingConnectionTracker: s.registry.GetIncomingConnectionTracker(),
 		FrontendListeners:         s.registry.GetFrontendListeners(),
 		CacheProvider:             cacheProvider,

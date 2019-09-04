@@ -20,7 +20,6 @@ import (
 	"github.com/vulcand/vulcand/proxy"
 	"github.com/vulcand/vulcand/proxy/backend"
 	"github.com/vulcand/vulcand/proxy/rtmcollect"
-	"github.com/vulcand/vulcand/proxy/tracing"
 )
 
 // T represents a frontend instance. It implements http.Handler interface to be
@@ -299,8 +298,13 @@ func (fe *T) rebuild() error {
 		return errors.Wrap(err, "failed to create handler")
 	}
 
-	// Add the open tracing middleware as the top handler
-	topHandler = tracing.NewMiddleware(topHandler)
+	// Add the open tracing middleware as the top handler if tracing is enabled
+	// TODO: Keep this?
+	/*log.Infof("Tracer %+v", fe.tracer)
+	if fe.tracer != nil {
+		log.Info("Adding Middleware")
+		topHandler = tracing.NewMiddleware(topHandler, fe.tracer)
+	}*/
 
 	syncServers(rb, beSrvs, rc)
 

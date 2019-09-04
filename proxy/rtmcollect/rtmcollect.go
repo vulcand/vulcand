@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/mailgun/timetools"
-	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/oxy/utils"
@@ -70,8 +69,9 @@ func New(handler http.Handler) (*T, error) {
 func (c *T) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Extract and finalize the middleware span
-	span := opentracing.SpanFromContext(req.Context())
-	span.Finish()
+	// TODO: Decide what todo with this
+	/*span := opentracing.SpanFromContext(req.Context())
+	span.Finish()*/
 
 	start := c.clock.UtcNow()
 	pw := utils.NewProxyWriter(w)

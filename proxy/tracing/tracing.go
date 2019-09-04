@@ -13,8 +13,9 @@ type Middleware struct {
 }
 
 func NewMiddleware(handler http.Handler) *Middleware {
+	log.Info("Init Trace Middleware")
 	return &Middleware{
-		handler:   handler,
+		handler: handler,
 	}
 }
 
@@ -31,15 +32,19 @@ func (c *Middleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Create the rootSpan using the wire context if available
 	// If wireCtx == nil, a new root span will be created.
 	serverSpan := opentracing.StartSpan(
-		"vulcand",
+		"route",
 		ext.RPCServerOption(wireCtx))
-	defer serverSpan.Finish()
 
 	// This spans all middleware configured for this proxy request
+	// TODO: Still true?
 	// and is Finished() in the rtmcollect package just before the request
 	// is passed off to oxy to be forwarded.
 	span := serverSpan.Tracer().StartSpan("middleware",
 		opentracing.ChildOf(serverSpan.Context()))
+	defer func() {
+		serverSpan.Finish()
+		span.Finish()
+	}()
 
 	// Construct a new context from the http.Request context with our span attached
 	ctx := opentracing.ContextWithSpan(req.Context(), span)
