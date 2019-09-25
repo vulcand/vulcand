@@ -133,11 +133,10 @@ func (s *Service) Start(controlC chan ControlCode) error {
 		return err
 	}
 
-	log.Info("Initialize OpenTracing")
 	var traceCloser io.Closer
-	// TODO: Only enable jaeger if config requested it
 	if s.options.EnableJaegerTracing {
-		traceCloser, err = tracing.NewJaegerClient()
+		log.Info("Initialize OpenTracing")
+		traceCloser, err = tracing.NewJaegerClient(s.options.DebugJaegerTracing)
 		if err != nil {
 			return err
 		}

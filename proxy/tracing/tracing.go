@@ -1,7 +1,11 @@
 package tracing
 
 import (
+	"bufio"
+	"fmt"
+	"net"
 	"net/http"
+	"reflect"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -64,6 +68,24 @@ func (c *Middleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 type ResponseWriterWrapper struct {
 	statusCode int
 	writer     http.ResponseWriter
+}
+
+// CloseNotify this allows downstream connections to be terminated when the client terminates.
+func (rw *ResponseWriterWrapper) CloseNotify() <-chan bool {
+	if cn, ok := rw.writer.(http.CloseNotifier); ok {
+		return cn.CloseNotify()
+	}
+	log.Warningf("Upstream ResponseWriter of type %v does not implement http.CloseNotifier. Returning dummy channel.", reflect.TypeOf(rw.writer))
+	return make(<-chan bool)
+}
+
+// Hijack This allows connections to be hijacked for websockets for instance.
+func (rw *ResponseWriterWrapper) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hi, ok := rw.writer.(http.Hijacker); ok {
+		return hi.Hijack()
+	}
+	log.Warningf("Upstream ResponseWriter of type %v does not implement http.Hijacker. Returning dummy channel.", reflect.TypeOf(rw.writer))
+	return nil, nil, fmt.Errorf("the wrapped response writer, does not implement http.Hijacker. It is of type: %v", reflect.TypeOf(rw.writer))
 }
 
 func (rw *ResponseWriterWrapper) Header() http.Header {

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/armon/go-proxyproto"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/route"
@@ -372,7 +373,10 @@ func (s srvState) String() string {
 
 func newScopeRouter(scope string, router http.Handler) (http.Handler, error) {
 	if scope == "" {
-		return tracing.NewMiddleware(router), nil
+		if opentracing.IsGlobalTracerRegistered() {
+			return tracing.NewMiddleware(router), nil
+		}
+		return router, nil
 	}
 
 	scopedRouter := route.NewMux()
@@ -381,7 +385,10 @@ func newScopeRouter(scope string, router http.Handler) (http.Handler, error) {
 		return nil, err
 	}
 
-	return tracing.NewMiddleware(scopedRouter), nil
+	if opentracing.IsGlobalTracerRegistered() {
+		return tracing.NewMiddleware(scopedRouter), nil
+	}
+	return scopedRouter, nil
 }
 
 // Returns a GetCertificate function for this host based on AutoCert settings,

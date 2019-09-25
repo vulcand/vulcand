@@ -70,8 +70,10 @@ func New(handler http.Handler) (*T, error) {
 func (c *T) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Extract and finalize the middleware span
-	span := opentracing.SpanFromContext(req.Context())
-	span.Finish()
+	if opentracing.IsGlobalTracerRegistered() {
+		span := opentracing.SpanFromContext(req.Context())
+		span.Finish()
+	}
 
 	start := c.clock.UtcNow()
 	pw := utils.NewProxyWriter(w)
