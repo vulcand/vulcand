@@ -298,14 +298,6 @@ func (fe *T) rebuild() error {
 		return errors.Wrap(err, "failed to create handler")
 	}
 
-	// Add the open tracing middleware as the top handler if tracing is enabled
-	// TODO: Keep this?
-	/*log.Infof("Tracer %+v", fe.tracer)
-	if fe.tracer != nil {
-		log.Info("Adding Middleware")
-		topHandler = tracing.NewMiddleware(topHandler, fe.tracer)
-	}*/
-
 	syncServers(rb, beSrvs, rc)
 
 	fe.handler = topHandler

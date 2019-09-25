@@ -13,7 +13,6 @@ type Middleware struct {
 }
 
 func NewMiddleware(handler http.Handler) *Middleware {
-	log.Info("Init Trace Middleware")
 	return &Middleware{
 		handler: handler,
 	}
@@ -32,19 +31,14 @@ func (c *Middleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Create the rootSpan using the wire context if available
 	// If wireCtx == nil, a new root span will be created.
 	serverSpan := opentracing.StartSpan(
-		"route",
+		"vulcand",
 		ext.RPCServerOption(wireCtx))
 
 	// This spans all middleware configured for this proxy request
-	// TODO: Still true?
 	// and is Finished() in the rtmcollect package just before the request
 	// is passed off to oxy to be forwarded.
 	span := serverSpan.Tracer().StartSpan("middleware",
 		opentracing.ChildOf(serverSpan.Context()))
-	defer func() {
-		serverSpan.Finish()
-		span.Finish()
-	}()
 
 	// Construct a new context from the http.Request context with our span attached
 	ctx := opentracing.ContextWithSpan(req.Context(), span)
@@ -58,7 +52,36 @@ func (c *Middleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Errorf("while injecting open tracing headers: %s", err)
 	}
 
+	wrapper := &ResponseWriterWrapper{writer: w}
 	// Downstream middleware can retrieve the span using
 	// opentracing.SpanFromContext(req.Context())
-	c.handler.ServeHTTP(w, req.WithContext(ctx))
+	c.handler.ServeHTTP(wrapper, req.WithContext(ctx))
+
+	serverSpan.SetTag("http.status", wrapper.StatusCode())
+	serverSpan.Finish()
+}
+
+type ResponseWriterWrapper struct {
+	statusCode int
+	writer     http.ResponseWriter
+}
+
+func (rw *ResponseWriterWrapper) Header() http.Header {
+	return rw.writer.Header()
+}
+
+func (rw *ResponseWriterWrapper) Write(b []byte) (int, error) {
+	return rw.writer.Write(b)
+}
+
+func (rw *ResponseWriterWrapper) WriteHeader(statusCode int) {
+	rw.statusCode = statusCode
+	rw.writer.WriteHeader(statusCode)
+}
+
+func (rw *ResponseWriterWrapper) StatusCode() int {
+	if rw.statusCode == 0 {
+		return http.StatusOK
+	}
+	return rw.statusCode
 }

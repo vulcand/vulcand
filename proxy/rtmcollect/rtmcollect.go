@@ -1,6 +1,7 @@
 package rtmcollect
 
 import (
+	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"sync"
 
@@ -69,9 +70,8 @@ func New(handler http.Handler) (*T, error) {
 func (c *T) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Extract and finalize the middleware span
-	// TODO: Decide what todo with this
-	/*span := opentracing.SpanFromContext(req.Context())
-	span.Finish()*/
+	span := opentracing.SpanFromContext(req.Context())
+	span.Finish()
 
 	start := c.clock.UtcNow()
 	pw := utils.NewProxyWriter(w)

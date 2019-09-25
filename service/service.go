@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log/syslog"
 	"net"
@@ -133,10 +134,13 @@ func (s *Service) Start(controlC chan ControlCode) error {
 	}
 
 	log.Info("Initialize OpenTracing")
+	var traceCloser io.Closer
 	// TODO: Only enable jaeger if config requested it
-	traceCloser, err := tracing.NewJaegerClient()
-	if err != nil {
-		return err
+	if s.options.EnableJaegerTracing {
+		traceCloser, err = tracing.NewJaegerClient()
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := s.newEngine(); err != nil {
