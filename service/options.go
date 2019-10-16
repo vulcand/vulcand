@@ -58,6 +58,7 @@ type Options struct {
 
 	EnableJaegerTracing bool
 	DebugJaegerTracing  bool
+	Aliases             mapOptions
 }
 
 type SeverityFlag struct {
@@ -92,6 +93,29 @@ func (o *listOptions) String() string {
 func (o *listOptions) Set(value string) error {
 	parts := strings.Split(value, ",")
 	*o = append(*o, parts...)
+	return nil
+}
+
+// Helper to parse options that are a list of key=values (key1=value1,key2=value2)
+type mapOptions map[string]string
+
+func (o *mapOptions) String() string {
+	return fmt.Sprint(*o)
+}
+
+func (o *mapOptions) Set(value string) error {
+	*o = make(map[string]string)
+
+	parts := strings.Split(value, ",")
+
+	for _, kv := range parts {
+		kvParts := strings.Split(kv, "=")
+		if len(kvParts) != 2 {
+			fmt.Printf("Invalid key=value format '%s'\n", kv)
+			continue
+		}
+		(*o)[kvParts[0]] = kvParts[1]
+	}
 	return nil
 }
 
@@ -156,6 +180,7 @@ func ParseCommandLine() (options Options, err error) {
 	flag.IntVar(&options.MemProfileRate, "memProfileRate", 0, "Heap profile rate in bytes (disabled if 0)")
 	flag.BoolVar(&options.EnableJaegerTracing, "enableJaegerTracing", false, "Enable open tracing support via jaeger")
 	flag.BoolVar(&options.DebugJaegerTracing, "debugJaegerTracing", false, "Trace every request and log the trace")
+	flag.Var(&options.Aliases, "aliases", "Comma separated list of key=values which modify frontend expressions")
 
 	flag.Parse()
 	options, err = validateOptions(options)

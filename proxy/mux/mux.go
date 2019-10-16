@@ -98,6 +98,14 @@ func (m *mux) String() string {
 
 func New(id int, st stapler.Stapler, o proxy.Options) (*mux, error) {
 	o = setDefaults(o)
+
+	// Apply aliases to the router if provided
+	if len(o.Aliases) != 0 {
+		for k, v := range o.Aliases {
+			o.Router.AddAlias(k, v)
+		}
+	}
+
 	m := &mux{
 		id:      id,
 		options: o,

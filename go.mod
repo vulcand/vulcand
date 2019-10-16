@@ -44,7 +44,7 @@ require (
 	github.com/ugorji/go v1.1.1 // indirect
 	github.com/vulcand/oxy v0.0.0-20180707144047-21cae4f7b50b
 	github.com/vulcand/predicate v1.1.0 // indirect
-	github.com/vulcand/route v0.0.0-20181101151700-58b44163b968
+	github.com/vulcand/route v0.0.0-20191025171320-daa4df6c711a
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.3.3 // indirect
 	go.uber.org/atomic v1.4.0 // indirect
