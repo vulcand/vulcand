@@ -55,6 +55,9 @@ type Options struct {
 	TrustForwardHeader bool
 
 	MemProfileRate int
+
+	EnableJaegerTracing bool
+	DebugJaegerTracing  bool
 }
 
 type SeverityFlag struct {
@@ -151,6 +154,8 @@ func ParseCommandLine() (options Options, err error) {
 	flag.BoolVar(&options.TrustForwardHeader, "trustForwardHeader", false, "Whether X-Forwarded-XXX headers should be trusted")
 
 	flag.IntVar(&options.MemProfileRate, "memProfileRate", 0, "Heap profile rate in bytes (disabled if 0)")
+	flag.BoolVar(&options.EnableJaegerTracing, "enableJaegerTracing", false, "Enable open tracing support via jaeger")
+	flag.BoolVar(&options.DebugJaegerTracing, "debugJaegerTracing", false, "Trace every request and log the trace")
 
 	flag.Parse()
 	options, err = validateOptions(options)

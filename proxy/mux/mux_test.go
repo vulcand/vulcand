@@ -364,7 +364,7 @@ func (s *ServerSuite) TestHostKeyPairUpdate(c *C) {
 	defer e.Close()
 
 	b := MakeBatch(Batch{
-		Addr:     "localhost:31000",
+		Addr:     "localhost:31001",
 		Route:    `Path("/")`,
 		URL:      e.URL,
 		Protocol: engine.HTTPS,

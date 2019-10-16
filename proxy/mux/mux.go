@@ -168,7 +168,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 				return errors.Errorf("%v conflicts with existing %v", lsnCfg.Id, srv.Key())
 			}
 		}
-		srv, err := server.New(lsnCfg, m.router, m.stapler, m.incomingConnTracker, m.autoCertCache, &m.wg)
+		srv, err := server.New(lsnCfg, m.router, m.stapler, m.incomingConnTracker, m.autoCertCache, &m.wg, m.options)
 		if err != nil {
 			return errors.Wrapf(err, "failed to create server %v", lsnCfg.Id)
 		}
@@ -406,7 +406,7 @@ func (m *mux) upsertListener(lsnCfg engine.Listener) error {
 	}
 	// Create a new server for the listener.
 	var err error
-	if srv, err = server.New(lsnCfg, m.router, m.stapler, m.incomingConnTracker, m.autoCertCache, &m.wg); err != nil {
+	if srv, err = server.New(lsnCfg, m.router, m.stapler, m.incomingConnTracker, m.autoCertCache, &m.wg, m.options); err != nil {
 		return errors.Wrapf(err, "cannot create server %v", lsnCfg.Key())
 	}
 	m.servers[lsnCfg.Key()] = srv

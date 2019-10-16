@@ -28,3 +28,19 @@ Project info
 | roadmap       | [roadmap.md](ROADMAP.md)                  |
 | build status  | [![Build Status](https://travis-ci.org/vulcand/vulcand.svg?branch=master)](https://travis-ci.org/vulcand/vulcand) |
 
+
+Opentracing Support
+------------
+Vulcand has support for open tracing via the [Jaeger client
+libraries](https://github.com/jaegertracing/jaeger-client-go). Users who wish
+to use tracing support should use the `--enableJaegerTracing` flag and must
+either run the Jaeger client listening on `localhost:6831/udp` or set the
+environment variables `JAEGER_AGENT_HOST` and `JAEGER_AGENT_POST`. (See the
+[Jaeger client libraries](https://github.com/jaegertracing/jaeger-client-go)
+for all available configuration environment variables.
+
+When enabled vulcand will create 2 spans, one span called `vulcand` which
+covers the entire downstream request. The other span called `middleware` which
+only spans the processing of the middleware before the request is routed
+downstream.
+

@@ -257,6 +257,7 @@ func (fe *T) rebuild() error {
 
 	// create middlewares sorted by priority and chain them
 	middlewares := fe.sortedMiddlewares()
+
 	handlers := make([]http.Handler, len(middlewares))
 	for i, mw := range middlewares {
 		var prev http.Handler
