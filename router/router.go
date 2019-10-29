@@ -26,4 +26,7 @@ type Router interface {
 
 	// ServiceHTTP is the http.Handler implementation that allows callers to route their calls to sub-http.Handlers based on route matches.
 	ServeHTTP(http.ResponseWriter, *http.Request)
+
+	// Adds aliases for expressions
+	AddAlias(string, string)
 }

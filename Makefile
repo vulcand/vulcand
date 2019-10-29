@@ -8,7 +8,7 @@ ETCD_FLAGS := VULCAND_TEST_ETCD_NODES=${ETCD_NODES} VULCAND_TEST_ETCD_USER=root 
 VULCAN_FLAGS := ${ETCD_FLAGS} VULCAND_TEST_ETCD_PREFIX=${PREFIX} VULCAND_TEST_API_URL=${API_URL} VULCAND_TEST_SERVICE_URL=${SERVICE_URL} VULCAND_TEST_SEAL_KEY=${SEAL_KEY}
 
 test: clean
-	go test -v ./... -cover
+	go test -p 1 -parallel=1 -v ./... -cover
 
 test-with-etcd: clean
 	${ETCD_FLAGS} go test -v ./... -cover

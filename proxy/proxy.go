@@ -68,6 +68,7 @@ type Options struct {
 	IncomingConnectionTracker conntracker.ConnectionTracker
 	FrontendListeners         plugin.FrontendListeners
 	CacheProvider             cacheprovider.T
+	Aliases                   map[string]string
 }
 
 type NewProxyFn func(id int) (Proxy, error)

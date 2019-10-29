@@ -44,3 +44,16 @@ covers the entire downstream request. The other span called `middleware` which
 only spans the processing of the middleware before the request is routed
 downstream.
 
+Aliased Expressions
+------------
+When running vulcand in a kubernetes DaemonSet vulcand needs to know requests
+from the local node can match `Host("localhost")` rules. This `--aliases` flag
+allows an author of a vulcand DaemonSet to tell vulcand the name of the node it's
+currently running on, such that vulcand correctly routes requests for
+`Host("localhost")`. The `--aliases` flag allows the user to pass in multiple
+aliases separated by comma's.
+
+Example
+```
+$ vulcand --aliases 'Host("localhost")=Host("192.168.1.1")'
+```
