@@ -7,7 +7,9 @@ Quick Start
    :align:   left
 
 
-Vulcand uses Etcd as a configuration backend. See Etcd `getting started guide <https://github.com/coreos/etcd#getting-started>`_ for instructions.
+Vulcand uses Etcd as the default configuration backend. See Etcd `getting
+started guide <https://github.com/coreos/etcd#getting-started>`_ for
+instructions. It also supports an in-memory engine, memng.
 
 The easiest way to install Vulcand is to pull the trusted build from the hub.docker.com and launch it in the container:
 

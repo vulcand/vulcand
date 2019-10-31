@@ -14,7 +14,6 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
-	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/google/btree v1.0.0 // indirect
 	github.com/gorilla/context v1.1.1 // indirect
@@ -29,8 +28,6 @@ require (
 	github.com/mailgun/multibuf v0.0.0-20150714184110-565402cd71fb // indirect
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/pkg/errors v0.8.0
 	github.com/prometheus/client_golang v1.1.0 // indirect

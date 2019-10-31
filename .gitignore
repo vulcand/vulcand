@@ -3,3 +3,4 @@ flymake_*
 *.swp
 *.go~
 *.idea/
+vulcand
