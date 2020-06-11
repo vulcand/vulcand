@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/plugin"

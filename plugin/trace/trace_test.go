@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/vulcand/oxy/testutils"
 	oxytrace "github.com/vulcand/oxy/trace"
 	"github.com/vulcand/vulcand/plugin"
