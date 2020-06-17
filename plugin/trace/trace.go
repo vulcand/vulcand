@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	oxytrace "github.com/vulcand/oxy/trace"
 	"github.com/vulcand/vulcand/plugin"
 )

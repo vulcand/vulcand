@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/vulcand/vulcand/secret"
 )
 

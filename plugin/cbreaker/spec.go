@@ -29,7 +29,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/vulcand/oxy/cbreaker"
 	"github.com/vulcand/vulcand/plugin"
 )
