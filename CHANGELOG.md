@@ -3,6 +3,7 @@
 ## 0.8.0-beta.4 (2020-06-18)
 
 * Switched dependency from codegangsta/cli -> urfave/cli
+* Add memng engine option
 
 ## 0.8.0-beta.3 (2015-01-16)
 
