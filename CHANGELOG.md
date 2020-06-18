@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0-beta.4 (2015-01-16)
+
+* Switched dependency from codegangsta/cli -> urfave/cli
+
+## 0.8.0-beta.3 (2015-01-16)
+
+* CHANGELOG.md
+
 ## 0.8.0-beta.2 (2015-01-16)
 
 * Roll a fix for "Out of memory bug" https://github.com/vulcand/vulcand/issues/156
