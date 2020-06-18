@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/mailgun/timetools"
 	"github.com/vulcand/oxy/ratelimit"
 	"github.com/vulcand/oxy/utils"

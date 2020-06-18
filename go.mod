@@ -7,7 +7,6 @@ require (
 	github.com/bshuster-repo/logrus-logstash-hook v0.0.0-20170822102739-ebf008572634
 	github.com/buger/goterm v0.0.0-20161103140809-cc3942e537b1
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
-	github.com/codegangsta/cli v1.20.0
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.9+incompatible
 	github.com/coreos/go-semver v0.2.0 // indirect
@@ -39,6 +38,7 @@ require (
 	github.com/uber/jaeger-client-go v2.17.0+incompatible
 	github.com/uber/jaeger-lib v2.0.0+incompatible // indirect
 	github.com/ugorji/go v1.1.1 // indirect
+	github.com/urfave/cli v1.22.4
 	github.com/vulcand/oxy v0.0.0-20180707144047-21cae4f7b50b
 	github.com/vulcand/predicate v1.1.0 // indirect
 	github.com/vulcand/route v0.0.0-20191025171320-daa4df6c711a
@@ -51,5 +51,5 @@ require (
 	google.golang.org/grpc v1.19.0
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce // indirect
-	gopkg.in/yaml.v2 v2.2.2 // indirect
+	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )

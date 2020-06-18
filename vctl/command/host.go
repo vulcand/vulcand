@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/vulcand/vulcand/engine"
 )
 

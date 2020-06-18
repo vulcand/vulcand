@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/vulcand/oxy/connlimit"
 	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/plugin"
