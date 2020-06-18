@@ -969,7 +969,7 @@ Circuit breaker can notify external sources on it's state transitions, e.g. it c
 
 **Setup**
 
-Circuit breaker setup is can be done via Etcd, command line or API:
+Circuit breaker setup can be done via Etcd, command line or API:
 
 .. code-block:: etcd
 
