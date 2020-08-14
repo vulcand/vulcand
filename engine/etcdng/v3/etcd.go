@@ -615,11 +615,18 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 
 	for response := range watchChan {
 		if response.Canceled {
-			log.Infof("stop watching: graceful shutdown")
-			return nil
+			log.Warn("etcd watcher cancelled")
+
+			if err := response.Err(); err != nil {
+				log.Errorf("etcd watcher cancelled with error: %v", err)
+				return err
+			}
+
+			return errors.New("etcd watcher failed without error message (canceled)")
 		}
+
 		if err := response.Err(); err != nil {
-			log.Errorf("stop watching: error: %v", err)
+			log.Errorf("etcd watcher received error: %v", err)
 			return err
 		}
 
@@ -641,7 +648,7 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 		}
 	}
 
-	return nil
+	return errors.New("etcd watcher channel closed without graceful stop")
 }
 
 type MatcherFn func(*etcd.Event) (interface{}, error)
