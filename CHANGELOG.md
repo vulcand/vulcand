@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.0 (2020-08-24)
+* Return error when watcher channel closes unexpectedly
+
 ## 0.8.0-beta.5 (2020-06-18)
 
 * Add memng engine option
