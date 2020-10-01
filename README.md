@@ -11,17 +11,17 @@ Vulcand is focused on microservices and API use-cases.
 Features
 --------
 
-* Uses Etcd as a configuration backend.
+* Uses etcd as a configuration backend.
 * API and command line tool.
 * Pluggable middlewares.
-* Support for canary deploys, realtime metrics and resiliency.
+* Support for canary deployments, realtime metrics and resilience.
 
-![Vulcan diagram](http://coreos.com/assets/images/media/vulcan-1-upstream.png "Vulcan diagram")
+![Vulcan diagram](https://coreos.com/assets/images/media/vulcan-1-upstream.png "Vulcan diagram")
 
 Project info
 ------------
 
-| documentation | http://vulcand.github.io/                                   |
+| documentation | https://vulcand.github.io/                                   |
 | :------------- |:-----------------------------------------------------------------|
 | status        | Used in production@Mailgun on moderate workloads.  Under active development.              |
 | discussions   | https://groups.google.com/d/forum/vulcan-proxy                  |
@@ -37,10 +37,10 @@ to use tracing support should use the `--enableJaegerTracing` flag and must
 either run the Jaeger client listening on `localhost:6831/udp` or set the
 environment variables `JAEGER_AGENT_HOST` and `JAEGER_AGENT_POST`. (See the
 [Jaeger client libraries](https://github.com/jaegertracing/jaeger-client-go)
-for all available configuration environment variables.
+for all available configuration environment variables.)
 
-When enabled vulcand will create 2 spans, one span called `vulcand` which
-covers the entire downstream request. The other span called `middleware` which
+When enabled vulcand will create 2 spans: one span called `vulcand` which
+covers the entire downstream request and another span called `middleware` which
 only spans the processing of the middleware before the request is routed
 downstream.
 
@@ -51,7 +51,7 @@ from the local node can match `Host("localhost")` rules. This `--aliases` flag
 allows an author of a vulcand DaemonSet to tell vulcand the name of the node it's
 currently running on, such that vulcand correctly routes requests for
 `Host("localhost")`. The `--aliases` flag allows the user to pass in multiple
-aliases separated by comma's.
+aliases separated by commas.
 
 Example
 ```
