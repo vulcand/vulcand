@@ -277,21 +277,21 @@ func (m *mux) Start() error {
 		}
 	}()
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-		for {
-			select {
-			case <-m.stopC:
-				log.Infof("%v stop emitting metrics", m)
-				return
-			case <-time.After(time.Second):
-				if err := m.emitMetrics(); err != nil {
-					log.Errorf("%v failed to emit metrics, err=%v", m, err)
-				}
-			}
-		}
-	}()
+	//m.wg.Add(1)
+	//go func() {
+	//	defer m.wg.Done()
+	//	for {
+	//		select {
+	//		case <-m.stopC:
+	//			log.Infof("%v stop emitting metrics", m)
+	//			return
+	//		case <-time.After(time.Second):
+	//			if err := m.emitMetrics(); err != nil {
+	//				log.Errorf("%v failed to emit metrics, err=%v", m, err)
+	//			}
+	//		}
+	//	}
+	//}()
 
 	m.state = stateActive
 	for _, srv := range m.servers {
