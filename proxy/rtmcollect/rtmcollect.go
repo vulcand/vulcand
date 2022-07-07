@@ -1,11 +1,11 @@
 package rtmcollect
 
 import (
-	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"sync"
 
 	"github.com/mailgun/timetools"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/vulcand/oxy/memmetrics"
 	"github.com/vulcand/oxy/utils"
@@ -102,7 +102,8 @@ func (c *T) UpsertServer(beSrv backend.Srv) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.beSrvRTMs[beSrv.URLKey()] = BeSrvEntry{beSrv.Cfg(), NewRTMetrics()}
+	// TODO(thrawn01): Memory leak with NewRTMetrics(), commenting out to see if this resolves
+	//c.beSrvRTMs[beSrv.URLKey()] = BeSrvEntry{beSrv.Cfg(), NewRTMetrics()}
 }
 
 // RemoveServer removes a backend server from the list of servers that it
