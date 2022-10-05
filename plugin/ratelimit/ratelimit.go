@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/urfave/cli"
 	"github.com/mailgun/timetools"
-	"github.com/vulcand/oxy/ratelimit"
+	"github.com/urfave/cli"
 	"github.com/vulcand/oxy/utils"
 	"github.com/vulcand/vulcand/plugin"
 )
@@ -82,18 +81,18 @@ type RateLimit struct {
 	RateVar string
 
 	extract      utils.SourceExtractor
-	extractRates ratelimit.RateExtractor
+	extractRates RateExtractor
 	clock        timetools.TimeProvider
 }
 
 // Returns vulcan library compatible middleware
 func (r *RateLimit) NewHandler(next http.Handler) (http.Handler, error) {
-	defaultRates := ratelimit.NewRateSet()
+	defaultRates := NewRateSet()
 	if err := defaultRates.Add(time.Duration(r.PeriodSeconds)*time.Second, r.Requests, r.Burst); err != nil {
 		return nil, err
 	}
-	return ratelimit.New(next, r.extract, defaultRates,
-		ratelimit.ExtractRates(r.extractRates), ratelimit.Clock(r.clock))
+	return New(next, r.extract, defaultRates,
+		ExtractRates(r.extractRates), Clock(r.clock))
 }
 
 func (rl *RateLimit) String() string {
@@ -101,7 +100,7 @@ func (rl *RateLimit) String() string {
 		time.Duration(rl.PeriodSeconds)*time.Second, rl.Requests, rl.Burst, rl.Variable, rl.RateVar)
 }
 
-func makeRateExtractor(variable string) (ratelimit.RateExtractor, error) {
+func makeRateExtractor(variable string) (RateExtractor, error) {
 	if variable == "" {
 		return nil, nil
 	}
@@ -115,7 +114,7 @@ func makeRateExtractor(variable string) (ratelimit.RateExtractor, error) {
 		return nil, fmt.Errorf("Wrong header: %s", header)
 	}
 
-	return ratelimit.RateExtractorFunc(func(r *http.Request) (*ratelimit.RateSet, error) {
+	return RateExtractorFunc(func(r *http.Request) (*RateSet, error) {
 		jsonString := r.Header.Get(header)
 		if jsonString == "" {
 			return nil, fmt.Errorf("empty rate header")
@@ -126,7 +125,7 @@ func makeRateExtractor(variable string) (ratelimit.RateExtractor, error) {
 			return nil, err
 		}
 
-		rateSet := ratelimit.NewRateSet()
+		rateSet := NewRateSet()
 		for _, s := range specs {
 			period := time.Duration(s.PeriodSeconds) * time.Second
 			if s.Burst == 0 {

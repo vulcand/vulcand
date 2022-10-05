@@ -1431,7 +1431,7 @@ func (s *ServerSuite) TestGetStats(c *C) {
 		GETResponse(c, MakeURL(liCfg, "/foo"))
 	}
 
-	stats, err := s.mux.ServerStats(engine.ServerKey{beCfg.Key(), beSrvCfg1.GetId()})
+	stats, err := s.mux.ServerStats(engine.ServerKey{BackendKey: beCfg.Key(), Id: beSrvCfg1.GetId()})
 	c.Assert(err, IsNil)
 	c.Assert(stats, NotNil)
 

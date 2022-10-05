@@ -185,7 +185,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 
 	routes := make(map[string]interface{})
 	for _, fes := range ss.FrontendSpecs {
-		feKey := engine.FrontendKey{fes.Frontend.Id}
+		feKey := engine.FrontendKey{Id: fes.Frontend.Id}
 		beEnt, ok := m.backends[engine.BackendKey{Id: fes.Frontend.BackendId}]
 		if !ok {
 			return errors.Errorf("unknown backend %v in frontend %v",

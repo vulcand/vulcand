@@ -162,7 +162,7 @@ func (m *Mem) UpsertListener(l engine.Listener) error {
 	defer func() {
 		m.emit(&engine.ListenerUpserted{Listener: l})
 	}()
-	lk := engine.ListenerKey{l.Id}
+	lk := engine.ListenerKey{Id: l.Id}
 	m.Listeners[lk] = l
 	return nil
 }
