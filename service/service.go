@@ -16,7 +16,6 @@ import (
 	"time"
 
 	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
-	etcd "github.com/coreos/etcd/client"
 	"github.com/gorilla/mux"
 	"github.com/mailgun/metrics"
 	log "github.com/sirupsen/logrus"
@@ -93,7 +92,6 @@ func Run(registry *plugin.Registry) error {
 }
 
 type Service struct {
-	client        etcd.Client
 	options       Options
 	registry      *plugin.Registry
 	errorC        chan error

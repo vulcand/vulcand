@@ -5,12 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	etcd "github.com/coreos/etcd/clientv3"
+	"github.com/vulcand/vulcand/engine/etcdng"
 	"github.com/vulcand/vulcand/engine/test"
 	"github.com/vulcand/vulcand/plugin/registry"
 	"github.com/vulcand/vulcand/secret"
-
-	"github.com/vulcand/vulcand/engine/etcdng"
+	etcd "go.etcd.io/etcd/client/v3"
 	"golang.org/x/net/context"
 	. "gopkg.in/check.v1"
 )
@@ -42,14 +41,14 @@ func (s *EtcdSuite) SetUpSuite(c *C) {
 	}
 	s.key = key
 
-	nodes_string := os.Getenv("VULCAND_TEST_ETCD_NODES")
-	if nodes_string == "" {
+	nodesString := os.Getenv("VULCAND_TEST_ETCD_NODES")
+	if nodesString == "" {
 		// Skips the entire suite
 		c.Skip("This test requires etcd, provide comma separated nodes in VULCAND_TEST_ETCD_NODES environment variable")
 		return
 	}
 
-	s.nodes = strings.Split(nodes_string, ",")
+	s.nodes = strings.Split(nodesString, ",")
 }
 
 func (s *EtcdSuite) SetUpTest(c *C) {
