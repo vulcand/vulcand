@@ -85,7 +85,7 @@ func (s *EtcdSuite) SetUpTest(c *C) {
 	_, err = s.client.Get(s.context, s.etcdPrefix)
 	if err != nil {
 		// There's no key like this
-		if !notFound(err) {
+		if !IsNotFound(err) {
 			// We haven't expected this error, oops
 			c.Assert(err, IsNil)
 		}

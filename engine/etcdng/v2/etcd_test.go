@@ -42,7 +42,7 @@ func (s *EtcdSuite) SetUpSuite(c *C) {
 	}
 	s.key = key
 
-	nodesString := os.Getenv("VULCAND_TEST_ETCD_NODES")
+	nodesString := os.Getenv("VULCAND_TEST_ETCD_V2_NODES")
 	if nodesString == "" {
 		// Skips the entire suite
 		c.Skip("This test requires etcd, provide comma separated nodes in VULCAND_TEST_ETCD_NODES environment variable")

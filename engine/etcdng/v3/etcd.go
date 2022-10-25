@@ -881,7 +881,7 @@ func (n *ng) getKeysBySecondPrefix(keys ...string) ([]string, error) {
 	targetPrefix := strings.Join(keys, "/")
 	response, err := n.client.Get(n.context, targetPrefix, etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
 	if err != nil {
-		if notFound(err) {
+		if IsNotFound(err) {
 			return out, nil
 		}
 		return nil, err
@@ -903,7 +903,7 @@ func (n *ng) getValues(keys ...string) ([]Pair, error) {
 	var out []Pair
 	response, err := n.client.Get(n.context, strings.Join(keys, "/"), etcd.WithPrefix(), etcd.WithSort(etcd.SortByKey, etcd.SortAscend))
 	if err != nil {
-		if notFound(err) {
+		if IsNotFound(err) {
 			return out, nil
 		}
 		return nil, err
@@ -946,7 +946,7 @@ func prefix(key string) string {
 	return key[0:lastSlashIdx]
 }
 
-func notFound(e error) bool {
+func IsNotFound(e error) bool {
 	return e == rpctypes.ErrEmptyKey
 }
 

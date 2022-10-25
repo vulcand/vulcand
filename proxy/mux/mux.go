@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -636,6 +635,9 @@ func (m *mux) processStapleUpdate(e *stapler.StapleUpdated) {
 }
 
 func (m *mux) emitMetrics() error {
+	if m.options.MetricsClient == nil {
+		return nil
+	}
 	c := m.options.MetricsClient
 
 	// Emit connection stats
@@ -841,9 +843,6 @@ func (s muxState) String() string {
 }
 
 func setDefaults(o proxy.Options) proxy.Options {
-	if o.MetricsClient == nil {
-		o.MetricsClient = metrics.NewNop()
-	}
 	if o.TimeProvider == nil {
 		o.TimeProvider = &timetools.RealTime{}
 	}
