@@ -170,6 +170,41 @@ func TestFrontendCRUD(t *testing.T) {
 	assert.Equal(t, called, true)
 }
 
+func TestFrontendPathParam(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
+	called := false
+	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server.Close()
+
+	// Create a server
+	b, srv, url := "bk1", "srv1", server.URL
+
+	_, err := client.Put(ctx, path("backends", b, "backend"), `{"Type": "http"}`)
+	require.NoError(t, err)
+
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
+
+	// Add frontend
+	fId := "fr1"
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path/<path:address>\")"}`)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path/paul@beatles.com"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, called, true)
+}
+
 func TestFrontendUpdateLimits(t *testing.T) {
 	defer exec.Command("killall", "vulcand").Output()
 	ctx, cancel := setUpTest(t)
