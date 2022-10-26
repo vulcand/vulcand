@@ -205,6 +205,49 @@ func TestFrontendPathParam(t *testing.T) {
 	assert.Equal(t, called, true)
 }
 
+func TestNoBackendServers(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
+	called := false
+	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server.Close()
+
+	// Create a server
+	b := "bk1"
+
+	_, err := client.Put(ctx, path("backends", b, "backend"), `{"Type": "http"}`)
+	require.NoError(t, err)
+
+	// Add frontend
+	fId := "fr1"
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+	// We do this to test the log rate limiter
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	assert.Equal(t, called, false)
+}
+
 func TestFrontendUpdateLimits(t *testing.T) {
 	defer exec.Command("killall", "vulcand").Output()
 	ctx, cancel := setUpTest(t)
