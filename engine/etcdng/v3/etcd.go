@@ -632,10 +632,10 @@ func (n *ng) Subscribe(changes chan interface{}, afterIdx uint64, cancelC chan s
 		}
 
 		for _, event := range response.Events {
-			log.Infof("%s", eventToString(event))
+			log.WithFields(eventToFields(event)).Infof("%s: %s", event.Type, event.Kv.Key)
 			change, err := n.parseChange(event)
 			if err != nil {
-				log.Warningf("ignore '%s', error: %s", eventToString(event), err)
+				log.WithFields(eventToFields(event)).Warningf("ignoring event; error: %s", err)
 				continue
 			}
 			if change != nil {
@@ -964,8 +964,25 @@ func convertErr(e error) error {
 	return e
 }
 
-func eventToString(e *etcd.Event) string {
-	return fmt.Sprintf("%s: %v -> %v", e.Type, e.PrevKv, e.Kv)
+func eventToFields(e *etcd.Event) log.Fields {
+	if e.PrevKv == nil {
+		return log.Fields{
+			"create_revision": e.Kv.CreateRevision,
+			"mod_revision":    e.Kv.ModRevision,
+			"version":         e.Kv.Version,
+			"value":           string(e.Kv.Value),
+		}
+	}
+	return log.Fields{
+		"prev.create_revision": e.PrevKv.CreateRevision,
+		"prev.mod_revision":    e.PrevKv.ModRevision,
+		"prev.version":         e.PrevKv.Version,
+		"prev.value":           string(e.PrevKv.Value),
+		"create_revision":      e.Kv.CreateRevision,
+		"mod_revision":         e.Kv.ModRevision,
+		"version":              e.Kv.Version,
+		"value":                string(e.Kv.Value),
+	}
 }
 
 func filterByPrefix(keys []*mvccpb.KeyValue, prefix string) []*mvccpb.KeyValue {

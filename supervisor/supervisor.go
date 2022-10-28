@@ -50,8 +50,9 @@ type Supervisor struct {
 }
 
 type Options struct {
-	Clock timetools.TimeProvider
-	Files []*proxy.FileDescriptor
+	Clock              timetools.TimeProvider
+	Files              []*proxy.FileDescriptor
+	HealthCheckOptions proxy.HealthCheckOptions
 }
 
 func New(newProxy proxy.NewProxyFn, engine engine.Engine, options Options) *Supervisor {
@@ -170,12 +171,13 @@ func (s *Supervisor) init() error {
 		defer s.watcherWg.Done()
 		defer close(changesC)
 		if err := s.engine.Subscribe(changesC, snapshot.Index, s.watcherCancelC); err != nil {
-			log.Infof("mux_%d engine watcher failed: '%v' will restart", newMuxId, err)
+			log.Warnf("mux_%d engine watcher failed: '%v' will restart", newMuxId, err)
 			s.watcherErrorC <- struct{}{}
 			return
 		}
 		log.Infof("nux_%d engine watcher shutdown", newMuxId)
 	}()
+
 	// Make sure watcher goroutine is stopped if initialization fails.
 	defer func() {
 		if cancelWatcher {
@@ -194,8 +196,8 @@ func (s *Supervisor) init() error {
 	}
 	log.Infof("%v initial setup done, took=%v", newProxy, time.Now().Sub(checkpoint))
 
-	// If it is initialization on process sturtup then take over files from the
-	// parrent process if any.
+	// If it is initialization on process startup then take over files from the
+	// parent process if any.
 	if s.lastId == 1 && len(s.options.Files) != 0 {
 		log.Infof("Passing files %v to %v", s.options.Files, newProxy)
 		if err := newProxy.TakeFiles(s.options.Files); err != nil {
@@ -248,6 +250,22 @@ func (s *Supervisor) init() error {
 		}
 		log.Infof("%v change processor shutdown", newProxy)
 	}()
+
+	if s.options.HealthCheckOptions.HealthCheckPath != "" {
+		s.watcherWg.Add(1)
+		go func() {
+			log.Infof("mux_%d health check start", newMuxId)
+			defer s.watcherWg.Done()
+			// Monitors backend servers until watcherCancelC is closed or backend monitor returns an error
+			if err := newProxy.HealthCheckServers(s.watcherCancelC, s.options.HealthCheckOptions); err != nil {
+				log.Warnf("mux_%d health check returned: '%s' will reload", newMuxId, err)
+				s.watcherErrorC <- struct{}{}
+				return
+			}
+			log.Infof("mux_%d health check shutdown", newMuxId)
+		}()
+	}
+
 	return nil
 }
 
@@ -287,6 +305,15 @@ func (s *Supervisor) run() {
 func setDefaults(o Options) Options {
 	if o.Clock == nil {
 		o.Clock = &timetools.RealTime{}
+	}
+	if o.HealthCheckOptions.Interval == 0 {
+		o.HealthCheckOptions.Interval = 30 * time.Second
+	}
+	if o.HealthCheckOptions.Timeout == 0 {
+		o.HealthCheckOptions.Timeout = 500 * time.Millisecond
+	}
+	if o.HealthCheckOptions.UnHealthyBackendDuration == 0 {
+		o.HealthCheckOptions.UnHealthyBackendDuration = time.Minute
 	}
 	return o
 }

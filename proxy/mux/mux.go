@@ -1,7 +1,10 @@
 package mux
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -154,7 +157,12 @@ func (m *mux) Init(ss engine.Snapshot) error {
 		for i, beSrvCfg := range bes.Servers {
 			beSrv, err := backend.NewServer(beSrvCfg)
 			if err != nil {
-				return errors.Wrapf(err, "bad server config %v", beSrvCfg.Id)
+				log.WithFields(log.Fields{
+					"server-id": beSrvCfg.Id,
+					"url":       beSrvCfg.URL,
+					"err":       err,
+				}).Warnf("invalid server config for backend; skipping")
+				continue
 			}
 			beSrvs[i] = beSrv
 		}
@@ -764,6 +772,141 @@ func (m *mux) TopServers(beKey *engine.BackendKey) ([]engine.Server, error) {
 	}
 	sort.Stable(&serverSorter{es: beSrvCfgs})
 	return beSrvCfgs, nil
+}
+
+type healthCheckSrv struct {
+	cfg engine.HTTPBackendSettings
+	srv []backend.Srv
+	id  string
+}
+
+// Make a copy of the backends in a thread safe manner.
+func (m *mux) getHealthCheckServers(opts proxy.HealthCheckOptions) []healthCheckSrv {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	var servers []healthCheckSrv
+	for _, v := range m.backends {
+		p := healthCheckSrv{id: v.backend.Key().Id}
+		_, srv := v.backend.Snapshot()
+		for _, s := range srv {
+			p.srv = append(p.srv, s)
+		}
+		p.cfg = v.backend.HTTPBackendSettings()
+		if p.cfg.HealthCheckPath == "" {
+			p.cfg.HealthCheckPath = opts.HealthCheckPath
+		}
+		servers = append(servers, p)
+	}
+	return servers
+}
+
+// HealthCheckServers will run health checks on all servers, this method blocks until it
+// finds all servers for a backend are unhealthy for a period of time or until `done` is closed.
+//
+//	NOTE: This health check does NOT mark individual servers as disabled or remove them from
+//	the backend server list if they fail a health check. It is up to the backend config
+//	registrations to remove backend servers in a timely manner. This check is purely to warn
+//	operators that backends have failed and to reload the config in case no backend servers
+//	are healthy.
+func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptions) error {
+	ticker := time.NewTicker(opts.Interval)
+
+	for {
+
+		select {
+		case <-done:
+			ticker.Stop()
+			return nil
+		case <-ticker.C:
+		}
+
+		// TODO: HealthCheckOptions need CLI flags
+		// TODO: Add a test for this situation
+
+		for _, hc := range m.getHealthCheckServers(opts) {
+			var unhealthy []backend.Srv
+			for _, s := range hc.srv {
+				slug := fmt.Sprintf("%s%s", s.URL(), hc.cfg.HealthCheckPath)
+				if _, err := url.Parse(slug); err != nil {
+					log.WithError(err).WithField("url", slug).
+						Warnf("health check url is invalid; skipping")
+					continue
+				}
+				if err := doCheck(slug, opts); err != nil {
+					log.WithError(err).Warnf("health check failed")
+					unhealthy = append(unhealthy, s)
+				}
+
+				// Check for done signal after each check
+				select {
+				case <-done:
+					ticker.Stop()
+					return nil
+				default:
+				}
+			}
+			// Returns err if we determine enough backend servers have failed to warrant a config reload.
+			if err := shouldFail(opts, hc, unhealthy); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+var lastUnhealthy = make(map[string]time.Time)
+
+func shouldFail(opts proxy.HealthCheckOptions, hc healthCheckSrv, unhealthy []backend.Srv) error {
+	if len(hc.srv) != 0 && (len(hc.srv)/2) < len(unhealthy) {
+		log.WithField("backend-id", hc.id).Warn("half of the backends are un-healthy")
+		return nil
+	}
+
+	// If none of the backend servers are healthy
+	if len(hc.srv) == len(unhealthy) {
+		// If this backend has been unhealthy for the configured duration
+		if t, ok := lastUnhealthy[hc.id]; ok {
+			if time.Now().After(t.Add(opts.UnHealthyBackendDuration)) {
+				// We return an error here, so the supervisor can re-init the mux in case the config
+				// watch has failed and isn't receiving backend updates. This would explain
+				// why all the checks are failing. If not, it doesn't hurt anything to re-init
+				// the mux with the latest version of the config from the config engine.
+				return fmt.Errorf("backed '%s' is marked as failed; all backend servers have been"+
+					" un-healthy for %s", hc.id, opts.UnHealthyBackendDuration.String())
+			}
+		}
+		// mark when last time we noticed all the servers for the backend were unhealthy
+		lastUnhealthy[hc.id] = time.Now()
+		return nil
+	}
+	// Backend servers have recovered
+	if _, ok := lastUnhealthy[hc.id]; ok {
+		delete(lastUnhealthy, hc.id)
+	}
+	return nil
+}
+
+func doCheck(url string, opts proxy.HealthCheckOptions) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return errors.Wrapf(err, "%s on %s", req.Method, req.URL.String())
+	}
+
+	rs, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return errors.Wrapf(err, "%s on %s", req.Method, req.URL.String())
+	}
+	defer rs.Body.Close()
+	b, _ := io.ReadAll(rs.Body)
+
+	if rs.StatusCode != http.StatusOK {
+		return errors.Errorf("%s on '%s' returned '%d' containing '%s'",
+			req.Method, req.URL.String(), rs.StatusCode, string(b))
+	}
+	return nil
 }
 
 func (m *mux) filteredFrontends(beKey *engine.BackendKey) map[engine.FrontendKey]*frontend.T {

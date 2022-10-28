@@ -122,7 +122,8 @@ func (s *Service) Start(controlC chan ControlCode) error {
 		s.metricsClient = s.options.MetricsClient
 	} else if s.options.StatsdAddr != "" {
 		var err error
-		s.metricsClient, err = metrics.NewWithOptions(s.options.StatsdAddr, s.options.StatsdPrefix, metrics.Options{UseBuffering: true})
+		s.metricsClient, err = metrics.NewWithOptions(s.options.StatsdAddr,
+			s.options.StatsdPrefix, metrics.Options{UseBuffering: true})
 		if err != nil {
 			return err
 		}
@@ -147,7 +148,8 @@ func (s *Service) Start(controlC chan ControlCode) error {
 	}
 
 	s.stapler = stapler.New()
-	s.supervisor = supervisor.New(s.newProxy, s.ng, supervisor.Options{Files: muxFiles})
+	s.supervisor = supervisor.New(s.newProxy, s.ng, supervisor.Options{Files: muxFiles,
+		HealthCheckOptions: s.options.HealthCheckOptions})
 
 	// Tells configurator to perform initial proxy configuration and start watching changes
 	if err := s.supervisor.Start(); err != nil {

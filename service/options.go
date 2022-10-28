@@ -8,6 +8,7 @@ import (
 
 	"github.com/mailgun/metrics"
 	log "github.com/sirupsen/logrus"
+	"github.com/vulcand/vulcand/proxy"
 )
 
 type Options struct {
@@ -61,6 +62,7 @@ type Options struct {
 	EnableJaegerTracing bool
 	DebugJaegerTracing  bool
 	Aliases             mapOptions
+	HealthCheckOptions  proxy.HealthCheckOptions
 }
 
 type SeverityFlag struct {
@@ -184,6 +186,14 @@ func ParseCommandLine() (options Options, err error) {
 	flag.BoolVar(&options.EnableJaegerTracing, "enableJaegerTracing", false, "Enable open tracing support via jaeger")
 	flag.BoolVar(&options.DebugJaegerTracing, "debugJaegerTracing", false, "Trace every request and log the trace")
 	flag.Var(&options.Aliases, "aliases", "Comma separated list of key=values which modify frontend expressions")
+	flag.StringVar(&options.HealthCheckOptions.HealthCheckPath, "healthCheckPath", "",
+		"The default endpoint used when health checking backends; no value disables health check")
+	flag.DurationVar(&options.HealthCheckOptions.Interval, "healthCheckInterval", 30*time.Second,
+		"How often health checks are performed on backend servers")
+	flag.DurationVar(&options.HealthCheckOptions.Timeout, "healthCheckTimeout", 500*time.Millisecond,
+		"How long to wait for a health check endpoint to respond")
+	flag.DurationVar(&options.HealthCheckOptions.UnHealthyBackendDuration, "healthUnhealthyBackendDuration", time.Minute,
+		"if all servers for a backend and unhealthy how long to wait until a config reload occurs")
 
 	flag.Parse()
 	options, err = validateOptions(options)

@@ -53,14 +53,19 @@ func NewSrvURLKey(u *url.URL) SrvURLKey {
 // NewServer creates a backend server from a config fetched from a storage
 // engine.
 func NewServer(beSrvCfg engine.Server) (Srv, error) {
-	parsedURL, err := url.Parse(beSrvCfg.URL)
+	parsed, err := url.Parse(beSrvCfg.URL)
 	if err != nil {
 		return Srv{}, errors.Wrapf(err, "bad url %v", beSrvCfg.URL)
 	}
+
+	if parsed.Host == "" {
+		return Srv{}, fmt.Errorf("'%s' is an invalid url; host or ip required", beSrvCfg.URL)
+	}
+
 	return Srv{
 		id:        beSrvCfg.Id,
 		rawURL:    beSrvCfg.URL,
-		parsedURL: parsedURL,
+		parsedURL: parsed,
 	}, nil
 }
 
@@ -97,6 +102,10 @@ func (be *T) Key() engine.BackendKey {
 // String returns string backend representation to be used in logs.
 func (be *T) String() string {
 	return fmt.Sprintf("backend(%v)", &be.id)
+}
+
+func (be *T) HTTPBackendSettings() engine.HTTPBackendSettings {
+	return be.httpCfg
 }
 
 // Close closes all idle connections to backends.

@@ -244,6 +244,7 @@ func (fe *T) rebuild() error {
 
 	// Add a load balancer to the handlers chain.
 	rr, err := roundrobin.New(rc,
+		roundrobin.Logger(log.StandardLogger()),
 		roundrobin.ErrorHandler(DefaultHandler),
 		roundrobin.RoundRobinRequestRewriteListener(fe.listeners.RrRewriteListener))
 	if err != nil {
@@ -286,7 +287,7 @@ func (fe *T) rebuild() error {
 
 	// stream will retry and replay requests, fix encodings
 	if httpCfg.FailoverPredicate == "" {
-		httpCfg.FailoverPredicate = `IsNetworkError() && RequestMethod() == "GET" && Attempts() < 2`
+		httpCfg.FailoverPredicate = `IsNetworkError() && RequestMethod() == "GET" && Attempts() < 20`
 	}
 
 	var topHandler http.Handler
