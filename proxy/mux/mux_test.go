@@ -939,111 +939,114 @@ func (s *ServerSuite) TestTakeFiles(c *C) {
 	c.Assert(GETResponse(c, b2.FrontendURL("/")), Equals, "Hi, I'm endpoint 2")
 }
 
+// TODO(thrawn01): rtmcollect is disabled due to memory leak
 // Server RTM metrics are not affected by upserts.
-func (s *ServerSuite) TestSrvRTMOnUpsert(c *C) {
-	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
-	defer e1.Close()
+//func (s *ServerSuite) TestSrvRTMOnUpsert(c *C) {
+//	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
+//	defer e1.Close()
+//
+//	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e1.URL})
+//	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+//	c.Assert(s.mux.Start(), IsNil)
+//	defer s.mux.Stop(true)
+//
+//	// When: an existing backend server upserted during operation
+//	for i := 0; i < 3; i++ {
+//		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+//	}
+//	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+//	for i := 0; i < 4; i++ {
+//		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+//	}
+//
+//	// Then: total count includes metrics collected before and after an upsert.
+//	rts, err := s.mux.ServerStats(b.SK)
+//	c.Assert(err, IsNil)
+//	c.Assert(rts.Counters.Total, Equals, int64(7))
+//}
 
-	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e1.URL})
-	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
-	c.Assert(s.mux.Start(), IsNil)
-	defer s.mux.Stop(true)
-
-	// When: an existing backend server upserted during operation
-	for i := 0; i < 3; i++ {
-		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
-	}
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	for i := 0; i < 4; i++ {
-		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
-	}
-
-	// Then: total count includes metrics collected before and after an upsert.
-	rts, err := s.mux.ServerStats(b.SK)
-	c.Assert(err, IsNil)
-	c.Assert(rts.Counters.Total, Equals, int64(7))
-}
-
+// TODO(thrawn01): rtmcollect is disabled due to memory leak
 // Server RTM metrics are not affected by upserts.
-func (s *ServerSuite) TestSrvRTMOnDelete(c *C) {
-	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
-	defer e1.Close()
+//func (s *ServerSuite) TestSrvRTMOnDelete(c *C) {
+//	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
+//	defer e1.Close()
+//
+//	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e1.URL})
+//	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
+//	c.Assert(s.mux.Start(), IsNil)
+//	defer s.mux.Stop(true)
+//
+//	// When: an existing backend server is removed and added again.
+//	for i := 0; i < 3; i++ {
+//		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+//	}
+//	c.Assert(s.mux.DeleteServer(b.SK), IsNil)
+//	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
+//	for i := 0; i < 4; i++ {
+//		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
+//	}
+//
+//	// Then: total count includes only metrics after the server was re-added.
+//	rts, err := s.mux.ServerStats(b.SK)
+//	c.Assert(err, IsNil)
+//	c.Assert(rts.Counters.Total, Equals, int64(4))
+//}
 
-	b := MakeBatch(Batch{Addr: "localhost:11300", Route: `Path("/")`, URL: e1.URL})
-	c.Assert(s.mux.Init(b.Snapshot()), IsNil)
-	c.Assert(s.mux.Start(), IsNil)
-	defer s.mux.Stop(true)
-
-	// When: an existing backend server is removed and added again.
-	for i := 0; i < 3; i++ {
-		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
-	}
-	c.Assert(s.mux.DeleteServer(b.SK), IsNil)
-	c.Assert(s.mux.UpsertServer(b.BK, b.S), IsNil)
-	for i := 0; i < 4; i++ {
-		c.Assert(GETResponse(c, b.FrontendURL("/")), Equals, "Hi, I'm endpoint 1")
-	}
-
-	// Then: total count includes only metrics after the server was re-added.
-	rts, err := s.mux.ServerStats(b.SK)
-	c.Assert(err, IsNil)
-	c.Assert(rts.Counters.Total, Equals, int64(4))
-}
-
-func (s *ServerSuite) TestGetStats(c *C) {
-	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
-	defer e1.Close()
-	e2 := testutils.NewResponder("Hi, I'm endpoint 2")
-	defer e2.Close()
-
-	beCfg := MakeBackend()
-	c.Assert(s.mux.UpsertBackend(beCfg), IsNil)
-	beSrvCfg1 := MakeServer(e1.URL)
-	c.Assert(s.mux.UpsertServer(beCfg.Key(), beSrvCfg1), IsNil)
-	beSrvCfg2 := MakeServer(e2.URL)
-	c.Assert(s.mux.UpsertServer(beCfg.Key(), beSrvCfg2), IsNil)
-
-	liCfg := MakeListener("localhost:11300", engine.HTTP)
-	c.Assert(s.mux.UpsertListener(liCfg), IsNil)
-	feCfg1 := MakeFrontend(`Path("/foo")`, beCfg.GetId())
-	c.Assert(s.mux.UpsertFrontend(feCfg1), IsNil)
-	feCfg2 := MakeFrontend(`Path("/bar")`, beCfg.GetId())
-	c.Assert(s.mux.UpsertFrontend(feCfg2), IsNil)
-
-	c.Assert(s.mux.Start(), IsNil)
-	defer s.mux.Stop(true)
-
-	for i := 0; i < 10; i++ {
-		GETResponse(c, MakeURL(liCfg, "/foo"))
-	}
-
-	stats, err := s.mux.ServerStats(engine.ServerKey{BackendKey: beCfg.Key(), Id: beSrvCfg1.GetId()})
-	c.Assert(err, IsNil)
-	c.Assert(stats, NotNil)
-
-	feStats1, err := s.mux.FrontendStats(feCfg1.Key())
-	c.Assert(feStats1, NotNil)
-	c.Assert(err, IsNil)
-
-	feStats2, err := s.mux.FrontendStats(feCfg2.Key())
-	c.Assert(feStats2, IsNil)
-	c.Assert(err.Error(), Matches, "frontend frontend\\d+ RT not collected")
-
-	bStats, err := s.mux.BackendStats(beCfg.Key())
-	c.Assert(bStats, NotNil)
-	c.Assert(err, IsNil)
-
-	topF, err := s.mux.TopFrontends(nil)
-	c.Assert(err, IsNil)
-	c.Assert(len(topF), Equals, 1)
-
-	topServers, err := s.mux.TopServers(nil)
-	c.Assert(err, IsNil)
-	c.Assert(len(topServers), Equals, 2)
-
-	// emit stats works without errors
-	c.Assert(s.mux.emitMetrics(), IsNil)
-}
+// TODO(thrawn01): rtmcollect is disabled due to memory leak
+//func (s *ServerSuite) TestGetStats(c *C) {
+//	e1 := testutils.NewResponder("Hi, I'm endpoint 1")
+//	defer e1.Close()
+//	e2 := testutils.NewResponder("Hi, I'm endpoint 2")
+//	defer e2.Close()
+//
+//	beCfg := MakeBackend()
+//	c.Assert(s.mux.UpsertBackend(beCfg), IsNil)
+//	beSrvCfg1 := MakeServer(e1.URL)
+//	c.Assert(s.mux.UpsertServer(beCfg.Key(), beSrvCfg1), IsNil)
+//	beSrvCfg2 := MakeServer(e2.URL)
+//	c.Assert(s.mux.UpsertServer(beCfg.Key(), beSrvCfg2), IsNil)
+//
+//	liCfg := MakeListener("localhost:11300", engine.HTTP)
+//	c.Assert(s.mux.UpsertListener(liCfg), IsNil)
+//	feCfg1 := MakeFrontend(`Path("/foo")`, beCfg.GetId())
+//	c.Assert(s.mux.UpsertFrontend(feCfg1), IsNil)
+//	feCfg2 := MakeFrontend(`Path("/bar")`, beCfg.GetId())
+//	c.Assert(s.mux.UpsertFrontend(feCfg2), IsNil)
+//
+//	c.Assert(s.mux.Start(), IsNil)
+//	defer s.mux.Stop(true)
+//
+//	for i := 0; i < 10; i++ {
+//		GETResponse(c, MakeURL(liCfg, "/foo"))
+//	}
+//
+//	stats, err := s.mux.ServerStats(engine.ServerKey{BackendKey: beCfg.Key(), Id: beSrvCfg1.GetId()})
+//	c.Assert(err, IsNil)
+//	c.Assert(stats, NotNil)
+//
+//	feStats1, err := s.mux.FrontendStats(feCfg1.Key())
+//	c.Assert(feStats1, NotNil)
+//	c.Assert(err, IsNil)
+//
+//	feStats2, err := s.mux.FrontendStats(feCfg2.Key())
+//	c.Assert(feStats2, IsNil)
+//	c.Assert(err.Error(), Matches, "frontend frontend\\d+ RT not collected")
+//
+//	bStats, err := s.mux.BackendStats(beCfg.Key())
+//	c.Assert(bStats, NotNil)
+//	c.Assert(err, IsNil)
+//
+//	topF, err := s.mux.TopFrontends(nil)
+//	c.Assert(err, IsNil)
+//	c.Assert(len(topF), Equals, 1)
+//
+//	topServers, err := s.mux.TopServers(nil)
+//	c.Assert(err, IsNil)
+//	c.Assert(len(topServers), Equals, 2)
+//
+//	// emit stats works without errors
+//	c.Assert(s.mux.emitMetrics(), IsNil)
+//}
 
 // If there is no such frontend registered in the multiplexer then
 // 404 Not Found is returned.
