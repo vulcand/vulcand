@@ -3,7 +3,7 @@ package cacheprovider
 import (
 	"context"
 
-	etcd "github.com/coreos/etcd/client"
+	etcd "go.etcd.io/etcd/client/v2"
 	"golang.org/x/crypto/acme/autocert"
 )
 

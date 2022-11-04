@@ -7,129 +7,139 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
-	etcd "github.com/coreos/etcd/client"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vulcand/oxy/testutils"
 	"github.com/vulcand/vulcand/engine"
+	v3 "github.com/vulcand/vulcand/engine/etcdng/v3"
 	"github.com/vulcand/vulcand/secret"
-	. "github.com/vulcand/vulcand/testutils"
+	vulcanutils "github.com/vulcand/vulcand/testutils"
+	etcd "go.etcd.io/etcd/client/v3"
 	. "gopkg.in/check.v1"
 )
 
 func TestVulcandWithEtcd(t *testing.T) { TestingT(t) }
 
-// VESuite performs "Black box" system test of Vulcan backed by Etcd by talking directly to Etcd and checking the side-effects
-type VESuite struct {
-	ctx        context.Context
-	cancelFunc context.CancelFunc
+var (
 	apiUrl     string
 	serviceUrl string
 	etcdNodes  []string
 	etcdPrefix string
 	sealKey    string
 	box        *secret.Box
-	client     etcd.KeysAPI
+	client     *etcd.Client
+)
+
+func TestMain(m *testing.M) {
+	var err error
+
+	nodes := os.Getenv("VULCAND_TEST_ETCD_NODES")
+	if nodes == "" {
+		fmt.Println("This test requires running Etcd, please provide url via VULCAND_TEST_ETCD_NODES environment variable")
+		return
+	}
+
+	etcdNodes = strings.Split(nodes, ",")
+	client, err = etcd.New(etcd.Config{Endpoints: etcdNodes})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	etcdPrefix = os.Getenv("VULCAND_TEST_ETCD_PREFIX")
+	if etcdPrefix == "" {
+		fmt.Println("This test requires Etcd prefix, please provide url via VULCAND_TEST_ETCD_PREFIX environment variable")
+		return
+	}
+
+	apiUrl = os.Getenv("VULCAND_TEST_API_URL")
+	if apiUrl == "" {
+		fmt.Println("This test requires running vulcand daemon, provide API url via VULCAND_TEST_API_URL environment variable")
+		return
+	}
+
+	serviceUrl = os.Getenv("VULCAND_TEST_SERVICE_URL")
+	if serviceUrl == "" {
+		fmt.Println("This test requires running vulcand daemon, provide API url via VULCAND_TEST_SERVICE_URL environment variable")
+		return
+	}
+
+	sealKey = os.Getenv("VULCAND_TEST_SEAL_KEY")
+	if sealKey == "" {
+		fmt.Println("This test requires running vulcand daemon, provide API url via VULCAND_TEST_SEAL_KEY environment variable")
+		return
+	}
+
+	key, err := secret.KeyFromString(sealKey)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	box, err = secret.NewBox(key)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	ret := m.Run()
+	exec.Command("killall", "vulcand").Output()
+	os.Exit(ret)
 }
 
-var _ = Suite(&VESuite{})
-
-func (s *VESuite) name(prefix string) string {
-	return fmt.Sprintf("%s%d", prefix, time.Now().UnixNano())
+func path(keys ...string) string {
+	return strings.Join(append([]string{etcdPrefix}, keys...), "/")
 }
 
-func (s *VESuite) SetUpSuite(c *C) {
-	etcdNodes := os.Getenv("VULCAND_TEST_ETCD_NODES")
-	if etcdNodes == "" {
-		c.Skip("This test requires running Etcd, please provide url via VULCAND_TEST_ETCD_NODES environment variable")
-		return
-	}
-	s.etcdNodes = strings.Split(etcdNodes, ",")
-	client, err := etcd.New(etcd.Config{Endpoints: s.etcdNodes})
-	c.Assert(err, IsNil)
-	s.client = etcd.NewKeysAPI(client)
-
-	s.etcdPrefix = os.Getenv("VULCAND_TEST_ETCD_PREFIX")
-	if s.etcdPrefix == "" {
-		c.Skip("This test requires Etcd prefix, please provide url via VULCAND_TEST_ETCD_PREFIX environment variable")
-		return
-	}
-
-	s.apiUrl = os.Getenv("VULCAND_TEST_API_URL")
-	if s.apiUrl == "" {
-		c.Skip("This test requires running vulcand daemon, provide API url via VULCAND_TEST_API_URL environment variable")
-		return
-	}
-
-	s.serviceUrl = os.Getenv("VULCAND_TEST_SERVICE_URL")
-	if s.serviceUrl == "" {
-		c.Skip("This test requires running vulcand daemon, provide API url via VULCAND_TEST_SERVICE_URL environment variable")
-		return
-	}
-
-	s.sealKey = os.Getenv("VULCAND_TEST_SEAL_KEY")
-	if s.sealKey == "" {
-		c.Skip("This test requires running vulcand daemon, provide API url via VULCAND_TEST_SEAL_KEY environment variable")
-		return
-	}
-
-	key, err := secret.KeyFromString(s.sealKey)
-	c.Assert(err, IsNil)
-
-	box, err := secret.NewBox(key)
-	c.Assert(err, IsNil)
-
-	s.box = box
-}
-
-func (s VESuite) path(keys ...string) string {
-	return strings.Join(append([]string{s.etcdPrefix}, keys...), "/")
-}
-
-func (s *VESuite) SetUpTest(c *C) {
-	s.ctx, s.cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+func setUpTest(t *testing.T) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 	// Delete all values under the given prefix
-	_, err := s.client.Get(s.ctx, s.etcdPrefix, nil)
-	if err != nil && etcd.IsKeyNotFound(err) {
-		c.Errorf("Unexpected error: %v", err)
+	_, err := client.Get(ctx, etcdPrefix)
+	if err != nil && !v3.IsNotFound(err) {
+		t.Errorf("Unexpected error: %v", err)
 	}
-	_, err = s.client.Delete(s.ctx, s.etcdPrefix, &etcd.DeleteOptions{Recursive: true})
+	_, err = client.Delete(ctx, etcdPrefix, etcd.WithPrefix())
 
 	// Restart vulcand
-	exec.Command("killall", "vulcand").Output()
+	exec.Command("killall", "vulcand").Run()
 
 	args := []string{
-		fmt.Sprintf("--etcdKey=%s", s.etcdPrefix),
-		fmt.Sprintf("--sealKey=%s", s.sealKey),
+		fmt.Sprintf("--etcdKey=%s", etcdPrefix),
+		fmt.Sprintf("--sealKey=%s", sealKey),
 		"--logSeverity=INFO",
-		"--log=syslog",
 	}
-	for _, n := range s.etcdNodes {
+	for _, n := range etcdNodes {
 		args = append(args, fmt.Sprintf("-etcd=%s", n))
 	}
 	cmd := exec.Command("vulcand", args...)
-	c.Assert(cmd.Start(), IsNil)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Start())
+
 	go func() {
 		// Wait for process completion to avoid zombie process
 		cmd.Wait()
 	}()
+
+	// Wait until vulcand is up and ready
+	untilConnect(t, 10, time.Millisecond*300, "localhost:8182")
+
+	return ctx, cancel
 }
 
-func (s *VESuite) TearDownTest(c *C) {
-	s.cancelFunc()
-	exec.Command("killall", "vulcand").Output()
-}
+func TestFrontendCRUD(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
 
-// Set up a frontend hit this frontend with request and make sure everything worked fine
-func (s *VESuite) TestFrontendCRUD(c *C) {
 	called := false
 	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -139,66 +149,109 @@ func (s *VESuite) TestFrontendCRUD(c *C) {
 
 	// Create a server
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
 
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
-		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
-	c.Assert(err, IsNil)
+	_, err := client.Put(ctx, path("backends", b, "backend"), `{"Type": "http"}`)
+	require.NoError(t, err)
+
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
-	response, _, err := testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(called, Equals, true)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, called, true)
 }
 
-func (s *VESuite) TestFrontendUpdateLimits(c *C) {
+func TestFrontendPathParam(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
+	called := false
+	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server.Close()
+
+	// Create a server
+	b, srv, url := "bk1", "srv1", server.URL
+
+	_, err := client.Put(ctx, path("backends", b, "backend"), `{"Type": "http"}`)
+	require.NoError(t, err)
+
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
+
+	// Add frontend
+	fId := "fr1"
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path/<path:address>\")"}`)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path/paul@beatles.com"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, called, true)
+}
+
+func TestFrontendUpdateLimits(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
 	server := testutils.NewHandler(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("Hello, I'm totally fine"))
 	})
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
+	_, err := client.Put(ctx, path("backends", b, "backend"),
+		`{"Type": "http"}`)
+	require.NoError(t, err)
 
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
-		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
-	response, _, err := testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"))
-	c.Assert(err, IsNil)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
 
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(response.Header.Get("X-Forwarded-For"), Not(Equals), "hello")
+	assert.Equal(t, resp.StatusCode, http.StatusOK)
+	assert.Equal(t, resp.Header.Get("X-Forwarded-For"), "")
 
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")", "Settings": {"Limits": {"MaxMemBodyBytes":2, "MaxBodyBytes":4}}}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")", "Settings": {"Limits": {"MaxMemBodyBytes":2, "MaxBodyBytes":4}}}`)
+	require.NoError(t, err)
 	time.Sleep(time.Second)
 
-	response, _, err = testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"), testutils.Body("This is longer than allowed 4 bytes"))
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusRequestEntityTooLarge)
+	resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"), testutils.Body("This is longer than allowed 4 bytes"))
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusRequestEntityTooLarge)
 }
 
-func (s *VESuite) TestFrontendUpdateBackend(c *C) {
+func TestFrontendUpdateBackend(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
 	server1 := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("1"))
 	})
@@ -212,49 +265,53 @@ func (s *VESuite) TestFrontendUpdateBackend(c *C) {
 	// Create two different backends
 	b1, srv1, url1 := "bk1", "srv1", server1.URL
 
-	_, err := s.client.Set(s.ctx, s.path("backends", b1, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
+	_, err := client.Put(ctx, path("backends", b1, "backend"),
+		`{"Type": "http"}`)
+	require.NoError(t, err)
 
-	_, err = s.client.Set(s.ctx, s.path("backends", b1, "servers", srv1),
-		fmt.Sprintf(`{"URL": "%s"}`, url1), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b1, "servers", srv1),
+		fmt.Sprintf(`{"URL": "%s"}`, url1))
+	require.NoError(t, err)
 
 	b2, srv2, url2 := "bk2", "srv2", server2.URL
-	_, err = s.client.Set(s.ctx, s.path("backends", b2, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b2, "backend"),
+		`{"Type": "http"}`)
+	require.NoError(t, err)
 
-	_, err = s.client.Set(s.ctx, s.path("backends", b2, "servers", srv2),
-		fmt.Sprintf(`{"URL": "%s"}`, url2), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b2, "servers", srv2),
+		fmt.Sprintf(`{"URL": "%s"}`, url2))
+	require.NoError(t, err)
 
 	// Add frontend inititally pointing to the first backend
 	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
-	url := fmt.Sprintf("%s%s", s.serviceUrl, "/path")
-	response, body, err := testutils.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(body), Equals, "1")
+	url := fmt.Sprintf("%s%s", serviceUrl, "/path")
+	resp, body, err := testutils.Get(url)
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusOK)
+	assert.Equal(t, string(body), "1")
 
 	// Update the backend
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk2", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk2", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
-	response, body, err = testutils.Get(url)
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(body), Equals, "2")
+	resp, body, err = testutils.Get(url)
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusOK)
+	assert.Equal(t, string(body), "2")
 }
 
-func (s *VESuite) TestHTTPListenerCRUD(c *C) {
+func TestHTTPListenerCRUD(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
 	called := false
 	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -263,48 +320,52 @@ func (s *VESuite) TestHTTPListenerCRUD(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
+	_, err := client.Put(ctx, path("backends", b, "backend"),
+		`{"Type": "http"}`)
+	require.NoError(t, err)
 
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
-		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
-	response, _, err := testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusOK)
 
 	// Add HTTP listener
 	l1 := "l1"
 	listener, err := engine.NewListener(l1, "http", "tcp", "localhost:31000", "", "", nil)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	bytes, err := json.Marshal(listener)
-	c.Assert(err, IsNil)
-	s.client.Set(s.ctx, s.path("listeners", l1), string(bytes), nil)
+	require.NoError(t, err)
+	client.Put(ctx, path("listeners", l1), string(bytes))
 
 	time.Sleep(time.Second)
 	_, _, err = testutils.Get(fmt.Sprintf("%s%s", "http://localhost:31000", "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(called, Equals, true)
+	require.NoError(t, err)
+	assert.Equal(t, called, true)
 
-	_, err = s.client.Delete(s.ctx, s.path("listeners", l1), &etcd.DeleteOptions{Recursive: true})
-	c.Assert(err, IsNil)
+	_, err = client.Delete(ctx, path("listeners", l1), etcd.WithPrefix())
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
 
 	_, _, err = testutils.Get(fmt.Sprintf("%s%s", "http://localhost:31000", "/path"))
-	c.Assert(err, NotNil)
+	assert.Error(t, err)
 }
 
-func (s *VESuite) TestHTTPSListenerCRUD(c *C) {
+func TestHTTPSListenerCRUD(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
 	called := false
 	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -313,54 +374,58 @@ func (s *VESuite) TestHTTPSListenerCRUD(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
+	_, err := client.Put(ctx, path("backends", b, "backend"),
+		`{"Type": "http"}`)
+	require.NoError(t, err)
 
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
-		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
-	keyPair := NewTestKeyPair()
+	keyPair := vulcanutils.NewTestKeyPair()
 
-	bytes, err := secret.SealKeyPairToJSON(s.box, keyPair)
-	c.Assert(err, IsNil)
+	bytes, err := secret.SealKeyPairToJSON(box, keyPair)
+	require.NoError(t, err)
 	sealed := base64.StdEncoding.EncodeToString(bytes)
 	host := "localhost"
 
-	_, err = s.client.Set(s.ctx, s.path("hosts", host, "host"),
-		fmt.Sprintf(`{"Name": "localhost", "Settings": {"KeyPair": "%v"}}`, sealed), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("hosts", host, "host"),
+		fmt.Sprintf(`{"Name": "localhost", "Settings": {"KeyPair": "%v"}}`, sealed))
+	require.NoError(t, err)
 
 	// Add HTTPS listener
 	l2 := "ls2"
 	listener, err := engine.NewListener(l2, "https", "tcp", "localhost:32000", "", "", nil)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	bytes, err = json.Marshal(listener)
-	c.Assert(err, IsNil)
-	s.client.Set(s.ctx, s.path("listeners", l2), string(bytes), nil)
+	require.NoError(t, err)
+	client.Put(ctx, path("listeners", l2), string(bytes))
 
 	time.Sleep(time.Second)
 	_, _, err = testutils.Get(fmt.Sprintf("%s%s", "https://localhost:32000", "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(called, Equals, true)
+	require.NoError(t, err)
+	assert.Equal(t, called, true)
 
-	_, err = s.client.Delete(s.ctx, s.path("listeners", l2), &etcd.DeleteOptions{Recursive: true})
-	c.Assert(err, IsNil)
+	_, err = client.Delete(ctx, path("listeners", l2), etcd.WithPrefix())
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
 
 	_, _, err = testutils.Get(fmt.Sprintf("%s%s", "https://localhost:32000", "/path"))
-	c.Assert(err, NotNil)
+	assert.Error(t, err)
 }
 
-func (s *VESuite) TestExpiringServer(c *C) {
+func TestExpiringServer(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
 	server := testutils.NewResponder("e1")
 	defer server.Close()
 
@@ -371,50 +436,57 @@ func (s *VESuite) TestExpiringServer(c *C) {
 	b, url, url2 := "bk1", server.URL, server2.URL
 	srv, srv2 := "s1", "s2"
 
-	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
+	_, err := client.Put(ctx, path("backends", b, "backend"),
+		`{"Type": "http"}`)
+	require.NoError(t, err)
 
 	// This one will stay
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
-		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
 
 	// This one will expire
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv2),
-		fmt.Sprintf(`{"URL": "%s"}`, url2), nil)
-	c.Assert(err, IsNil)
+	lgr, err := client.Grant(ctx, int64(time.Second.Seconds()))
+	require.NoError(t, err)
+
+	_, err = client.Put(ctx, path("backends", b, "servers", srv2),
+		fmt.Sprintf(`{"URL": "%s"}`, url2), etcd.WithLease(lgr.ID))
+	require.NoError(t, err)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
 	time.Sleep(time.Second)
-	responses1 := make(map[string]bool)
+	resps1 := make(map[string]bool)
 	for i := 0; i < 3; i += 1 {
-		response, body, err := testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"))
-		c.Assert(err, IsNil)
-		c.Assert(response.StatusCode, Equals, http.StatusOK)
-		responses1[string(body)] = true
+		resp, body, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+		require.NoError(t, err)
+		assert.Equal(t, resp.StatusCode, http.StatusOK)
+		resps1[string(body)] = true
 	}
-	c.Assert(responses1, DeepEquals, map[string]bool{"e1": true, "e2": true})
+	assert.Equal(t, resps1, map[string]bool{"e1": true, "e2": true})
 
 	// Now the second endpoint should expire
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 4)
 
-	responses2 := make(map[string]bool)
+	resps2 := make(map[string]bool)
 	for i := 0; i < 3; i += 1 {
-		response, body, err := testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"))
-		c.Assert(err, IsNil)
-		c.Assert(response.StatusCode, Equals, http.StatusOK)
-		responses2[string(body)] = true
+		resp, body, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+		require.NoError(t, err)
+		assert.Equal(t, resp.StatusCode, http.StatusOK)
+		resps2[string(body)] = true
 	}
-	c.Assert(responses2, DeepEquals, map[string]bool{"e1": true})
+	assert.Equal(t, map[string]bool{"e1": true}, resps2)
 }
 
-func (s *VESuite) TestBackendUpdateSettings(c *C) {
+func TestBackendUpdateSettings(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
 	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
 		w.Write([]byte("tc: update upstream options"))
@@ -422,114 +494,54 @@ func (s *VESuite) TestBackendUpdateSettings(c *C) {
 	defer server.Close()
 
 	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http", "Settings": {"Timeouts": {"Read":"10ms"}}}`, nil)
-	c.Assert(err, IsNil)
+	_, err := client.Put(ctx, path("backends", b, "backend"),
+		`{"Type": "http", "Settings": {"Timeouts": {"Read":"10ms"}}}`)
+	require.NoError(t, err)
 
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
-		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b, "servers", srv),
+		fmt.Sprintf(`{"URL": "%s"}`, url))
+	require.NoError(t, err)
 
 	// Add frontend
 	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
 
 	// Wait for the changes to take effect
 	time.Sleep(time.Second)
 
 	// Make sure request times out
-	response, _, err := testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusGatewayTimeout)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusGatewayTimeout)
 
 	// Update backend timeout
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http", "Settings": {"Timeouts": {"Read":"100ms"}}}`, nil)
-	c.Assert(err, IsNil)
+	_, err = client.Put(ctx, path("backends", b, "backend"),
+		`{"Type": "http", "Settings": {"Timeouts": {"Read":"100ms"}}}`)
+	require.NoError(t, err)
 
 	// Wait for the changes to take effect
 	time.Sleep(time.Second)
 
-	response, body, err := testutils.Get(fmt.Sprintf("%s%s", s.serviceUrl, "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(response.StatusCode, Equals, http.StatusOK)
-	c.Assert(string(body), Equals, "tc: update upstream options")
+	resp, body, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusOK)
+	assert.Equal(t, string(body), "tc: update upstream options")
 }
 
-func (s *VESuite) TestLiveBinaryUpgrade(c *C) {
-	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello 1"))
-	})
-	defer server.Close()
+func untilConnect(t *testing.T, attempts int, waitTime time.Duration, addr string) {
+	t.Helper()
 
-	b, srv, url := "bk1", "srv1", server.URL
-	_, err := s.client.Set(s.ctx, s.path("backends", b, "backend"),
-		`{"Type": "http"}`, nil)
-	c.Assert(err, IsNil)
-
-	_, err = s.client.Set(s.ctx, s.path("backends", b, "servers", srv),
-		fmt.Sprintf(`{"URL": "%s"}`, url), nil)
-	c.Assert(err, IsNil)
-
-	// Add frontend
-	fId := "fr1"
-	_, err = s.client.Set(s.ctx, s.path("frontends", fId, "frontend"),
-		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`, nil)
-	c.Assert(err, IsNil)
-
-	keyPair := NewTestKeyPair()
-
-	bytes, err := secret.SealKeyPairToJSON(s.box, keyPair)
-	c.Assert(err, IsNil)
-	sealed := base64.StdEncoding.EncodeToString(bytes)
-	host := "localhost"
-
-	_, err = s.client.Set(s.ctx, s.path("hosts", host, "host"),
-		fmt.Sprintf(`{"Name": "localhost", "Settings": {"KeyPair": "%v"}}`, sealed), nil)
-	c.Assert(err, IsNil)
-
-	// Add HTTPS listener
-	l2 := "ls2"
-	listener, err := engine.NewListener(l2, "https", "tcp", "localhost:32000", "", "", nil)
-	c.Assert(err, IsNil)
-	bytes, err = json.Marshal(listener)
-	c.Assert(err, IsNil)
-	s.client.Set(s.ctx, s.path("listeners", l2), string(bytes), nil)
-
-	time.Sleep(time.Second)
-	_, body, err := testutils.Get(fmt.Sprintf("%s%s", "https://localhost:32000", "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "Hello 1")
-
-	pidS, err := exec.Command("pidof", "vulcand").Output()
-	c.Assert(err, IsNil)
-
-	// Find a running vulcand
-	pid, err := strconv.Atoi(strings.TrimSpace(string(pidS)))
-	c.Assert(err, IsNil)
-
-	vulcand, err := os.FindProcess(pid)
-	c.Assert(err, IsNil)
-
-	// Ask vulcand to fork a child
-	vulcand.Signal(syscall.SIGUSR2)
-	time.Sleep(time.Second)
-
-	// Ask parent process to stop
-	vulcand.Signal(syscall.SIGTERM)
-
-	// Make sure the child is running
-	pid2S, err := exec.Command("pidof", "vulcand").Output()
-	c.Assert(err, IsNil)
-	c.Assert(string(pid2S), Not(Equals), "")
-	c.Assert(string(pid2S), Not(Equals), string(pidS))
-
-	time.Sleep(time.Second)
-
-	// Make sure we are still running and responding
-	_, body, err = testutils.Get(fmt.Sprintf("%s%s", "https://localhost:32000", "/path"))
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "Hello 1")
+	for i := 0; i < attempts; i++ {
+		conn, err := net.Dial("tcp", addr)
+		if err != nil {
+			time.Sleep(waitTime)
+			continue
+		}
+		conn.Close()
+		return
+	}
+	t.Errorf("never connected to TCP server at '%s' after %d attempts", addr, attempts)
+	t.FailNow()
 }

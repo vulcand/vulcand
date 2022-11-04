@@ -1,5 +1,6 @@
-// package etcdng contains the implementation of the Etcd-backed engine, where all vulcand properties are implemented as directories or keys.
-// this engine is capable of watching the changes and generating events.
+// Package v2 contains the implementation of the v2 etcd-backed engine, where all
+// Vulcand properties are implemented as directories or keys. this engine is
+// capable of watching the changes and generating events.
 package v2
 
 import (
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	etcd "github.com/coreos/etcd/client"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/vulcand/engine"
@@ -18,6 +18,7 @@ import (
 	"github.com/vulcand/vulcand/plugin"
 	"github.com/vulcand/vulcand/secret"
 	"github.com/vulcand/vulcand/utils/json"
+	etcd "go.etcd.io/etcd/client/v2"
 	"golang.org/x/net/context"
 )
 

@@ -102,7 +102,11 @@ func (c *T) UpsertServer(beSrv backend.Srv) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.beSrvRTMs[beSrv.URLKey()] = BeSrvEntry{beSrv.Cfg(), NewRTMetrics()}
+	// TODO(thrawn01): Memory leak with NewRTMetrics(), the memory issue could
+	// be tied to the underlying libraries, however upgrading to the latest
+	// is non trivial. I'm disabling this feature until there is time to
+	// upgrade the libraries to the latest.
+	//c.beSrvRTMs[beSrv.URLKey()] = BeSrvEntry{beSrv.Cfg(), NewRTMetrics()}
 }
 
 // RemoveServer removes a backend server from the list of servers that it

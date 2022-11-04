@@ -1,10 +1,10 @@
-ETCD_NODES := https://127.0.0.1:2379
+ETCD_NODE := http://localhost:2379
 API_URL := http://localhost:8182
 SERVICE_URL := http://localhost:8181
 PREFIX := /vulcandtest
 SEAL_KEY := 1b727a055500edd9ab826840ce9428dc8bace1c04addc67bbac6b096e25ede4b
 
-ETCD_FLAGS := VULCAND_TEST_ETCD_NODES=${ETCD_NODES} VULCAND_TEST_ETCD_USER=root VULCAND_TEST_ETCD_PASS=rootpw VULCAND_TEST_ETCD_TLS=true
+ETCD_FLAGS := VULCAND_TEST_ETCD_NODES=${ETCD_NODE} VULCAND_TEST_ETCD_USER=root VULCAND_TEST_ETCD_PASS=rootpw VULCAND_TEST_ETCD_TLS=true
 VULCAN_FLAGS := ${ETCD_FLAGS} VULCAND_TEST_ETCD_PREFIX=${PREFIX} VULCAND_TEST_API_URL=${API_URL} VULCAND_TEST_SERVICE_URL=${SERVICE_URL} VULCAND_TEST_SEAL_KEY=${SEAL_KEY}
 
 test: clean
@@ -58,13 +58,10 @@ install: clean
 	cd vbundle && $(MAKE) install && cd ..
 
 run: install
-	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand -sealKey=${SEAL_KEY} -statsdAddr=localhost:8125 -statsdPrefix=vulcan -logSeverity=INFO
-
-run-fast: install
-	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=/vulcand -sealKey=${SEAL_KEY}
+	vulcand -etcd=${ETCD_NODE} -etcdApiVer=3 -etcdKey=/vulcand -logSeverity=INFO
 
 run-test-mode: install
-	vulcand -etcd=${ETCD_NODE1} -etcd=${ETCD_NODE2} -etcd=${ETCD_NODE3} -etcdKey=${PREFIX} -sealKey=${SEAL_KEY} -logSeverity=INFO
+	vulcand -etcd=${ETCD_NODE} -etcdApiVer=3 -etcdKey=${PREFIX} -sealKey=${SEAL_KEY} -logSeverity=INFO
 
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile

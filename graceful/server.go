@@ -156,7 +156,7 @@ func (gs *Server) ListenAndServeTLS(certFile, keyFile string) error {
 	}
 	config := &tls.Config{}
 	if gs.TLSConfig != nil {
-		*config = *gs.TLSConfig
+		config = gs.TLSConfig
 	}
 	if config.NextProtos == nil {
 		// "h2" is required in order to enable HTTP 2: https://golang.org/src/net/http/server.go

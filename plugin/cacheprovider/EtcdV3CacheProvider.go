@@ -3,8 +3,8 @@ package cacheprovider
 import (
 	"context"
 
-	etcd "github.com/coreos/etcd/clientv3"
 	log "github.com/sirupsen/logrus"
+	etcd "go.etcd.io/etcd/client/v3"
 	"golang.org/x/crypto/acme/autocert"
 )
 

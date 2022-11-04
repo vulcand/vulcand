@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mailgun/metrics"
 	"github.com/mailgun/timetools"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -185,7 +184,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 
 	routes := make(map[string]interface{})
 	for _, fes := range ss.FrontendSpecs {
-		feKey := engine.FrontendKey{fes.Frontend.Id}
+		feKey := engine.FrontendKey{Id: fes.Frontend.Id}
 		beEnt, ok := m.backends[engine.BackendKey{Id: fes.Frontend.BackendId}]
 		if !ok {
 			return errors.Errorf("unknown backend %v in frontend %v",
@@ -636,6 +635,9 @@ func (m *mux) processStapleUpdate(e *stapler.StapleUpdated) {
 }
 
 func (m *mux) emitMetrics() error {
+	if m.options.MetricsClient == nil {
+		return nil
+	}
 	c := m.options.MetricsClient
 
 	// Emit connection stats
@@ -841,9 +843,6 @@ func (s muxState) String() string {
 }
 
 func setDefaults(o proxy.Options) proxy.Options {
-	if o.MetricsClient == nil {
-		o.MetricsClient = metrics.NewNop()
-	}
 	if o.TimeProvider == nil {
 		o.TimeProvider = &timetools.RealTime{}
 	}
