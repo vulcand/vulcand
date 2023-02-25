@@ -23,7 +23,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.305.5
 	go.etcd.io/etcd/client/v3 v3.5.5
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
-	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b
+	golang.org/x/net v0.7.0
 	google.golang.org/grpc v1.41.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 )
@@ -59,9 +59,9 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
-	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261 // indirect
-	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce // indirect
