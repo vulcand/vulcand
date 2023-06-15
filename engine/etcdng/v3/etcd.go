@@ -102,7 +102,8 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 			frontendId := frontendIds[1]
 			frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), keyValue.Value, frontendId)
 			if err != nil {
-				return nil, errors.Wrapf(err, "while parsing frontend '%s'", keyValue.Key)
+				log.WithError(err).Warnf("frontend '%s' has invalid config. skipping...", keyValue.Key)
+				continue
 			}
 
 			frontendSpec := engine.FrontendSpec{
@@ -118,7 +119,8 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 					middlewareId := suffix(string(subKeyValue.Key))
 					middleware, err := engine.MiddlewareFromJSON(subKeyValue.Value, n.registry.GetSpec, middlewareId)
 					if err != nil {
-						return nil, errors.Wrapf(err, "while parsing middleware '%s'", keyValue.Key)
+						log.WithError(err).Warnf("middleware '%s' for frontend '%s' has invalid config. skipping...", subKeyValue.Key, keyValue.Key)
+						continue
 					}
 					middlewares = append(middlewares, *middleware)
 				}
@@ -141,7 +143,8 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 			backendId := backendIds[1]
 			backend, err := engine.BackendFromJSON(keyValue.Value, backendId)
 			if err != nil {
-				return nil, errors.Wrapf(err, "while parsing backend '%s'", keyValue.Key)
+				log.WithError(err).Warnf("backend '%s' has invalid config. skipping...", keyValue.Key)
+				continue
 			}
 
 			backendSpec := engine.BackendSpec{
@@ -157,7 +160,8 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 					if serverId := suffix(string(subKeyValue.Key)); suffix(prefix(string(subKeyValue.Key))) == "servers" {
 						server, err := engine.ServerFromJSON(subKeyValue.Value, serverId)
 						if err != nil {
-							return nil, errors.Wrapf(err, "while parsing server '%s'", keyValue.Key)
+							log.WithError(err).Warnf("server '%s' for backend '%s' has invalid config. skipping...", subKeyValue.Key, keyValue.Key)
+							continue
 						}
 						servers = append(servers, *server)
 					}

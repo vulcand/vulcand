@@ -107,6 +107,7 @@ func setUpTest(t *testing.T) (context.Context, context.CancelFunc) {
 		t.Errorf("Unexpected error: %v", err)
 	}
 	_, err = client.Delete(ctx, etcdPrefix, etcd.WithPrefix())
+	require.NoError(t, err)
 
 	// Restart vulcand
 	exec.Command("killall", "vulcand").Run()
@@ -628,6 +629,53 @@ func TestBackendUpdateSettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, resp.StatusCode, http.StatusOK)
 	assert.Equal(t, string(body), "tc: update upstream options")
+}
+
+func TestInvalidConfigDoesNotAbortStartup(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+
+	ctx := context.Background()
+
+	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("I shouldn't be reached"))
+	})
+	defer server.Close()
+
+	// This backend is valid and used purely to avoid other startup issues unrelated to this test
+	_, err := client.Put(ctx, path("backends", "valid", "backend"), `{"Type": "http", "Settings": {}}`)
+	require.NoError(t, err)
+
+	_, err = client.Put(ctx, path("backends", "valid", "servers", "s0"), fmt.Sprintf(`{"URL": "%s"}`, server.URL))
+	require.NoError(t, err)
+
+	// This backend has an invalid ID (empty)
+	_, err = client.Put(ctx, path("backends", "", "backend"), `{"Type": "http", "Settings": {}}`)
+	require.NoError(t, err)
+
+	// This backend has an invalid Type
+	_, err = client.Put(ctx, path("backends", "b0", "backend"), `{"Type": "SuperCoolProtocol", "Settings": {}}`)
+	require.NoError(t, err)
+
+	// This server's URL is absolutely nope
+	_, err = client.Put(ctx, path("backends", "b0", "servers", "s1"), `{"URL": "nope"}`)
+	require.NoError(t, err)
+
+	// This Frontend has an invalid Host()
+	_, err = client.Put(ctx, path("frontends", "f0", "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Host("") && Path(\"/path\")"}`)
+	require.NoError(t, err)
+
+	// Wait for the changes to take effect
+	time.Sleep(time.Second)
+
+	// Start VulcanD after the changes so as to test that we no longer fail startup
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
+	// Route should still not exist
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusNotFound)
 }
 
 func untilConnect(t *testing.T, attempts int, waitTime time.Duration, addr string) {
