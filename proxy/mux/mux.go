@@ -789,9 +789,7 @@ func (m *mux) getHealthCheckServers(opts proxy.HealthCheckOptions) []healthCheck
 	for _, v := range m.backends {
 		p := healthCheckSrv{id: v.backend.Key().Id}
 		_, srv := v.backend.Snapshot()
-		for _, s := range srv {
-			p.srv = append(p.srv, s)
-		}
+		p.srv = append(p.srv, srv...)
 		p.cfg = v.backend.HTTPBackendSettings()
 		if p.cfg.HealthCheckPath == "" {
 			p.cfg.HealthCheckPath = opts.HealthCheckPath
@@ -821,20 +819,18 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 		case <-ticker.C:
 		}
 
-		// TODO: HealthCheckOptions need CLI flags
 		// TODO: Add a test for this situation
-
 		for _, hc := range m.getHealthCheckServers(opts) {
 			var unhealthy []backend.Srv
 			for _, s := range hc.srv {
 				slug := fmt.Sprintf("%s%s", s.URL(), hc.cfg.HealthCheckPath)
 				if _, err := url.Parse(slug); err != nil {
-					log.WithError(err).WithField("url", slug).
+					log.WithError(err).WithFields(log.Fields{"backend-id": hc.id, "url": slug}).
 						Warnf("health check url is invalid; skipping")
 					continue
 				}
 				if err := doCheck(slug, opts); err != nil {
-					log.WithError(err).Warnf("health check failed")
+					log.WithError(err).WithField("backend-id", hc.id).Warnf("health check failed")
 					unhealthy = append(unhealthy, s)
 				}
 
@@ -846,43 +842,55 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 				default:
 				}
 			}
-			// Returns err if we determine enough backend servers have failed to warrant a config reload.
+
+			// We return an error here, so the supervisor can re-init the mux in case the config
+			// watch has failed and isn't receiving backend updates. This would explain
+			// why all the checks are failing. If not, it doesn't hurt anything to re-init
+			// the mux with the latest version of the config from the config engine.
 			if err := shouldFail(opts, hc, unhealthy); err != nil {
-				return err
+				// TODO disabled returning the error to the supervisor as that currently stops the Health Check loop.
+				// For now: log that we hit this point
+				// return err
+				log.WithError(err).WithField("backend-id", hc.id).Warnf("backend has no healthy servers")
 			}
 		}
 	}
 }
 
+// lastUnhealthy is a map of backendId -> time since we noticed all servers were unhealthy
 var lastUnhealthy = make(map[string]time.Time)
 
 func shouldFail(opts proxy.HealthCheckOptions, hc healthCheckSrv, unhealthy []backend.Srv) error {
-	if len(hc.srv) != 0 && (len(hc.srv)/2) < len(unhealthy) {
-		log.WithField("backend-id", hc.id).Warn("half of the backends are un-healthy")
+	// No servers? No unhealthy? No checks needed
+	if len(hc.srv) == 0 || len(unhealthy) == 0 {
 		return nil
 	}
 
 	// If none of the backend servers are healthy
 	if len(hc.srv) == len(unhealthy) {
-		// If this backend has been unhealthy for the configured duration
 		if t, ok := lastUnhealthy[hc.id]; ok {
+			// ..and if this backend has been unhealthy for the configured duration
 			if time.Now().After(t.Add(opts.UnHealthyBackendDuration)) {
-				// We return an error here, so the supervisor can re-init the mux in case the config
-				// watch has failed and isn't receiving backend updates. This would explain
-				// why all the checks are failing. If not, it doesn't hurt anything to re-init
-				// the mux with the latest version of the config from the config engine.
+				delete(lastUnhealthy, hc.id)
 				return fmt.Errorf("backed '%s' is marked as failed; all backend servers have been"+
-					" un-healthy for %s", hc.id, opts.UnHealthyBackendDuration.String())
+					" un-healthy for %s", hc.id, opts.UnHealthyBackendDuration)
 			}
+		} else {
+			// mark now as the last time we noticed all the servers for the backend were unhealthy for subsequent checks
+			log.WithField("backend-id", hc.id).Warnf("Marking backend '%s' as unhealthy at %s", hc.id, time.Now())
+			lastUnhealthy[hc.id] = time.Now()
+			return nil
 		}
-		// mark when last time we noticed all the servers for the backend were unhealthy
-		lastUnhealthy[hc.id] = time.Now()
+	}
+
+	// If at least half of the backend servers are unhealthy, emit a warning for a potentially-growing issue
+	if (len(hc.srv) / 2) < len(unhealthy) {
+		log.WithField("backend-id", hc.id).Warn("half of the backends are un-healthy")
 		return nil
 	}
-	// Backend servers have recovered
-	if _, ok := lastUnhealthy[hc.id]; ok {
-		delete(lastUnhealthy, hc.id)
-	}
+
+	// If we get here, it means backend servers have recovered
+	delete(lastUnhealthy, hc.id)
 	return nil
 }
 
