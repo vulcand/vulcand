@@ -825,7 +825,11 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 			for _, s := range hc.srv {
 				slug := fmt.Sprintf("%s%s", s.URL(), hc.cfg.HealthCheckPath)
 				if _, err := url.Parse(slug); err != nil {
-					log.WithError(err).WithFields(log.Fields{"backend-id": hc.id, "url": slug}).
+					log.WithError(err).
+						WithFields(log.Fields{
+							"backend-id": hc.id,
+							"url":        slug,
+						}).
 						Warnf("'%s' health check url is invalid; skipping", hc.id)
 					continue
 				}
