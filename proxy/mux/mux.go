@@ -826,11 +826,15 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 				slug := fmt.Sprintf("%s%s", s.URL(), hc.cfg.HealthCheckPath)
 				if _, err := url.Parse(slug); err != nil {
 					log.WithError(err).WithFields(log.Fields{"backend-id": hc.id, "url": slug}).
-						Warnf("health check url is invalid; skipping")
+						Warnf("'%s' health check url is invalid; skipping", hc.id)
 					continue
 				}
 				if err := doCheck(slug, opts); err != nil {
-					log.WithError(err).WithField("backend-id", hc.id).Warnf("health check failed")
+					log.WithError(err).
+						WithFields(log.Fields{
+							"backend-id": hc.id,
+							"server-url": s.URL().Host,
+						}).Warnf("'%s' health check failed", hc.id)
 					unhealthy = append(unhealthy, s)
 				}
 
@@ -851,7 +855,9 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 				// TODO disabled returning the error to the supervisor as that currently stops the Health Check loop.
 				// For now: log that we hit this point
 				// return err
-				log.WithError(err).WithField("backend-id", hc.id).Warnf("backend has no healthy servers")
+				log.WithError(err).
+					WithField("backend-id", hc.id).
+					Warnf("'%s' backend has no healthy servers", hc.id)
 			}
 		}
 	}
@@ -885,7 +891,7 @@ func shouldFail(opts proxy.HealthCheckOptions, hc healthCheckSrv, unhealthy []ba
 
 	// If at least half of the backend servers are unhealthy, emit a warning for a potentially-growing issue
 	if (len(hc.srv) / 2) < len(unhealthy) {
-		log.WithField("backend-id", hc.id).Warn("half of the backends are un-healthy")
+		log.WithField("backend-id", hc.id).Warnf("half of the '%s' backends are un-healthy", hc.id)
 		return nil
 	}
 
