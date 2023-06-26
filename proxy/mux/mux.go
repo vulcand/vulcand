@@ -827,6 +827,7 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 				if _, err := url.Parse(slug); err != nil {
 					log.WithError(err).
 						WithFields(log.Fields{
+							"excText":    err.Error(),
 							"backend-id": hc.id,
 							"url":        slug,
 						}).
@@ -836,6 +837,7 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 				if err := doCheck(slug, opts); err != nil {
 					log.WithError(err).
 						WithFields(log.Fields{
+							"excText":    err.Error(),
 							"backend-id": hc.id,
 							"server-url": s.URL().Host,
 						}).Warnf("'%s' health check failed", hc.id)
@@ -860,7 +862,10 @@ func (m *mux) HealthCheckServers(done chan struct{}, opts proxy.HealthCheckOptio
 				// For now: log that we hit this point
 				// return err
 				log.WithError(err).
-					WithField("backend-id", hc.id).
+					WithFields(log.Fields{
+						"excText":    err.Error(),
+						"backend-id": hc.id,
+					}).
 					Warnf("'%s' backend has no healthy servers", hc.id)
 			}
 		}
