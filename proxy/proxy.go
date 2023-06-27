@@ -17,19 +17,6 @@ import (
 	"github.com/vulcand/vulcand/router"
 )
 
-type HealthCheckOptions struct {
-	// The interval at which vulcand will run health checks on the backend servers
-	Interval time.Duration
-	// The path that will be used if no HealthCheckPath is provided by the backend
-	// If no HealthCheckPath provided, HealthCheck is disabled
-	HealthCheckPath string
-	// Timeout is how long the health check should wait for a response
-	Timeout time.Duration
-	// UnHealthyBackendDuration specifies how long we should wait until it marks the
-	// backend as failed, if all the backend servers report unhealthy.
-	UnHealthyBackendDuration time.Duration
-}
-
 type Proxy interface {
 	engine.StatsProvider
 
@@ -64,10 +51,6 @@ type Proxy interface {
 
 	Start() error
 	Stop(wait bool)
-
-	// HealthCheckServers will monitor the backend servers by calling health checks on them
-	// if all backend servers are unhealthy will return with an error.
-	HealthCheckServers(done chan struct{}, opts HealthCheckOptions) error
 }
 
 type Options struct {

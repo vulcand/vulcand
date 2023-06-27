@@ -148,8 +148,7 @@ func (s *Service) Start(controlC chan ControlCode) error {
 	}
 
 	s.stapler = stapler.New()
-	s.supervisor = supervisor.New(s.newProxy, s.ng, supervisor.Options{Files: muxFiles,
-		HealthCheckOptions: s.options.HealthCheckOptions})
+	s.supervisor = supervisor.New(s.newProxy, s.ng, supervisor.Options{Files: muxFiles})
 
 	// Tells configurator to perform initial proxy configuration and start watching changes
 	if err := s.supervisor.Start(); err != nil {

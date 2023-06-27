@@ -50,9 +50,8 @@ type Supervisor struct {
 }
 
 type Options struct {
-	Clock              timetools.TimeProvider
-	Files              []*proxy.FileDescriptor
-	HealthCheckOptions proxy.HealthCheckOptions
+	Clock timetools.TimeProvider
+	Files []*proxy.FileDescriptor
 }
 
 func New(newProxy proxy.NewProxyFn, engine engine.Engine, options Options) *Supervisor {
@@ -251,21 +250,6 @@ func (s *Supervisor) init() error {
 		log.Infof("%v change processor shutdown", newProxy)
 	}()
 
-	if s.options.HealthCheckOptions.HealthCheckPath != "" {
-		s.watcherWg.Add(1)
-		go func() {
-			log.Infof("mux_%d health check start", newMuxId)
-			defer s.watcherWg.Done()
-			// Monitors backend servers until watcherCancelC is closed or backend monitor returns an error
-			if err := newProxy.HealthCheckServers(s.watcherCancelC, s.options.HealthCheckOptions); err != nil {
-				log.Warnf("mux_%d health check returned: '%s' will reload", newMuxId, err)
-				s.watcherErrorC <- struct{}{}
-				return
-			}
-			log.Infof("mux_%d health check shutdown", newMuxId)
-		}()
-	}
-
 	return nil
 }
 
@@ -305,15 +289,6 @@ func (s *Supervisor) run() {
 func setDefaults(o Options) Options {
 	if o.Clock == nil {
 		o.Clock = &timetools.RealTime{}
-	}
-	if o.HealthCheckOptions.Interval == 0 {
-		o.HealthCheckOptions.Interval = 30 * time.Second
-	}
-	if o.HealthCheckOptions.Timeout == 0 {
-		o.HealthCheckOptions.Timeout = 500 * time.Millisecond
-	}
-	if o.HealthCheckOptions.UnHealthyBackendDuration == 0 {
-		o.HealthCheckOptions.UnHealthyBackendDuration = time.Minute
 	}
 	return o
 }

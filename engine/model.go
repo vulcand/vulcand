@@ -413,8 +413,6 @@ type HTTPBackendSettings struct {
 	Timeouts HTTPBackendTimeouts
 	// KeepAlive controls keep-alive settings for backend servers
 	KeepAlive HTTPBackendKeepAlive
-	// HealthCheck path
-	HealthCheckPath string
 	// TLS provides optional TLS settings for HTTP backend
 	TLS *TLSSettings `json:",omitempty"`
 }
@@ -424,7 +422,6 @@ func (s *HTTPBackendSettings) Equals(o HTTPBackendSettings) bool {
 		s.Timeouts.Dial == o.Timeouts.Dial &&
 		s.Timeouts.TLSHandshake == o.Timeouts.TLSHandshake &&
 		s.KeepAlive.Period == o.KeepAlive.Period &&
-		s.HealthCheckPath == o.HealthCheckPath &&
 		s.KeepAlive.MaxIdleConnsPerHost == o.KeepAlive.MaxIdleConnsPerHost &&
 		((s.TLS == nil && o.TLS == nil) ||
 			((s.TLS != nil && o.TLS != nil) && s.TLS.Equals(o.TLS)))
