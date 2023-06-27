@@ -104,7 +104,7 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 			if err != nil {
 				log.WithError(err).
 					WithFields(log.Fields{
-						"excText":     err.Error(),
+						"excValue":    err.Error(),
 						"frontend-id": frontendId,
 					}).
 					Warnf("frontend '%s' has invalid config. skipping...", keyValue.Key)
@@ -126,7 +126,7 @@ func (n *ng) parseFrontends(keyValues []*mvccpb.KeyValue, skipMiddlewares ...boo
 					if err != nil {
 						log.WithError(err).
 							WithFields(log.Fields{
-								"excText":       err.Error(),
+								"excValue":      err.Error(),
 								"frontend-id":   frontendId,
 								"middleware-id": middlewareId,
 							}).
@@ -156,7 +156,7 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 			if err != nil {
 				log.WithError(err).
 					WithFields(log.Fields{
-						"excText":    err.Error(),
+						"excValue":   err.Error(),
 						"backend-id": backendId,
 					}).
 					Warnf("backend '%s' has invalid config. skipping...", keyValue.Key)
@@ -178,7 +178,7 @@ func (n *ng) parseBackends(keyValues []*mvccpb.KeyValue, skipServers ...bool) ([
 						if err != nil {
 							log.WithError(err).
 								WithFields(log.Fields{
-									"excText":    err.Error(),
+									"excValue":   err.Error(),
 									"backend-id": backendId,
 									"server-id":  serverId,
 								}).
