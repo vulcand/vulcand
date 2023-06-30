@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -28,11 +29,12 @@ func (e *StdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request, err err
 		} else {
 			statusCode = http.StatusBadGateway
 		}
-	} else if err == io.EOF {
+	} else if errors.Is(err, io.EOF) {
 		statusCode = http.StatusBadGateway
-	} else if err == context.Canceled {
+	} else if errors.Is(err, context.Canceled) {
 		statusCode = utils.StatusClientClosedRequest
 	} else if err.Error() == "no servers in the pool" {
+		// TODO update once vulcand/oxy swaps this to a sentinel error
 		statusCode = http.StatusServiceUnavailable
 		if logLimiter.Allow() {
 			log.WithFields(log.Fields{
