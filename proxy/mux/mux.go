@@ -157,7 +157,7 @@ func (m *mux) Init(ss engine.Snapshot) error {
 				log.WithFields(log.Fields{
 					"server-id": beSrvCfg.Id,
 					"url":       beSrvCfg.URL,
-					"err":       err,
+					"excValue":  err.Error(),
 				}).Warnf("invalid server config for backend; skipping")
 				continue
 			}
