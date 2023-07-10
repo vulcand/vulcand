@@ -14,7 +14,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func TestEtcd(t *testing.T) { TestingT(t) }
+func TestEtcdV3(t *testing.T) { TestingT(t) }
 
 type EtcdSuite struct {
 	ng          *ng

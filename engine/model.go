@@ -361,11 +361,11 @@ func (f *Frontend) HTTPSettings() HTTPFrontendSettings {
 }
 
 func (l HTTPFrontendSettings) Equals(o HTTPFrontendSettings) bool {
-	return (l.Limits.MaxMemBodyBytes == o.Limits.MaxMemBodyBytes &&
+	return l.Limits.MaxMemBodyBytes == o.Limits.MaxMemBodyBytes &&
 		l.Limits.MaxBodyBytes == o.Limits.MaxBodyBytes &&
 		l.FailoverPredicate == o.FailoverPredicate &&
 		l.Hostname == o.Hostname &&
-		l.TrustForwardHeader == o.TrustForwardHeader)
+		l.TrustForwardHeader == o.TrustForwardHeader
 }
 
 func (f *Frontend) String() string {

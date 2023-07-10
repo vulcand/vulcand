@@ -122,7 +122,8 @@ func (s *Service) Start(controlC chan ControlCode) error {
 		s.metricsClient = s.options.MetricsClient
 	} else if s.options.StatsdAddr != "" {
 		var err error
-		s.metricsClient, err = metrics.NewWithOptions(s.options.StatsdAddr, s.options.StatsdPrefix, metrics.Options{UseBuffering: true})
+		s.metricsClient, err = metrics.NewWithOptions(s.options.StatsdAddr,
+			s.options.StatsdPrefix, metrics.Options{UseBuffering: true})
 		if err != nil {
 			return err
 		}

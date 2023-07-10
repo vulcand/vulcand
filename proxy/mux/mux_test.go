@@ -1082,7 +1082,7 @@ func (s *ServerSuite) TestNoBackendServers(c *C) {
 
 	// Then
 	c.Assert(err, IsNil)
-	c.Assert(rs.StatusCode, Equals, http.StatusInternalServerError)
+	c.Assert(rs.StatusCode, Equals, http.StatusServiceUnavailable)
 }
 
 func (s *ServerSuite) TestCustomNotFound(c *C) {

@@ -32,7 +32,7 @@ type Engine interface {
 	GetListeners() ([]Listener, error)
 	// GetListener returns a listener by key or engine.NotFoundError if it's not found
 	GetListener(ListenerKey) (*Listener, error)
-	// Updates or inserts a new listener, Listener.Id should not be empty
+	// UpsertListener updates or inserts a new listener, Listener.Id should not be empty
 	UpsertListener(Listener) error
 	// DeleteListener deletes a listener by key, returns engine.NotFoundError if it's not found
 	DeleteListener(ListenerKey) error
@@ -55,7 +55,7 @@ type Engine interface {
 	GetMiddleware(MiddlewareKey) (*Middleware, error)
 	// UpsertMiddleware updates or inserts a middleware for a frontend. FrontendKey.Id and Middleware.Id should not be empty
 	UpsertMiddleware(FrontendKey, Middleware, time.Duration) error
-	// Delete middleware by given key, returns engine.NotFoundError if it's not found
+	// DeleteMiddleware by given key, returns engine.NotFoundError if it's not found
 	DeleteMiddleware(MiddlewareKey) error
 
 	// GetBackends returns list of registered backends. Returns empty list if there are no backends

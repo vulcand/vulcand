@@ -102,7 +102,8 @@ func (n *ng) parseFrontends(node *etcd.Node, skipMiddlewares ...bool) ([]engine.
 			case "frontend":
 				frontend, err := engine.FrontendFromJSON(n.registry.GetRouter(), []byte(node.Value), frontendId)
 				if err != nil {
-					return nil, errors.Wrapf(err, "while parsing frontend '%s'", node.Key)
+					log.WithError(err).Warnf("frontend '%s' has invalid config. skipping...", node.Key)
+					continue
 				}
 				frontendSpecs[idx].Frontend = *frontend
 			case "middlewares":
@@ -110,11 +111,12 @@ func (n *ng) parseFrontends(node *etcd.Node, skipMiddlewares ...bool) ([]engine.
 					break
 				}
 				middlewares := make([]engine.Middleware, len(node.Nodes))
-				for idx, node := range node.Nodes {
-					middlewareId := suffix(node.Key)
-					middleware, err := engine.MiddlewareFromJSON([]byte(node.Value), n.registry.GetSpec, middlewareId)
+				for idx, mwNode := range node.Nodes {
+					middlewareId := suffix(mwNode.Key)
+					middleware, err := engine.MiddlewareFromJSON([]byte(mwNode.Value), n.registry.GetSpec, middlewareId)
 					if err != nil {
-						return nil, errors.Wrapf(err, "while parsing middleware '%s'", node.Key)
+						log.WithError(err).Warnf("middleware '%s' for frontend '%s' has invalid config. skipping...", mwNode.Key, node.Key)
+						continue
 					}
 					middlewares[idx] = *middleware
 				}
@@ -137,7 +139,8 @@ func (n *ng) parseBackends(node *etcd.Node, skipServers ...bool) ([]engine.Backe
 			case "backend":
 				backend, err := engine.BackendFromJSON([]byte(node.Value), backendId)
 				if err != nil {
-					return nil, errors.Wrapf(err, "while parsing backend '%s'", node.Key)
+					log.WithError(err).Warnf("backend '%s' has invalid config. skipping...", node.Key)
+					continue
 				}
 				backendSpecs[idx].Backend = *backend
 			case "servers":
@@ -145,11 +148,12 @@ func (n *ng) parseBackends(node *etcd.Node, skipServers ...bool) ([]engine.Backe
 					break
 				}
 				servers := make([]engine.Server, len(node.Nodes))
-				for idx, node := range node.Nodes {
-					serverId := suffix(node.Key)
-					server, err := engine.ServerFromJSON([]byte(node.Value), serverId)
+				for idx, srvNode := range node.Nodes {
+					serverId := suffix(srvNode.Key)
+					server, err := engine.ServerFromJSON([]byte(srvNode.Value), serverId)
 					if err != nil {
-						return nil, errors.Wrapf(err, "while parsing server '%s'", node.Key)
+						log.WithError(err).Warnf("server '%s' for backend '%s' has invalid config. skipping...", srvNode.Key, node.Key)
+						continue
 					}
 					servers[idx] = *server
 				}

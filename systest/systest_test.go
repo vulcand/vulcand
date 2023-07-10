@@ -107,6 +107,7 @@ func setUpTest(t *testing.T) (context.Context, context.CancelFunc) {
 		t.Errorf("Unexpected error: %v", err)
 	}
 	_, err = client.Delete(ctx, etcdPrefix, etcd.WithPrefix())
+	require.NoError(t, err)
 
 	// Restart vulcand
 	exec.Command("killall", "vulcand").Run()
@@ -114,7 +115,7 @@ func setUpTest(t *testing.T) (context.Context, context.CancelFunc) {
 	args := []string{
 		fmt.Sprintf("--etcdKey=%s", etcdPrefix),
 		fmt.Sprintf("--sealKey=%s", sealKey),
-		"--logSeverity=INFO",
+		"--logSeverity=DEBUG",
 	}
 	for _, n := range etcdNodes {
 		args = append(args, fmt.Sprintf("-etcd=%s", n))
@@ -202,6 +203,106 @@ func TestFrontendPathParam(t *testing.T) {
 	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path/paul@beatles.com"))
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, called, true)
+}
+
+func TestNoBackendServers(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
+	called := false
+	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server.Close()
+
+	// Create a server
+	b := "bk1"
+
+	_, err := client.Put(ctx, path("backends", b, "backend"), `{"Type": "http"}`)
+	require.NoError(t, err)
+
+	// Add frontend
+	fId := "fr1"
+	_, err = client.Put(ctx, path("frontends", fId, "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")"}`)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	assert.Equal(t, called, false)
+
+	// We do this to visually test the log rate limiter
+	// Should see `level=warning msg="request failed with 503; the backend has no servers" log-limiter=9 url=/path`
+	// in the logs until log-limiter=0 then only allows that log entry
+	for i := 0; i < 20; i++ {
+		resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		assert.Equal(t, called, false)
+	}
+	time.Sleep(time.Second * 2)
+	for i := 0; i < 20; i++ {
+		resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		assert.Equal(t, called, false)
+	}
+}
+
+func TestUnhealthyServers(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
+	var called bool
+	server1 := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Write([]byte("Hi, I'm fine, thanks!"))
+	})
+	defer server1.Close()
+
+	server2 := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Hi, I'm not fine, thanks!"))
+	})
+	defer server2.Close()
+
+	_, err := client.Put(ctx, path("backends", "bk1", "backend"), `{"Type": "http"}`)
+	require.NoError(t, err)
+
+	// The good server
+	_, err = client.Put(ctx, path("backends", "bk1", "servers", "srv1"), fmt.Sprintf(`{"URL": "%s"}`, server1.URL))
+	require.NoError(t, err)
+
+	// This server only returns 500s
+	_, err = client.Put(ctx, path("backends", "bk1", "servers", "srv2"), fmt.Sprintf(`{"URL": "%s"}`, server2.URL))
+	require.NoError(t, err)
+
+	// This server doesn't exist
+	_, err = client.Put(ctx, path("backends", "bk1", "servers", "srv3"), `{"URL": "http://127.0.0.1:8675"}`)
+	require.NoError(t, err)
+
+	// Add frontend
+	_, err = client.Put(ctx, path("frontends", "fr1", "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Path(\"/path\")", `+
+			`"Settings": {"FailoverPredicate": "(ResponseCode() == 502 && Attempts() < 20) || (ResponseCode() == 500 && Attempts() < 3)"}}`)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+
+	for i := 0; i < 10; i++ {
+		resp, _, err = testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, called, true)
+	}
 	assert.Equal(t, called, true)
 }
 
@@ -528,6 +629,53 @@ func TestBackendUpdateSettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, resp.StatusCode, http.StatusOK)
 	assert.Equal(t, string(body), "tc: update upstream options")
+}
+
+func TestInvalidConfigDoesNotAbortStartup(t *testing.T) {
+	defer exec.Command("killall", "vulcand").Output()
+
+	ctx := context.Background()
+
+	server := testutils.NewHandler(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("I shouldn't be reached"))
+	})
+	defer server.Close()
+
+	// This backend is valid and used purely to avoid other startup issues unrelated to this test
+	_, err := client.Put(ctx, path("backends", "valid", "backend"), `{"Type": "http", "Settings": {}}`)
+	require.NoError(t, err)
+
+	_, err = client.Put(ctx, path("backends", "valid", "servers", "s0"), fmt.Sprintf(`{"URL": "%s"}`, server.URL))
+	require.NoError(t, err)
+
+	// This backend has an invalid ID (empty)
+	_, err = client.Put(ctx, path("backends", "", "backend"), `{"Type": "http", "Settings": {}}`)
+	require.NoError(t, err)
+
+	// This backend has an invalid Type
+	_, err = client.Put(ctx, path("backends", "b0", "backend"), `{"Type": "SuperCoolProtocol", "Settings": {}}`)
+	require.NoError(t, err)
+
+	// This server's URL is absolutely nope
+	_, err = client.Put(ctx, path("backends", "b0", "servers", "s1"), `{"URL": "nope"}`)
+	require.NoError(t, err)
+
+	// This Frontend has an invalid Host()
+	_, err = client.Put(ctx, path("frontends", "f0", "frontend"),
+		`{"Type": "http", "BackendId": "bk1", "Route": "Host("") && Path(\"/path\")"}`)
+	require.NoError(t, err)
+
+	// Wait for the changes to take effect
+	time.Sleep(time.Second)
+
+	// Start VulcanD after the changes so as to test that we no longer fail startup
+	ctx, cancel := setUpTest(t)
+	defer cancel()
+
+	// Route should still not exist
+	resp, _, err := testutils.Get(fmt.Sprintf("%s%s", serviceUrl, "/path"))
+	require.NoError(t, err)
+	assert.Equal(t, resp.StatusCode, http.StatusNotFound)
 }
 
 func untilConnect(t *testing.T, attempts int, waitTime time.Duration, addr string) {

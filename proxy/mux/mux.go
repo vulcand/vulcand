@@ -154,7 +154,12 @@ func (m *mux) Init(ss engine.Snapshot) error {
 		for i, beSrvCfg := range bes.Servers {
 			beSrv, err := backend.NewServer(beSrvCfg)
 			if err != nil {
-				return errors.Wrapf(err, "bad server config %v", beSrvCfg.Id)
+				log.WithFields(log.Fields{
+					"server-id": beSrvCfg.Id,
+					"url":       beSrvCfg.URL,
+					"excValue":  err.Error(),
+				}).Warnf("invalid server config for backend; skipping")
+				continue
 			}
 			beSrvs[i] = beSrv
 		}

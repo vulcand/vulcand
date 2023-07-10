@@ -170,12 +170,13 @@ func (s *Supervisor) init() error {
 		defer s.watcherWg.Done()
 		defer close(changesC)
 		if err := s.engine.Subscribe(changesC, snapshot.Index, s.watcherCancelC); err != nil {
-			log.Infof("mux_%d engine watcher failed: '%v' will restart", newMuxId, err)
+			log.Warnf("mux_%d engine watcher failed: '%v' will restart", newMuxId, err)
 			s.watcherErrorC <- struct{}{}
 			return
 		}
 		log.Infof("nux_%d engine watcher shutdown", newMuxId)
 	}()
+
 	// Make sure watcher goroutine is stopped if initialization fails.
 	defer func() {
 		if cancelWatcher {
@@ -194,8 +195,8 @@ func (s *Supervisor) init() error {
 	}
 	log.Infof("%v initial setup done, took=%v", newProxy, time.Now().Sub(checkpoint))
 
-	// If it is initialization on process sturtup then take over files from the
-	// parrent process if any.
+	// If it is initialization on process startup then take over files from the
+	// parent process if any.
 	if s.lastId == 1 && len(s.options.Files) != 0 {
 		log.Infof("Passing files %v to %v", s.options.Files, newProxy)
 		if err := newProxy.TakeFiles(s.options.Files); err != nil {
@@ -248,6 +249,7 @@ func (s *Supervisor) init() error {
 		}
 		log.Infof("%v change processor shutdown", newProxy)
 	}()
+
 	return nil
 }
 
